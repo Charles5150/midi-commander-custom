@@ -1,14 +1,26 @@
 GLOBAL_SETTINGS_CHANNEL = 0
 GLOBAL_SETTINGS_REALTIME_PASS = 1
-
+GLOBAL_SETTINGS_EXP1_CC = 2
+GLOBAL_SETTINGS_EXP2_CC = 3
 
 def pack_global_settings(df):
-    # global settings will be 32 bytes long (bit of pluck as to how much is
-    # needed out of the 128 bytes)
+    # global settings will be 32 bytes long
     bin_list = [0] * 16
     bin_list[GLOBAL_SETTINGS_CHANNEL] = int(df.loc["MIDI_Channel", "Value"]) & 0xF
     if "Y" in df.loc["RealTime_Passthrough", "Value"]:
         bin_list[GLOBAL_SETTINGS_REALTIME_PASS] = 0x1
+    
+    # Pack Expression Pedal CC numbers if present in CSV
+    if "Exp1_CC" in df.index:
+        bin_list[GLOBAL_SETTINGS_EXP1_CC] = int(df.loc["Exp1_CC", "Value"]) & 0x7F
+    else:
+        bin_list[GLOBAL_SETTINGS_EXP1_CC] = 11 # Default to CC 11 if missing
+
+    if "Exp2_CC" in df.index:
+        bin_list[GLOBAL_SETTINGS_EXP2_CC] = int(df.loc["Exp2_CC", "Value"]) & 0x7F
+    else:
+        bin_list[GLOBAL_SETTINGS_EXP2_CC] = 4  # Default to CC 4 if missing
+
     # print('{:8.8}'.format(df.loc['ConfigName'].Value))
     bin_list += ("{:16.16}".format(df.loc["ConfigName"].Value)).encode("ASCII")
 

@@ -28,8 +28,9 @@ ALLOWED_NUM_FLASH_PAGES = 3
 def main(args: argparse.Namespace):
     # The mido module defines its symbols in a dynamic way that doesn't allow
     # type checking. So we have to ignore these lines from type checking.
-    midi_inputs = [x for x in mido.get_input_names() if "STM" in x]  # type: ignore
-    midi_outputs = [x for x in mido.get_output_names() if "STM" in x]  # type: ignore
+    # Updated to detect both original (STM) and Custom firmware names
+    midi_inputs = [x for x in mido.get_input_names() if "STM" in x or "MIDI Commander" in x] 
+    midi_outputs = [x for x in mido.get_output_names() if "STM" in x or "MIDI Commander" in x]
 
     if len(midi_inputs) == 0:
         print("no input found")
@@ -112,8 +113,17 @@ def main(args: argparse.Namespace):
 
     # File is now converted to a byte array, this will be loaded to the flash.
 
-    inport = mido.open_input(midi_inputs[0])  # type: ignore
-    outport = mido.open_output(midi_outputs[0])  # type: ignore
+    try:
+        inport = mido.open_input(midi_inputs[0])  # type: ignore
+        outport = mido.open_output(midi_outputs[0])  # type: ignore
+    except Exception as e:
+        print(f"\n[ERROR] Could not open MIDI port: {e}")
+        print("-" * 60)
+        print("  Reason: The MIDI device is likely being used by another application.")
+        print("  Solution: 1. Close all music software (DAWs, Chrome, etc).")
+        print("            2. UNPLUG and REPLUG the Midi Commander USB cable.")
+        print("-" * 60)
+        sys.exit(1)
 
     # Erase Flash settings pages
     print("Erasing Flash Settings")

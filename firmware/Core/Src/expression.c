@@ -30,7 +30,7 @@ extern ADC_HandleTypeDef hadc1;
 
 static const uint32_t kExpChannels[EXP_PEDAL_COUNT] = {ADC_CHANNEL_7, ADC_CHANNEL_8};
 extern uint8_t f_sys_config_complete;
-static const uint8_t kExpCcNumbers[EXP_PEDAL_COUNT] = {11U, 4U};
+static uint8_t gExpCcNumbers[EXP_PEDAL_COUNT] = {11U, 4U};
 
 static uint8_t last_sent_midi[EXP_PEDAL_COUNT];
 static uint32_t last_stable_adc[EXP_PEDAL_COUNT];
@@ -124,6 +124,16 @@ static uint8_t expression_adc_to_midi(uint32_t sample)
 
 void expression_init(void)
 {
+  // Load CC numbers from Global Settings if available (Offset 2 and 3)
+  if (pGlobalSettings != NULL) {
+      if (pGlobalSettings[2] != 0 && pGlobalSettings[2] <= 127) {
+          gExpCcNumbers[0] = pGlobalSettings[2];
+      }
+      if (pGlobalSettings[3] != 0 && pGlobalSettings[3] <= 127) {
+          gExpCcNumbers[1] = pGlobalSettings[3];
+      }
+  }
+
   for (uint32_t i = 0; i < EXP_PEDAL_COUNT; i++) {
     last_sent_midi[i] = 0xFFU;
     last_stable_adc[i] = 0;
@@ -201,7 +211,7 @@ void expression_task(void)
       uint8_t midi_value = expression_adc_to_midi(filtered);
       
       if (last_sent_midi[i] != midi_value) {
-          if (midiCmd_send_cc(channel, kExpCcNumbers[i], midi_value) != ERROR_BUFFERS_FULL) {
+          if (midiCmd_send_cc(channel, gExpCcNumbers[i], midi_value) != ERROR_BUFFERS_FULL) {
               last_sent_midi[i] = midi_value;
           }
       }
@@ -252,7 +262,7 @@ void expression_task(void)
       uint8_t midi_value = expression_adc_to_midi(filtered);
       
       if (last_sent_midi[i] != midi_value) {
-          if (midiCmd_send_cc(channel, kExpCcNumbers[i], midi_value) != ERROR_BUFFERS_FULL) {
+          if (midiCmd_send_cc(channel, gExpCcNumbers[i], midi_value) != ERROR_BUFFERS_FULL) {
               last_sent_midi[i] = midi_value;
           }
       }
