@@ -9,7 +9,7 @@
 // --- Configuration ---
 // Set these to 1 to enable the pedal, 0 to disable
 #define ENABLE_EXP_PEDAL_1     (1U)
-#define ENABLE_EXP_PEDAL_2     (0U)
+#define ENABLE_EXP_PEDAL_2     (1U)
 
 // Adaptive Filter Configuration
 #define EXP_ADAPTIVE_MIN_ALPHA (5U)   // Strong smoothing when still (0-100)
@@ -37,12 +37,33 @@ static uint32_t last_stable_adc[EXP_PEDAL_COUNT];
 static uint32_t ema_adc_value[EXP_PEDAL_COUNT]; 
 static uint32_t next_process_tick = 0U;
 
-// ... (delay_cycles, read_adc_channel_pro, midi_channel, expression_adc_to_midi are same) ...
+// Helper to switch GPIO mode efficiently
+// PA7 (EXP1) -> ADC12_IN7
+// PB0 (EXP2) -> ADC12_IN8
+static void set_pin_analog(uint32_t channel) {
+    if (channel == ADC_CHANNEL_7) {
+        // PA7: CRL bits 28-31. Clear to 0000 (Analog)
+        GPIOA->CRL &= ~(0xF << 28);
+    } else if (channel == ADC_CHANNEL_8) {
+        // PB0: CRL bits 0-3. Clear to 0000 (Analog)
+        GPIOB->CRL &= ~(0xF << 0);
+    }
+}
 
-// IMPORTANT: Keep read_adc_channel_pro and other helpers as they were.
-// I will only replace the 'expression_task' and config section here to be safe.
-// Assuming helper functions are preserved in the file context or I should re-declare them if needed.
-// To be safe, I will output the WHOLE expression.c logic again with helpers.
+static void set_pin_pulldown(uint32_t channel) {
+    if (channel == ADC_CHANNEL_7) {
+        // PA7: Input with Pull-up/down (1000 -> 0x8)
+        // MODE=00 (Input), CNF=10 (PushPull/PullUp-Down)
+        GPIOA->CRL &= ~(0xF << 28); // Clear
+        GPIOA->CRL |=  (0x8 << 28); // Set CNF=10
+        GPIOA->ODR &= ~GPIO_PIN_7;  // ODR=0 -> Pull Down
+    } else if (channel == ADC_CHANNEL_8) {
+        // PB0
+        GPIOB->CRL &= ~(0xF << 0);
+        GPIOB->CRL |=  (0x8 << 0);
+        GPIOB->ODR &= ~GPIO_PIN_0;  // ODR=0 -> Pull Down
+    }
+}
 
 static void delay_cycles(uint32_t cycles) {
     volatile uint32_t c = cycles;
@@ -51,6 +72,9 @@ static void delay_cycles(uint32_t cycles) {
 
 static uint32_t read_adc_channel_pro(uint32_t channel)
 {
+  // 1. Switch Pin to Analog Mode (Connect to ADC)
+  set_pin_analog(channel);
+
   ADC_ChannelConfTypeDef sConfig = {0};
   sConfig.Channel = channel;
   sConfig.Rank = ADC_REGULAR_RANK_1;
@@ -58,15 +82,15 @@ static uint32_t read_adc_channel_pro(uint32_t channel)
 
   if (HAL_ADC_ConfigChannel(EXP_ADC_HANDLE, &sConfig) != HAL_OK) return 0;
   
-  delay_cycles(1000); 
+  // Wait for pin voltage to settle after switching from Pull-Down
+  // Pull-down might have drained the capacitor, so we need recovery time.
+  // Increased delay drastically to 50000 (approx 1ms) to ensure full rise
+  delay_cycles(50000); 
 
   HAL_ADC_Start(EXP_ADC_HANDLE);
   HAL_ADC_PollForConversion(EXP_ADC_HANDLE, 2);
   __HAL_ADC_CLEAR_FLAG(EXP_ADC_HANDLE, ADC_FLAG_EOC);
 
-  // Still oversample, but maybe less count to fit in 1ms? 
-  // 32 samples * 25us = 800us. It fits in 1ms tight. 
-  // Let's reduce oversample count slightly for speed (16x).
   uint32_t accumulator = 0;
   for (uint32_t i = 0; i < 16; i++) {
       HAL_ADC_Start(EXP_ADC_HANDLE);
@@ -75,6 +99,9 @@ static uint32_t read_adc_channel_pro(uint32_t channel)
       }
   }
   HAL_ADC_Stop(EXP_ADC_HANDLE);
+
+  // 2. Switch Pin back to Pull-Down (Discharge / Prevent Float)
+  set_pin_pulldown(channel);
 
   return accumulator / 16;
 }
@@ -101,6 +128,9 @@ void expression_init(void)
     last_sent_midi[i] = 0xFFU;
     last_stable_adc[i] = 0;
     ema_adc_value[i] = 0;
+    
+    // Init pins to Pull-Down to prevent floating
+    set_pin_pulldown(kExpChannels[i]); 
   }
   next_process_tick = 0U;
 }
@@ -180,6 +210,52 @@ void expression_task(void)
 
   // --- Rank 2 Processing (EXP2) ---
   #if (ENABLE_EXP_PEDAL_2 == 1)
-  // ... (Code for EXP2 is disabled by preprocessor, so we can leave it empty or clone logic if needed later)
+  {
+      uint32_t i = 1;
+      uint32_t raw_avg = read_adc_channel_pro(kExpChannels[i]);
+      
+      // Init
+      if (last_sent_midi[i] == 0xFFU) {
+          ema_adc_value[i] = raw_avg; 
+      }
+
+      // --- Adaptive Filter Logic ---
+      uint32_t diff_raw;
+      if (raw_avg > ema_adc_value[i]) diff_raw = raw_avg - ema_adc_value[i];
+      else diff_raw = ema_adc_value[i] - raw_avg;
+
+      // Determine Alpha based on movement speed
+      uint32_t alpha;
+      if (diff_raw > EXP_FAST_MOVE_THRESHOLD) {
+          alpha = EXP_ADAPTIVE_MAX_ALPHA; 
+      } else {
+          alpha = EXP_ADAPTIVE_MIN_ALPHA;
+      }
+
+      // Apply EMA
+      ema_adc_value[i] = (uint32_t)((alpha * raw_avg + (100 - alpha) * ema_adc_value[i]) / 100);
+      
+      // Hysteresis
+      uint32_t filtered = ema_adc_value[i];
+      uint32_t diff = (filtered > last_stable_adc[i]) ? (filtered - last_stable_adc[i]) : (last_stable_adc[i] - filtered);
+      
+      // Match deadzones with map function (with slight safe margin)
+      bool at_min = (filtered < 90U); 
+      bool at_max = (filtered > 3890U); 
+
+      if (diff >= EXP_HYSTERESIS || at_min || at_max) {
+          last_stable_adc[i] = filtered;
+      } else {
+          filtered = last_stable_adc[i];
+      }
+
+      uint8_t midi_value = expression_adc_to_midi(filtered);
+      
+      if (last_sent_midi[i] != midi_value) {
+          if (midiCmd_send_cc(channel, kExpCcNumbers[i], midi_value) != ERROR_BUFFERS_FULL) {
+              last_sent_midi[i] = midi_value;
+          }
+      }
+  }
   #endif
 }
