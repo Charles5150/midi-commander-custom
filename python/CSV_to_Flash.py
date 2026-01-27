@@ -34,10 +34,17 @@ def main(args: argparse.Namespace):
 
     if len(midi_inputs) == 0:
         print("no input found")
+        # Instead of exit, we can raise exception if called from GUI? 
+        # But keeping exit for CLI compatibility is fine, GUI will catch it if we propagate exceptions.
+        # For now, let's allow it to exit, but GUI import needs care.
+        if getattr(args, 'gui_mode', False):
+            raise Exception("No MIDI Input Found (Device disconnected or busy)")
         exit(1)
 
     if len(midi_outputs) == 0:
         print("no outputs found")
+        if getattr(args, 'gui_mode', False):
+            raise Exception("No MIDI Output Found")
         exit(1)
 
     inputFile = args.csv_file
@@ -69,15 +76,25 @@ def main(args: argparse.Namespace):
         else:
             end_line = title_lines[i + 1][1]
         frame_lines = no_comments[start_line:end_line]
-        df = pd.read_csv(io.StringIO("\n".join(frame_lines)), delimiter=",").dropna(
-            how="all"
-        )
-        df.drop(
-            df.columns[df.columns.str.contains("unnamed", case=False)],
-            axis=1,
-            inplace=True,
-        )
-        df_dic[tline[0].strip()] = df
+        
+        # Clean up trailing commas
+        cleaned_lines = [ln.rstrip().rstrip(',') for ln in frame_lines]
+        csv_data = "\n".join(cleaned_lines)
+        if not csv_data.strip():
+            continue
+
+        try:
+            df = pd.read_csv(io.StringIO(csv_data), delimiter=",", header=0, engine='python').dropna(how="all")
+            df.drop(
+                df.columns[df.columns.str.contains("unnamed", case=False)],
+                axis=1,
+                inplace=True,
+            )
+            df_dic[tline[0].strip()] = df
+        except Exception as e:
+            print(f"Error parsing section {tline[0]}: {e}")
+            if getattr(args, 'gui_mode', False):
+                raise e
 
     # Setup the columns in the Button_Settings table
     df_dic["Button_Settings"].set_index(
@@ -106,10 +123,11 @@ def main(args: argparse.Namespace):
             "allowed"
         )
 
-    ans = input("Continue? (y/N) ").lower().strip()
-
-    if ans != "y":
-        sys.exit(1)
+    # Skip confirmation if flag is set
+    if not getattr(args, 'yes', False):
+        ans = input("Continue? (y/N) ").lower().strip()
+        if ans != "y":
+            sys.exit(1)
 
     # File is now converted to a byte array, this will be loaded to the flash.
 
@@ -176,6 +194,11 @@ if __name__ == "__main__":
     p.add_argument(
         "csv_file",
         help="Path to a CSV file downloaded from the Google Spreadsheet configuration",
+    )
+    p.add_argument(
+        "--yes", "-y",
+        action="store_true",
+        help="Skip confirmation prompt",
     )
     args = p.parse_args()
     main(args)
