@@ -28,28 +28,6 @@ Three LED behaviors are now available for each button:
 
 ---
 
-## Installation
-
-### Requirements
-- Python 3.x
-- `dfu-util`
-
-### Setup
-Clone the repository and install dependencies:
-
-```bash
-git clone https://github.com/arasan95/midi-commander-custom.git
-cd midi-commander-custom
-pip install -r python/requirements.txt
-```
-
-### Flashing Firmware
-1.  Enter DFU Mode: Power on while holding `Bank Down` + `D`.
-2.  Flash the firmware:
-    ```bash
-    dfu-util --alt 0 --download artifacts/dfu/platformio-latest.dfu
-    ```
-
 ### Usage
 Connect the device via USB and run:
 
