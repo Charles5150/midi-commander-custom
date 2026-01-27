@@ -45,3 +45,5 @@ dkms.conf
 .pio/
 .vscode/
 
+
+flash_error.log
