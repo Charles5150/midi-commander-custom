@@ -117,12 +117,39 @@ def remove_prefix(text, prefix):
 
 def pack_row(row):
     row_byte_list = []
+    
+    # Check Light Mode for this button (row)
+    # Default is Normal
+    light_mode = "Normal"
+    if "Light_Mode" in row:
+        light_mode = str(row["Light_Mode"]).strip()
+
     for i in range(0, MIDI_NUM_COMMANDS_PER_SWITCH):
         cmd_prefix = f"{chr(ord('A') + i)}_"
-        cmd = row.loc[row.index.str.startswith(cmd_prefix)]
-        cmd.index = cmd.index.str.replace(cmd_prefix, "")
-        func = cmd_route_table.get(cmd["CommandType"], cmd_none)
-        cmd_byte_list = func(cmd)
+        # Check if cmd exists in row columns
+        # Filter columns starting with prefix
+        current_cols = [c for c in row.index if c.startswith(cmd_prefix)]
+        if not current_cols:
+             # Should not happen given how logic works usually, but safety
+             cmd_byte_list = cmd_none(None)
+        else:
+            cmd = row[current_cols]
+            # Remove prefix from index to match cmd_xxx expectations
+            cmd.index = cmd.index.str.replace(cmd_prefix, "", regex=False)
+            
+            func = cmd_route_table.get(cmd["CommandType"], cmd_none)
+            cmd_byte_list = func(cmd)
+
+        # Inject Light Mode bits into Slot A (i=0)
+        # Using MSB of Byte 3 (index 2) and Byte 4 (index 3)
+        # Byte 3 MSB -> Reverse
+        # Byte 4 MSB -> Always On
+        if i == 0 and len(cmd_byte_list) >= 4:
+            if light_mode == "Reverse":
+                cmd_byte_list[2] |= 0x80
+            elif light_mode == "AlwaysOn":
+                cmd_byte_list[3] |= 0x80
+        
         row_byte_list += cmd_byte_list
 
     return row_byte_list

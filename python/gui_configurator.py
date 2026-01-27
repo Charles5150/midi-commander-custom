@@ -173,6 +173,18 @@ class MidiCommanderGUI(ctk.CTk):
                 self.df_global = data["Global_Settings"].astype(object)
                 # Clean up whitespace in Label
                 self.df_global['Label'] = self.df_global['Label'].astype(str).str.strip()
+                
+                # Check for Bank LED modes
+                labels = self.df_global['Label'].tolist()
+                new_rows = []
+                if "Bank_Up_LED_Mode" not in labels:
+                    new_rows.append({"Label": "Bank_Up_LED_Mode", "Value": "Normal"})
+                if "Bank_Down_LED_Mode" not in labels:
+                    new_rows.append({"Label": "Bank_Down_LED_Mode", "Value": "Normal"})
+                
+                if new_rows:
+                    self.df_global = pd.concat([self.df_global, pd.DataFrame(new_rows)], ignore_index=True)
+                
                 self.populate_global()
             
             if "Bank_Naming" in data:
@@ -183,6 +195,14 @@ class MidiCommanderGUI(ctk.CTk):
                 self.df_buttons = data["Button_Settings"].astype(object)
                 # Ensure columns are stripped
                 self.df_buttons.columns = self.df_buttons.columns.str.strip()
+                
+                # Ensure Light_Mode column exists
+                if "Light_Mode" not in self.df_buttons.columns:
+                    self.df_buttons["Light_Mode"] = "Normal"
+                else:
+                    # Fill NaNs with Normal
+                    self.df_buttons["Light_Mode"] = self.df_buttons["Light_Mode"].fillna("Normal")
+
                 # Update bank selector
                 banks = self.df_buttons['Bank_Number'].unique()
                 self.bank_selector.configure(values=[str(b) for b in banks])
@@ -201,12 +221,19 @@ class MidiCommanderGUI(ctk.CTk):
         
         row = 0
         for index, r in self.df_global.iterrows():
-            lbl = ctk.CTkLabel(self.global_scroll, text=r['Label'])
+            label_text = str(r['Label'])
+            lbl = ctk.CTkLabel(self.global_scroll, text=label_text)
             lbl.grid(row=row, column=0, padx=10, pady=5, sticky="e")
             
             val = r['Value']
-            ent = ctk.CTkEntry(self.global_scroll)
-            ent.insert(0, str(val))
+            
+            if label_text in ["Bank_Up_LED_Mode", "Bank_Down_LED_Mode"]:
+                ent = ctk.CTkComboBox(self.global_scroll, values=["Normal", "Reverse", "AlwaysOn"])
+                ent.set(str(val))
+            else:
+                ent = ctk.CTkEntry(self.global_scroll)
+                ent.insert(0, str(val))
+                
             ent.grid(row=row, column=1, padx=10, pady=5, sticky="w")
             
             self.global_entries[index] = ent
@@ -343,6 +370,22 @@ class MidiCommanderGUI(ctk.CTk):
                 'tog': chk_tog
             })
 
+        # --- Light Mode Setting ---
+        light_frame = ctk.CTkFrame(self.cmd_editor_frame, fg_color="transparent")
+        light_frame.pack(pady=10)
+        
+        ctk.CTkLabel(light_frame, text="LED Light Mode:", font=("Arial", 12, "bold")).pack(side="left", padx=5)
+        
+        current_light = "Normal"
+        if "Light_Mode" in current_row:
+            val = current_row["Light_Mode"]
+            if pd.notna(val) and str(val).strip() != "":
+                current_light = str(val).strip()
+                
+        self.combo_light_mode = ctk.CTkComboBox(light_frame, values=["Normal", "Reverse", "AlwaysOn"], width=120)
+        self.combo_light_mode.set(current_light)
+        self.combo_light_mode.pack(side="left", padx=5)
+
         btn_apply = ctk.CTkButton(self.cmd_editor_frame, text="Apply Changes to Memory", command=self.apply_button_changes, fg_color="green", hover_color="darkgreen")
         btn_apply.pack(pady=20)
 
@@ -373,6 +416,15 @@ class MidiCommanderGUI(ctk.CTk):
             self.df_buttons.at[idx, f'{s}_OnValue_(CC/PB)'] = safe_val(w['on'].get())
             self.df_buttons.at[idx, f'{s}_OffValue_(CC)'] = safe_val(w['off'].get())
             self.df_buttons.at[idx, f'{s}_Toggle_(CC/PB/Note)'] = 'Y' if w['tog'].get() == 1 else 'N'
+        
+        # Save Light Mode
+        if hasattr(self, 'combo_light_mode') and self.cmd_widgets:
+            idx = self.cmd_widgets[0]['row_index']
+            # Ensure column exists
+            if "Light_Mode" not in self.df_buttons.columns:
+                self.df_buttons["Light_Mode"] = "Normal"
+                
+            self.df_buttons.at[idx, 'Light_Mode'] = self.combo_light_mode.get()
             
         print("Updated button memory.")
         messagebox.showinfo("Info", "Changes applied to memory (Don't forget to Save CSV!)")

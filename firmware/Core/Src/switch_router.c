@@ -10,6 +10,8 @@
 #include "flash_midi_settings.h"
 #include "display.h"
 
+void update_leds_on_bank_change(void);
+
 /*
  * Creating some constant arrays for the switches that can be scanned and handled
  * in a loop to simplify code and reduce duplication;
@@ -110,10 +112,60 @@ static inline void toggle_sw_state(sw_t *sw){
 	sw->switch_toggle_state ^= (1 << switch_current_page);
 }
 
+
 uint8_t* get_rom_pointer(uint8_t page, uint8_t sw, uint8_t cmd){
 	return pSwitchCmds + (MIDI_ROM_KEY_STRIDE * sw) + (MIDI_ROM_CMD_SIZE * cmd) + (MIDI_ROM_KEY_STRIDE * 8 * page);
 }
 
+// Check if the switch should have inverted LED logic (On when Up, Off when Down)
+// Flag stored in MSB of Byte 3 (index 2) of Slot A
+uint8_t is_switch_inverted(uint8_t sw){
+	uint8_t *pRom = get_rom_pointer(switch_current_page, sw, 0); 
+	if(pRom[2] & 0x80) return 1;
+	return 0;
+}
+
+// Check if the switch LED should be Always On
+// Flag stored in MSB of Byte 4 (index 3) of Slot A
+uint8_t is_switch_always_on(uint8_t sw){
+	uint8_t *pRom = get_rom_pointer(switch_current_page, sw, 0); 
+	if(pRom[3] & 0x80) return 1;
+	return 0;
+}
+
+// 0=Normal, 1=Reverse, 2=AlwaysOn(Blink)
+uint8_t get_button_led_mode(uint8_t sw){
+	if(is_switch_always_on(sw)) return 2;
+	if(is_switch_inverted(sw)) return 1;
+	return 0;
+}
+
+uint8_t get_bank_down_led_mode(){ // SW_E is Bank Down (?) - Check usage below. SW_E logic decreases page.
+	if(pGlobalSettings[5] == 0xFF) return 0; // Default Normal
+	return pGlobalSettings[5]; 
+}
+
+uint8_t get_bank_up_led_mode(){ // SW_5 is Bank Up
+	if(pGlobalSettings[4] == 0xFF) return 0; // Default Normal
+	return pGlobalSettings[4];
+}
+
+// Helper to determine LED state based on Mode and Press state
+// pressed: 1 if button is held down (physically)
+// mode: 0=Normal, 1=Reverse, 2=AlwaysOn
+uint8_t calculate_led_state(uint8_t pressed, uint8_t mode){
+	uint32_t tick = HAL_GetTick();
+	uint8_t blink_on = ((tick % 200) < 100) ? 1 : 0; // 50% duty, 200ms period
+	
+	if(mode == 2){ // AlwaysOn (Blink on press)
+		if(pressed) return blink_on; // Blink when pressed
+		else return 1; // Always ON when released
+	} else if (mode == 1){ // Reverse (Inverted)
+		return !pressed;
+	} else { // Normal
+		return pressed;
+	}
+}
 
 void sw_led_init(void){
 	// Scan all commands in EEPROM, and build the table of whether the LED should toggle with the switch, or be momentary
@@ -136,14 +188,8 @@ void sw_led_init(void){
 		delayed_cmds[i].systick_timout = UINT32_MAX;
 	}
 
-	// Init all the LEDs to the off state
-	for(int i = 0; i<8; i++){
-		HAL_GPIO_WritePin(a_sw_obj[i].led_gpio_port, a_sw_obj[i].led_gpio_pin, GPIO_PIN_SET);
-	}
-	HAL_GPIO_WritePin(LED_5_GPIO_Port, LED_5_Pin, GPIO_PIN_SET);
-	HAL_GPIO_WritePin(LED_E_GPIO_Port, LED_E_Pin, GPIO_PIN_SET);
-
-
+	// Init all the LEDs based on current page (0) and settings
+	update_leds_on_bank_change();
 }
 
 
@@ -294,10 +340,31 @@ void set_led(uint8_t sw_no, uint8_t state){
 void update_leds_on_bank_change(void){
 	for(int i=0; i<8; i++){
 		if(a_sw_obj[i].led_cmd_toggle & (1<<switch_current_page)){
-			set_led(i,get_sw_toggle_state(&a_sw_obj[i]));
+			uint8_t mode = get_button_led_mode(i);
+			uint8_t active = get_sw_toggle_state(&a_sw_obj[i]);
+			uint8_t state = calculate_led_state(active, mode);
+			set_led(i, state ? SET : RESET);
 		} else {
-			set_led(i,RESET);
+			// Update based on mode (assuming released state)
+			uint8_t mode = get_button_led_mode(i);
+			// For update, we assume Not Pressed. 
+			// If AlwaysOn -> ON. If Reverse -> ON. Normal -> OFF.
+			uint8_t state = calculate_led_state(0, mode);
+			set_led(i, state ? SET : RESET);
 		}
+	}
+	
+	// Also update Bank LEDs initial state
+	{
+		uint8_t mode_down = get_bank_down_led_mode();
+		// SW_E Down
+		uint8_t state = calculate_led_state(0, mode_down);
+		HAL_GPIO_WritePin(LED_E_GPIO_Port, LED_E_Pin, state ? GPIO_PIN_RESET : GPIO_PIN_SET);
+		
+		uint8_t mode_up = get_bank_up_led_mode();
+		// SW_5 Up
+		state = calculate_led_state(0, mode_up);
+		HAL_GPIO_WritePin(LED_5_GPIO_Port, LED_5_Pin, state ? GPIO_PIN_RESET : GPIO_PIN_SET);
 	}
 }
 
@@ -314,9 +381,15 @@ void handle_switches(void){
 
 					// Either toggle the LED, or set it if not toggling
 					if(a_sw_obj[i].led_cmd_toggle & (1<<switch_current_page)){
-						set_led(i,get_sw_toggle_state(&a_sw_obj[i]));
+						uint8_t mode = get_button_led_mode(i);
+						uint8_t active = get_sw_toggle_state(&a_sw_obj[i]);
+						uint8_t state = calculate_led_state(active, mode);
+						set_led(i, state ? SET : RESET);
 					} else {
-						set_led(i,SET);
+						// Momentary Logic
+						uint8_t mode = get_button_led_mode(i);
+						uint8_t state = calculate_led_state(1, mode); // Pressed = 1
+						set_led(i, state ? SET : RESET);
 					}
 
 					for(int j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
@@ -327,7 +400,10 @@ void handle_switches(void){
 					// Switch up
 					// Clear the LED if it's not toggling.
 					if(!(a_sw_obj[i].led_cmd_toggle & (1<<switch_current_page))){
-						set_led(i, RESET);
+						// Momentary Logic
+						uint8_t mode = get_button_led_mode(i);
+						uint8_t state = calculate_led_state(0, mode); // Pressed = 0
+						set_led(i, state ? SET : RESET);
 					}
 
 					for(int j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
@@ -341,14 +417,60 @@ void handle_switches(void){
 	}
 
 	handle_delayed_cmds();
+	
+	// Continuous Blink Update Loop for AlwaysOn Buttons
+	for(int i=0; i<8; i++){
+		uint8_t mode = get_button_led_mode(i);
+		if(mode == 2){ // AlwaysOn (Blink)
+			uint8_t is_active = 0;
+			if(a_sw_obj[i].led_cmd_toggle & (1<<switch_current_page)){
+				// Toggle Mode: Active if toggle state is ON
+				is_active = get_sw_toggle_state(&a_sw_obj[i]);
+			} else {
+				// Momentary Mode: Active if physically pressed
+				if(!HAL_GPIO_ReadPin(a_sw_obj[i].sw_gpio_port, a_sw_obj[i].sw_gpio_pin)){
+					is_active = 1;
+				}
+			}
+			uint8_t state = calculate_led_state(is_active, mode);
+			set_led(i, state ? SET : RESET);
+		}
+	}
+	
+	// Bank LEDs Update - Handle Blink
+	// We need to continuously update them if they are in Blink mode
+	uint8_t bank_down_mode = get_bank_down_led_mode();
+	uint8_t bank_up_mode = get_bank_up_led_mode();
+	
+	// We need to check switch state for Bank buttons
+	// Since port_X_switches_changed only tells us about changes, we need to read pins for continuous blink
+	// SW_E is Bank Down, SW_5 is Bank Up
+	
+	// Bank Down Switch State
+	uint8_t sw_e_down = !HAL_GPIO_ReadPin(SW_E_GPIO_Port, SW_E_Pin);
+	// Only update loop if blink is needed or change happened?
+	// To support Blink, we should update if mode is 2 and sw is down
+	if(bank_down_mode == 2 && sw_e_down) {
+		uint8_t state = calculate_led_state(1, bank_down_mode);
+		HAL_GPIO_WritePin(LED_E_GPIO_Port, LED_E_Pin, state ? GPIO_PIN_RESET : GPIO_PIN_SET);
+	}
 
-	// The bank change switches
+	// Bank Up Switch State
+	uint8_t sw_5_down = !HAL_GPIO_ReadPin(SW_5_GPIO_Port, SW_5_Pin);
+	if(bank_up_mode == 2 && sw_5_down) {
+		uint8_t state = calculate_led_state(1, bank_up_mode);
+		HAL_GPIO_WritePin(LED_5_GPIO_Port, LED_5_Pin, state ? GPIO_PIN_RESET : GPIO_PIN_SET);
+	}
+
+
+	// The bank change switches logic (Event based)
 	if(port_A_switches_changed & SW_E_Pin){
 		port_A_switches_changed &= ~SW_E_Pin;
 
 		if(!HAL_GPIO_ReadPin(SW_E_GPIO_Port, SW_E_Pin)){
-			// Bank Down
-			HAL_GPIO_WritePin(LED_E_GPIO_Port, LED_E_Pin, RESET);
+			// Bank Down Pressed
+			uint8_t state = calculate_led_state(1, bank_down_mode);
+			HAL_GPIO_WritePin(LED_E_GPIO_Port, LED_E_Pin, state ? GPIO_PIN_RESET : GPIO_PIN_SET);
 
 			if(switch_current_page > 0){
 				switch_current_page--;
@@ -356,7 +478,9 @@ void handle_switches(void){
 				display_setBankName(switch_current_page);
 			}
 		} else {
-			HAL_GPIO_WritePin(LED_E_GPIO_Port, LED_E_Pin, SET);
+			// Bank Down Released
+			uint8_t state = calculate_led_state(0, bank_down_mode);
+			HAL_GPIO_WritePin(LED_E_GPIO_Port, LED_E_Pin, state ? GPIO_PIN_RESET : GPIO_PIN_SET);
 		}
 	}
 
@@ -364,8 +488,9 @@ void handle_switches(void){
 		port_B_switches_changed &= ~SW_5_Pin;
 
 		if(!HAL_GPIO_ReadPin(SW_5_GPIO_Port, SW_5_Pin)){
-			// Bank Down
-			HAL_GPIO_WritePin(LED_5_GPIO_Port, LED_5_Pin, RESET);
+			// Bank Up Pressed
+			uint8_t state = calculate_led_state(1, bank_up_mode);
+			HAL_GPIO_WritePin(LED_5_GPIO_Port, LED_5_Pin, state ? GPIO_PIN_RESET : GPIO_PIN_SET);
 
 			if(switch_current_page < 7){
 				switch_current_page++;
@@ -373,7 +498,9 @@ void handle_switches(void){
 				display_setBankName(switch_current_page);
 			}
 		} else {
-			HAL_GPIO_WritePin(LED_5_GPIO_Port, LED_5_Pin, SET);
+			// Bank Up Released
+			uint8_t state = calculate_led_state(0, bank_up_mode);
+			HAL_GPIO_WritePin(LED_5_GPIO_Port, LED_5_Pin, state ? GPIO_PIN_RESET : GPIO_PIN_SET);
 		}
 	}
 }

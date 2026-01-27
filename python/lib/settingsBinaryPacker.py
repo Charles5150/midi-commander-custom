@@ -21,6 +21,23 @@ def pack_global_settings(df):
     else:
         bin_list[GLOBAL_SETTINGS_EXP2_CC] = 4  # Default to CC 4 if missing
 
+    # Bank LED Modes (Index 4, 5)
+    # 0=Normal, 1=Reverse, 2=AlwaysOn(Blink)
+    GLOBAL_SETTINGS_BANK_UP_LED = 4
+    GLOBAL_SETTINGS_BANK_DOWN_LED = 5
+    
+    def get_led_mode(val):
+        s = str(val).upper()
+        if "REVERSE" in s: return 1
+        if "ALWAYS" in s: return 2
+        return 0
+
+    if "Bank_Up_LED_Mode" in df.index:
+        bin_list[GLOBAL_SETTINGS_BANK_UP_LED] = get_led_mode(df.loc["Bank_Up_LED_Mode", "Value"])
+    
+    if "Bank_Down_LED_Mode" in df.index:
+        bin_list[GLOBAL_SETTINGS_BANK_DOWN_LED] = get_led_mode(df.loc["Bank_Down_LED_Mode", "Value"])
+
     # print('{:8.8}'.format(df.loc['ConfigName'].Value))
     bin_list += ("{:16.16}".format(df.loc["ConfigName"].Value)).encode("ASCII")
 
