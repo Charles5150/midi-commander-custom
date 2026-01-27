@@ -1,4 +1,4 @@
-# Midi Commander Custom Firmware 2.0 (Fork)
+# Midi Commander Custom Firmware
 
 This is a fork of the custom firmware for MeloAudio Midi Commander.
 It introduces a GUI configuration tool and advanced LED control modes.
