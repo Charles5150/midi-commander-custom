@@ -6,26 +6,55 @@ It introduces a GUI configuration tool and advanced LED control modes.
 ## New Features
 
 ### GUI Configurator
+
 A Python-based GUI (`python/gui_configurator.py`) allows for easy configuration editing and flashing, removing the need to edit CSV files manually.
 
 ### LED Light Modes
+
 Three modes are available for button LEDs:
-- **Normal**: Standard behavior.
-- **Reverse**: Inverted behavior (lit when released/OFF).
-- **AlwaysOn**: Always lit, blinks when active (pressed/ON).
+
+- **Normal** : Standard behavior.
+- **Reverse** : Inverted behavior (lit when released/OFF).
+- **AlwaysOn** : Always lit, blinks when active (pressed/ON).
 
 ### Bank LED Settings
+
 Bank Up/Down LED behaviors can also be customized via Global Settings.
 
 ### Usage
-Run the configurator:
-```bash
+
+Launching the GUI Tool
+
+1. Start the Midi Commander in normal mode and connect it to your PC.
+2. Then run the following command:
+
+```
+bash
 python python/gui_configurator.py
 ```
+
+Configuration Workflow
+
+1. When the application starts, the current device configuration is automatically loaded.
+
+2. Click buttons on the screen to change assigned MIDI commands and LED modes.
+
+3. After making changes, click Apply Changes to Memory
+(At this point, the settings are applied in memory but not yet saved).
+
+4. In the Global Settings tab, you can also configure LED behavior for bank buttons and other global options.
+
+5. Be sure to click Save CSV to save the configuration file.
+
+6. Finally, click FLASH TO DEVICE.
+The settings will be transferred to the hardware, and the device will automatically reboot.
+
+<img src="docs/images/gui_workflow.png" width="500">
 
 ---
 
 # midi-commander-custom
+
 Custom Firmware for the MeloAudio Midi Commander
 
 There's no intention of this replacing the default firmware functions. I'm creating this purely for custom requirements that the original firmware will never fulfill.
