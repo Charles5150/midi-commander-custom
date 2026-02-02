@@ -28,22 +28,22 @@ ALLOWED_NUM_FLASH_PAGES = 3
 def main(args: argparse.Namespace):
     # The mido module defines its symbols in a dynamic way that doesn't allow
     # type checking. So we have to ignore these lines from type checking.
-    # Updated to detect both original (STM) and Custom firmware names
-    midi_inputs = [x for x in mido.get_input_names() if "STM" in x or "MIDI Commander" in x] 
-    midi_outputs = [x for x in mido.get_output_names() if "STM" in x or "MIDI Commander" in x]
+    candidate_inputs = [
+        x for x in mido.get_input_names() if "STM" in x or "MIDI Commander" in x
+    ]
+    candidate_outputs = [
+        x for x in mido.get_output_names() if "STM" in x or "MIDI Commander" in x
+    ]
 
-    if len(midi_inputs) == 0:
-        print("no input found")
-        # Instead of exit, we can raise exception if called from GUI? 
-        # But keeping exit for CLI compatibility is fine, GUI will catch it if we propagate exceptions.
-        # For now, let's allow it to exit, but GUI import needs care.
-        if getattr(args, 'gui_mode', False):
-            raise Exception("No MIDI Input Found (Device disconnected or busy)")
+    if not candidate_inputs:
+        print("No matching MIDI Input devices found.")
+        if getattr(args, "gui_mode", False):
+            raise Exception("No MIDI Input Found")
         exit(1)
 
-    if len(midi_outputs) == 0:
-        print("no outputs found")
-        if getattr(args, 'gui_mode', False):
+    if not candidate_outputs:
+        print("No matching MIDI Output devices found.")
+        if getattr(args, "gui_mode", False):
             raise Exception("No MIDI Output Found")
         exit(1)
 
@@ -76,15 +76,17 @@ def main(args: argparse.Namespace):
         else:
             end_line = title_lines[i + 1][1]
         frame_lines = no_comments[start_line:end_line]
-        
+
         # Clean up trailing commas
-        cleaned_lines = [ln.rstrip().rstrip(',') for ln in frame_lines]
+        cleaned_lines = [ln.rstrip().rstrip(",") for ln in frame_lines]
         csv_data = "\n".join(cleaned_lines)
         if not csv_data.strip():
             continue
 
         try:
-            df = pd.read_csv(io.StringIO(csv_data), delimiter=",", header=0, engine='python').dropna(how="all")
+            df = pd.read_csv(
+                io.StringIO(csv_data), delimiter=",", header=0, engine="python"
+            ).dropna(how="all")
             df.drop(
                 df.columns[df.columns.str.contains("unnamed", case=False)],
                 axis=1,
@@ -93,7 +95,7 @@ def main(args: argparse.Namespace):
             df_dic[tline[0].strip()] = df
         except Exception as e:
             print(f"Error parsing section {tline[0]}: {e}")
-            if getattr(args, 'gui_mode', False):
+            if getattr(args, "gui_mode", False):
                 raise e
 
     # Setup the columns in the Button_Settings table
@@ -124,23 +126,51 @@ def main(args: argparse.Namespace):
         )
 
     # Skip confirmation if flag is set
-    if not getattr(args, 'yes', False):
+    if not getattr(args, "yes", False):
         ans = input("Continue? (y/N) ").lower().strip()
         if ans != "y":
             sys.exit(1)
 
     # File is now converted to a byte array, this will be loaded to the flash.
 
-    try:
-        inport = mido.open_input(midi_inputs[0])  # type: ignore
-        outport = mido.open_output(midi_outputs[0])  # type: ignore
-    except Exception as e:
-        print(f"\n[ERROR] Could not open MIDI port: {e}")
-        print("-" * 60)
-        print("  Reason: The MIDI device is likely being used by another application.")
-        print("  Solution: 1. Close all music software (DAWs, Chrome, etc).")
-        print("            2. UNPLUG and REPLUG the Midi Commander USB cable.")
-        print("-" * 60)
+    # Try to find a working pair of ports
+    inport = None
+    outport = None
+
+    # Simple logic: Try first input, then find matching output?
+    # Or just try pairs? Names often match partially.
+    # Let's try to open the first available input, then finding corresponding output.
+
+    selected_input_name = None
+
+    for name in candidate_inputs:
+        try:
+            print(f"Attempting to open Input: {name}")
+            inport = mido.open_input(name)
+            selected_input_name = name
+            print("  Values: Success")
+            break
+        except Exception as e:
+            print(f"  Error opening {name}: {e}")
+
+    if inport is None:
+        print("[ERROR] Could not open any matching MIDI Input.")
+        print("Reasons: Device busy (Chrome/DAW?) or Driver error.")
+        sys.exit(1)
+
+    # Now find output
+    for name in candidate_outputs:
+        try:
+            print(f"Attempting to open Output: {name}")
+            outport = mido.open_output(name)
+            print("  Values: Success")
+            break
+        except Exception as e:
+            print(f"  Error opening {name}: {e}")
+
+    if outport is None:
+        inport.close()
+        print("[ERROR] Could not open any matching MIDI Output.")
         sys.exit(1)
 
     # Erase Flash settings pages
@@ -196,7 +226,8 @@ if __name__ == "__main__":
         help="Path to a CSV file downloaded from the Google Spreadsheet configuration",
     )
     p.add_argument(
-        "--yes", "-y",
+        "--yes",
+        "-y",
         action="store_true",
         help="Skip confirmation prompt",
     )

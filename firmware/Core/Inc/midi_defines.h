@@ -52,6 +52,7 @@
 #define CMD_CC_NIBBLE		(0xB0)
 #define CMD_PB_NIBBLE		(0xE0)
 #define CMD_NOTE_NIBBLE		(0x90)
+#define CMD_KEY_NIBBLE		(0xD0)
 #define CMD_START_NIBBLE	(0x10)
 #define CMD_STOP_NIBBLE		(0x20)
 

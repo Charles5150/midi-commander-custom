@@ -30,6 +30,7 @@
 /* USER CODE BEGIN Includes */
 #include "usbd_midi.h"
 #include "usbd_midi_if.h"
+#include "usbd_composite_midi_hid.h"
 
 /* USER CODE END Includes */
 
@@ -76,7 +77,7 @@ void MX_USB_DEVICE_Init(void)
 	Error_Handler();
   }
 
-	USBD_RegisterClass(&hUsbDeviceFS, &USBD_MIDI);
+	USBD_RegisterClass(&hUsbDeviceFS, &USBD_COMPOSITE_MIDI_HID);
 
 	USBD_MIDI_RegisterInterface(&hUsbDeviceFS, &USBD_Interface_fops_FS);
 

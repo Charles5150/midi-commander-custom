@@ -9,6 +9,7 @@
 #include "midi_cmds.h"
 #include "flash_midi_settings.h"
 #include "display.h"
+#include "usbd_hid_custom.h"
 
 void update_leds_on_bank_change(void);
 
@@ -113,6 +114,50 @@ static inline void toggle_sw_state(sw_t *sw){
 }
 
 
+static uint8_t key_press_count[256] = {0};
+static uint8_t mod_press_count[8] = {0};
+
+static void update_keyboard_state(uint8_t mod_byte, uint8_t key_code, uint8_t is_pressed) {
+    // Modifiers
+    for(int i=0; i<8; i++) {
+        if((mod_byte >> i) & 1) {
+            if(is_pressed) {
+                if(mod_press_count[i] < 255) mod_press_count[i]++;
+            } else {
+                if(mod_press_count[i] > 0) mod_press_count[i]--;
+            }
+        }
+    }
+    
+    // Key Code
+    if(key_code != 0) {
+       if(is_pressed) {
+            if(key_press_count[key_code] < 255) key_press_count[key_code]++;
+       } else {
+            if(key_press_count[key_code] > 0) key_press_count[key_code]--;
+       }
+    }
+    
+    // Build Report
+    uint8_t report[8] = {0};
+    
+    // Mod Byte
+    for(int i=0; i<8; i++) {
+        if(mod_press_count[i] > 0) report[0] |= (1<<i);
+    }
+    
+    // Keys (max 6)
+    int k = 0;
+    for(int i=0; i<256 && k < 6; i++) {
+        if(key_press_count[i] > 0) {
+            report[2+k] = i;
+            k++;
+        }
+    }
+    
+    HID_SendReport_FS(report, 8);
+}
+
 uint8_t* get_rom_pointer(uint8_t page, uint8_t sw, uint8_t cmd){
 	return pSwitchCmds + (MIDI_ROM_KEY_STRIDE * sw) + (MIDI_ROM_CMD_SIZE * cmd) + (MIDI_ROM_KEY_STRIDE * 8 * page);
 }
@@ -216,6 +261,9 @@ void handle_delayed_cmds(void){
 			case CMD_NOTE_NIBBLE:
 				midiCmd_send_note_command_from_rom(pRom, MIDI_CONTROL_OFF);
 				break;
+			case CMD_KEY_NIBBLE:
+				update_keyboard_state(pRom[1], pRom[2], 0); // Release
+				break;
 			default:
 				break;
 			}
@@ -273,6 +321,18 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 			}
 		}
 		break;
+	case CMD_KEY_NIBBLE:
+		if(midiCmd_get_cmd_toggle(pRom)){
+			// Toggle Logic
+			update_keyboard_state(pRom[1], pRom[2], toggleState);
+		} else {
+			// Momentary Logic
+			update_keyboard_state(pRom[1], pRom[2], 1); // Press
+			if(midiCmd_get_delay(pRom) != 0){
+				set_cmd_duration_delay(pRom);
+			}
+		}
+		break;
 	case CMD_START_NIBBLE:
 		status = midiCmd_send_start_command();
 		break;
@@ -315,6 +375,14 @@ void handle_cmd_sw_up(uint8_t *pRom, uint8_t toggleState){
 			if(midiCmd_get_delay(pRom) == 0) {
 				// No cmd duration delay, so immediately release
 				status = midiCmd_send_note_command_from_rom(pRom, MIDI_CONTROL_OFF);
+			}
+		}
+		break;
+	case CMD_KEY_NIBBLE:
+		if(!midiCmd_get_cmd_toggle(pRom)) {
+			if(midiCmd_get_delay(pRom) == 0) {
+				// No cmd duration delay, so immediately release
+				update_keyboard_state(pRom[1], pRom[2], 0); // Release
 			}
 		}
 		break;
