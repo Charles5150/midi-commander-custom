@@ -28,6 +28,14 @@ When the connected PC enters sleep (suspend) mode, the device will automatically
 
 ### Usage
 
+**IMPORTANT: Firmware Update Required**
+
+Before using the new features (GUI Configurator, Sleep Mode, etc.), you must update the device firmware.
+Please flash the following file included in this repository:
+`artifacts/release-0.1B-Sleep.dfu`
+
+(See [Loading the firmware](#loading-the-firmware) section for detailed flashing instructions.)
+
 Launching the GUI Tool
 
 1. Start the Midi Commander in normal mode and connect it to your PC.
