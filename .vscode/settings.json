@@ -4,7 +4,6 @@
         "editor.formatOnSave": true,
     },
     "python.analysis.typeCheckingMode": "basic",
-    "python.analysis.diagnosticSeverityOverrides": {
-        "reportMissingTypeStubs": "none"
-    }
+    "python.analysis.stubPath": "typings",
+    "python.analysis.extraPaths": ["typings"]
 }

@@ -31,23 +31,5 @@ if target_name:
     except Exception as e:
         print(f"  [ERROR] Input Open FAILED: {e}")
 
-    # Check Output matching
-    target_out = None
-    for name in outputs:
-        if "STM" in name or "MIDI Commander" in name:
-            target_out = name
-            break
-
-    if target_out:
-        print(f"Found target output: '{target_out}'")
-        try:
-            print("Attempting to open output...")
-            outport = mido.open_output(target_out)
-            print("  Output Open SUCCESS")
-            outport.close()
-            print("  Output Closed")
-        except Exception as e:
-            print(f"  [ERROR] Output Open FAILED: {e}")
-
 else:
     print("No matching 'STM' or 'MIDI Commander' device found.")

@@ -98,6 +98,14 @@ def main(args: argparse.Namespace):
             if getattr(args, "gui_mode", False):
                 raise e
 
+    def wait_for_sysex_ack(port):
+        # Filter out Clock, ActiveSensor, etc.
+        while True:
+            msg = port.receive()
+            if msg.type == "sysex":
+                return msg
+            # else ignore and wait
+
     # Setup the columns in the Button_Settings table
     df_dic["Button_Settings"].set_index(
         ["Bank_Number", "Button_Identifier"], inplace=True
@@ -176,11 +184,16 @@ def main(args: argparse.Namespace):
     # Erase Flash settings pages
     print("Erasing Flash Settings")
     outmsg = mido.Message("sysex", data=[MIDI_MANUF_ID, ERASE_FLASH, 0x42, 0x24])
+
+    # Flush input buffer before starting
+    while inport.poll():
+        inport.receive()
+
     outport.send(outmsg)
 
     # Wait for response
-    time.sleep(0.05)
-    inmsg = inport.receive()
+    # time.sleep(0.05)
+    inmsg = wait_for_sysex_ack(inport)
     print("Erase Complete")
 
     no_chunks = int(len(flash_contents) / 16)
@@ -204,8 +217,8 @@ def main(args: argparse.Namespace):
         outmsg = mido.Message("sysex", data=data)
 
         outport.send(outmsg)
-        inmsg = inport.receive()
-        time.sleep(0.01)
+        inmsg = wait_for_sysex_ack(inport)
+        time.sleep(0.05)  # Increased delay to 50ms for safety
 
     print("Finshed, reseting device...")
     outmsg = mido.Message("sysex", data=[MIDI_MANUF_ID, SYSEX_CMD_RESET])

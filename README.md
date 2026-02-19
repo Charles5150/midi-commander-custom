@@ -21,6 +21,11 @@ Three modes are available for button LEDs:
 
 Bank Up/Down LED behaviors can also be customized via Global Settings.
 
+### Sleep Mode Support
+
+When the connected PC enters sleep (suspend) mode, the device will automatically turn off all LEDs and the display to save power. It will wake up automatically when the PC wakes up.
+*Note: Button inputs are disabled during sleep mode.*
+
 ### Usage
 
 Launching the GUI Tool

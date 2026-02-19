@@ -44,6 +44,9 @@ uint16_t port_C_previous_state = SW_PORTC_MASK; // All pins will be high un-pres
 volatile uint16_t port_C_switches_changed = 0;
 
 volatile uint8_t debounce_counter = 0;
+// Flag to indicate if USB is suspended. If so, we shouldn't update LEDs or read switches in the main loop
+// because the main loop might keep running even if USB is suspended (if low_power_enable is 0)
+static volatile uint8_t is_app_suspended = 0; 
 
 extern uint8_t f_sys_config_complete;
 
@@ -322,16 +325,35 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 		}
 		break;
 	case CMD_KEY_NIBBLE:
+    {
+        // Key Mode Logic
+        // Mode is stored in the lower nibble of Byte 0
+        uint8_t key_mode = pRom[0] & 0x0F;
+        uint32_t delay_val = midiCmd_get_delay(pRom);
+
 		if(midiCmd_get_cmd_toggle(pRom)){
-			// Toggle Logic
+			// Toggle Logic (Valid for Normal Mode 0 only mostly?)
 			update_keyboard_state(pRom[1], pRom[2], toggleState);
 		} else {
-			// Momentary Logic
-			update_keyboard_state(pRom[1], pRom[2], 1); // Press
-			if(midiCmd_get_delay(pRom) != 0){
-				set_cmd_duration_delay(pRom);
-			}
+            // Momentary / Manual Logic based on Mode
+            if (key_mode == 1) { // Down Only
+                if (delay_val > 0) HAL_Delay(delay_val); // Blocking Pre-Delay
+                update_keyboard_state(pRom[1], pRom[2], 1); // Press
+            } 
+            else if (key_mode == 2) { // Up Only
+                if (delay_val > 0) HAL_Delay(delay_val); // Blocking Pre-Delay
+                update_keyboard_state(pRom[1], pRom[2], 0); // Release
+            }
+            else { // Mode 0: Normal Momentary (Pulse)
+                // Immediate Press
+			    update_keyboard_state(pRom[1], pRom[2], 1); 
+                // Auto Release after Duration
+			    if(delay_val != 0){
+				    set_cmd_duration_delay(pRom);
+			    }
+            }
 		}
+    }
 		break;
 	case CMD_START_NIBBLE:
 		status = midiCmd_send_start_command();
@@ -437,6 +459,7 @@ void update_leds_on_bank_change(void){
 }
 
 void handle_switches(void){
+	if(is_app_suspended) return;
 
 	// The Command switches
 	for(int i=0; i<8; i++){
@@ -573,3 +596,22 @@ void handle_switches(void){
 	}
 }
 
+
+void set_all_leds(uint8_t state){
+	// Command LEDs
+	for(int i=0; i<8; i++){
+		set_led(i, state);
+	}
+
+	// Bank LEDs
+	GPIO_PinState pinState = (state) ? GPIO_PIN_RESET : GPIO_PIN_SET;
+	HAL_GPIO_WritePin(LED_E_GPIO_Port, LED_E_Pin, pinState);
+	HAL_GPIO_WritePin(LED_5_GPIO_Port, LED_5_Pin, pinState);
+}
+
+void setIsSuspended(uint8_t suspended){
+	is_app_suspended = suspended;
+	if(suspended){
+		set_all_leds(0);
+	}
+}

@@ -353,10 +353,11 @@ class MidiCommanderGUI(ctk.CTk):
             "Number",
             "On Value",
             "Off Value",
-            "Duration",
+            "Delay/Dur",
             "Toggle",
+            "Key Mode",
         ]
-        widths = [40, 80, 60, 60, 70, 70, 60, 60]
+        widths = [40, 80, 60, 60, 70, 70, 60, 60, 80]
 
         for col, header in enumerate(headers):
             lbl = ctk.CTkLabel(table_frame, text=header, font=("Arial", 12, "bold"))
@@ -413,7 +414,7 @@ class MidiCommanderGUI(ctk.CTk):
                 ent_off.insert(0, str(off_val).replace(".0", ""))
             ent_off.grid(row=row, column=5, padx=5, pady=5)
 
-            # Duration (new)
+            # Duration (Labelled Delay/Dur in header)
             dur_val = current_row.get(f"{slot}_Duration_(Note/PB)", "")
             ent_dur = ctk.CTkEntry(table_frame, width=widths[6])
             if pd.notna(dur_val):
@@ -427,6 +428,21 @@ class MidiCommanderGUI(ctk.CTk):
                 chk_tog.select()
             chk_tog.grid(row=row, column=7, padx=5, pady=5)
 
+            # Key Mode (New)
+            km_val = current_row.get(f"{slot}_KeyMode_(Key)", "")
+            combo_km = ctk.CTkComboBox(
+                table_frame,
+                values=["Normal", "Down", "Up"],
+                width=widths[8],
+            )
+            # Default to Normal if empty?
+            if not km_val or pd.isna(km_val):
+                combo_km.set("Normal")
+            else:
+                combo_km.set(str(km_val).strip())
+
+            combo_km.grid(row=row, column=8, padx=5, pady=5)
+
             # Save ref
             self.cmd_widgets.append(
                 {
@@ -439,6 +455,7 @@ class MidiCommanderGUI(ctk.CTk):
                     "off": ent_off,
                     "dur": ent_dur,
                     "tog": chk_tog,
+                    "keymode": combo_km,
                 }
             )
 
@@ -507,6 +524,8 @@ class MidiCommanderGUI(ctk.CTk):
             self.df_buttons.at[idx, f"{s}_Toggle_(CC/PB/Note)"] = (
                 "Y" if w["tog"].get() == 1 else "N"
             )
+            # Save Key Mode
+            self.df_buttons.at[idx, f"{s}_KeyMode_(Key)"] = w["keymode"].get()
 
         # Save Light Mode
         if hasattr(self, "combo_light_mode") and self.cmd_widgets:

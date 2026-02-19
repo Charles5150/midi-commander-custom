@@ -169,18 +169,56 @@ def cmd_start(cmd):
     return [CMD_START_NIBBLE, 0, 0, 0]
 
 
-def cmd_key(cmd):
-    toggle = 0
-    if "Y" in str(cmd["Toggle_(CC/PB/Note)"]):
-        toggle = 0x80
+# Helper to get Key Mode Nibble from string
+# Normal (0), Down (1), Up (2)
+def _get_key_mode_nibble(mode_str):
+    if not isinstance(mode_str, str):
+        return 0
+    s = mode_str.lower()
+    if "down" in s:
+        return 1
+    elif "up" in s:
+        return 2
+    return 0
 
-    delay = safe_int(cmd.get("Duration_(Note/PB)", 0)) & 0x7F
+
+def cmd_key(cmd):
+    # Mode Logic:
+    # We expect a "Key Mode" column if using GUI, or assume Normal if missing.
+    # To support CSVs without the column, default to Normal.
+    # The Mode is packed into lower 4 bits of Byte 0.
+
+    # Try to find Mode column. It might be named "Toggle_(CC/PB/Note/KeyMode)" or separate?
+    # User asked for "Up and Down next to On/Off Value".
+    # Let's look for "KeyMode_(Key)" column?
+    # Or overload Toggle?
+    # User said: "Up and Down ... selectable".
+    # I will assume the column is named "KeyMode_(Key)".
+
+    mode_nibble = 0
+    # Check for KeyMode_(Key) in keys. Note that prefix is already stripped in pack_row.
+    if "KeyMode_(Key)" in cmd:
+        mode_nibble = _get_key_mode_nibble(str(cmd["KeyMode_(Key)"]))
+
+    # Duration / Delay logic
+    # Duration_(Note/PB) is shared.
+    byte3_val = safe_int(cmd.get("Duration_(Note/PB)", 0)) & 0x7F
+
+    # Toggle (Hold) logic: If Toggle is 'Y', we set MSB.
+    # But for Keys, Toggle might be conflicting with Mode.
+    # Firmware Priority: Toggle (Hold) > Mode (Momentary actions).
+    # If user wants Hold, they check Toggle.
+
+    toggle_bit = get_toggle_bit(str(cmd["Toggle_(CC/PB/Note)"]))
 
     cmd_bytes = [
-        CMD_KEY_NIBBLE,
-        safe_int(cmd["Number_(PC/CC/Note)"]) & 0xFF,  # Modifier
-        get_hid_code(cmd["OnValue_(CC/PB)"]) & 0xFF,  # KeyCode
-        toggle | delay,
+        CMD_KEY_NIBBLE | mode_nibble,
+        safe_int(cmd["Number_(PC/CC/Note)"])
+        & 0xFF,  # Modifier logic (previously stored in Number?) Wait.
+        # Original cmd_key: safe_int(cmd["Number_(PC/CC/Note)"]) & 0xFF -> Modifier
+        # get_hid_code(cmd["OnValue_(CC/PB)"]) & 0xFF -> KeyCode
+        get_hid_code(cmd.get("OnValue_(CC/PB)", "")) & 0xFF,  # KeyCode
+        byte3_val | toggle_bit,  # Duration/Delay + Toggle
     ]
     return cmd_bytes
 
