@@ -1,9 +1,0 @@
-{
-    "[python]": {
-        "editor.formatOnType": true,
-        "editor.formatOnSave": true,
-    },
-    "python.analysis.typeCheckingMode": "basic",
-    "python.analysis.stubPath": "typings",
-    "python.analysis.extraPaths": ["typings"]
-}
