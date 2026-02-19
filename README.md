@@ -139,6 +139,21 @@ Roughly, the spreadsheet allows you to specify for each button press up to 10 in
 - Note velocity
 - Note/PB duration (up to 2.5 seconds in 10ms increments)
 
+### Sending Keyboard Keys (HID)
+
+You can assign keyboard strokes to buttons by selecting the **Key** Command Type.
+
+- **Command Type**: `Key`
+- **Number**: Modifier Keys Bitmask (1=Ctrl, 2=Shift, 4=Alt, 8=Win/GUI). Add values for combinations (e.g., 3 = Ctrl+Shift).
+- **On Value**: The key to press. You can use:
+  - Single characters: `a`, `z`, `0`, `9`.
+  - Special key names: `enter`, `esc`, `tab`, `space`, `backspace`, `f1`-`f12`, `minus`, `equal`, `leftbr`, `rightbr`, `backslash`, `semicolon`, `quote`, `grave`, `comma`, `dot`, `slash`.
+- **Duration**: Hold duration or delay (depending on Key Mode).
+- **Key Mode** (Optional Column `KeyMode_(Key)`):
+  - `Normal` (or empty): Press and release.
+  - `Down`: Press only (hold).
+  - `Up`: Release only.
+
 Lines starting with `#` or `*` are simply ignored which allows you to include comments in the configuration file to keep track of your work.
 
 Once you are happy with your configuration, download it from Google Sheets as a CSV file (or use "Save As" if you chose to edit it locally with Excel or similar spreadsheet software).
