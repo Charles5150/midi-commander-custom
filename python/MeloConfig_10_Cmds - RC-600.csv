@@ -10,6 +10,7 @@ Exp1_CC,18
 Exp2_CC,19
 Bank_Up_LED_Mode,Normal
 Bank_Down_LED_Mode,Normal
+USB_MIDI_Thru,N
 ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 * Bank_Naming,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 Bank_Number,Bank_Name_Large,Bank_Info_Small

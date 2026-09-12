@@ -157,6 +157,22 @@ class RoundTripTest(unittest.TestCase):
         _, _, decoded = unpacker.unpack_config(packed)
         self.assertEqual(decoded["Light_Mode"].tolist(), df["Light_Mode"].tolist())
 
+    def test_usb_midi_thru_flag(self):
+        sections = read_config_csv(SAMPLE_CSV)
+        g = sections["Global_Settings"].copy()
+        thru_off = pack_config(sections)
+        self.assertEqual(thru_off[6], 0)
+
+        g.loc[g["Label"] == "USB_MIDI_Thru", "Value"] = "Y"
+        thru_on = pack_config({**sections, "Global_Settings": g})
+        self.assertEqual(thru_on[6], 1)
+        # Nothing else moves
+        self.assertEqual(thru_on[:6] + thru_on[7:], thru_off[:6] + thru_off[7:])
+
+        df_global, _, _ = unpacker.unpack_config(thru_on)
+        value = df_global.set_index("Label")["Value"]["USB_MIDI_Thru"]
+        self.assertEqual(value, "Y")
+
     def test_cc_alwayson_keeps_off_value(self):
         """Regression: AlwaysOn used to set bit 7 of the CC off value."""
         row = pd.Series(

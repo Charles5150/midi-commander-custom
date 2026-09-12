@@ -2,6 +2,7 @@ GLOBAL_SETTINGS_CHANNEL = 0
 GLOBAL_SETTINGS_REALTIME_PASS = 1
 GLOBAL_SETTINGS_EXP1_CC = 2
 GLOBAL_SETTINGS_EXP2_CC = 3
+GLOBAL_SETTINGS_USB_THRU = 6
 
 def pack_global_settings(df):
     # global settings will be 32 bytes long
@@ -41,6 +42,10 @@ def pack_global_settings(df):
     
     if "Bank_Down_LED_Mode" in df.index:
         bin_list[GLOBAL_SETTINGS_BANK_DOWN_LED] = get_led_mode(df.loc["Bank_Down_LED_Mode", "Value"])
+
+    # USB to DIN thru: forward channel/system common/foreign SysEx (Y/N)
+    if "USB_MIDI_Thru" in df.index and "Y" in str(df.loc["USB_MIDI_Thru", "Value"]).upper():
+        bin_list[GLOBAL_SETTINGS_USB_THRU] = 0x1
 
     # print('{:8.8}'.format(df.loc['ConfigName'].Value))
     bin_list += ("{:16.16}".format(df.loc["ConfigName"].Value)).encode("ASCII")

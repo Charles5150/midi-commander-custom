@@ -6,6 +6,7 @@ This repository is a fork of [arasan95/midi-commander-custom](https://github.com
 
 ## Changes in this fork
 
+- **USB to DIN MIDI thru (firmware 0.4).** New global setting `USB_MIDI_Thru` (Y/N, default N). When enabled, every channel message (notes, CC, PC, pitch bend, pressure), system common message and SysEx not addressed to the pedal received over USB is forwarded to the DIN output, so the Midi Commander doubles as a USB MIDI interface for whatever is plugged into its MIDI OUT. Clock, Start, Continue and Stop are still governed by `RealTime_Passthrough`. The USB receive parser was rewritten to walk 4 byte USB MIDI events properly, which also fixes a buffer overflow when a long SysEx from another device was received.
 - **LED light modes moved out of the command bytes (firmware 0.3).** Previously `Light_Mode` was encoded in bit 7 of bytes 2 and 3 of the button's first command, which corrupted that command depending on its type: a CC with AlwaysOn never sent its off value, a Note with AlwaysOn got a 1.28 s or longer duration, a Key with AlwaysOn became a toggle or with Reverse sent the wrong key, and a PC without Bank Select MSB always showed as Reverse. The modes now live in a separate 64 byte table after the commands. **This changes the configuration format:** after flashing firmware 0.3, re-flash your configuration with the updated tools, otherwise every button LED falls back to Normal.
 - **Configuration read-back (firmware 0.2).** The device can now send its stored configuration back over USB MIDI. `python/Flash_to_CSV.py <file.csv>` dumps it as a CSV in the usual layout, and the GUI has a **Read from Device** button that does the same and loads the result into the editor. Two SysEx commands were added: `READ_FLASH` (56) and `GET_VERSION` (58). Older firmware ignores them, so the tools detect the missing support and ask you to update.
 - **Round-trip tests for the packers.** `python -m unittest python/tests/test_roundtrip.py` packs the sample CSV, decodes it again and compares every field.
@@ -44,7 +45,7 @@ When the connected PC enters sleep (suspend) mode, the device will automatically
 
 Before using the new features (GUI Configurator, Sleep Mode, etc.), you must update the device firmware.
 Please flash the following file included in this repository:
-`artifacts/release-0.3.dfu` (previous releases, `artifacts/release-0.2.dfu` and `artifacts/release-0.1B-Sleep.dfu`, are kept for reference)
+`artifacts/release-0.4.dfu` (previous releases are kept in `artifacts/` for reference)
 
 (See [Loading the firmware](#loading-the-firmware) section for detailed flashing instructions.)
 
@@ -113,7 +114,7 @@ I have had a lot of issues under Windows 10, and there are reports from others o
 - 0 to 10 independant chained commands on each switch/bank position.  Enables configuring different devices, or a series of actions of each button push.
 - CC, Note and Pitch Bend support momentary, toggle, or an on-duration of up to 2.5 sec in 10ms increments. CC can also send just the start message.
 - Program Change messages can include the Bank Select messages prior to the PC message, either just the Lease Signficant Byte or both the LSB & MSB.
-- Pass through of Sync/Start/Stop messages from USB to the Serial MIDI connector.
+- Pass through of Sync/Start/Stop messages from USB to the Serial MIDI connector (`RealTime_Passthrough`), and optionally of all other MIDI traffic (`USB_MIDI_Thru`) so the pedal works as a USB MIDI interface for the device on its MIDI OUT.
 - Dual expression pedal inputs (PA7/PB0 via ADC1 ch7/ch8) emit MIDI CCs (EXP1 → CC#11, EXP2 → CC#4) on the configured global channel.
 
 - Firmware can be loaded through the normal DFU update process.

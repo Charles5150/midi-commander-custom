@@ -195,70 +195,152 @@ void process_sysex_message(void){
 	sysex_rx_counter = 0;
 }
 
+/*
+ * Number of MIDI bytes carried by a USB MIDI event, indexed by its Code
+ * Index Number. Every event is 4 bytes on the wire (CIN/cable + up to 3
+ * MIDI bytes, zero padded); this table says how many of those 3 are valid.
+ */
+static const uint8_t cin_data_length[16] = {
+	0, 0, // 0x0, 0x1: reserved / cable events
+	2,    // 0x2: two byte system common
+	3,    // 0x3: three byte system common
+	3,    // 0x4: SysEx starts or continues
+	1,    // 0x5: single byte system common or SysEx end with one byte
+	2,    // 0x6: SysEx end with two bytes
+	3,    // 0x7: SysEx end with three bytes
+	3, 3, 3, 3, // 0x8-0xB: note off, note on, poly pressure, control change
+	2, 2, // 0xC, 0xD: program change, channel pressure
+	3,    // 0xE: pitch bend
+	1     // 0xF: single byte (realtime)
+};
+
+// Set while a SysEx from another manufacturer is passing through, so the
+// remaining chunks are forwarded to DIN instead of accumulated.
+static uint8_t sysex_foreign = 0;
+// Set alongside sysex_foreign when the message must be dropped, not forwarded
+// (our own SysEx that overflowed the receive buffer).
+static uint8_t sysex_discard = 0;
+
+static inline uint8_t usb_thru_enabled(void){
+	return pGlobalSettings[GLOBAL_SETTINGS_USB_THRU] == 1;
+}
+
+/*
+ * Bytes forwarded to DIN are collected per USB packet and handed to the
+ * serial driver in one go, so a packet costs one transmit buffer instead of
+ * one per event. A 64 byte packet carries at most 16 events x 3 bytes.
+ */
+static uint8_t thru_buf[48];
+static uint8_t thru_len = 0;
+
+static void thru_push(const uint8_t *data, uint8_t len){
+	if(!usb_thru_enabled() || thru_len + len > sizeof(thru_buf)){
+		return;
+	}
+	memcpy(thru_buf + thru_len, data, len);
+	thru_len += len;
+}
+
+static void thru_flush(void){
+	if(thru_len){
+		midiCmd_send_bytes_serial(thru_buf, thru_len);
+		thru_len = 0;
+	}
+}
+
+static void handle_sysex_event(uint8_t cin, const uint8_t *data, uint8_t len){
+	uint8_t is_end = (cin != CIN_SYSEX_STARTS_OR_CONTINUES);
+
+	if(sysex_rx_counter == 0 && !sysex_foreign){
+		// First chunk of a new message: F0 <manufacturer> ...
+		// Anything not addressed to us is forwarded (if enabled) or dropped.
+		if(len < 2 || data[0] != SYSEX_START || data[1] != MIDI_MANUF_ID){
+			sysex_foreign = !is_end;
+			thru_push(data, len);
+			return;
+		}
+	}
+
+	if(sysex_foreign){
+		if(!sysex_discard){
+			thru_push(data, len);
+		}
+		if(is_end){
+			sysex_foreign = 0;
+			sysex_discard = 0;
+		}
+		return;
+	}
+
+	// Our own message: accumulate, guarding the buffer
+	if(sysex_rx_counter + len > SYSEX_MAX_LENGTH){
+		abort_sysex_message();
+		// Swallow the rest of this message without forwarding it
+		sysex_foreign = !is_end;
+		sysex_discard = !is_end;
+		return;
+	}
+	memcpy(sysex_rx_buffer + sysex_rx_counter, data, len);
+	sysex_rx_counter += len;
+
+	if(is_end){
+		process_sysex_message();
+	}
+}
+
 uint16_t MIDI_DataRx(uint8_t *msg, uint16_t length)
 {
+	// Walk the packet one 4 byte USB MIDI event at a time
+	for(uint16_t i = 0; i + 4 <= length; i += 4){
+		uint8_t cin = msg[i] & 0x0F;
+		const uint8_t *data = msg + i + 1;
+		uint8_t len = cin_data_length[cin];
 
-	//uint8_t cable = (msg[0]>>4) & 0xF;
-
-	uint8_t processed_data_cnt = 0;
-
-	while(processed_data_cnt < length){
-		uint8_t usb_msg_cin = msg[processed_data_cnt] & 0xF;
-
-		if(sysex_rx_counter != 0){
-			if(usb_msg_cin != CIN_SYSEX_STARTS_OR_CONTINUES &&
-					usb_msg_cin != CIN_SYSEX_ENDS_WITH_FOLLOWING_SINGLE_BYTE &&
-					usb_msg_cin != CIN_SYSEX_ENDS_WITH_FOLLOWING_TWO_BYTES &&
-					usb_msg_cin != CIN_SYSEX_ENDS_WITH_FOLLOWING_THREE_BYTES){
-				abort_sysex_message();
-			}
-		}
-
-		switch(usb_msg_cin){
+		switch(cin){
 		case CIN_SYSEX_STARTS_OR_CONTINUES:
-			memcpy(sysex_rx_buffer + sysex_rx_counter, msg + processed_data_cnt + 1, 3);
-			sysex_rx_counter += 3;
-			processed_data_cnt += 4;
-			break;
-		case CIN_SYSEX_ENDS_WITH_FOLLOWING_SINGLE_BYTE:
-			sysex_rx_buffer[sysex_rx_counter] = msg[processed_data_cnt + 1];
-			sysex_rx_counter++;
-			processed_data_cnt += 2;
-			process_sysex_message();
-			break;
 		case CIN_SYSEX_ENDS_WITH_FOLLOWING_TWO_BYTES:
-			memcpy(sysex_rx_buffer + sysex_rx_counter, msg + processed_data_cnt + 1, 2);
-			sysex_rx_counter += 2;
-			processed_data_cnt += 3;
-			process_sysex_message();
-			break;
 		case CIN_SYSEX_ENDS_WITH_FOLLOWING_THREE_BYTES:
-			memcpy(sysex_rx_buffer + sysex_rx_counter, msg + processed_data_cnt + 1, 3);
-			sysex_rx_counter += 3;
-			processed_data_cnt += 4;
-			process_sysex_message();
+			handle_sysex_event(cin, data, len);
+			break;
+
+		case CIN_SYSEX_ENDS_WITH_FOLLOWING_SINGLE_BYTE:
+			// Also used for single byte system common (e.g. F6 tune request)
+			if(sysex_rx_counter != 0 || sysex_foreign || data[0] == SYSEX_END){
+				handle_sysex_event(cin, data, len);
+			} else {
+				thru_push(data, len);
+			}
 			break;
 
 		case CIN_SINGLE_BYTE:
-			// Realtime messages, like sync, if enabled send through to serial midi port.
+			// Realtime messages. Clock/Start/Continue/Stop pass when enabled.
 			if(pGlobalSettings[GLOBAL_SETTINGS_REALTIME_PASS]){
-				if(msg[processed_data_cnt+1] == 0xF8 || msg[processed_data_cnt+1] == 0xFA ||msg[processed_data_cnt+1] == 0xFC){
-					midiCmd_send_byte_serial(msg[processed_data_cnt+1]);
+				uint8_t b = data[0];
+				if(b == 0xF8 || b == 0xFA || b == 0xFB || b == 0xFC){
+					midiCmd_send_byte_serial(b);
 				}
 			}
-			processed_data_cnt += 2;
+			break;
+
+		case CIN_TWO_BYTE_SYSTEM_COMMON:
+		case CIN_THREE_BYTE_SYSTEM_COMMON:
+		case CIN_NOTE_OFF:
+		case CIN_NOTE_ON:
+		case CIN_POLY_KEYPRESS:
+		case CIN_CONTROL_CHANGE:
+		case CIN_PROGRAM_CHANGE:
+		case CIN_CHANNEL_PRESSURE:
+		case CIN_PITCHBEND_CHANGE:
+			thru_push(data, len);
 			break;
 
 		default:
-			// Un-recognised message - most likely just padding.
-			// skip to end of USB packet
-			processed_data_cnt = length;
+			// Reserved CINs or padding
 			break;
-
 		}
-
 	}
 
+	thru_flush();
 	return 0;
 }
 

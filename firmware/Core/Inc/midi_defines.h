@@ -61,6 +61,11 @@
 #define CMD_STOP_NIBBLE		(0x20)
 
 #define GLOBAL_SETTINGS_CHANNEL (0)
-#define GLOBAL_SETTINGS_REALTIME_PASS (1)
+#define GLOBAL_SETTINGS_REALTIME_PASS (1)	// Forward Clock/Start/Continue/Stop from USB to DIN
+#define GLOBAL_SETTINGS_EXP1_CC (2)
+#define GLOBAL_SETTINGS_EXP2_CC (3)
+#define GLOBAL_SETTINGS_BANK_UP_LED (4)
+#define GLOBAL_SETTINGS_BANK_DOWN_LED (5)
+#define GLOBAL_SETTINGS_USB_THRU (6)		// Forward channel, system common and foreign SysEx from USB to DIN
 
 #endif /* INC_MIDI_DEFINES_H_ */

@@ -27,7 +27,7 @@ uint8_t midi_usb_assembly_buffer[16];
  * MIDI_NUM_COMMANDS_PER_SWITCH commands if not in toggle mode, then we need 2 * MIDI_NUM_COMMANDS_PER_SWITCH buffers.
  */
 #define NO_BUFFERS (2 * MIDI_NUM_COMMANDS_PER_SWITCH)
-#define BUFFER_SIZE (16)
+#define BUFFER_SIZE (48) // Holds every MIDI byte of one 64 byte USB packet (16 events x 3)
 
 // Implementing as a series of buffers
 uint8_t midi_uart_out_buffer[NO_BUFFERS][BUFFER_SIZE];
@@ -130,10 +130,15 @@ int8_t midiCmd_send_stop_command(void){
 }
 
 /*
- * Send a single byte message just through to the serial midi port.
- * This is to transfer start/stop/sync messages through from the USB to the midi port
+ * Send raw bytes just through to the serial midi port, without touching USB.
+ * Used to forward messages received over USB to the DIN output. Silently
+ * drops the data if no transmit buffer is free or it doesn't fit in one.
  */
-void midiCmd_send_byte_serial(uint8_t byteMessage){
+void midiCmd_send_bytes_serial(const uint8_t *data, uint8_t len){
+	if(len == 0 || len > BUFFER_SIZE){
+		return;
+	}
+
 	__disable_irq();
 	int8_t buffer_no = get_next_available_tx_buffer();
 	if(buffer_no < 0){
@@ -141,12 +146,19 @@ void midiCmd_send_byte_serial(uint8_t byteMessage){
 		return;
 	}
 
-	uint8_t *serialBuf = &(midi_uart_out_buffer[buffer_no][0]);
-	*serialBuf = byteMessage;
-	midi_uart_out_buffer_bytes_to_tx[buffer_no] = 1;
+	memcpy(&(midi_uart_out_buffer[buffer_no][0]), data, len);
+	midi_uart_out_buffer_bytes_to_tx[buffer_no] = len;
 	__enable_irq();
 
 	midi_serial_transmit();
+}
+
+/*
+ * Send a single byte message just through to the serial midi port.
+ * This is to transfer start/stop/sync messages through from the USB to the midi port
+ */
+void midiCmd_send_byte_serial(uint8_t byteMessage){
+	midiCmd_send_bytes_serial(&byteMessage, 1);
 }
 
 int8_t midiCmd_send_start_command(void){

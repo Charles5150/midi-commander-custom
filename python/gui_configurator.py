@@ -213,6 +213,8 @@ class MidiCommanderGUI(ctk.CTk):
                     new_rows.append({"Label": "Bank_Up_LED_Mode", "Value": "Normal"})
                 if "Bank_Down_LED_Mode" not in labels:
                     new_rows.append({"Label": "Bank_Down_LED_Mode", "Value": "Normal"})
+                if "USB_MIDI_Thru" not in labels:
+                    new_rows.append({"Label": "USB_MIDI_Thru", "Value": "N"})
 
                 if new_rows:
                     self.df_global = pd.concat(
