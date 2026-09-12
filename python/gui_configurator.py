@@ -421,6 +421,8 @@ class MidiCommanderGUI(ctk.CTk):
                 ("USB_MIDI_Thru", "N"),
                 ("Remember_State", "N"),
                 ("Long_Press_ms", "500"),
+                ("LED_Brightness", "100"),
+                ("LED_Rest_Brightness", "100"),
             ]
             missing = [{"Label": l, "Value": v} for l, v in defaults if l not in labels]
             if missing:
@@ -507,6 +509,8 @@ class MidiCommanderGUI(ctk.CTk):
                 w = IntEntry(self.global_scroll, 0, 127, value, width=70)
             elif label == "Long_Press_ms":
                 w = IntEntry(self.global_scroll, 100, 2500, value, width=70)
+            elif label in ("LED_Brightness", "LED_Rest_Brightness"):
+                w = IntEntry(self.global_scroll, 1, 100, value, width=70)
             elif label == "ConfigName":
                 w = TextEntry(self.global_scroll, 16, value, width=180)
             else:
@@ -521,6 +525,8 @@ class MidiCommanderGUI(ctk.CTk):
             "USB_MIDI_Thru": "forward all other MIDI from USB to DIN",
             "Remember_State": "restore the last bank and toggle states at power on",
             "Long_Press_ms": "hold time that turns a press into a long press (100-2500 ms)",
+            "LED_Brightness": "brightness of a lit LED, 1-100 %",
+            "LED_Rest_Brightness": "brightness of LEDs lit at rest by Reverse/AlwaysOn, 1-100 %",
             "ConfigName": "shown on the display at boot (16 chars)",
             "Exp1_CC": "CC number sent by expression pedal 1 (0-127)",
             "Exp2_CC": "CC number sent by expression pedal 2 (0-127)",

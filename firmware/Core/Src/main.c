@@ -34,6 +34,7 @@
 #include "expression.h"
 #include "flash_midi_settings.h"
 #include "state_store.h"
+#include "leds.h"
 
 /* USER CODE END Includes */
 
@@ -142,6 +143,7 @@ int main(void)
 
   display_setConfigName();
 
+  leds_init();
   sw_led_init();
 
   HAL_Delay(1000);

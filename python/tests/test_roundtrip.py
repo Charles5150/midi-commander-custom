@@ -277,6 +277,29 @@ class RoundTripTest(unittest.TestCase):
         self.assertEqual(decoded.iloc[0].tolist(), ["1", "150", "3800", "Log", "Y", "7"])
         self.assertEqual(decoded.iloc[1].tolist(), ["2", "0", "4095", "Exp", "N", "Global"])
 
+    def test_led_brightness(self):
+        sections = read_config_csv(SAMPLE_CSV)
+        g = sections["Global_Settings"].copy()
+        # Sample defaults to 100 %
+        base = pack_config(sections)
+        self.assertEqual((base[9], base[10]), (100, 100))
+        # Missing rows also default to 100
+        g2 = g[~g["Label"].isin(["LED_Brightness", "LED_Rest_Brightness"])]
+        self.assertEqual(pack_config({**sections, "Global_Settings": g2})[9:11], b"dd")
+        g.loc[g["Label"] == "LED_Brightness", "Value"] = "30"
+        g.loc[g["Label"] == "LED_Rest_Brightness", "Value"] = "250"  # clamped
+        packed = pack_config({**sections, "Global_Settings": g})
+        self.assertEqual((packed[9], packed[10]), (30, 100))
+        # 0 is never written: the firmware reads it as "not set" (old configs)
+        g.loc[g["Label"] == "LED_Rest_Brightness", "Value"] = "0"
+        self.assertEqual(pack_config({**sections, "Global_Settings": g})[10], 1)
+        # And an old config with zeroed bytes decodes as the 100 % default
+        old = bytearray(base); old[9] = old[10] = 0
+        df_old = unpacker.unpack_config(bytes(old))[0].set_index("Label")["Value"]
+        self.assertEqual(df_old["LED_Brightness"], "100")
+        df_global = unpacker.unpack_config(packed)[0].set_index("Label")["Value"]
+        self.assertEqual((df_global["LED_Brightness"], df_global["LED_Rest_Brightness"]), ("30", "100"))
+
     def test_cc_alwayson_keeps_off_value(self):
         """Regression: AlwaysOn used to set bit 7 of the CC off value."""
         row = pd.Series(

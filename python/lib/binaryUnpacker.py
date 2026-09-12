@@ -96,6 +96,8 @@ def unpack_global_settings(data: bytes) -> pd.DataFrame:
         ("USB_MIDI_Thru", "Y" if g[6] == 1 else "N"),
         ("Remember_State", "Y" if g[7] == 1 else "N"),
         ("Long_Press_ms", str((g[8] if 0 < g[8] < 0xFF else 50) * 10)),
+        ("LED_Brightness", str(g[9] if 0 < g[9] <= 100 else 100)),
+        ("LED_Rest_Brightness", str(g[10] if 0 < g[10] <= 100 else 100)),
     ]
     return pd.DataFrame(rows, columns=["Label", "Value"])
 

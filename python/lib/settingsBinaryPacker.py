@@ -5,6 +5,8 @@ GLOBAL_SETTINGS_EXP2_CC = 3
 GLOBAL_SETTINGS_USB_THRU = 6
 GLOBAL_SETTINGS_REMEMBER_STATE = 7
 GLOBAL_SETTINGS_LONG_PRESS = 8
+GLOBAL_SETTINGS_LED_BRIGHTNESS = 9
+GLOBAL_SETTINGS_LED_REST_BRIGHTNESS = 10
 
 def pack_global_settings(df):
     # global settings will be 32 bytes long
@@ -61,6 +63,18 @@ def pack_global_settings(df):
         except ValueError:
             long_ms = 500
     bin_list[GLOBAL_SETTINGS_LONG_PRESS] = max(1, min(250, round(long_ms / 10)))
+
+    # LED brightness in percent (1-100); lit LEDs and LEDs lit at rest.
+    # 0 is reserved: the firmware reads it as "not set" (older configs).
+    def percent(label, default=100):
+        if label not in df.index:
+            return default
+        try:
+            return max(1, min(100, int(float(str(df.loc[label, "Value"])))))
+        except ValueError:
+            return default
+    bin_list[GLOBAL_SETTINGS_LED_BRIGHTNESS] = percent("LED_Brightness")
+    bin_list[GLOBAL_SETTINGS_LED_REST_BRIGHTNESS] = percent("LED_Rest_Brightness")
 
     # print('{:8.8}'.format(df.loc['ConfigName'].Value))
     bin_list += ("{:16.16}".format(df.loc["ConfigName"].Value)).encode("ASCII")
