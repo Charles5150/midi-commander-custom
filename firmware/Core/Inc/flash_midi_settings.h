@@ -24,8 +24,16 @@ extern uint8_t *pSysExStrings;	// Table of stored SysEx payloads: [length][up to
 #define SYSEX_STRING_MAX	(23)	// data bytes, F0 and F7 are added when sending
 #define SYSEX_STRING_STRIDE	(SYSEX_STRING_MAX + 1)
 
-// Per pedal: [0..1] min ADC (LE), [2..3] max ADC (LE), [4] curve, [5] invert,
-// [6] channel (0 = global, 1-16), rest reserved. Blank flash = defaults.
+/*
+ * Per pedal:
+ *   [0..1] min ADC (LE)        [2..3] max ADC (LE)
+ *   [4]    curve               [5]    invert
+ *   [6]    channel (0 = global, 1-16)
+ *   [7]    button triggered when the pedal reaches the toe (0-7, 0xFF none)
+ *   [8]    button triggered when it returns to the heel (0-7, 0xFF none)
+ *   [9]    toe threshold, as a 7-bit value    [10] heel threshold
+ *   rest reserved. Blank flash (0xFF) means "not set" everywhere.
+ */
 #define EXP_SETTINGS_STRIDE		(16)
 #define EXP_CURVE_LINEAR		(0)
 #define EXP_CURVE_LOG			(1)

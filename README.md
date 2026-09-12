@@ -35,7 +35,7 @@ The firmware replaces the stock MeloAudio one but never touches its bootloader, 
 - **Relative CC.** A button can nudge a CC value up or down by a step on each press, optionally wrapping, for setting a parameter with your foot.
 - **Custom SysEx.** Up to sixteen SysEx messages can be stored and sent from a button, for devices that are only controllable that way.
 - **USB keyboard and media keys (HID).** A command can press a key with Ctrl / Shift / Alt / Cmd modifiers, tap it, hold it or release it, or send a media key (play/pause, next, previous, stop, volume, mute, record) to the computer.
-- **Two expression pedals** with per-pedal CC number, MIDI channel, calibrated end points, response curve and direction, calibrated live from the configurator.
+- **Two expression pedals** with per-pedal CC number, MIDI channel, calibrated end points, response curve and direction, calibrated live from the configurator. Each can also act as a switch: reaching the toe, or returning to the heel, taps a button of the current bank.
 - **USB-to-DIN MIDI thru.** Optionally forward everything received over USB to the MIDI OUT jack, so the pedal doubles as a USB MIDI interface for the device behind it. Clock / Start / Continue / Stop have their own switch.
 - **Commands on entering a bank.** Each bank can send a set of commands when you switch to it, typically a Program Change that selects its patch, so no button is spent on it.
 - **Bank changes from incoming MIDI.** A Program Change or a Control Change arriving over USB can select a bank, so a DAW or another pedal can drive this one.
@@ -52,7 +52,7 @@ You need the pedal, a USB cable, Python 3 and, to update the firmware, `dfu-util
 
 ### 1. Flash the firmware
 
-The current release is **`artifacts/release-0.14.dfu`**. Earlier releases are kept in `artifacts/` for reference.
+The current release is **`artifacts/release-0.15.dfu`**. Earlier releases are kept in `artifacts/` for reference.
 
 1. Install `dfu-util` (macOS: `brew install dfu-util`; Linux: your package manager; Windows: [dfu-util.sourceforge.net](https://dfu-util.sourceforge.net/)).
 2. With the pedal off, hold **Bank Down** and **D** (the two bottom-right buttons) and switch it on. The display stays dark and LED 3 lights up: the pedal is in DFU mode.
@@ -66,7 +66,7 @@ The current release is **`artifacts/release-0.14.dfu`**. Earlier releases are ke
 4. Flash, using `--alt 0` (the internal flash entry above):
 
    ```bash
-   dfu-util -d 0483:df11 --alt 0 --download artifacts/release-0.14.dfu
+   dfu-util -d 0483:df11 --alt 0 --download artifacts/release-0.15.dfu
    ```
 
 5. Power cycle the pedal. The firmware version shows on the display for a moment, then the first bank.
@@ -223,6 +223,12 @@ Optional; two rows, `Pedal` 1 and 2.
 | `Curve` | Linear / Log / Exp | Log is fast at the start of the travel, Exp is slow at the start. |
 | `Invert` | Y / N | Swap heel and toe. |
 | `Channel` | Global or 1–16 | Global uses `MIDI_Channel`. |
+| `Toe_Button` | None or 1–4, A–D | Button tapped when the pedal reaches the toe. |
+| `Toe_Level` | 1–127 | Value the pedal must reach for that. Default 120. |
+| `Heel_Button` | None or 1–4, A–D | Button tapped when the pedal returns to the heel. |
+| `Heel_Level` | 0–127 | Value it must fall to for that. Default 7. |
+
+Used as a switch, the pedal taps a button of the **current bank**, sending whatever that button is configured to send, including its toggle state and LED. Each direction re-arms only after the pedal moves back past its level by a margin, so resting on the edge does not retrigger.
 
 Both 1/4" jacks are read through the ADC every millisecond, with the pin pulled down between readings to prevent crosstalk between the two inputs, smoothed with an adaptive filter and a small hysteresis so a resting pedal does not chatter. A CC is sent only when the 7-bit value changes.
 
@@ -287,6 +293,7 @@ Hardware notes (MCU, pinout, I²C addresses) are in `HardwareNotes.txt`; `backup
 
 Firmware versions are shown on the display at boot and reported by the tools.
 
+- **0.15 — Expression pedals as switches.** Reaching the toe, or returning to the heel, taps a button of the current bank (`Toe_Button`, `Toe_Level`, `Heel_Button`, `Heel_Level`), so a pedal gives you two more footswitches while still sending its CC. Stored in bytes that were already reserved in each pedal's record, so the configuration does not grow.
 - **0.14 — Tap tempo and MIDI clock.** New `Tap` command type, in Tap or Clock mode. The clock is generated from the millisecond tick with fractional accumulation, so its average tempo is exact and it does not drift, and the bytes are emitted from the main loop rather than an interrupt. USB MIDI transmission was rewritten around a queue: it used to busy-wait for the previous packet, which made sending from an interrupt impossible and could hang for good if the USB interrupt never ran.
 - **0.13 — Relative CC and custom SysEx.** New `CCInc` command type nudges a CC value by a step per press, with optional wrapping and a per-slot running value. New `SysEx` command type sends one of sixteen stored messages from the new `SysEx_Strings` section, to both USB and DIN, with a SysEx tab in the configurator that validates the bytes as you type.
 - **0.12 — Bank automation.** Each bank can send commands when entered (`BankEnter_Settings`, Bank Enter tab), typically a Program Change for its patch. An incoming Program Change or Control Change over USB can select a bank (`Bank_Change_Mode`, `Bank_Change_Channel`, `Bank_Change_CC`), so a DAW or another pedal drives this one. **Configuration format change:** it grows to 23 kB over 12 flash pages; re-flash after updating.

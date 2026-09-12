@@ -22,6 +22,10 @@ void sw_get_toggle_states(uint32_t out[8]);
 void sw_get_long_toggle_states(uint32_t out[8]);
 void sw_restore_state(uint8_t page, const uint32_t toggles[8], const uint32_t long_toggles[8]);
 
+// Act as if a button of the current bank was tapped: used by the expression
+// pedals when they cross a threshold. Must be called from the main loop.
+void sw_trigger_button(uint8_t sw);
+
 // Ask for a bank change from outside the main loop (e.g. an incoming MIDI
 // message handled in the USB interrupt). Applied by handle_switches.
 void sw_request_bank(uint8_t bank);

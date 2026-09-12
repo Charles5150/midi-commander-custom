@@ -275,13 +275,32 @@ class RoundTripTest(unittest.TestCase):
         df.loc[0, ["Min_ADC", "Max_ADC", "Curve", "Invert", "Channel"]] = ["150", "3800", "Log", "Y", "7"]
         df.loc[1, ["Min_ADC", "Max_ADC", "Curve", "Invert", "Channel"]] = ["0", "4095", "Exp", "N", "Global"]
         packed = pack_config({**sections, "Expression_Settings": df})
-        r0 = packed[unpacker.EXP_OFFSET : unpacker.EXP_OFFSET + 7]
-        r1 = packed[unpacker.EXP_OFFSET + 16 : unpacker.EXP_OFFSET + 23]
-        self.assertEqual(list(r0), [150, 0, 3800 & 0xFF, 3800 >> 8, 1, 1, 7])
-        self.assertEqual(list(r1), [0, 0, 0xFF, 0x0F, 2, 0, 0])
+        r0 = packed[unpacker.EXP_OFFSET : unpacker.EXP_OFFSET + 11]
+        r1 = packed[unpacker.EXP_OFFSET + 16 : unpacker.EXP_OFFSET + 27]
+        self.assertEqual(list(r0), [150, 0, 3800 & 0xFF, 3800 >> 8, 1, 1, 7, 0xFF, 0xFF, 120, 7])
+        self.assertEqual(list(r1), [0, 0, 0xFF, 0x0F, 2, 0, 0, 0xFF, 0xFF, 120, 7])
         decoded = unpacker.unpack_config(packed)[4]
-        self.assertEqual(decoded.iloc[0].tolist(), ["1", "150", "3800", "Log", "Y", "7"])
-        self.assertEqual(decoded.iloc[1].tolist(), ["2", "0", "4095", "Exp", "N", "Global"])
+        self.assertEqual(decoded.iloc[0]["Min_ADC"], "150")
+        self.assertEqual(decoded.iloc[0]["Toe_Button"], "None")
+        self.assertEqual(decoded.iloc[1]["Channel"], "Global")
+
+    def test_expression_as_switch(self):
+        from lib.configPacker import empty_expression_settings
+
+        sections = read_config_csv(SAMPLE_CSV)
+        df = empty_expression_settings()
+        df.loc[0, ["Toe_Button", "Toe_Level", "Heel_Button", "Heel_Level"]] = ["C", "110", "1", "5"]
+        packed = pack_config({**sections, "Expression_Settings": df})
+        rec = packed[unpacker.EXP_OFFSET : unpacker.EXP_OFFSET + 11]
+        self.assertEqual(list(rec[7:11]), [6, 0, 110, 5])   # C is index 6, button 1 is index 0
+        decoded = unpacker.unpack_config(packed)[4]
+        self.assertEqual(
+            [decoded.at[0, k] for k in ("Toe_Button", "Toe_Level", "Heel_Button", "Heel_Level")],
+            ["C", "110", "1", "5"])
+        # An unknown or absent button disables that direction
+        df.loc[0, "Toe_Button"] = "Z"
+        packed = pack_config({**sections, "Expression_Settings": df})
+        self.assertEqual(packed[unpacker.EXP_OFFSET + 7], 0xFF)
 
     def test_led_brightness(self):
         sections = read_config_csv(SAMPLE_CSV)

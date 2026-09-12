@@ -774,6 +774,13 @@ static void handle_bank_switch(bank_press_t *bp, GPIO_TypeDef *port, uint16_t pi
 	}
 }
 
+void sw_trigger_button(uint8_t sw){
+	if(sw >= MIDI_NUM_SWITCHES || is_app_suspended) return;
+	// A quick tap: the down list, then the up list, exactly like a foot press
+	fire_short_down(sw);
+	fire_short_up(sw);
+}
+
 void handle_switches(void){
 	if(is_app_suspended) return;
 

@@ -14,6 +14,11 @@
  *   channel       0 = global MIDI channel, 1-16 = fixed channel
  *
  * The CC numbers come from the global settings (Exp1_CC / Exp2_CC).
+ *
+ * A pedal can also act as a switch: crossing up through the toe threshold, or
+ * back down through the heel threshold, taps a button of the current bank. Each
+ * direction re-arms only once the pedal has moved back out of the threshold by
+ * a margin, so resting on the edge does not retrigger.
  */
 
 #include "expression.h"
@@ -23,6 +28,7 @@
 #include "midi_cmds.h"
 #include "midi_defines.h"
 #include "main.h"
+#include "switch_router.h"
 
 // --- Configuration ---
 #define ENABLE_EXP_PEDAL_1     (1U)
@@ -51,6 +57,11 @@ extern uint8_t f_sys_config_complete;
 static const uint32_t kExpChannels[EXP_PEDAL_COUNT] = {ADC_CHANNEL_7, ADC_CHANNEL_8};
 static const uint8_t kEnabled[EXP_PEDAL_COUNT] = {ENABLE_EXP_PEDAL_1, ENABLE_EXP_PEDAL_2};
 
+#define SWITCH_MARGIN     (8U)    // 7-bit units the pedal must back off to re-arm
+#define TOE_DEFAULT       (120U)
+#define HEEL_DEFAULT      (7U)
+#define NO_BUTTON         (0xFFU)
+
 typedef struct {
   uint16_t min_adc;
   uint16_t max_adc;
@@ -58,6 +69,10 @@ typedef struct {
   uint8_t invert;
   uint8_t channel;      // 0 = global
   uint8_t cc_number;
+  uint8_t toe_button;   // NO_BUTTON when unused
+  uint8_t heel_button;
+  uint8_t toe_level;
+  uint8_t heel_level;
 } exp_cal_t;
 
 typedef struct {
@@ -66,6 +81,8 @@ typedef struct {
   uint32_t last_stable_adc;
   uint32_t ema_adc_value;
   bool initialised;
+  bool toe_armed;       // false while sitting past the threshold
+  bool heel_armed;
 } exp_pedal_t;
 
 static exp_pedal_t pedals[EXP_PEDAL_COUNT];
@@ -148,6 +165,13 @@ static void load_calibration(uint32_t i)
 
   uint8_t cc = pGlobalSettings[GLOBAL_SETTINGS_EXP1_CC + i];
   c->cc_number = (cc != 0 && cc <= 127) ? cc : (i == 0 ? 11U : 4U);
+
+  // Switch behaviour: a button index per direction, plus the levels
+  c->toe_button  = (p[7] < MIDI_NUM_SWITCHES) ? p[7] : NO_BUTTON;
+  c->heel_button = (p[8] < MIDI_NUM_SWITCHES) ? p[8] : NO_BUTTON;
+  c->toe_level  = (p[9]  <= 127) ? p[9]  : TOE_DEFAULT;
+  c->heel_level = (p[10] <= 127) ? p[10] : HEEL_DEFAULT;
+  if(c->toe_level == 0) c->toe_level = TOE_DEFAULT;
 }
 
 static uint8_t adc_to_midi(const exp_cal_t *c, uint32_t sample)
@@ -192,6 +216,8 @@ void expression_init(void)
     pedals[i].last_stable_adc = 0;
     pedals[i].ema_adc_value = 0;
     pedals[i].initialised = false;
+    pedals[i].toe_armed = true;
+    pedals[i].heel_armed = false;        // starts at the heel: needs to leave first
     set_pin_pulldown(kExpChannels[i]);   // never leave the pin floating
   }
   next_process_tick = 0U;
@@ -242,6 +268,26 @@ static void process_pedal(uint32_t i)
   if (p->last_sent_midi != midi_value) {
       if (midiCmd_send_cc(midi_channel(&p->cal), p->cal.cc_number, midi_value) != ERROR_BUFFERS_FULL) {
           p->last_sent_midi = midi_value;
+      }
+  }
+
+  // Toe: fires on the way up, re-arms once the pedal backs off by the margin
+  if (p->cal.toe_button != NO_BUTTON) {
+      if (p->toe_armed && midi_value >= p->cal.toe_level) {
+          p->toe_armed = false;
+          sw_trigger_button(p->cal.toe_button);
+      } else if (!p->toe_armed && midi_value + SWITCH_MARGIN < p->cal.toe_level) {
+          p->toe_armed = true;
+      }
+  }
+
+  // Heel: fires on the way down
+  if (p->cal.heel_button != NO_BUTTON) {
+      if (p->heel_armed && midi_value <= p->cal.heel_level) {
+          p->heel_armed = false;
+          sw_trigger_button(p->cal.heel_button);
+      } else if (!p->heel_armed && midi_value > p->cal.heel_level + SWITCH_MARGIN) {
+          p->heel_armed = true;
       }
   }
 }

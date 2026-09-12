@@ -935,12 +935,32 @@ class MidiCommanderGUI(ctk.CTk):
             ctk.CTkLabel(row, text="Channel").pack(side="left")
             w["channel"] = Option(row, ["Global"] + CHANNELS, r.get("Channel"), width=80)
             w["channel"].pack(side="left", padx=4)
+
+            sw = ctk.CTkFrame(box, fg_color="transparent")
+            sw.pack(fill="x", padx=8, pady=(0, 8))
+            ctk.CTkLabel(sw, text="Acts as a switch:").pack(side="left")
+            ctk.CTkLabel(sw, text="toe taps").pack(side="left", padx=(10, 2))
+            w["toe_button"] = Option(sw, ["None"] + BUTTON_IDS, r.get("Toe_Button"), width=75)
+            w["toe_button"].pack(side="left")
+            ctk.CTkLabel(sw, text="above").pack(side="left", padx=(6, 2))
+            w["toe_level"] = IntEntry(sw, 1, 127, r.get("Toe_Level") or "120", width=55)
+            w["toe_level"].pack(side="left")
+            ctk.CTkLabel(sw, text="| heel taps").pack(side="left", padx=(14, 2))
+            w["heel_button"] = Option(sw, ["None"] + BUTTON_IDS, r.get("Heel_Button"), width=75)
+            w["heel_button"].pack(side="left")
+            ctk.CTkLabel(sw, text="below").pack(side="left", padx=(6, 2))
+            w["heel_level"] = IntEntry(sw, 0, 127, r.get("Heel_Level") or "7", width=55)
+            w["heel_level"].pack(side="left")
+
             self.exp_widgets[i] = w
 
         ctk.CTkLabel(
             self.exp_frame,
             text="Curve: Linear = proportional, Log = fast at the start, Exp = slow at the start. "
-            "Channel Global = MIDI_Channel from Global Settings. CC numbers are Exp1_CC / Exp2_CC.",
+            "Channel Global = MIDI_Channel from Global Settings. CC numbers are Exp1_CC / Exp2_CC.\n"
+            "As a switch, reaching the toe or returning to the heel taps a button of the current "
+            "bank, sending whatever that button is configured to send. Each direction re-arms only "
+            "after the pedal moves back past the level, so resting on the edge does not retrigger.",
             text_color="gray",
             wraplength=760,
             justify="left",
@@ -1145,6 +1165,10 @@ class MidiCommanderGUI(ctk.CTk):
             self.df_exp.at[i, "Curve"] = w["curve"].value()
             self.df_exp.at[i, "Invert"] = w["invert"].value()
             self.df_exp.at[i, "Channel"] = w["channel"].value()
+            self.df_exp.at[i, "Toe_Button"] = w["toe_button"].value()
+            self.df_exp.at[i, "Heel_Button"] = w["heel_button"].value()
+            self.df_exp.at[i, "Toe_Level"] = w["toe_level"].value() or "120"
+            self.df_exp.at[i, "Heel_Level"] = w["heel_level"].value() or "7"
 
     def save_csv(self):
         if not self.current_csv_path:

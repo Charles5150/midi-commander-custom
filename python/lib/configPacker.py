@@ -29,7 +29,12 @@ SYSEX_STRING_MAX = 23
 SYSEX_STRING_STRIDE = SYSEX_STRING_MAX + 1
 EXP_STRIDE = 16
 EXP_CURVES = {"LINEAR": 0, "LOG": 1, "EXP": 2}
-EXP_DEFAULTS = {"Min_ADC": "80", "Max_ADC": "3900", "Curve": "Linear", "Invert": "N", "Channel": "Global"}
+EXP_DEFAULTS = {
+    "Min_ADC": "80", "Max_ADC": "3900", "Curve": "Linear", "Invert": "N",
+    "Channel": "Global", "Toe_Button": "None", "Heel_Button": "None",
+    "Toe_Level": "120", "Heel_Level": "7",
+}
+EXP_BUTTON_IDS = ["1", "2", "3", "4", "A", "B", "C", "D"]
 
 
 def _key(bank, button) -> tuple:
@@ -166,7 +171,20 @@ def pack_expression_settings(df) -> bytes:
         invert = 1 if str(get("Invert")).strip().upper().startswith("Y") else 0
         ch_text = str(get("Channel")).strip()
         channel = 0 if ch_text.upper().startswith("G") or ch_text == "" else max(0, min(16, _to_int(ch_text, 0)))
-        out += bytes([lo & 0xFF, lo >> 8, hi & 0xFF, hi >> 8, curve, invert, channel]) + bytes(EXP_STRIDE - 7)
+
+        # Switch behaviour: a button per direction (0xFF when unused) and levels
+        def button(key):
+            text = str(get(key)).strip().upper()
+            if text in ("", "NONE", "NAN", "OFF", "-"):
+                return 0xFF
+            return EXP_BUTTON_IDS.index(text) if text in EXP_BUTTON_IDS else 0xFF
+
+        toe_btn, heel_btn = button("Toe_Button"), button("Heel_Button")
+        toe_level = max(1, min(127, _to_int(get("Toe_Level"), 120)))
+        heel_level = max(0, min(127, _to_int(get("Heel_Level"), 7)))
+
+        out += bytes([lo & 0xFF, lo >> 8, hi & 0xFF, hi >> 8, curve, invert, channel,
+                      toe_btn, heel_btn, toe_level, heel_level]) + bytes(EXP_STRIDE - 11)
     return out
 
 

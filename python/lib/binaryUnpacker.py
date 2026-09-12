@@ -54,6 +54,7 @@ SYSEX_STRING_MAX = 23
 SYSEX_STRING_STRIDE = SYSEX_STRING_MAX + 1
 CONFIG_SIZE = SYSEX_OFFSET + SYSEX_STRING_COUNT * SYSEX_STRING_STRIDE
 EXP_CURVE_NAMES = {0: "Linear", 1: "Log", 2: "Exp"}
+EXP_BUTTON_IDS = ["1", "2", "3", "4", "A", "B", "C", "D"]
 
 SLOT_NAMES = [chr(ord("A") + i) for i in range(MIDI_NUM_COMMANDS_PER_SWITCH)]
 
@@ -286,6 +287,10 @@ def unpack_expression_settings(data: bytes) -> pd.DataFrame:
                 "Curve": EXP_CURVE_NAMES.get(p[4], "Linear"),
                 "Invert": "Y" if p[5] == 1 else "N",
                 "Channel": str(p[6]) if 1 <= p[6] <= 16 else "Global",
+                "Toe_Button": EXP_BUTTON_IDS[p[7]] if p[7] < 8 else "None",
+                "Heel_Button": EXP_BUTTON_IDS[p[8]] if p[8] < 8 else "None",
+                "Toe_Level": str(p[9] if 0 < p[9] <= 127 else 120),
+                "Heel_Level": str(p[10] if p[10] <= 127 else 7),
             }
         )
     return pd.DataFrame(rows)
