@@ -120,7 +120,7 @@ Both 1/4" expression jacks now route to `ADC1` (channels 7 and 8 on PA7/PB0). Th
 - EXP1 → CC #11 (Expression 1)
 - EXP2 → CC #4 (Foot Control 2)
 
-The channel comes from the “Global Channel” field in the flash configuration, so you can point the pedals at any target rig without code changes. You can tweak CC numbers or the sampling interval in `firmware/Core/Src/expression.c` if you need a different mapping or response curve.
+The channel comes from the `MIDI_Channel` field (1-16) in the `Global_Settings` section of the configuration, so you can point the pedals at any target rig without code changes. The CC numbers can be overridden with the `Exp1_CC` and `Exp2_CC` fields. You can tweak CC numbers or the sampling interval in `firmware/Core/Src/expression.c` if you need a different mapping or response curve.
 
 If a connected pedal still produces no CC output (e.g. `amidi -d` remains silent), follow the step-by-step guide in `docs/expression_pedal_troubleshooting.md` to verify firmware, hardware wiring, and MIDI monitoring.
 

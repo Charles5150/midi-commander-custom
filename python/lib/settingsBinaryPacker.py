@@ -6,7 +6,11 @@ GLOBAL_SETTINGS_EXP2_CC = 3
 def pack_global_settings(df):
     # global settings will be 32 bytes long
     bin_list = [0] * 16
-    bin_list[GLOBAL_SETTINGS_CHANNEL] = int(df.loc["MIDI_Channel", "Value"]) & 0xF
+    # MIDI_Channel is 1-16 in the CSV (same convention as per-command
+    # channels); the firmware expects the 0-15 wire value.
+    midi_channel = int(df.loc["MIDI_Channel", "Value"])
+    midi_channel = min(max(midi_channel, 1), 16)
+    bin_list[GLOBAL_SETTINGS_CHANNEL] = (midi_channel - 1) & 0xF
     if "Y" in df.loc["RealTime_Passthrough", "Value"]:
         bin_list[GLOBAL_SETTINGS_REALTIME_PASS] = 0x1
     
