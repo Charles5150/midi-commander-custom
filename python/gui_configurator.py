@@ -39,7 +39,9 @@ from lib.midiDevice import DeviceNotFound, DeviceTimeout, MidiCommander  # noqa:
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
 
-DEFAULT_CSV = os.path.join(HERE, "MeloConfig_10_Cmds - RC-600.csv")
+# Loaded at start: the demo covers every feature, so it doubles as the
+# reference for how anything is configured.
+DEFAULT_CSV = os.path.join(HERE, "demo-all-features.csv")
 
 # --- Value sets -------------------------------------------------------------
 LED_MODES = ["Normal", "Reverse", "AlwaysOn"]

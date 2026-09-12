@@ -102,7 +102,7 @@ Connect the pedal in normal mode (not DFU), click **Read from Device** to load w
 
 **Sidebar**
 
-- **Load CSV** opens a configuration file. The sample `python/MeloConfig_10_Cmds - RC-600.csv` is loaded at start.
+- **Load CSV** opens a configuration file. `python/demo-all-features.csv` is loaded at start, so every feature is there to look at straight away.
 - **Read from Device** pulls the configuration stored on the connected pedal into a CSV you choose, and loads it.
 - **Save CSV** writes the current settings to the open file.
 - **FLASH TO DEVICE** saves the CSV, transfers it to the pedal and reboots it.
