@@ -7,6 +7,7 @@ Layout (must match firmware/Core/Src/flash_midi_settings.c):
     32..127  bank strings
     128..    8 banks x 8 buttons x 10 commands x 4 bytes
     2688..   button LED mode table, one byte per button (bank * 8 + button)
+    2752..   button labels, 4 ASCII chars per button, space padded
 """
 
 import lib.cmdBinaryPacker as cbp
@@ -14,6 +15,16 @@ import lib.settingsBinaryPacker as sbp
 
 NUM_BANKS = 8
 NUM_BUTTONS = 8
+LABEL_LEN = 4
+
+
+def pack_label(value) -> bytes:
+    """Label cell -> LABEL_LEN ASCII bytes, space padded, non-ASCII as '?'."""
+    text = "" if value is None else str(value)
+    if text.strip().lower() == "nan":
+        text = ""
+    text = text.strip()[:LABEL_LEN]
+    return text.encode("ascii", errors="replace").ljust(LABEL_LEN, b" ")
 
 
 def pack_config(sections: dict) -> bytes:
@@ -33,9 +44,12 @@ def pack_config(sections: dict) -> bytes:
         )
 
     light_modes = []
+    labels = b""
     for _, row in df_buttons.iterrows():
         out += cbp.pack_row(row)
         light_modes.append(row.get("Light_Mode", "Normal"))
+        labels += pack_label(row.get("Label", ""))
     out += cbp.pack_button_led_modes(light_modes)
+    out += list(labels)
 
     return bytes(out)

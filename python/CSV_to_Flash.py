@@ -19,8 +19,8 @@ from lib.midiDevice import (
     MidiCommander,
 )
 
-# Flash pages are 1kByte
-FLASH_PAGE_SIZE = 1024
+# Flash pages are 2 kB on the STM32F103RE (high density)
+FLASH_PAGE_SIZE = 2048
 
 # This needs to be in sync with FLASH_SETTINGS_NO_PAGES in
 # firmware/Core/Inc/flash_midi_settings.h

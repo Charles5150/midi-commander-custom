@@ -34,9 +34,11 @@ NUM_BANKS = 8
 BUTTON_IDS = ["1", "2", "3", "4", "A", "B", "C", "D"]
 CMD_SIZE = 4
 BUTTON_STRIDE = MIDI_NUM_COMMANDS_PER_SWITCH * CMD_SIZE
+LABEL_LEN = 4
 COMMANDS_OFFSET = GLOBAL_SIZE + BANK_STRINGS_SIZE
 LED_MODES_OFFSET = COMMANDS_OFFSET + NUM_BANKS * len(BUTTON_IDS) * BUTTON_STRIDE
-CONFIG_SIZE = LED_MODES_OFFSET + NUM_BANKS * len(BUTTON_IDS)
+LABELS_OFFSET = LED_MODES_OFFSET + NUM_BANKS * len(BUTTON_IDS)
+CONFIG_SIZE = LABELS_OFFSET + NUM_BANKS * len(BUTTON_IDS) * LABEL_LEN
 
 SLOT_NAMES = [chr(ord("A") + i) for i in range(MIDI_NUM_COMMANDS_PER_SWITCH)]
 
@@ -67,9 +69,8 @@ for _name, _code in HID_SPECIAL_KEYS.items():
 
 
 def _ascii(chunk: bytes) -> str:
-    return chunk.decode("ascii", errors="replace").rstrip(" \x00").replace(
-        "\xff", ""
-    )
+    """Printable ASCII from a fixed-width field; erased flash (0xFF) reads as empty."""
+    return "".join(chr(b) if 0x20 <= b <= 0x7E else " " for b in chunk).rstrip()
 
 
 def _led_mode_name(value: int) -> str:
@@ -170,7 +171,7 @@ def unpack_command(raw: bytes) -> dict:
 
 
 def unpack_button_settings(data: bytes) -> pd.DataFrame:
-    columns = ["Bank_Number", "Button_Identifier"]
+    columns = ["Bank_Number", "Button_Identifier", "Label"]
     for slot in SLOT_NAMES:
         columns += [f"{slot}_{f}" for f in CMD_FIELDS]
     columns.append("Light_Mode")
@@ -180,7 +181,12 @@ def unpack_button_settings(data: bytes) -> pd.DataFrame:
     for bank in range(NUM_BANKS):
         for btn_index, btn_id in enumerate(BUTTON_IDS):
             button_number = bank * len(BUTTON_IDS) + btn_index
-            row = {"Bank_Number": str(bank), "Button_Identifier": btn_id}
+            label_start = LABELS_OFFSET + button_number * LABEL_LEN
+            row = {
+                "Bank_Number": str(bank),
+                "Button_Identifier": btn_id,
+                "Label": _ascii(data[label_start : label_start + LABEL_LEN]),
+            }
             for slot_index, slot in enumerate(SLOT_NAMES):
                 offset = (
                     COMMANDS_OFFSET + button_number * BUTTON_STRIDE + slot_index * CMD_SIZE

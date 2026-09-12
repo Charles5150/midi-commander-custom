@@ -14,9 +14,14 @@ extern uint8_t *pSwitchCmds;
 extern uint8_t *pGlobalSettings;
 extern uint8_t *pBankStrings;
 extern uint8_t *pButtonLedModes;
+extern uint8_t *pButtonLabels;
 
 #define MIDI_NUM_BANKS			(8)
 #define MIDI_NUM_SWITCHES		(8)
+
+// Button labels shown on the display, BUTTON_LABEL_LEN ASCII chars per
+// button indexed by (bank * 8 + switch), space padded. Follows the LED table.
+#define BUTTON_LABEL_LEN		(4)
 
 // Button LED modes, one byte per button indexed by (bank * 8 + switch).
 // 0 = Normal, 1 = Reverse, 2 = AlwaysOn. Erased flash (0xFF) reads as Normal.
@@ -25,10 +30,11 @@ extern uint8_t *pButtonLedModes;
 #define LED_MODE_ALWAYS_ON	(2)
 
 
-// Number of 1kB flash pages reserved for the settings. Must stay in sync with
-// ALLOWED_NUM_FLASH_PAGES in python/CSV_to_Flash.py.
+// Number of flash pages reserved for the settings. Pages are 2 kB on the
+// STM32F103RE (FLASH_PAGE_SIZE). Must stay in sync with ALLOWED_NUM_FLASH_PAGES
+// and FLASH_PAGE_SIZE in python/CSV_to_Flash.py.
 #define FLASH_SETTINGS_NO_PAGES	(3)
-#define FLASH_SETTINGS_SIZE		(FLASH_SETTINGS_NO_PAGES * 1024)
+#define FLASH_SETTINGS_SIZE		(FLASH_SETTINGS_NO_PAGES * FLASH_PAGE_SIZE)
 
 #define MIDI_ROM_CMD_SIZE	(4)
 #define MIDI_NUM_COMMANDS_PER_SWITCH (10)

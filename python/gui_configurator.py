@@ -304,6 +304,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.slot_editors = []
         self.editing_row = None
         self.light_mode = None
+        self.label_entry = None
 
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -416,15 +417,25 @@ class MidiCommanderGUI(ctk.CTk):
 
         if "Button_Settings" in data:
             self.df_buttons = data["Button_Settings"].astype(object).reset_index(drop=True)
-            if "Light_Mode" not in self.df_buttons.columns:
-                self.df_buttons["Light_Mode"] = "Normal"
+            df = self.df_buttons
+            if "Label" not in df.columns:
+                df.insert(2, "Label", "")
+            if "Light_Mode" not in df.columns:
+                df["Light_Mode"] = "Normal"
             else:
-                self.df_buttons["Light_Mode"] = self.df_buttons["Light_Mode"].fillna("Normal")
-            for slot in SLOTS:
-                for field in CMD_FIELDS:
-                    col = f"{slot}_{field}"
-                    if col not in self.df_buttons.columns:
-                        self.df_buttons[col] = float("nan")
+                df["Light_Mode"] = df["Light_Mode"].fillna("Normal")
+            missing = [
+                f"{slot}_{field}"
+                for slot in SLOTS
+                for field in CMD_FIELDS
+                if f"{slot}_{field}" not in df.columns
+            ]
+            if missing:
+                df = pd.concat(
+                    [df, pd.DataFrame(float("nan"), index=df.index, columns=missing)],
+                    axis=1,
+                )
+            self.df_buttons = df.copy()
 
             banks = [clean(b) for b in self.df_buttons["Bank_Number"].unique()]
             self.bank_selector.configure(values=banks)
@@ -509,9 +520,10 @@ class MidiCommanderGUI(ctk.CTk):
         ]
         for idx, row_data in rows.iterrows():
             btn_id = clean(row_data["Button_Identifier"])
+            label = clean(row_data.get("Label"))
             ctk.CTkButton(
                 self.button_matrix,
-                text=f"Button {btn_id}",
+                text=f"{btn_id}   {label}" if label else f"Button {btn_id}",
                 width=110,
                 command=lambda rid=idx, bid=btn_id: self.load_button_commands(rid, bid),
             ).pack(pady=5, padx=8)
@@ -534,6 +546,9 @@ class MidiCommanderGUI(ctk.CTk):
 
         light_frame = ctk.CTkFrame(self.cmd_editor, fg_color="transparent")
         light_frame.pack(anchor="w", padx=10, pady=(0, 8))
+        ctk.CTkLabel(light_frame, text="Display label:", font=BOLD).pack(side="left")
+        self.label_entry = TextEntry(light_frame, 4, current.get("Label"), width=70)
+        self.label_entry.pack(side="left", padx=(8, 20))
         ctk.CTkLabel(light_frame, text="LED light mode:", font=BOLD).pack(side="left")
         self.light_mode = Option(light_frame, LED_MODES, current.get("Light_Mode"), width=110)
         self.light_mode.pack(side="left", padx=8)
@@ -581,6 +596,8 @@ class MidiCommanderGUI(ctk.CTk):
                 )
         if self.light_mode is not None:
             self.df_buttons.at[idx, "Light_Mode"] = self.light_mode.value()
+        if self.label_entry is not None:
+            self.df_buttons.at[idx, "Label"] = self.label_entry.value().strip()
 
         if not silent:
             messagebox.showinfo(

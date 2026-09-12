@@ -116,6 +116,9 @@ static inline uint8_t get_sw_toggle_state(sw_t *sw){
 static inline void toggle_sw_state(sw_t *sw){
 	sw->switch_toggle_state ^= (1 << switch_current_page);
 	state_store_mark_dirty();
+	if(sw->led_cmd_toggle & (1 << switch_current_page)){
+		display_request_refresh();
+	}
 }
 
 
@@ -601,6 +604,16 @@ void set_all_leds(uint8_t state){
 
 uint8_t sw_get_current_page(void){
 	return switch_current_page;
+}
+
+uint8_t sw_button_is_toggle(uint8_t bank, uint8_t sw){
+	if(sw >= MIDI_NUM_SWITCHES || bank >= MIDI_NUM_BANKS) return 0;
+	return (a_sw_obj[sw].led_cmd_toggle >> bank) & 1;
+}
+
+uint8_t sw_get_toggle_state(uint8_t bank, uint8_t sw){
+	if(sw >= MIDI_NUM_SWITCHES || bank >= MIDI_NUM_BANKS) return 0;
+	return (a_sw_obj[sw].switch_toggle_state >> bank) & 1;
 }
 
 void sw_get_toggle_states(uint8_t out[8]){

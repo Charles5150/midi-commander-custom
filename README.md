@@ -6,6 +6,8 @@ This repository is a fork of [arasan95/midi-commander-custom](https://github.com
 
 ## Changes in this fork
 
+- **Button labels on the display (firmware 0.6).** Each button has a 4 character `Label` (new column in `Button_Settings`, "Display label" field in the GUI). The screen now shows the bank name on the top line and a 2x4 grid below it laid out like the pedal: buttons 1 2 3 4 on the top row, A B C D on the bottom row. Buttons without a label show their identifier. Cells of toggle buttons are drawn inverted while the toggle is on, so you can see the state of every button at a glance. The label table follows the LED mode table in flash; older configurations read as blank labels.
+- **Flash page size corrected.** The STM32F103RE has 2 kB pages, so the configuration area is 6 kB rather than the 3 kB the code assumed. The tools now report the real limit.
 - **Remember the last bank and toggle states (firmware 0.5).** New global setting `Remember_State` (Y/N, default N). When enabled, the pedal powers up in the bank you were using, with every toggle button in the state you left it, instead of always starting in bank 0 with everything off. The state is journaled in a dedicated flash page two seconds after the last change, so it survives configuration re-flashes and does not wear the flash with every press.
 - **Continuous integration.** GitHub Actions builds both firmware images and runs the Python tests on every push and pull request.
 - **USB to DIN MIDI thru (firmware 0.4).** New global setting `USB_MIDI_Thru` (Y/N, default N). When enabled, every channel message (notes, CC, PC, pitch bend, pressure), system common message and SysEx not addressed to the pedal received over USB is forwarded to the DIN output, so the Midi Commander doubles as a USB MIDI interface for whatever is plugged into its MIDI OUT. Clock, Start, Continue and Stop are still governed by `RealTime_Passthrough`. The USB receive parser was rewritten to walk 4 byte USB MIDI events properly, which also fixes a buffer overflow when a long SysEx from another device was received.
@@ -48,7 +50,7 @@ When the connected PC enters sleep (suspend) mode, the device will automatically
 
 Before using the new features (GUI Configurator, Sleep Mode, etc.), you must update the device firmware.
 Please flash the following file included in this repository:
-`artifacts/release-0.5.dfu` (previous releases are kept in `artifacts/` for reference)
+`artifacts/release-0.6.dfu` (previous releases are kept in `artifacts/` for reference)
 
 (See [Loading the firmware](#loading-the-firmware) section for detailed flashing instructions.)
 
@@ -111,7 +113,7 @@ I have had a lot of issues under Windows 10, and there are reports from others o
 - "Spreadsheet" based configuration, no scrolling through menus on that tiny screen with huge buttons. Easy Copy/Paste, Fill, etc. Easy sharing.
 - Supports Program Change (aka Patch Change), Controller Change, Note, Pitch Bend and Start/Stop messages for any of the buttons.
 - The Channel for each message is configured on each individual command.  So it can address seperate pieces of hardware in a midi chain.
-- 8 banks of 8 buttons.  Each bank can display message strings for identification.
+- 8 banks of 8 buttons.  Each bank can display message strings for identification, and each button a 4 character label shown in a grid on the display with its toggle state.
 - 0 to 10 independant chained commands on each switch/bank position.  Enables configuring different devices, or a series of actions of each button push.
 - CC, Note and Pitch Bend support momentary, toggle, or an on-duration of up to 2.5 sec in 10ms increments. CC can also send just the start message.
 - Program Change messages can include the Bank Select messages prior to the PC message, either just the Lease Signficant Byte or both the LSB & MSB.

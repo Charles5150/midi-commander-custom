@@ -135,6 +135,7 @@ class RoundTripTest(unittest.TestCase):
         _, _, df = unpacker.unpack_config(blank)
         self.assertTrue((df["A_CommandType"] == "").all())
         self.assertTrue((df["Light_Mode"] == "Normal").all())
+        self.assertTrue((df["Label"] == "").all())
 
     def test_light_mode_does_not_touch_command_bytes(self):
         """LED modes live in their own table and never set bits in slot A."""
@@ -151,7 +152,7 @@ class RoundTripTest(unittest.TestCase):
             packed[: unpacker.LED_MODES_OFFSET], base[: unpacker.LED_MODES_OFFSET]
         )
         # LED table carries the modes
-        table = packed[unpacker.LED_MODES_OFFSET : unpacker.CONFIG_SIZE]
+        table = packed[unpacker.LED_MODES_OFFSET : unpacker.LABELS_OFFSET]
         self.assertEqual(list(table), [1, 2] * (len(df) // 2))
         # And they come back by name
         _, _, decoded = unpacker.unpack_config(packed)
@@ -176,12 +177,36 @@ class RoundTripTest(unittest.TestCase):
     def test_remember_state_flag(self):
         sections = read_config_csv(SAMPLE_CSV)
         g = sections["Global_Settings"].copy()
-        self.assertEqual(pack_config(sections)[7], 0)
+        g.loc[g["Label"] == "Remember_State", "Value"] = "N"
+        self.assertEqual(pack_config({**sections, "Global_Settings": g})[7], 0)
         g.loc[g["Label"] == "Remember_State", "Value"] = "Y"
         packed = pack_config({**sections, "Global_Settings": g})
         self.assertEqual(packed[7], 1)
         df_global, _, _ = unpacker.unpack_config(packed)
         self.assertEqual(df_global.set_index("Label")["Value"]["Remember_State"], "Y")
+
+    def test_labels_round_trip(self):
+        sections = read_config_csv(SAMPLE_CSV)
+        df = sections["Button_Settings"].copy()
+        labels = [f"L{i:02d}"[:4] for i in range(len(df))]
+        labels[0] = "REC"          # short, gets space padded
+        labels[1] = "TOOLONG"      # truncated to 4
+        labels[2] = ""             # empty
+        labels[3] = "cañón"        # non-ASCII replaced
+        df["Label"] = labels
+        packed = pack_config({**sections, "Button_Settings": df})
+        self.assertEqual(len(packed), unpacker.CONFIG_SIZE)
+        table = packed[unpacker.LABELS_OFFSET : unpacker.CONFIG_SIZE]
+        self.assertEqual(table[:4], b"REC ")
+        self.assertEqual(table[4:8], b"TOOL")
+        self.assertEqual(table[8:12], b"    ")
+        self.assertEqual(table[12:16], b"ca??")
+        _, _, decoded = unpacker.unpack_config(packed)
+        self.assertEqual(decoded["Label"].tolist()[:3], ["REC", "TOOL", ""])
+        # A config without a Label column packs blank labels
+        no_col = df.drop(columns=["Label"])
+        packed2 = pack_config({**sections, "Button_Settings": no_col})
+        self.assertEqual(set(packed2[unpacker.LABELS_OFFSET :]), {0x20})
 
     def test_cc_alwayson_keeps_off_value(self):
         """Regression: AlwaysOn used to set bit 7 of the CC off value."""

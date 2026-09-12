@@ -172,6 +172,7 @@ int main(void)
 	  handle_switches();
       expression_task();
       state_store_task();
+      display_task();
 
     /* USER CODE END WHILE */
 
