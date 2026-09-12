@@ -6,6 +6,7 @@ This repository is a fork of [arasan95/midi-commander-custom](https://github.com
 
 ## Changes in this fork
 
+- **Expression pedal calibration (firmware 0.8).** New `Expression_Settings` CSV section and **Expression** tab in the GUI with, per pedal: calibrated minimum and maximum ADC values, response curve (Linear, Log = fast at the start, Exp = slow at the start), invert, and a fixed MIDI channel or the global one. The GUI shows the live pedal position and CC value read from the device over SysEx (`GET_PEDALS`, 62) and has a **Calibrate** button: press it, sweep the pedal from heel to toe a couple of times, press Done, and the end points are filled in with a small margin so 0 and 127 are always reached. Pedals with no calibration behave as before (80..3900 linear).
 - **Long press (firmware 0.7).** Every button has a second set of up to 10 commands that fires when the button is held longer than `Long_Press_ms` (global setting, default 500 ms). A short press fires the normal commands on release. Buttons with no long press commands keep reacting instantly on press, so nothing changes for them. Long press commands live in a new `LongPress_Settings` CSV section with the same columns as `Button_Settings`; in the GUI, switch the editor between **Short press** and **Long press**. Long press toggles keep their own state, also restored at power on when `Remember_State` is on. Typical use with a looper: short press = record/play, long press = undo or clear.
 - **Button labels on the display (firmware 0.6).** Each button has a 4 character `Label` (new column in `Button_Settings`, "Display label" field in the GUI). The screen now shows the bank name on the top line and a 2x4 grid below it laid out like the pedal: buttons 1 2 3 4 on the top row, A B C D on the bottom row. Buttons without a label show their identifier. Cells of toggle buttons are drawn inverted while the toggle is on, so you can see the state of every button at a glance. The label table follows the LED mode table in flash; older configurations read as blank labels.
 - **Flash page size corrected.** The STM32F103RE has 2 kB pages, so the configuration area is 6 kB rather than the 3 kB the code assumed. The tools now report the real limit.
@@ -51,7 +52,7 @@ When the connected PC enters sleep (suspend) mode, the device will automatically
 
 Before using the new features (GUI Configurator, Sleep Mode, etc.), you must update the device firmware.
 Please flash the following file included in this repository:
-`artifacts/release-0.7.dfu` (previous releases are kept in `artifacts/` for reference)
+`artifacts/release-0.8.dfu` (previous releases are kept in `artifacts/` for reference)
 
 (See [Loading the firmware](#loading-the-firmware) section for detailed flashing instructions.)
 
@@ -138,7 +139,7 @@ Both 1/4" expression jacks now route to `ADC1` (channels 7 and 8 on PA7/PB0). Th
 - EXP1 → CC #11 (Expression 1)
 - EXP2 → CC #4 (Foot Control 2)
 
-The channel comes from the `MIDI_Channel` field (1-16) in the `Global_Settings` section of the configuration, so you can point the pedals at any target rig without code changes. The CC numbers can be overridden with the `Exp1_CC` and `Exp2_CC` fields. You can tweak CC numbers or the sampling interval in `firmware/Core/Src/expression.c` if you need a different mapping or response curve.
+The channel comes from the `MIDI_Channel` field (1-16) in the `Global_Settings` section of the configuration, or from the per-pedal `Channel` in `Expression_Settings`, so you can point the pedals at any target rig without code changes. The CC numbers can be overridden with the `Exp1_CC` and `Exp2_CC` fields, and the range, curve and direction of each pedal are calibrated from the GUI's Expression tab. You can tweak CC numbers or the sampling interval in `firmware/Core/Src/expression.c` if you need a different mapping or response curve.
 
 If a connected pedal still produces no CC output (e.g. `amidi -d` remains silent), follow the step-by-step guide in `docs/expression_pedal_troubleshooting.md` to verify firmware, hardware wiring, and MIDI monitoring.
 

@@ -1,3 +1,21 @@
+/*
+ * expression.c
+ *
+ * Expression pedal sampling and MIDI forwarding.
+ *
+ * Each pedal is read through ADC1 with the pin switched to pull-down between
+ * readings (prevents crosstalk and charge-up between the two inputs), passed
+ * through an adaptive EMA filter and a small hysteresis, then mapped to a
+ * 7-bit CC through the per-pedal calibration stored in the configuration:
+ *
+ *   min/max ADC   calibrated end points (heel / toe)
+ *   curve         0 linear, 1 log (fast at the start), 2 exp (slow at the start)
+ *   invert        swap heel and toe
+ *   channel       0 = global MIDI channel, 1-16 = fixed channel
+ *
+ * The CC numbers come from the global settings (Exp1_CC / Exp2_CC).
+ */
+
 #include "expression.h"
 
 #include <stdbool.h>
@@ -7,61 +25,71 @@
 #include "main.h"
 
 // --- Configuration ---
-// Set these to 1 to enable the pedal, 0 to disable
 #define ENABLE_EXP_PEDAL_1     (1U)
 #define ENABLE_EXP_PEDAL_2     (1U)
 
-// Adaptive Filter Configuration
-#define EXP_ADAPTIVE_MIN_ALPHA (5U)   // Strong smoothing when still (0-100)
-#define EXP_ADAPTIVE_MAX_ALPHA (90U)  // Fast response when moving (0-100)
-#define EXP_FAST_MOVE_THRESHOLD (50U) // Threshold to switch to fast mode
+// Adaptive filter: strong smoothing when still, fast response when moving
+#define EXP_ADAPTIVE_MIN_ALPHA (5U)   // 0-100
+#define EXP_ADAPTIVE_MAX_ALPHA (90U)  // 0-100
+#define EXP_FAST_MOVE_THRESHOLD (50U) // ADC counts
 
-// Hysteresis
-#define EXP_HYSTERESIS         (16U)  // Reduced hysteresis because adaptive filter handles noise better
+#define EXP_HYSTERESIS         (16U)  // ADC counts
+#define EXP_PROCESS_INTERVAL_MS (1U)
 
+// Defaults used when the calibration table is blank or invalid
+#define EXP_DEFAULT_MIN        (80U)
+#define EXP_DEFAULT_MAX        (3900U)
 // --- End Configuration ---
 
 #define EXP_PEDAL_COUNT        (2U)
-#define EXP_PROCESS_INTERVAL_MS (1U)  // 1ms interval (1kHz) for high resolution
-#define EXP_DEADZONE_COUNTS    (15U)
+#define ADC_FULL_SCALE         (4095U)
 
 extern ADC_HandleTypeDef hadc1;
 #define EXP_ADC_HANDLE (&hadc1)
+extern uint8_t f_sys_config_complete;
 
 static const uint32_t kExpChannels[EXP_PEDAL_COUNT] = {ADC_CHANNEL_7, ADC_CHANNEL_8};
-extern uint8_t f_sys_config_complete;
-static uint8_t gExpCcNumbers[EXP_PEDAL_COUNT] = {11U, 4U};
+static const uint8_t kEnabled[EXP_PEDAL_COUNT] = {ENABLE_EXP_PEDAL_1, ENABLE_EXP_PEDAL_2};
 
-static uint8_t last_sent_midi[EXP_PEDAL_COUNT];
-static uint32_t last_stable_adc[EXP_PEDAL_COUNT];
-static uint32_t ema_adc_value[EXP_PEDAL_COUNT]; 
+typedef struct {
+  uint16_t min_adc;
+  uint16_t max_adc;
+  uint8_t curve;
+  uint8_t invert;
+  uint8_t channel;      // 0 = global
+  uint8_t cc_number;
+} exp_cal_t;
+
+typedef struct {
+  exp_cal_t cal;
+  uint8_t last_sent_midi;
+  uint32_t last_stable_adc;
+  uint32_t ema_adc_value;
+  bool initialised;
+} exp_pedal_t;
+
+static exp_pedal_t pedals[EXP_PEDAL_COUNT];
 static uint32_t next_process_tick = 0U;
 
-// Helper to switch GPIO mode efficiently
-// PA7 (EXP1) -> ADC12_IN7
-// PB0 (EXP2) -> ADC12_IN8
+// --- Pin handling -----------------------------------------------------------
+// PA7 (EXP1) -> ADC12_IN7, PB0 (EXP2) -> ADC12_IN8
 static void set_pin_analog(uint32_t channel) {
     if (channel == ADC_CHANNEL_7) {
-        // PA7: CRL bits 28-31. Clear to 0000 (Analog)
-        GPIOA->CRL &= ~(0xF << 28);
+        GPIOA->CRL &= ~(0xF << 28);         // PA7: MODE=00 CNF=00 (analog)
     } else if (channel == ADC_CHANNEL_8) {
-        // PB0: CRL bits 0-3. Clear to 0000 (Analog)
-        GPIOB->CRL &= ~(0xF << 0);
+        GPIOB->CRL &= ~(0xF << 0);          // PB0
     }
 }
 
 static void set_pin_pulldown(uint32_t channel) {
     if (channel == ADC_CHANNEL_7) {
-        // PA7: Input with Pull-up/down (1000 -> 0x8)
-        // MODE=00 (Input), CNF=10 (PushPull/PullUp-Down)
-        GPIOA->CRL &= ~(0xF << 28); // Clear
-        GPIOA->CRL |=  (0x8 << 28); // Set CNF=10
-        GPIOA->ODR &= ~GPIO_PIN_7;  // ODR=0 -> Pull Down
+        GPIOA->CRL &= ~(0xF << 28);
+        GPIOA->CRL |=  (0x8 << 28);         // Input with pull-up/down
+        GPIOA->ODR &= ~GPIO_PIN_7;          // ODR=0 -> pull down
     } else if (channel == ADC_CHANNEL_8) {
-        // PB0
         GPIOB->CRL &= ~(0xF << 0);
         GPIOB->CRL |=  (0x8 << 0);
-        GPIOB->ODR &= ~GPIO_PIN_0;  // ODR=0 -> Pull Down
+        GPIOB->ODR &= ~GPIO_PIN_0;
     }
 }
 
@@ -70,22 +98,18 @@ static void delay_cycles(uint32_t cycles) {
     while(c--) { __asm("nop"); }
 }
 
-static uint32_t read_adc_channel_pro(uint32_t channel)
+static uint32_t read_adc_channel(uint32_t channel)
 {
-  // 1. Switch Pin to Analog Mode (Connect to ADC)
   set_pin_analog(channel);
 
   ADC_ChannelConfTypeDef sConfig = {0};
   sConfig.Channel = channel;
   sConfig.Rank = ADC_REGULAR_RANK_1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_239CYCLES_5; 
-
+  sConfig.SamplingTime = ADC_SAMPLETIME_239CYCLES_5;
   if (HAL_ADC_ConfigChannel(EXP_ADC_HANDLE, &sConfig) != HAL_OK) return 0;
-  
-  // Wait for pin voltage to settle after switching from Pull-Down
-  // Pull-down might have drained the capacitor, so we need recovery time.
-  // Increased delay drastically to 50000 (approx 1ms) to ensure full rise
-  delay_cycles(50000); 
+
+  // Let the pin recover from the pull-down before sampling (~1 ms)
+  delay_cycles(50000);
 
   HAL_ADC_Start(EXP_ADC_HANDLE);
   HAL_ADC_PollForConversion(EXP_ADC_HANDLE, 2);
@@ -100,55 +124,126 @@ static uint32_t read_adc_channel_pro(uint32_t channel)
   }
   HAL_ADC_Stop(EXP_ADC_HANDLE);
 
-  // 2. Switch Pin back to Pull-Down (Discharge / Prevent Float)
   set_pin_pulldown(channel);
-
   return accumulator / 16;
 }
 
-static uint8_t expression_adc_to_midi(uint32_t sample)
+// --- Calibration ------------------------------------------------------------
+static void load_calibration(uint32_t i)
 {
-  // Expanded Deadzones [ADJUSTED: Lowered top threshold to stop chatter]
-  if (sample <= 80U) return 0U;      
-  if (sample >= 3900U) return 127U;  // Aggressively lowered to snap to 127
+  exp_cal_t *c = &pedals[i].cal;
+  const uint8_t *p = pExpSettings + i * EXP_SETTINGS_STRIDE;
 
-  // Scale (80..3900) -> (0..127)
-  // Input Range: 3900 - 80 = 3820
-  
-  uint32_t input_val = sample - 80U;
-  uint32_t scaled = (input_val * 127U) / 3820U;
-  
-  if (scaled > 127U) scaled = 127U;
-  return (uint8_t)scaled;
+  uint16_t min_adc = p[0] | (p[1] << 8);
+  uint16_t max_adc = p[2] | (p[3] << 8);
+  if (min_adc > ADC_FULL_SCALE || max_adc > ADC_FULL_SCALE || min_adc + 100 > max_adc) {
+      min_adc = EXP_DEFAULT_MIN;   // blank flash or nonsense: use defaults
+      max_adc = EXP_DEFAULT_MAX;
+  }
+  c->min_adc = min_adc;
+  c->max_adc = max_adc;
+  c->curve = (p[4] <= EXP_CURVE_EXP) ? p[4] : EXP_CURVE_LINEAR;
+  c->invert = (p[5] == 1);
+  c->channel = (p[6] >= 1 && p[6] <= 16) ? p[6] : 0;
+
+  uint8_t cc = pGlobalSettings[GLOBAL_SETTINGS_EXP1_CC + i];
+  c->cc_number = (cc != 0 && cc <= 127) ? cc : (i == 0 ? 11U : 4U);
 }
 
+static uint8_t adc_to_midi(const exp_cal_t *c, uint32_t sample)
+{
+  if (sample <= c->min_adc) return c->invert ? 127U : 0U;
+  if (sample >= c->max_adc) return c->invert ? 0U : 127U;
+
+  // Position in the calibrated range, 0..1024
+  uint32_t span = c->max_adc - c->min_adc;
+  uint32_t n = ((sample - c->min_adc) * 1024U) / span;
+  if (c->invert) n = 1024U - n;
+
+  uint32_t v;
+  switch (c->curve) {
+  case EXP_CURVE_EXP:       // slow start: n^2
+      v = (n * n * 127U) / (1024U * 1024U);
+      break;
+  case EXP_CURVE_LOG: {     // fast start: 1 - (1-n)^2
+      uint32_t m = 1024U - n;
+      v = 127U - (m * m * 127U) / (1024U * 1024U);
+      break;
+  }
+  default:                  // linear
+      v = (n * 127U) / 1024U;
+      break;
+  }
+  return (uint8_t)(v > 127U ? 127U : v);
+}
+
+static uint8_t midi_channel(const exp_cal_t *c)
+{
+  if (c->channel) return c->channel - 1;
+  return pGlobalSettings[GLOBAL_SETTINGS_CHANNEL] & 0x0FU;
+}
+
+// --- Public API --------------------------------------------------------------
 void expression_init(void)
 {
-  // Load CC numbers from Global Settings if available (Offset 2 and 3)
-  if (pGlobalSettings != NULL) {
-      if (pGlobalSettings[2] != 0 && pGlobalSettings[2] <= 127) {
-          gExpCcNumbers[0] = pGlobalSettings[2];
-      }
-      if (pGlobalSettings[3] != 0 && pGlobalSettings[3] <= 127) {
-          gExpCcNumbers[1] = pGlobalSettings[3];
-      }
-  }
-
   for (uint32_t i = 0; i < EXP_PEDAL_COUNT; i++) {
-    last_sent_midi[i] = 0xFFU;
-    last_stable_adc[i] = 0;
-    ema_adc_value[i] = 0;
-    
-    // Init pins to Pull-Down to prevent floating
-    set_pin_pulldown(kExpChannels[i]); 
+    load_calibration(i);
+    pedals[i].last_sent_midi = 0xFFU;
+    pedals[i].last_stable_adc = 0;
+    pedals[i].ema_adc_value = 0;
+    pedals[i].initialised = false;
+    set_pin_pulldown(kExpChannels[i]);   // never leave the pin floating
   }
   next_process_tick = 0U;
 }
 
-static uint8_t midi_channel(void)
+uint16_t expression_get_raw(uint8_t pedal)
 {
-  if (pGlobalSettings == NULL) return 0U;
-  return pGlobalSettings[GLOBAL_SETTINGS_CHANNEL] & 0x0FU;
+  if (pedal >= EXP_PEDAL_COUNT) return 0;
+  return (uint16_t)pedals[pedal].ema_adc_value;
+}
+
+uint8_t expression_get_midi(uint8_t pedal)
+{
+  if (pedal >= EXP_PEDAL_COUNT) return 0;
+  uint8_t v = pedals[pedal].last_sent_midi;
+  return (v == 0xFFU) ? 0 : v;
+}
+
+static void process_pedal(uint32_t i)
+{
+  exp_pedal_t *p = &pedals[i];
+  uint32_t raw_avg = read_adc_channel(kExpChannels[i]);
+
+  if (!p->initialised) {
+      p->ema_adc_value = raw_avg;
+      p->initialised = true;
+  }
+
+  // Adaptive EMA: big jumps track fast, small ones are smoothed hard
+  uint32_t diff_raw = (raw_avg > p->ema_adc_value) ? raw_avg - p->ema_adc_value
+                                                   : p->ema_adc_value - raw_avg;
+  uint32_t alpha = (diff_raw > EXP_FAST_MOVE_THRESHOLD) ? EXP_ADAPTIVE_MAX_ALPHA
+                                                        : EXP_ADAPTIVE_MIN_ALPHA;
+  p->ema_adc_value = (alpha * raw_avg + (100U - alpha) * p->ema_adc_value) / 100U;
+
+  // Hysteresis, released at the calibrated end points so they are always reached
+  uint32_t filtered = p->ema_adc_value;
+  uint32_t diff = (filtered > p->last_stable_adc) ? filtered - p->last_stable_adc
+                                                  : p->last_stable_adc - filtered;
+  bool at_end = (filtered <= p->cal.min_adc) || (filtered >= p->cal.max_adc);
+  if (diff >= EXP_HYSTERESIS || at_end) {
+      p->last_stable_adc = filtered;
+  } else {
+      filtered = p->last_stable_adc;
+  }
+
+  uint8_t midi_value = adc_to_midi(&p->cal, filtered);
+  if (p->last_sent_midi != midi_value) {
+      if (midiCmd_send_cc(midi_channel(&p->cal), p->cal.cc_number, midi_value) != ERROR_BUFFERS_FULL) {
+          p->last_sent_midi = midi_value;
+      }
+  }
 }
 
 void expression_task(void)
@@ -158,114 +253,10 @@ void expression_task(void)
   uint32_t now = HAL_GetTick();
   if (now < next_process_tick) return;
   next_process_tick = now + EXP_PROCESS_INTERVAL_MS;
-  uint8_t channel = midi_channel();
 
-  // --- Rank 1 Processing (EXP1) ---
-  #if (ENABLE_EXP_PEDAL_1 == 1)
-  {
-      uint32_t i = 0;
-      uint32_t raw_avg = read_adc_channel_pro(kExpChannels[i]);
-      
-      // Init
-      if (last_sent_midi[i] == 0xFFU) {
-          ema_adc_value[i] = raw_avg; 
-      }
-
-      // --- Adaptive Filter Logic ---
-      uint32_t diff_raw;
-      if (raw_avg > ema_adc_value[i]) diff_raw = raw_avg - ema_adc_value[i];
-      else diff_raw = ema_adc_value[i] - raw_avg;
-
-      // Determine Alpha based on movement speed
-      uint32_t alpha;
-      if (diff_raw > EXP_FAST_MOVE_THRESHOLD) {
-          // Fast movement -> High Alpha (Quick response)
-          // Map diff to alpha? Or just jump to max.
-          // Let's map dynamically: 
-          // If diff is HUGE (e.g. 500), alpha = MAX.
-          // If diff is just above threshold (50), alpha = intermediate.
-          // Simple linear map:
-          alpha = EXP_ADAPTIVE_MAX_ALPHA; 
-      } else {
-          // Slow/Still -> Low Alpha (High Stability)
-          alpha = EXP_ADAPTIVE_MIN_ALPHA;
-      }
-
-      // Apply EMA
-      ema_adc_value[i] = (uint32_t)((alpha * raw_avg + (100 - alpha) * ema_adc_value[i]) / 100);
-      
-      // Hysteresis
-      uint32_t filtered = ema_adc_value[i];
-      uint32_t diff = (filtered > last_stable_adc[i]) ? (filtered - last_stable_adc[i]) : (last_stable_adc[i] - filtered);
-      
-      // Match deadzones with map function (with slight safe margin)
-      bool at_min = (filtered < 90U); 
-      bool at_max = (filtered > 3890U); 
-
-      if (diff >= EXP_HYSTERESIS || at_min || at_max) {
-          last_stable_adc[i] = filtered;
-      } else {
-          filtered = last_stable_adc[i];
-      }
-
-      uint8_t midi_value = expression_adc_to_midi(filtered);
-      
-      if (last_sent_midi[i] != midi_value) {
-          if (midiCmd_send_cc(channel, gExpCcNumbers[i], midi_value) != ERROR_BUFFERS_FULL) {
-              last_sent_midi[i] = midi_value;
-          }
-      }
+  for (uint32_t i = 0; i < EXP_PEDAL_COUNT; i++) {
+    if (kEnabled[i]) {
+      process_pedal(i);
+    }
   }
-  #endif
-
-  // --- Rank 2 Processing (EXP2) ---
-  #if (ENABLE_EXP_PEDAL_2 == 1)
-  {
-      uint32_t i = 1;
-      uint32_t raw_avg = read_adc_channel_pro(kExpChannels[i]);
-      
-      // Init
-      if (last_sent_midi[i] == 0xFFU) {
-          ema_adc_value[i] = raw_avg; 
-      }
-
-      // --- Adaptive Filter Logic ---
-      uint32_t diff_raw;
-      if (raw_avg > ema_adc_value[i]) diff_raw = raw_avg - ema_adc_value[i];
-      else diff_raw = ema_adc_value[i] - raw_avg;
-
-      // Determine Alpha based on movement speed
-      uint32_t alpha;
-      if (diff_raw > EXP_FAST_MOVE_THRESHOLD) {
-          alpha = EXP_ADAPTIVE_MAX_ALPHA; 
-      } else {
-          alpha = EXP_ADAPTIVE_MIN_ALPHA;
-      }
-
-      // Apply EMA
-      ema_adc_value[i] = (uint32_t)((alpha * raw_avg + (100 - alpha) * ema_adc_value[i]) / 100);
-      
-      // Hysteresis
-      uint32_t filtered = ema_adc_value[i];
-      uint32_t diff = (filtered > last_stable_adc[i]) ? (filtered - last_stable_adc[i]) : (last_stable_adc[i] - filtered);
-      
-      // Match deadzones with map function (with slight safe margin)
-      bool at_min = (filtered < 90U); 
-      bool at_max = (filtered > 3890U); 
-
-      if (diff >= EXP_HYSTERESIS || at_min || at_max) {
-          last_stable_adc[i] = filtered;
-      } else {
-          filtered = last_stable_adc[i];
-      }
-
-      uint8_t midi_value = expression_adc_to_midi(filtered);
-      
-      if (last_sent_midi[i] != midi_value) {
-          if (midiCmd_send_cc(channel, gExpCcNumbers[i], midi_value) != ERROR_BUFFERS_FULL) {
-              last_sent_midi[i] = midi_value;
-          }
-      }
-  }
-  #endif
 }

@@ -48,7 +48,7 @@ class RoundTripTest(unittest.TestCase):
     def setUpClass(cls):
         cls.sections = read_config_csv(SAMPLE_CSV)
         cls.packed = pack_csv(SAMPLE_CSV)
-        cls.df_global, cls.df_banks, cls.df_buttons, cls.df_long = unpacker.unpack_config(
+        cls.df_global, cls.df_banks, cls.df_buttons, cls.df_long, cls.df_exp = unpacker.unpack_config(
             cls.packed
         )
 
@@ -132,11 +132,13 @@ class RoundTripTest(unittest.TestCase):
 
     def test_erased_flash_decodes_as_empty(self):
         blank = bytes([0xFF]) * unpacker.CONFIG_SIZE
-        _, _, df, df_long = unpacker.unpack_config(blank)
+        _, _, df, df_long, df_exp = unpacker.unpack_config(blank)
         self.assertTrue((df["A_CommandType"] == "").all())
         self.assertTrue((df["Light_Mode"] == "Normal").all())
         self.assertTrue((df["Label"] == "").all())
         self.assertTrue((df_long["A_CommandType"] == "").all())
+        self.assertEqual(df_exp["Min_ADC"].tolist(), ["80", "80"])
+        self.assertEqual(df_exp["Channel"].tolist(), ["Global", "Global"])
 
     def test_light_mode_does_not_touch_command_bytes(self):
         """LED modes live in their own table and never set bits in slot A."""
@@ -156,7 +158,7 @@ class RoundTripTest(unittest.TestCase):
         table = packed[unpacker.LED_MODES_OFFSET : unpacker.LABELS_OFFSET]
         self.assertEqual(list(table), [1, 2] * (len(df) // 2))
         # And they come back by name
-        _, _, decoded, _ = unpacker.unpack_config(packed)
+        _, _, decoded, _, _ = unpacker.unpack_config(packed)
         self.assertEqual(decoded["Light_Mode"].tolist(), df["Light_Mode"].tolist())
 
     def test_usb_midi_thru_flag(self):
@@ -171,7 +173,7 @@ class RoundTripTest(unittest.TestCase):
         # Nothing else moves
         self.assertEqual(thru_on[:6] + thru_on[7:], thru_off[:6] + thru_off[7:])
 
-        df_global, _, _, _ = unpacker.unpack_config(thru_on)
+        df_global, _, _, _, _ = unpacker.unpack_config(thru_on)
         value = df_global.set_index("Label")["Value"]["USB_MIDI_Thru"]
         self.assertEqual(value, "Y")
 
@@ -183,7 +185,7 @@ class RoundTripTest(unittest.TestCase):
         g.loc[g["Label"] == "Remember_State", "Value"] = "Y"
         packed = pack_config({**sections, "Global_Settings": g})
         self.assertEqual(packed[7], 1)
-        df_global, _, _, _ = unpacker.unpack_config(packed)
+        df_global, _, _, _, _ = unpacker.unpack_config(packed)
         self.assertEqual(df_global.set_index("Label")["Value"]["Remember_State"], "Y")
 
     def test_labels_round_trip(self):
@@ -202,7 +204,7 @@ class RoundTripTest(unittest.TestCase):
         self.assertEqual(table[4:8], b"TOOL")
         self.assertEqual(table[8:12], b"    ")
         self.assertEqual(table[12:16], b"ca??")
-        _, _, decoded, _ = unpacker.unpack_config(packed)
+        _, _, decoded, _, _ = unpacker.unpack_config(packed)
         self.assertEqual(decoded["Label"].tolist()[:3], ["REC", "TOOL", ""])
         # A config without a Label column packs blank labels
         no_col = df.drop(columns=["Label"])
@@ -216,7 +218,7 @@ class RoundTripTest(unittest.TestCase):
         # Without the section every long press slot is empty
         base = pack_config({k: v for k, v in sections.items() if k != "LongPress_Settings"})
         self.assertEqual(len(base), unpacker.CONFIG_SIZE)
-        self.assertEqual(set(base[unpacker.LONG_PRESS_OFFSET :]), {0})
+        self.assertEqual(set(base[unpacker.LONG_PRESS_OFFSET : unpacker.EXP_OFFSET]), {0})
 
         df_long = empty_long_press_settings()
         # Bank 0 button 4 (index 3): long press sends CC 20 = 127/0 momentary on ch 5
@@ -238,7 +240,7 @@ class RoundTripTest(unittest.TestCase):
         # Short press commands untouched
         self.assertEqual(packed[: unpacker.LONG_PRESS_OFFSET], base[: unpacker.LONG_PRESS_OFFSET])
 
-        _, _, _, decoded = unpacker.unpack_config(packed)
+        _, _, _, decoded, _ = unpacker.unpack_config(packed)
         self.assertEqual(decoded.at[3, "A_CommandType"], "CC")
         self.assertEqual(decoded.at[3, "A_Number_(PC/CC/Note)"], "20")
         self.assertEqual(decoded.at[63, "B_CommandType"], "PC")
@@ -250,8 +252,30 @@ class RoundTripTest(unittest.TestCase):
         g.loc[g["Label"] == "Long_Press_ms", "Value"] = "750"
         packed = pack_config({**sections, "Global_Settings": g})
         self.assertEqual(packed[8], 75)
-        df_global, _, _, _ = unpacker.unpack_config(packed)
+        df_global, _, _, _, _ = unpacker.unpack_config(packed)
         self.assertEqual(df_global.set_index("Label")["Value"]["Long_Press_ms"], "750")
+
+    def test_expression_settings_round_trip(self):
+        from lib.configPacker import empty_expression_settings
+
+        sections = read_config_csv(SAMPLE_CSV)
+        # Missing section -> defaults
+        base = pack_config({k: v for k, v in sections.items() if k != "Expression_Settings"})
+        self.assertEqual(len(base), unpacker.CONFIG_SIZE)
+        rec = base[unpacker.EXP_OFFSET : unpacker.EXP_OFFSET + 7]
+        self.assertEqual(list(rec), [80, 0, 3900 & 0xFF, 3900 >> 8, 0, 0, 0])
+
+        df = empty_expression_settings()
+        df.loc[0, ["Min_ADC", "Max_ADC", "Curve", "Invert", "Channel"]] = ["150", "3800", "Log", "Y", "7"]
+        df.loc[1, ["Min_ADC", "Max_ADC", "Curve", "Invert", "Channel"]] = ["0", "4095", "Exp", "N", "Global"]
+        packed = pack_config({**sections, "Expression_Settings": df})
+        r0 = packed[unpacker.EXP_OFFSET : unpacker.EXP_OFFSET + 7]
+        r1 = packed[unpacker.EXP_OFFSET + 16 : unpacker.EXP_OFFSET + 23]
+        self.assertEqual(list(r0), [150, 0, 3800 & 0xFF, 3800 >> 8, 1, 1, 7])
+        self.assertEqual(list(r1), [0, 0, 0xFF, 0x0F, 2, 0, 0])
+        _, _, _, _, decoded = unpacker.unpack_config(packed)
+        self.assertEqual(decoded.iloc[0].tolist(), ["1", "150", "3800", "Log", "Y", "7"])
+        self.assertEqual(decoded.iloc[1].tolist(), ["2", "0", "4095", "Exp", "N", "Global"])
 
     def test_cc_alwayson_keeps_off_value(self):
         """Regression: AlwaysOn used to set bit 7 of the CC off value."""

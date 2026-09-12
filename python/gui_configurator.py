@@ -19,7 +19,13 @@ sys.path.insert(0, HERE)
 
 from lib.cmdBinaryPacker import HID_SPECIAL_KEYS  # noqa: E402
 from lib.configCsv import read_config_csv, write_config_csv  # noqa: E402
-from lib.configPacker import LONG_PRESS_SECTION, empty_long_press_settings  # noqa: E402
+from lib.configPacker import (  # noqa: E402
+    EXPRESSION_SECTION,
+    LONG_PRESS_SECTION,
+    empty_expression_settings,
+    empty_long_press_settings,
+)
+from lib.midiDevice import DeviceNotFound, DeviceTimeout, MidiCommander  # noqa: E402
 
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
@@ -299,7 +305,11 @@ class MidiCommanderGUI(ctk.CTk):
         self.df_banks = None
         self.df_buttons = None
         self.df_long = None
+        self.df_exp = None
         self.current_csv_path = None
+        self.live = None            # MidiCommander while the live pedal view is on
+        self.calibrating = {}       # pedal index -> [min_seen, max_seen]
+        self.exp_widgets = {}       # pedal index -> dict of widgets
         self.press_mode = "Short press"
         self.editing_button = None  # (row_index, btn_id) of the button being edited
 
@@ -347,6 +357,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.tabview.add("Global Settings")
         self.tabview.add("Button Config")
         self.tabview.add("Bank Names")
+        self.tabview.add("Expression")
 
         self.global_scroll = ctk.CTkScrollableFrame(self.tabview.tab("Global Settings"))
         self.global_scroll.pack(fill="both", expand=True)
@@ -355,6 +366,8 @@ class MidiCommanderGUI(ctk.CTk):
         self.bank_scroll.pack(fill="both", expand=True)
 
         self._setup_button_tab()
+        self._setup_expression_tab()
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
 
         if os.path.exists(DEFAULT_CSV):
             self.load_csv(DEFAULT_CSV)
@@ -458,6 +471,13 @@ class MidiCommanderGUI(ctk.CTk):
                     [self.df_long, pd.DataFrame(float("nan"), index=self.df_long.index, columns=missing)],
                     axis=1,
                 ).copy()
+
+            self.df_exp = (
+                data[EXPRESSION_SECTION].astype(object).reset_index(drop=True)
+                if EXPRESSION_SECTION in data
+                else empty_expression_settings()
+            )
+            self.populate_expression()
 
             banks = [clean(b) for b in self.df_buttons["Bank_Number"].unique()]
             self.bank_selector.configure(values=banks)
@@ -672,6 +692,153 @@ class MidiCommanderGUI(ctk.CTk):
                 "Info", "Changes applied to memory (Don't forget to Save CSV!)"
             )
 
+    # --- Expression tab -----------------------------------------------------------
+    def _setup_expression_tab(self):
+        tab = self.tabview.tab("Expression")
+        self.exp_frame = ctk.CTkFrame(tab, fg_color="transparent")
+        self.exp_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+    def populate_expression(self):
+        for w in self.exp_frame.winfo_children():
+            w.destroy()
+        self.exp_widgets = {}
+        self.calibrating = {}
+
+        ctk.CTkLabel(
+            self.exp_frame,
+            text="Calibration: connect the pedal, press Calibrate, move the pedal slowly "
+            "from heel to toe and back a couple of times, then press Done.",
+            text_color="gray",
+            wraplength=760,
+            justify="left",
+        ).pack(anchor="w", pady=(0, 6))
+
+        top = ctk.CTkFrame(self.exp_frame, fg_color="transparent")
+        top.pack(anchor="w", pady=(0, 8))
+        self.btn_live = ctk.CTkButton(top, text="Connect live view", width=150, command=self._live_toggle)
+        self.btn_live.pack(side="left")
+        self.lbl_live = ctk.CTkLabel(top, text="not connected", text_color="gray")
+        self.lbl_live.pack(side="left", padx=10)
+
+        for i, r in self.df_exp.iterrows():
+            box = ctk.CTkFrame(self.exp_frame)
+            box.pack(fill="x", pady=4)
+            w = {}
+            head = ctk.CTkFrame(box, fg_color="transparent")
+            head.pack(fill="x", padx=8, pady=(6, 2))
+            ctk.CTkLabel(head, text=f"Pedal {clean(r['Pedal'])}", font=BOLD).pack(side="left")
+            w["raw"] = ctk.CTkLabel(head, text="raw --", width=90, anchor="w")
+            w["raw"].pack(side="left", padx=(20, 4))
+            w["bar"] = ctk.CTkProgressBar(head, width=260)
+            w["bar"].set(0)
+            w["bar"].pack(side="left", padx=4)
+            w["cc"] = ctk.CTkLabel(head, text="CC --", width=60, anchor="w")
+            w["cc"].pack(side="left", padx=4)
+            w["cal"] = ctk.CTkButton(head, text="Calibrate", width=90, state="disabled",
+                                     command=lambda i=i: self._calibrate_toggle(i))
+            w["cal"].pack(side="left", padx=(10, 0))
+
+            row = ctk.CTkFrame(box, fg_color="transparent")
+            row.pack(fill="x", padx=8, pady=(2, 8))
+            ctk.CTkLabel(row, text="Min ADC").pack(side="left")
+            w["min"] = IntEntry(row, 0, 4095, r.get("Min_ADC"), width=65)
+            w["min"].pack(side="left", padx=(4, 12))
+            ctk.CTkLabel(row, text="Max ADC").pack(side="left")
+            w["max"] = IntEntry(row, 0, 4095, r.get("Max_ADC"), width=65)
+            w["max"].pack(side="left", padx=(4, 12))
+            ctk.CTkLabel(row, text="Curve").pack(side="left")
+            w["curve"] = Option(row, ["Linear", "Log", "Exp"], r.get("Curve"), width=85)
+            w["curve"].pack(side="left", padx=(4, 12))
+            w["invert"] = Check(row, text="Invert", checked=is_yes(r.get("Invert")), width=20)
+            w["invert"].pack(side="left", padx=(0, 12))
+            ctk.CTkLabel(row, text="Channel").pack(side="left")
+            w["channel"] = Option(row, ["Global"] + CHANNELS, r.get("Channel"), width=80)
+            w["channel"].pack(side="left", padx=4)
+            self.exp_widgets[i] = w
+
+        ctk.CTkLabel(
+            self.exp_frame,
+            text="Curve: Linear = proportional, Log = fast at the start, Exp = slow at the start. "
+            "Channel Global = MIDI_Channel from Global Settings. CC numbers are Exp1_CC / Exp2_CC.",
+            text_color="gray",
+            wraplength=760,
+            justify="left",
+        ).pack(anchor="w", pady=(6, 0))
+
+    def _live_toggle(self):
+        if self.live is not None:
+            self._live_disconnect()
+            return
+        try:
+            self.live = MidiCommander().__enter__()
+            version = self.live.get_version()
+        except (DeviceNotFound, DeviceTimeout) as e:
+            self._live_disconnect()
+            messagebox.showerror("Live view", f"Could not connect to the pedal: {e}")
+            return
+        self.lbl_live.configure(text=f"connected, firmware {version}")
+        self.btn_live.configure(text="Disconnect")
+        for w in self.exp_widgets.values():
+            w["cal"].configure(state="normal")
+        self._live_poll()
+
+    def _live_disconnect(self):
+        if self.live is not None:
+            try:
+                self.live.__exit__(None, None, None)
+            except Exception:  # noqa: BLE001
+                pass
+            self.live = None
+        self.calibrating = {}
+        if hasattr(self, "lbl_live") and self.lbl_live.winfo_exists():
+            self.lbl_live.configure(text="not connected")
+            self.btn_live.configure(text="Connect live view")
+            for w in self.exp_widgets.values():
+                w["cal"].configure(state="disabled", text="Calibrate")
+
+    def _live_poll(self):
+        if self.live is None:
+            return
+        try:
+            readings = self.live.get_pedals()
+        except DeviceTimeout:
+            readings = None
+        if readings:
+            for i, (raw, cc) in enumerate(readings):
+                w = self.exp_widgets.get(i)
+                if not w:
+                    continue
+                w["raw"].configure(text=f"raw {raw}")
+                w["bar"].set(raw / 4095)
+                w["cc"].configure(text=f"CC {cc}")
+                if i in self.calibrating:
+                    lo, hi = self.calibrating[i]
+                    self.calibrating[i] = [min(lo, raw), max(hi, raw)]
+                    w["cal"].configure(text=f"Done ({self.calibrating[i][0]}-{self.calibrating[i][1]})")
+        self.after(60, self._live_poll)
+
+    def _calibrate_toggle(self, i):
+        w = self.exp_widgets[i]
+        if i not in self.calibrating:
+            self.calibrating[i] = [4095, 0]
+            w["cal"].configure(text="Done", fg_color="darkorange")
+            return
+        lo, hi = self.calibrating.pop(i)
+        w["cal"].configure(text="Calibrate", fg_color=["#3B8ED0", "#1F6AA5"])
+        if hi - lo < 200:
+            messagebox.showwarning(
+                "Calibration", f"Pedal {i + 1} only moved {hi - lo} counts. Move it over its full range and try again."
+            )
+            return
+        margin = max(20, (hi - lo) * 3 // 100)  # keep the end points reachable
+        for key, val in (("min", lo + margin), ("max", hi - margin)):
+            w[key].delete(0, "end")
+            w[key].insert(0, str(val))
+
+    def _on_close(self):
+        self._live_disconnect()
+        self.destroy()
+
     # --- Saving / device -----------------------------------------------------------
     def _collect(self):
         """Pull every tab's widgets into the DataFrames."""
@@ -681,6 +848,12 @@ class MidiCommanderGUI(ctk.CTk):
         for idx, (large, small) in self.bank_widgets.items():
             self.df_banks.at[idx, "Bank_Name_Large"] = large.value()
             self.df_banks.at[idx, "Bank_Info_Small"] = small.value()
+        for i, w in self.exp_widgets.items():
+            self.df_exp.at[i, "Min_ADC"] = w["min"].value() or "80"
+            self.df_exp.at[i, "Max_ADC"] = w["max"].value() or "3900"
+            self.df_exp.at[i, "Curve"] = w["curve"].value()
+            self.df_exp.at[i, "Invert"] = w["invert"].value()
+            self.df_exp.at[i, "Channel"] = w["channel"].value()
 
     def save_csv(self):
         if not self.current_csv_path:
@@ -697,12 +870,14 @@ class MidiCommanderGUI(ctk.CTk):
                 self.df_banks,
                 self.df_buttons,
                 df_long_press=self.df_long,
+                df_expression=self.df_exp,
             )
             messagebox.showinfo("Success", "CSV Saved Successfully!")
         except Exception as e:  # noqa: BLE001
             messagebox.showerror("Error", f"Could not save CSV: {e}")
 
     def _run_tool(self, script, *args):
+        self._live_disconnect()
         cmd = [sys.executable, os.path.join(HERE, script), *args]
         startupinfo = None
         if os.name == "nt":
@@ -750,6 +925,7 @@ class MidiCommanderGUI(ctk.CTk):
                 self.df_banks,
                 self.df_buttons,
                 df_long_press=self.df_long,
+                df_expression=self.df_exp,
             )
         except Exception as e:  # noqa: BLE001
             messagebox.showerror("Error", f"Could not save CSV before flashing: {e}")

@@ -8,6 +8,7 @@
 #include "midi_defines.h"
 #include "flash_midi_settings.h"
 #include "midi_cmds.h"
+#include "expression.h"
 #include <string.h>
 
 extern I2C_HandleTypeDef hi2c1;
@@ -153,6 +154,22 @@ void sysex_get_version(void){
 	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
 }
 
+// Live expression pedal readings, for the calibration tool in the GUI
+void sysex_get_pedals(void){
+	uint8_t *p = midi_msg_tx_buffer;
+	*(p++) = SYSEX_START;
+	*(p++) = MIDI_MANUF_ID;
+	*(p++) = SYSEX_RSP_GET_PEDALS;
+	for(uint8_t i=0; i<2; i++){
+		uint16_t raw = expression_get_raw(i);
+		*(p++) = (raw >> 7) & 0x7F;
+		*(p++) = raw & 0x7F;
+		*(p++) = expression_get_midi(i) & 0x7F;
+	}
+	*(p++) = SYSEX_END;
+	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
+}
+
 void process_sysex_message(void){
 	// Check start and end bytes
 	if(sysex_rx_buffer[0] != SYSEX_START ||
@@ -184,6 +201,9 @@ void process_sysex_message(void){
 		break;
 	case SYSEX_CMD_GET_VERSION:
 		sysex_get_version();
+		break;
+	case SYSEX_CMD_GET_PEDALS:
+		sysex_get_pedals();
 		break;
 	case SYSEX_CMD_RESET:
 		NVIC_SystemReset();

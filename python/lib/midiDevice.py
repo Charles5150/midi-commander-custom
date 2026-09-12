@@ -15,6 +15,8 @@ SYSEX_RSP_READ_FLASH = 57
 SYSEX_CMD_GET_VERSION = 58
 SYSEX_RSP_GET_VERSION = 59
 SYSEX_CMD_RESET = 60
+SYSEX_CMD_GET_PEDALS = 62
+SYSEX_RSP_GET_PEDALS = 63
 
 
 class DeviceNotFound(Exception):
@@ -105,6 +107,16 @@ class MidiCommander:
         self.send([SYSEX_CMD_GET_VERSION])
         data = self.wait_for_sysex(SYSEX_RSP_GET_VERSION, timeout)
         return bytes(data).decode("ascii", errors="replace")
+
+    def get_pedals(self, timeout=0.5):
+        """Return [(raw_adc, cc_value), (raw_adc, cc_value)] for the two pedals."""
+        self.send([SYSEX_CMD_GET_PEDALS])
+        data = self.wait_for_sysex(SYSEX_RSP_GET_PEDALS, timeout)
+        out = []
+        for i in range(2):
+            hi, lo, cc = data[3 * i : 3 * i + 3]
+            out.append(((hi << 7) | lo, cc))
+        return out
 
     def read_chunk(self, chunk_index: int, timeout=1.0) -> bytes:
         hi = (chunk_index >> 7) & 0x7F

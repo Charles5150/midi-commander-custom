@@ -47,6 +47,8 @@
 #define SYSEX_CMD_GET_VERSION	(58) // no parameters
 #define SYSEX_RSP_GET_VERSION	(59) // firmware version string as 7-bit ASCII
 #define SYSEX_CMD_RESET			(60) // Reset the device
+#define SYSEX_CMD_GET_PEDALS	(62) // no parameters
+#define SYSEX_RSP_GET_PEDALS	(63) // per pedal: raw ADC high 7 bits, low 7 bits, current CC value
 
 #define SYSEX_START (0xF0)
 #define SYSEX_END	(0xF7)

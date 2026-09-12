@@ -16,6 +16,14 @@ extern uint8_t *pBankStrings;
 extern uint8_t *pButtonLedModes;
 extern uint8_t *pButtonLabels;
 extern uint8_t *pLongPressCmds;	// Second command set per button, same layout as pSwitchCmds
+extern uint8_t *pExpSettings;	// Expression pedal calibration, EXP_SETTINGS_STRIDE bytes per pedal
+
+// Per pedal: [0..1] min ADC (LE), [2..3] max ADC (LE), [4] curve, [5] invert,
+// [6] channel (0 = global, 1-16), rest reserved. Blank flash = defaults.
+#define EXP_SETTINGS_STRIDE		(16)
+#define EXP_CURVE_LINEAR		(0)
+#define EXP_CURVE_LOG			(1)
+#define EXP_CURVE_EXP			(2)
 
 #define MIDI_NUM_BANKS			(8)
 #define MIDI_NUM_SWITCHES		(8)

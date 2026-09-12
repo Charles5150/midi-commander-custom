@@ -39,7 +39,10 @@ COMMANDS_OFFSET = GLOBAL_SIZE + BANK_STRINGS_SIZE
 LED_MODES_OFFSET = COMMANDS_OFFSET + NUM_BANKS * len(BUTTON_IDS) * BUTTON_STRIDE
 LABELS_OFFSET = LED_MODES_OFFSET + NUM_BANKS * len(BUTTON_IDS)
 LONG_PRESS_OFFSET = LABELS_OFFSET + NUM_BANKS * len(BUTTON_IDS) * LABEL_LEN
-CONFIG_SIZE = LONG_PRESS_OFFSET + NUM_BANKS * len(BUTTON_IDS) * BUTTON_STRIDE
+EXP_OFFSET = LONG_PRESS_OFFSET + NUM_BANKS * len(BUTTON_IDS) * BUTTON_STRIDE
+EXP_STRIDE = 16
+CONFIG_SIZE = EXP_OFFSET + 2 * EXP_STRIDE
+EXP_CURVE_NAMES = {0: "Linear", 1: "Log", 2: "Exp"}
 
 SLOT_NAMES = [chr(ord("A") + i) for i in range(MIDI_NUM_COMMANDS_PER_SWITCH)]
 
@@ -224,8 +227,29 @@ def unpack_long_press_settings(data: bytes) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=columns)
 
 
+def unpack_expression_settings(data: bytes) -> pd.DataFrame:
+    rows = []
+    for i in range(2):
+        p = data[EXP_OFFSET + i * EXP_STRIDE : EXP_OFFSET + (i + 1) * EXP_STRIDE]
+        lo = p[0] | (p[1] << 8)
+        hi = p[2] | (p[3] << 8)
+        if lo > 4095 or hi > 4095 or lo + 100 > hi:
+            lo, hi = 80, 3900  # blank or invalid: firmware falls back to defaults
+        rows.append(
+            {
+                "Pedal": str(i + 1),
+                "Min_ADC": str(lo),
+                "Max_ADC": str(hi),
+                "Curve": EXP_CURVE_NAMES.get(p[4], "Linear"),
+                "Invert": "Y" if p[5] == 1 else "N",
+                "Channel": str(p[6]) if 1 <= p[6] <= 16 else "Global",
+            }
+        )
+    return pd.DataFrame(rows)
+
+
 def unpack_config(data: bytes):
-    """Return ``(df_global, df_banks, df_buttons, df_long_press)`` from a settings dump."""
+    """Return ``(df_global, df_banks, df_buttons, df_long_press, df_expression)``."""
     if len(data) < CONFIG_SIZE:
         raise ValueError(
             f"Settings dump is {len(data)} bytes, expected at least {CONFIG_SIZE}"
@@ -235,4 +259,5 @@ def unpack_config(data: bytes):
         unpack_bank_strings(data),
         unpack_button_settings(data),
         unpack_long_press_settings(data),
+        unpack_expression_settings(data),
     )

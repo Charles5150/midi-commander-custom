@@ -9,6 +9,7 @@ Layout (must match firmware/Core/Src/flash_midi_settings.c):
     2688..   button LED mode table, one byte per button (bank * 8 + button)
     2752..   button labels, 4 ASCII chars per button, space padded
     3008..   long press commands, same layout as the main command area
+    5568..   expression pedal calibration, 16 bytes per pedal
 """
 
 import lib.cmdBinaryPacker as cbp
@@ -19,6 +20,10 @@ NUM_BUTTONS = 8
 BUTTON_IDS = ["1", "2", "3", "4", "A", "B", "C", "D"]
 LABEL_LEN = 4
 LONG_PRESS_SECTION = "LongPress_Settings"
+EXPRESSION_SECTION = "Expression_Settings"
+EXP_STRIDE = 16
+EXP_CURVES = {"LINEAR": 0, "LOG": 1, "EXP": 2}
+EXP_DEFAULTS = {"Min_ADC": "80", "Max_ADC": "3900", "Curve": "Linear", "Invert": "N", "Channel": "Global"}
 
 
 def _key(bank, button) -> tuple:
@@ -44,6 +49,45 @@ def empty_long_press_settings():
                 row[f"{slot}_KeyMode_(Key)"] = ""
             rows.append(row)
     return pd.DataFrame(rows)
+
+
+def empty_expression_settings():
+    """An Expression_Settings frame with the default calibration for both pedals."""
+    import pandas as pd
+
+    return pd.DataFrame(
+        [{"Pedal": str(i + 1), **EXP_DEFAULTS} for i in range(2)]
+    )
+
+
+def _to_int(value, default):
+    try:
+        return int(float(str(value).strip()))
+    except ValueError:
+        return default
+
+
+def pack_expression_settings(df) -> bytes:
+    """Two 16 byte records: min/max ADC (LE), curve, invert, channel, zeros."""
+    rows = {}
+    if df is not None:
+        for _, row in df.iterrows():
+            rows[str(row.get("Pedal", "")).strip().rstrip(".0") or "?"] = row
+    out = b""
+    for i in range(2):
+        row = rows.get(str(i + 1))
+        get = (lambda k: row.get(k, EXP_DEFAULTS[k])) if row is not None else (lambda k: EXP_DEFAULTS[k])
+        lo = max(0, min(4095, _to_int(get("Min_ADC"), 80)))
+        hi = max(0, min(4095, _to_int(get("Max_ADC"), 3900)))
+        curve = EXP_CURVES.get(str(get("Curve")).strip().upper()[:6].rstrip("ARITHM"), None)
+        if curve is None:
+            c = str(get("Curve")).strip().upper()
+            curve = 1 if c.startswith("LOG") else 2 if c.startswith("EXP") else 0
+        invert = 1 if str(get("Invert")).strip().upper().startswith("Y") else 0
+        ch_text = str(get("Channel")).strip()
+        channel = 0 if ch_text.upper().startswith("G") or ch_text == "" else max(0, min(16, _to_int(ch_text, 0)))
+        out += bytes([lo & 0xFF, lo >> 8, hi & 0xFF, hi >> 8, curve, invert, channel]) + bytes(EXP_STRIDE - 7)
+    return out
 
 
 def pack_label(value) -> bytes:
@@ -93,5 +137,7 @@ def pack_config(sections: dict) -> bytes:
                 out += [0] * (cbp.MIDI_NUM_COMMANDS_PER_SWITCH * 4)
             else:
                 out += cbp.pack_row(row)
+
+    out += list(pack_expression_settings(sections.get(EXPRESSION_SECTION)))
 
     return bytes(out)
