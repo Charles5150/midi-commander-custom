@@ -152,7 +152,7 @@ A configuration is a CSV with several sections, each introduced by a line starti
 
 Both expression pedals are configured, one linear and one logarithmic and inverted, with the toe and heel acting as switches. Regenerate the file with `python3 python/make_demo_config.py` after adding a feature, so it keeps covering everything.
 
-(`python/MeloConfig_10_Cmds - RC-600.csv` is a real-world configuration for a Boss RC-600. The original project's [Google Sheets template](https://docs.google.com/spreadsheets/d/1KwKj3sYrNEkEl8ONipW-ZGSLD7r_W1NfWwyGgjnbk08/edit?usp=sharing) predates several columns; start from one of the CSVs instead.)
+(`python/MeloConfig_10_Cmds - RC-600.csv` is a real-world configuration for a Boss RC-600. The original project's Google Sheets template is no longer online, and it predated several columns anyway; start from one of the CSVs instead.)
 
 ### Global_Settings
 

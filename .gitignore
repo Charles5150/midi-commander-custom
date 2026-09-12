@@ -48,4 +48,6 @@ dkms.conf
 
 flash_error.log
 docs
+# ...but the screenshots the README shows are part of the project
+!docs/images/
 .venv/
