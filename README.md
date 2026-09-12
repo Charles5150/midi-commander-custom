@@ -119,7 +119,29 @@ Connect the pedal in normal mode (not DFU), click **Read from Device** to load w
 
 ## Configuration reference
 
-A configuration is a CSV with several sections, each introduced by a line starting with `*` and the section name. Lines containing `#` are comments. The configurator reads and writes this format; you can also edit it in a spreadsheet, and the sample file is the reference for the column names. (The original project's [Google Sheets template](https://docs.google.com/spreadsheets/d/1KwKj3sYrNEkEl8ONipW-ZGSLD7r_W1NfWwyGgjnbk08/edit?usp=sharing) predates several columns; start from the sample CSV instead.)
+A configuration is a CSV with several sections, each introduced by a line starting with `*` and the section name. Lines containing `#` are comments. The configurator reads and writes this format, and you can also edit it in a spreadsheet.
+
+**`python/demo-all-features.csv`** is the reference: a configuration that uses every feature, with one bank per feature and button labels that say what each one does. Load it in the configurator to see how anything is set up, or flash it to try the whole firmware on the pedal.
+
+| Bank | What it shows |
+|---|---|
+| 0 | An index of `Bank` commands jumping to the other banks |
+| 1 | A looper layout: CC toggles, and a long press on one button |
+| 2 | The three LED modes side by side, and momentary versus toggle |
+| 3 | Program Changes, with and without Bank Select, and a patch selected on entry |
+| 4 | Keyboard keys: plain, with modifiers, held, and a Down/Up combination |
+| 5 | Media keys |
+| 6 | Tap tempo, clock start/stop, and transport |
+| 7 | Relative CC, up and down, with and without wrapping |
+| 8 | Stored SysEx messages, including an empty entry that sends nothing |
+| 9 | Notes and pitch bend, with durations and toggles |
+| 10 | Bank navigation from buttons, absolute and relative |
+| 11 | Several commands chained on one button, and short versus long press |
+| 12–31 | A setlist: each bank selects its patch on entry and has looper controls |
+
+Both expression pedals are configured, one linear and one logarithmic and inverted, with the toe and heel acting as switches. Regenerate the file with `python3 python/make_demo_config.py` after adding a feature, so it keeps covering everything.
+
+(`python/MeloConfig_10_Cmds - RC-600.csv` is a real-world configuration for a Boss RC-600. The original project's [Google Sheets template](https://docs.google.com/spreadsheets/d/1KwKj3sYrNEkEl8ONipW-ZGSLD7r_W1NfWwyGgjnbk08/edit?usp=sharing) predates several columns; start from one of the CSVs instead.)
 
 ### Global_Settings
 
