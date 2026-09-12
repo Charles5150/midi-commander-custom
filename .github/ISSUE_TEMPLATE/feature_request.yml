@@ -1,0 +1,36 @@
+name: Feature request
+description: Suggest an improvement to the firmware or the tools
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the use case rather than the solution, e.g. "switch presets on my looper and my amp with one press".
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behaviour
+      description: How would you expect it to work, from the pedal and from the configurator?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Firmware
+        - GUI configurator
+        - Command line tools
+        - Documentation
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Workarounds you have tried

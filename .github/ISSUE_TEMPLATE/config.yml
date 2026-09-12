@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions and ideas
+    url: https://github.com/Charles5150/midi-commander-custom/discussions
+    about: Ask how to configure something or discuss ideas before opening an issue.

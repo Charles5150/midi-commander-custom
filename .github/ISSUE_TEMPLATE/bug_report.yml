@@ -1,0 +1,70 @@
+name: Bug report
+description: Something does not work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. The more precise the steps, the faster it gets fixed.
+
+  - type: input
+    id: firmware
+    attributes:
+      label: Firmware version
+      description: Shown on the display at boot, or printed by `python python/Flash_to_CSV.py x.csv`.
+      placeholder: "0.5"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Firmware (buttons, LEDs, MIDI output)
+        - Expression pedals
+        - USB (HID keyboard, MIDI thru, sleep)
+        - GUI configurator
+        - Command line tools (CSV_to_Flash / Flash_to_CSV)
+        - Build / flashing (PlatformIO, DFU)
+        - Documentation
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Configure button 1 of bank 0 as ...
+        2. Press ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: If MIDI is involved, paste what a MIDI monitor shows.
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: Attach or paste the relevant part of your configuration CSV (drag the file in).
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and Python version
+      placeholder: "macOS 15 / Python 3.12"
