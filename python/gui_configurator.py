@@ -45,7 +45,8 @@ DEFAULT_CSV = os.path.join(HERE, "MeloConfig_10_Cmds - RC-600.csv")
 LED_MODES = ["Normal", "Reverse", "AlwaysOn"]
 CHANNELS = [str(i) for i in range(1, 17)]
 NO_COMMAND = "(none)"
-COMMAND_TYPES = [NO_COMMAND, "PC", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Start", "Stop"]
+COMMAND_TYPES = [NO_COMMAND, "PC", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop"]
+TAP_MODES = ["Tap", "Clock"]
 CCINC_DIRECTIONS = ["Up", "Down"]
 BANK_MODES = ["GoTo", "Up", "Down"]
 BANKS = [str(i) for i in range(32)]
@@ -279,6 +280,16 @@ class SlotEditor:
             self._int("step", "Step", "OffValue_(CC)", 1, 127, width=50)
             self._int("on", "Start", "OnValue_(CC/PB)", 0, 127, width=55)
             self._check("toggle", "Wrap", "Toggle_(CC/PB/Note)")
+        elif cmd_type == "Tap":
+            self._label("Action")
+            w = Option(self.params, TAP_MODES, self.initial.get("KeyMode_(Key)"), width=80)
+            w.pack(side="left")
+            self.widgets["tapmode"] = w
+            ctk.CTkLabel(
+                self.params,
+                text="(Tap sets the tempo, Clock starts/stops the MIDI clock)",
+                text_color="gray",
+            ).pack(side="left", padx=8)
         elif cmd_type == "SysEx":
             self._label("String")
             w = Option(self.params, [str(i) for i in range(SYSEX_STRING_COUNT)],
@@ -352,6 +363,8 @@ class SlotEditor:
             out["OffValue_(CC)"] = w["step"].value()
         if cmd_type == "SysEx":
             out["Number_(PC/CC/Note)"] = w["sysexindex"].value()
+        if cmd_type == "Tap":
+            out["KeyMode_(Key)"] = w["tapmode"].value()
         return out
 
 

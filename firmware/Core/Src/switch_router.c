@@ -11,6 +11,8 @@
 #include "display.h"
 #include "usbd_hid_custom.h"
 #include "usbd_midi_if.h"
+#include "tempo.h"
+#include "display.h"
 #include "state_store.h"
 #include "leds.h"
 
@@ -524,6 +526,14 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 		break;
 	case CMD_CCINC_NIBBLE:
 		send_ccinc(pRom);
+		break;
+	case CMD_TAP_NIBBLE:
+		if((*pRom & 0x0F) == 1){
+			tempo_clock_toggle();
+		} else {
+			tempo_tap();
+		}
+		display_show_tempo();
 		break;
 	case CMD_SYSEX_NIBBLE:
 		send_stored_sysex(pRom);

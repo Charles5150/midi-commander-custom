@@ -59,6 +59,7 @@
 #define CMD_PB_NIBBLE		(0xE0)
 #define CMD_NOTE_NIBBLE		(0x90)
 #define CMD_KEY_NIBBLE		(0xD0)
+#define CMD_TAP_NIBBLE		(0x70)	// Tap tempo: low nibble = mode (0 tap, 1 toggle the clock)
 #define CMD_CCINC_NIBBLE	(0x50)	// Relative CC: byte1 = CC | wrap<<7, byte2 = step, byte3 = down<<7 | start value
 #define CMD_SYSEX_NIBBLE	(0x60)	// Stored SysEx string: byte1 = index into the string table
 #define CMD_BANK_NIBBLE		(0x40)	// Bank change: low nibble = mode (0 go to, 1 up by, 2 down by), byte 1 = value

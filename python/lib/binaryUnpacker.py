@@ -27,6 +27,7 @@ from lib.cmdBinaryPacker import (
     CMD_PC_NIBBLE,
     CMD_START_NIBBLE,
     CMD_SYSEX_NIBBLE,
+    CMD_TAP_NIBBLE,
     CMD_STOP_NIBBLE,
     HID_SPECIAL_KEYS,
     MEDIA_KEYS,
@@ -197,6 +198,9 @@ def unpack_command(raw: bytes) -> dict:
         cmd["OffValue_(CC)"] = str(b2)
         cmd["KeyMode_(Key)"] = "Down" if b3 & 0x80 else "Up"
         cmd["Toggle_(CC/PB/Note)"] = "Y" if b1 & 0x80 else "N"
+    elif cmd_type == CMD_TAP_NIBBLE:
+        cmd["CommandType"] = "Tap"
+        cmd["KeyMode_(Key)"] = "Clock" if (b0 & 0x0F) == 1 else "Tap"
     elif cmd_type == CMD_SYSEX_NIBBLE:
         cmd["CommandType"] = "SysEx"
         cmd["Number_(PC/CC/Note)"] = str(b1)

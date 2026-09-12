@@ -13,6 +13,7 @@ CMD_KEY_NIBBLE = 0xD0
 CMD_MEDIA_NIBBLE = 0x30
 CMD_BANK_NIBBLE = 0x40
 CMD_CCINC_NIBBLE = 0x50
+CMD_TAP_NIBBLE = 0x70
 CMD_SYSEX_NIBBLE = 0x60
 
 # Bank command modes, packed in the low nibble of byte 0
@@ -273,6 +274,12 @@ def cmd_media(cmd):
     return [CMD_MEDIA_NIBBLE, usage & 0xFF, (usage >> 8) & 0x03, duration | toggle_bit]
 
 
+def cmd_tap(cmd):
+    """Tap tempo. KeyMode picks the action: Tap, or Clock to start/stop it."""
+    mode = 1 if str(cmd.get("KeyMode_(Key)", "")).strip().upper().startswith("CLOCK") else 0
+    return [CMD_TAP_NIBBLE | mode, 0, 0, 0]
+
+
 def cmd_ccinc(cmd):
     """Relative CC: each press moves the value by a step.
 
@@ -328,6 +335,7 @@ cmd_route_table = {
     "Media": cmd_media,
     "Bank": cmd_bank,
     "CCInc": cmd_ccinc,
+    "Tap": cmd_tap,
     "SysEx": cmd_sysex,
 }
 

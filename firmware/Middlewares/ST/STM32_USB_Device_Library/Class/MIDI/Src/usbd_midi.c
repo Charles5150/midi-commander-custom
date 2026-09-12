@@ -21,6 +21,8 @@ static uint8_t  USBD_MIDI_DataOut (USBD_HandleTypeDef *pdev, uint8_t epnum);
 
 static uint8_t  *USBD_MIDI_GetCfgDesc (uint16_t *length);
 
+static void midi_tx_kick(void);
+
 USBD_HandleTypeDef *pInstance = NULL; 
 
 uint32_t APP_Rx_ptr_in  = 0;
@@ -100,10 +102,8 @@ static uint8_t USBD_MIDI_DeInit (USBD_HandleTypeDef *pdev, uint8_t cfgidx){
 }
 
 static uint8_t USBD_MIDI_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum){
-
-  if (USB_Tx_State == 1){
-    USB_Tx_State = 0;
-  }
+  USB_Tx_State = 0;
+  midi_tx_kick();
   return USBD_OK;
 }
 
@@ -124,18 +124,62 @@ static uint8_t  USBD_MIDI_DataOut (USBD_HandleTypeDef *pdev, uint8_t epnum)
 
 
 
-void USBD_MIDI_SendPacket (uint8_t* buffer, uint8_t len){
+/*
+ * Transmit queue.
+ *
+ * This used to busy-wait for the previous transfer to finish, which made it
+ * unusable from an interrupt (and could hang for good if the USB interrupt
+ * never ran). Events are now copied into a ring buffer and handed to the
+ * endpoint one packet at a time, continuing from the DataIn callback, so
+ * sending never blocks. If the queue is full the new events are dropped,
+ * which is the least bad option for a MIDI stream.
+ */
+#define MIDI_TX_RING_SIZE	(256)
 
-	if(pInstance->dev_state != USBD_STATE_CONFIGURED)
+static uint8_t midi_tx_ring[MIDI_TX_RING_SIZE];
+static volatile uint16_t midi_tx_head = 0;
+static volatile uint16_t midi_tx_tail = 0;
+__ALIGN_BEGIN static uint8_t midi_tx_chunk[MIDI_DATA_IN_PACKET_SIZE] __ALIGN_END;
+
+// Start the next packet if the endpoint is free. Call with interrupts masked.
+static void midi_tx_kick(void){
+	if(USB_Tx_State) return;
+	if(midi_tx_head == midi_tx_tail) return;
+
+	if(pInstance == NULL || pInstance->dev_state != USBD_STATE_CONFIGURED){
+		midi_tx_tail = midi_tx_head;   // not connected: discard
 		return;
+	}
 
-	while(USB_Tx_State)
-		;
+	uint16_t n = 0;
+	while(midi_tx_tail != midi_tx_head && n < MIDI_DATA_IN_PACKET_SIZE){
+		midi_tx_chunk[n++] = midi_tx_ring[midi_tx_tail];
+		midi_tx_tail = (uint16_t)((midi_tx_tail + 1) % MIDI_TX_RING_SIZE);
+	}
 
-    USB_Tx_State = 1;
-    while(USBD_LL_Transmit(pInstance, MIDI_IN_EP,buffer,len) != USBD_OK)
-    	;
+	USB_Tx_State = 1;
+	if(USBD_LL_Transmit(pInstance, MIDI_IN_EP, midi_tx_chunk, n) != USBD_OK){
+		USB_Tx_State = 0;   // retried by the next send or DataIn
+	}
+}
 
+void USBD_MIDI_SendPacket (uint8_t* buffer, uint8_t len){
+	if(pInstance == NULL || pInstance->dev_state != USBD_STATE_CONFIGURED){
+		return;
+	}
+
+	uint32_t primask = __get_PRIMASK();
+	__disable_irq();
+
+	for(uint8_t i=0; i<len; i++){
+		uint16_t next = (uint16_t)((midi_tx_head + 1) % MIDI_TX_RING_SIZE);
+		if(next == midi_tx_tail) break;   // full, drop the rest
+		midi_tx_ring[midi_tx_head] = buffer[i];
+		midi_tx_head = next;
+	}
+	midi_tx_kick();
+
+	if(!primask) __enable_irq();
 }
 
 static uint8_t *USBD_MIDI_GetCfgDesc (uint16_t *length){

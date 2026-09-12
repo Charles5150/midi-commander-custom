@@ -35,6 +35,7 @@
 #include "flash_midi_settings.h"
 #include "state_store.h"
 #include "leds.h"
+#include "tempo.h"
 
 /* USER CODE END Includes */
 
@@ -165,6 +166,7 @@ int main(void)
   // ADC DMA will be started in expression_task
 
   expression_init();
+  tempo_init();
 
   /* USER CODE END 2 */
 
@@ -175,6 +177,7 @@ int main(void)
 	  handle_switches();
       expression_task();
       state_store_task();
+      tempo_task();
       display_task();
 
     /* USER CODE END WHILE */

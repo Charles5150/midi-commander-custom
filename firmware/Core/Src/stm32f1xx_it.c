@@ -33,6 +33,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 void sw_scan(void);
+void tempo_tick_1ms(void);
 void ssd1306_tick(void);
 /* USER CODE END PD */
 
@@ -195,6 +196,7 @@ void SysTick_Handler(void)
   /* USER CODE BEGIN SysTick_IRQn 1 */
 
   sw_scan();
+  tempo_tick_1ms();
   ssd1306_tick();
 
   /* USER CODE END SysTick_IRQn 1 */

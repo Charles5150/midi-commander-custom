@@ -20,6 +20,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "ssd1306.h"
+#include "tempo.h"
 
 #define CELL_W		(32)
 #define CELL_H		(14)
@@ -30,6 +31,10 @@
 
 static volatile uint8_t refresh_pending = 0;
 static uint8_t current_bank = 0;
+
+// A transient overlay (the tempo readout) shown instead of the bank info
+#define OVERLAY_MS	(1500)
+static uint32_t overlay_until = 0;
 
 void display_init(void){
     ssd1306_Init();
@@ -134,7 +139,31 @@ void display_request_refresh(void){
 	refresh_pending = 1;
 }
 
+/*
+ * Replace the bank's info line with "120 BPM" (and a * while the clock is
+ * running) for a moment. Only that line is redrawn, so the bank name and the
+ * button grid stay put.
+ */
+void display_show_tempo(void){
+	char msg[13];
+	snprintf(msg, sizeof(msg), "%s%u BPM", tempo_clock_running() ? "*" : "", tempo_get_bpm());
+
+	fill_rect(50, 6, SSD1306_WIDTH - 50, 10, Black);
+	ssd1306_SetCursor(50, 6);
+	ssd1306_WriteString(msg, Font_7x10, White);
+	ssd1306_UpdateScreen();
+
+	overlay_until = HAL_GetTick() + OVERLAY_MS;
+	refresh_pending = 0;
+}
+
 void display_task(void){
+	// Let the tempo readout sit for its moment before the bank screen returns
+	if(overlay_until){
+		if(HAL_GetTick() < overlay_until) return;
+		overlay_until = 0;
+		refresh_pending = 1;
+	}
 	if(refresh_pending){
 		display_setBankName(current_bank);
 	}

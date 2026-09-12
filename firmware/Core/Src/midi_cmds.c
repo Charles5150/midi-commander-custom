@@ -162,6 +162,17 @@ void midiCmd_send_byte_serial(uint8_t byteMessage){
 	midiCmd_send_bytes_serial(&byteMessage, 1);
 }
 
+/*
+ * A MIDI Clock byte (0xF8) to both USB and the DIN output. Dropped silently
+ * if the serial buffers are full: a late clock is worse than a missing one.
+ */
+int8_t midiCmd_send_clock_command(void){
+	uint8_t usb[4] = { CIN_SINGLE_BYTE, 0xF8, 0, 0 };
+	MIDI_DataTx(usb, 4);
+	midiCmd_send_byte_serial(0xF8);
+	return 0;
+}
+
 int8_t midiCmd_send_start_command(void){
 	__disable_irq();
 	int8_t buffer_no = get_next_available_tx_buffer();

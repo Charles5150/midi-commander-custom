@@ -16,6 +16,10 @@ void display_setConfigName(void);
 // Draw the bank name and the 2x4 grid of button labels for a bank
 void display_setBankName(uint8_t bankNumber);
 
+// Show the current tempo (and whether the clock runs) for a moment, then
+// fall back to the bank screen.
+void display_show_tempo(void);
+
 // Ask for the current bank screen to be redrawn from the main loop
 // (e.g. after a toggle state changed), without blocking the caller.
 void display_request_refresh(void);

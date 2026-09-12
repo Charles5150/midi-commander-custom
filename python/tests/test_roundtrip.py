@@ -449,6 +449,19 @@ class RoundTripTest(unittest.TestCase):
         d = unpacker.unpack_command(bytes([0x60, 3, 0, 0]))
         self.assertEqual((d["CommandType"], d["Number_(PC/CC/Note)"]), ("SysEx", "3"))
 
+    def test_tap_command(self):
+        row = pd.Series({
+            "A_CommandType": "Tap", "A_KeyMode_(Key)": "Tap",
+            "B_CommandType": "Tap", "B_KeyMode_(Key)": "Clock",
+        })
+        p = cbp.pack_row(row)
+        self.assertEqual(p[0:4], [0x70, 0, 0, 0])
+        self.assertEqual(p[4:8], [0x71, 0, 0, 0])
+        a = unpacker.unpack_command(bytes(p[0:4]))
+        b = unpacker.unpack_command(bytes(p[4:8]))
+        self.assertEqual((a["CommandType"], a["KeyMode_(Key)"]), ("Tap", "Tap"))
+        self.assertEqual((b["CommandType"], b["KeyMode_(Key)"]), ("Tap", "Clock"))
+
     def test_cc_alwayson_keeps_off_value(self):
         """Regression: AlwaysOn used to set bit 7 of the CC off value."""
         row = pd.Series(
