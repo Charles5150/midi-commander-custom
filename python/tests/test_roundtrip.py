@@ -300,6 +300,26 @@ class RoundTripTest(unittest.TestCase):
         df_global = unpacker.unpack_config(packed)[0].set_index("Label")["Value"]
         self.assertEqual((df_global["LED_Brightness"], df_global["LED_Rest_Brightness"]), ("30", "100"))
 
+    def test_media_command(self):
+        row = pd.Series({
+            "A_CommandType": "Media", "A_OnValue_(CC/PB)": "play_pause",
+            "A_Duration_(Note/PB)": "", "A_Toggle_(CC/PB/Note)": "N",
+            "B_CommandType": "Media", "B_OnValue_(CC/PB)": "vol_up",
+            "B_Duration_(Note/PB)": "5", "B_Toggle_(CC/PB/Note)": "Y",
+            "C_CommandType": "Media", "C_OnValue_(CC/PB)": "0x0E9",   # raw usage
+            "C_Duration_(Note/PB)": "", "C_Toggle_(CC/PB/Note)": "N",
+        })
+        packed = cbp.pack_row(row)
+        self.assertEqual(packed[0:4], [0x30, 0xCD, 0x00, 0x00])
+        self.assertEqual(packed[4:8], [0x30, 0xE9, 0x00, 0x85])
+        self.assertEqual(packed[8:12], [0x30, 0xE9, 0x00, 0x00])
+        a = unpacker.unpack_command(bytes(packed[0:4]))
+        b = unpacker.unpack_command(bytes(packed[4:8]))
+        self.assertEqual((a["CommandType"], a["OnValue_(CC/PB)"], a["Toggle_(CC/PB/Note)"]), ("Media", "play_pause", "N"))
+        self.assertEqual((b["OnValue_(CC/PB)"], b["Duration_(Note/PB)"], b["Toggle_(CC/PB/Note)"]), ("vol_up", "5", "Y"))
+        # The toggle bit of a media command lives in byte 3, never in the usage byte
+        self.assertTrue(cbp.MEDIA_KEYS["play_pause"] & 0x80)
+
     def test_cc_alwayson_keeps_off_value(self):
         """Regression: AlwaysOn used to set bit 7 of the CC off value."""
         row = pd.Series(

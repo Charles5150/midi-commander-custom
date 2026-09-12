@@ -50,7 +50,8 @@ static int8_t get_next_available_tx_buffer(void){
 uint8_t midiCmd_get_cmd_toggle(uint8_t *pRom){
 // Toggle state is always stored in the most significant bit of the second cmd byte
 // EXCEPT for KEY commands where we use byte 4 (index 3)
-	if((*pRom & 0xF0) == CMD_KEY_NIBBLE) return *(pRom+3) & 0x80;
+	uint8_t t = *pRom & 0xF0;
+	if(t == CMD_KEY_NIBBLE || t == CMD_MEDIA_NIBBLE) return *(pRom+3) & 0x80;
 	return *(pRom+1) & 0x80;
 }
 

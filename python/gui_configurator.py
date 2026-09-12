@@ -17,7 +17,7 @@ import pandas as pd
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-from lib.cmdBinaryPacker import HID_SPECIAL_KEYS  # noqa: E402
+from lib.cmdBinaryPacker import HID_SPECIAL_KEYS, MEDIA_KEYS  # noqa: E402
 from lib.configCsv import read_config_csv, write_config_csv  # noqa: E402
 from lib.configPacker import (  # noqa: E402
     EXPRESSION_SECTION,
@@ -36,7 +36,8 @@ DEFAULT_CSV = os.path.join(HERE, "MeloConfig_10_Cmds - RC-600.csv")
 LED_MODES = ["Normal", "Reverse", "AlwaysOn"]
 CHANNELS = [str(i) for i in range(1, 17)]
 NO_COMMAND = "(none)"
-COMMAND_TYPES = [NO_COMMAND, "PC", "CC", "Note", "PB", "Key", "Start", "Stop"]
+COMMAND_TYPES = [NO_COMMAND, "PC", "CC", "Note", "PB", "Key", "Media", "Start", "Stop"]
+MEDIA_NAMES = list(MEDIA_KEYS.keys())
 KEY_MODES = ["Normal", "Down", "Up"]
 KEY_NAMES = (
     [chr(c) for c in range(ord("a"), ord("z") + 1)]
@@ -256,6 +257,13 @@ class SlotEditor:
             self.widgets["keymode"] = w
             self._int("duration", "Dur", "Duration_(Note/PB)", 0, 127, width=50)
             self._check("toggle", "Hold", "Toggle_(CC/PB/Note)")
+        elif cmd_type == "Media":
+            self._label("Key")
+            w = Option(self.params, MEDIA_NAMES, self.initial.get("OnValue_(CC/PB)"), width=130)
+            w.pack(side="left")
+            self.widgets["media"] = w
+            self._int("duration", "Dur", "Duration_(Note/PB)", 0, 127, width=50)
+            self._check("toggle", "Hold", "Toggle_(CC/PB/Note)")
         # Start, Stop and (none) have no parameters
 
     # Read back ------------------------------------------------------------
@@ -290,6 +298,8 @@ class SlotEditor:
             out["Number_(PC/CC/Note)"] = str(mask)
             out["OnValue_(CC/PB)"] = w["key"].value()
             out["KeyMode_(Key)"] = w["keymode"].value()
+        if cmd_type == "Media":
+            out["OnValue_(CC/PB)"] = w["media"].value()
         return out
 
 
@@ -661,8 +671,8 @@ class MidiCommanderGUI(ctk.CTk):
         ctk.CTkLabel(
             self.cmd_editor,
             text=(
-                "Dur = duration in 10 ms steps (0-127).  Bend = -8192..8191.  "
-                "Bank = 0..16383.  Hold = key stays pressed until the next press."
+                "Dur = duration in 10 ms steps (0-127).  Bend = -8192..8191.  Bank = 0..16383.  "
+                "Hold = key (or media key) stays pressed until the next press."
             ),
             text_color="gray",
             justify="left",

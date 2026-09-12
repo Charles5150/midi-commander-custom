@@ -158,24 +158,34 @@ static void update_keyboard_state(uint8_t mod_byte, uint8_t key_code, uint8_t is
        }
     }
     
-    // Build Report
-    uint8_t report[8] = {0};
-    
+    // Build Report: [report id][modifiers][reserved][6 key codes]
+    uint8_t report[9] = {HID_REPORT_ID_KEYBOARD, 0};
+
     // Mod Byte
     for(int i=0; i<8; i++) {
-        if(mod_press_count[i] > 0) report[0] |= (1<<i);
+        if(mod_press_count[i] > 0) report[1] |= (1<<i);
     }
-    
+
     // Keys (max 6)
     int k = 0;
     for(int i=0; i<256 && k < 6; i++) {
         if(key_press_count[i] > 0) {
-            report[2+k] = i;
+            report[3+k] = i;
             k++;
         }
     }
-    
-    HID_SendReport_FS(report, 8);
+
+    HID_SendReport_FS(report, sizeof(report));
+}
+
+// Consumer control (media keys): one usage at a time, 0 releases it
+static void send_media_usage(uint16_t usage){
+    uint8_t report[3] = {HID_REPORT_ID_CONSUMER, usage & 0xFF, (usage >> 8) & 0x03};
+    HID_SendReport_FS(report, sizeof(report));
+}
+
+static inline uint16_t media_usage_from_rom(const uint8_t *pRom){
+    return pRom[1] | ((pRom[2] & 0x03) << 8);
 }
 
 uint8_t* get_rom_pointer(uint8_t page, uint8_t sw, uint8_t cmd){
@@ -301,6 +311,9 @@ void handle_delayed_cmds(void){
 			case CMD_KEY_NIBBLE:
 				update_keyboard_state(pRom[1], pRom[2], 0); // Release
 				break;
+			case CMD_MEDIA_NIBBLE:
+				send_media_usage(0); // Release
+				break;
 			default:
 				break;
 			}
@@ -389,6 +402,17 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 		}
     }
 		break;
+	case CMD_MEDIA_NIBBLE:
+		if(midiCmd_get_cmd_toggle(pRom)){
+			// Hold: press on one press, release on the next
+			send_media_usage(toggleState ? media_usage_from_rom(pRom) : 0);
+		} else {
+			send_media_usage(media_usage_from_rom(pRom));
+			if(midiCmd_get_delay(pRom) != 0){
+				set_cmd_duration_delay(pRom); // auto release
+			}
+		}
+		break;
 	case CMD_START_NIBBLE:
 		status = midiCmd_send_start_command();
 		break;
@@ -440,6 +464,11 @@ void handle_cmd_sw_up(uint8_t *pRom, uint8_t toggleState){
 				// No cmd duration delay, so immediately release
 				update_keyboard_state(pRom[1], pRom[2], 0); // Release
 			}
+		}
+		break;
+	case CMD_MEDIA_NIBBLE:
+		if(!midiCmd_get_cmd_toggle(pRom) && midiCmd_get_delay(pRom) == 0) {
+			send_media_usage(0); // Release
 		}
 		break;
 	case CMD_START_NIBBLE:

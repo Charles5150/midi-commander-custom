@@ -66,8 +66,8 @@ __ALIGN_BEGIN static uint8_t USBD_HID_CfgDesc[USB_HID_CONFIG_DESC_SIZ]  __ALIGN_
   0x00,         /*bAlternateSetting: Alternate setting*/
   0x01,         /*bNumEndpoints*/
   0x03,         /*bInterfaceClass: HID*/
-  0x01,         /*bInterfaceSubClass : 1=BOOT, 0=no boot*/
-  0x01,         /*nInterfaceProtocol : 0=none, 1=keyboard, 2=mouse*/
+  0x00,         /*bInterfaceSubClass : 0=no boot (reports carry IDs)*/
+  0x00,         /*nInterfaceProtocol : 0=none*/
   0,            /*iInterface: Index of string descriptor*/
   /******************** Descriptor of Joystick Mouse HID ********************/
   /* 18 */
@@ -128,6 +128,7 @@ __ALIGN_BEGIN static uint8_t HID_KEYBOARD_ReportDesc[HID_KEYBOARD_REPORT_DESC_SI
     0x05, 0x01,                    // USAGE_PAGE (Generic Desktop)
     0x09, 0x06,                    // USAGE (Keyboard)
     0xa1, 0x01,                    // COLLECTION (Application)
+    0x85, HID_REPORT_ID_KEYBOARD,  //   REPORT_ID (1)
     0x05, 0x07,                    //   USAGE_PAGE (Keyboard)
     0x19, 0xe0,                    //   USAGE_MINIMUM (Keyboard LeftControl)
     0x29, 0xe7,                    //   USAGE_MAXIMUM (Keyboard Right GUI)
@@ -155,6 +156,20 @@ __ALIGN_BEGIN static uint8_t HID_KEYBOARD_ReportDesc[HID_KEYBOARD_REPORT_DESC_SI
     0x05, 0x07,                    //   USAGE_PAGE (Keyboard)
     0x19, 0x00,                    //   USAGE_MINIMUM (Reserved (no event indicated))
     0x29, 0x65,                    //   USAGE_MAXIMUM (Keyboard Application)
+    0x81, 0x00,                    //   INPUT (Data,Ary,Abs)
+    0xc0,                          // END_COLLECTION
+
+    // Consumer control: media keys (play/pause, volume, ...) as one 16-bit usage
+    0x05, 0x0c,                    // USAGE_PAGE (Consumer)
+    0x09, 0x01,                    // USAGE (Consumer Control)
+    0xa1, 0x01,                    // COLLECTION (Application)
+    0x85, HID_REPORT_ID_CONSUMER,  //   REPORT_ID (2)
+    0x15, 0x00,                    //   LOGICAL_MINIMUM (0)
+    0x26, 0xff, 0x03,              //   LOGICAL_MAXIMUM (0x3ff)
+    0x19, 0x00,                    //   USAGE_MINIMUM (0)
+    0x2a, 0xff, 0x03,              //   USAGE_MAXIMUM (0x3ff)
+    0x75, 0x10,                    //   REPORT_SIZE (16)
+    0x95, 0x01,                    //   REPORT_COUNT (1)
     0x81, 0x00,                    //   INPUT (Data,Ary,Abs)
     0xc0                           // END_COLLECTION
 };

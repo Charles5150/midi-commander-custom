@@ -19,12 +19,14 @@ import pandas as pd
 from lib.cmdBinaryPacker import (
     CMD_CC_NIBBLE,
     CMD_KEY_NIBBLE,
+    CMD_MEDIA_NIBBLE,
     CMD_NOTE_NIBBLE,
     CMD_PB_NIBBLE,
     CMD_PC_NIBBLE,
     CMD_START_NIBBLE,
     CMD_STOP_NIBBLE,
     HID_SPECIAL_KEYS,
+    MEDIA_KEYS,
     MIDI_NUM_COMMANDS_PER_SWITCH,
 )
 
@@ -70,6 +72,7 @@ _HID_NAMES.update({30 + i: str(i + 1) for i in range(9)})
 _HID_NAMES[39] = "0"
 for _name, _code in HID_SPECIAL_KEYS.items():
     _HID_NAMES.setdefault(_code, _name)
+_MEDIA_NAMES = {code: name for name, code in MEDIA_KEYS.items()}
 
 
 def _ascii(chunk: bytes) -> str:
@@ -166,6 +169,12 @@ def unpack_command(raw: bytes) -> dict:
         cmd["KeyMode_(Key)"] = {1: "Down", 2: "Up"}.get(b0 & 0x0F, "Normal")
         cmd["Number_(PC/CC/Note)"] = str(b1)
         cmd["OnValue_(CC/PB)"] = _HID_NAMES.get(b2, str(b2))
+        cmd["Duration_(Note/PB)"] = str(b3 & 0x7F)
+        cmd["Toggle_(CC/PB/Note)"] = "Y" if b3 & 0x80 else "N"
+    elif cmd_type == CMD_MEDIA_NIBBLE:
+        cmd["CommandType"] = "Media"
+        usage = b1 | ((b2 & 0x03) << 8)
+        cmd["OnValue_(CC/PB)"] = _MEDIA_NAMES.get(usage, str(usage))
         cmd["Duration_(Note/PB)"] = str(b3 & 0x7F)
         cmd["Toggle_(CC/PB/Note)"] = "Y" if b3 & 0x80 else "N"
     elif cmd_type == CMD_START_NIBBLE:

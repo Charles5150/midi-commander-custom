@@ -85,8 +85,8 @@ __ALIGN_BEGIN static uint8_t USBD_Composite_CfgDesc[USB_COMPOSITE_CONFIG_DESC_SI
   0x00,         /*bAlternateSetting: Alternate setting*/
   0x01,         /*bNumEndpoints*/
   0x03,         /*bInterfaceClass: HID*/
-  0x01,         /*bInterfaceSubClass : 1=BOOT, 0=no boot*/
-  0x01,         /*nInterfaceProtocol : 0=none, 1=keyboard, 2=mouse*/
+  0x00,         /*bInterfaceSubClass : 0=no boot (reports carry IDs)*/
+  0x00,         /*nInterfaceProtocol : 0=none*/
   0,            /*iInterface: Index of string descriptor*/
 
   /******************** Descriptor of Joystick Mouse HID ********************/

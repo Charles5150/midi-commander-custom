@@ -26,12 +26,12 @@ The firmware replaces the stock MeloAudio one but never touches its bootloader, 
 ## Features
 
 - **8 banks × 8 buttons.** Bank Up / Bank Down switch banks; each bank has a name shown on the display.
-- **Up to 10 commands per button press**, sent in order. Any mix of Program Change (with optional Bank Select), Control Change, Note, Pitch Bend, Start, Stop and USB keyboard keys, each on its own MIDI channel.
+- **Up to 10 commands per button press**, sent in order. Any mix of Program Change (with optional Bank Select), Control Change, Note, Pitch Bend, Start, Stop, USB keyboard keys and media keys, each MIDI command on its own channel.
 - **Long press.** A second set of up to 10 commands fires when a button is held past a configurable time (default 500 ms). Buttons without long press commands react instantly, as before.
 - **Momentary or toggle** behaviour per command, and timed auto-release (up to 1.27 s) for Notes, Pitch Bend and keys.
 - **Button labels on the display.** Each button has a 4 character label; the screen shows the current bank and a 2×4 grid mirroring the pedal, with toggle buttons drawn inverted while on.
 - **LED modes** per button: Normal, Reverse (lit when off) or AlwaysOn (blinks while active). The Bank Up / Down LEDs have the same options. Global brightness for lit LEDs and, separately, for LEDs lit at rest, so an active button stands out from an idle one.
-- **USB keyboard (HID).** A command can press a key with Ctrl / Shift / Alt / Cmd modifiers, tap it, hold it or release it.
+- **USB keyboard and media keys (HID).** A command can press a key with Ctrl / Shift / Alt / Cmd modifiers, tap it, hold it or release it, or send a media key (play/pause, next, previous, stop, volume, mute, record) to the computer.
 - **Two expression pedals** with per-pedal CC number, MIDI channel, calibrated end points, response curve and direction, calibrated live from the configurator.
 - **USB-to-DIN MIDI thru.** Optionally forward everything received over USB to the MIDI OUT jack, so the pedal doubles as a USB MIDI interface for the device behind it. Clock / Start / Continue / Stop have their own switch.
 - **Remember state.** Optionally power up in the last bank with every toggle exactly as you left it.
@@ -47,7 +47,7 @@ You need the pedal, a USB cable, Python 3 and, to update the firmware, `dfu-util
 
 ### 1. Flash the firmware
 
-The current release is **`artifacts/release-0.9.dfu`**. Earlier releases are kept in `artifacts/` for reference.
+The current release is **`artifacts/release-0.10.dfu`**. Earlier releases are kept in `artifacts/` for reference.
 
 1. Install `dfu-util` (macOS: `brew install dfu-util`; Linux: your package manager; Windows: [dfu-util.sourceforge.net](https://dfu-util.sourceforge.net/)).
 2. With the pedal off, hold **Bank Down** and **D** (the two bottom-right buttons) and switch it on. The display stays dark and LED 3 lights up: the pedal is in DFU mode.
@@ -61,7 +61,7 @@ The current release is **`artifacts/release-0.9.dfu`**. Earlier releases are kep
 4. Flash, using `--alt 0` (the internal flash entry above):
 
    ```bash
-   dfu-util -d 0483:df11 --alt 0 --download artifacts/release-0.9.dfu
+   dfu-util -d 0483:df11 --alt 0 --download artifacts/release-0.10.dfu
    ```
 
 5. Power cycle the pedal. The firmware version shows on the display for a moment, then the first bank.
@@ -150,16 +150,16 @@ One row per button, 64 rows in bank order and, within a bank, in the order `1, 2
 
 | Field | PC | CC | Note | PB | Key | Meaning |
 |---|---|---|---|---|---|---|
-| `CommandType` | | | | | | `PC`, `CC`, `Note`, `PB`, `Key`, `Start`, `Stop`, or empty for none |
+| `CommandType` | | | | | | `PC`, `CC`, `Note`, `PB`, `Key`, `Media`, `Start`, `Stop`, or empty for none |
 | `Channel_(PC/CC/Note/PB)` | ✓ | ✓ | ✓ | ✓ | | MIDI channel 1–16 |
 | `Number_(PC/CC/Note)` | ✓ | ✓ | ✓ | | ✓ | PC: program 0–127. CC: controller number. Note: note number. Key: modifier mask |
-| `OnValue_(CC/PB)` | | ✓ | | ✓ | ✓ | CC: value on press (0–127). PB: −8192..8191. Key: key name |
+| `OnValue_(CC/PB)` | | ✓ | | ✓ | ✓ | CC: value on press (0–127). PB: −8192..8191. Key: key name. Media: media key name |
 | `OffValue_(CC)` | | ✓ | | | | CC: value on release / toggle off (0–127) |
 | `BankSelect_(PC)` | ✓ | | | | | 0–16383, sent as CC#32 (LSB) before the PC |
 | `BankSelectHighByte_(PC)` | ✓ | | | | | Y: also send CC#0 (MSB) |
-| `Toggle_(CC/PB/Note)` | | ✓ | ✓ | ✓ | ✓ | Y: alternate on / off on successive presses. Key: hold until the next press |
+| `Toggle_(CC/PB/Note)` | | ✓ | ✓ | ✓ | ✓ | Y: alternate on / off on successive presses. Key / Media: hold until the next press |
 | `Velocity_(Note)` | | | ✓ | | | 0–127 |
-| `Duration_(Note/PB)` | | | ✓ | ✓ | ✓ | In 10 ms steps, 0–127 (max 1.27 s) |
+| `Duration_(Note/PB)` | | | ✓ | ✓ | ✓ | In 10 ms steps, 0–127 (max 1.27 s). Media: same as Key |
 | `KeyMode_(Key)` | | | | | ✓ | Normal / Down / Up |
 
 `Start` and `Stop` take no parameters; they send MIDI Start (0xFA) / Stop (0xFC) over USB and DIN.
@@ -171,6 +171,8 @@ One row per button, 64 rows in bank order and, within a bank, in the order `1, 2
 - `Toggle = Y`: the first press sends on, the next sends off, and so on. Toggle state is kept per button and per bank, and drives the LED.
 
 **Keyboard keys.** `Number` is the sum of the modifiers: 1 Ctrl, 2 Shift, 4 Alt, 8 Cmd/Win (3 = Ctrl+Shift). `OnValue` is a single character (`a`, `7`) or one of `enter`, `esc`, `tab`, `space`, `backspace`, `minus`, `equal`, `leftbr`, `rightbr`, `backslash`, `semicolon`, `quote`, `grave`, `comma`, `dot`, `slash`, `f1`–`f12`. `KeyMode`: **Normal** taps the key (held for `Duration` if set); **Down** presses and leaves it pressed, **Up** releases it, both after a `Duration` delay, so one button can build combinations across several slots. `Toggle` holds the key until the next press.
+
+**Media keys.** `CommandType` `Media` sends a USB consumer-control key to the computer, the same ones a keyboard's media buttons send, so they work in any player or DAW without MIDI mapping. `OnValue` is one of `play_pause`, `play`, `pause`, `stop`, `next`, `prev`, `record`, `fast_forward`, `rewind`, `eject`, `mute`, `vol_up`, `vol_down`, or a raw usage number (`0xE9`). The key is tapped on press and released on release, held for `Duration` if set, or held until the next press with `Toggle`. `Number` and `Channel` are unused.
 
 #### LED modes
 
@@ -258,6 +260,7 @@ Hardware notes (MCU, pinout, I²C addresses) are in `HardwareNotes.txt`; `backup
 
 Firmware versions are shown on the display at boot and reported by the tools.
 
+- **0.10 — Media keys.** New `Media` command type sends USB consumer-control keys (play/pause, next, previous, stop, volume, mute, record, ...). The HID interface now carries two reports with IDs (keyboard and consumer control) on a 16-byte endpoint, and gets the USB packet-memory allocation it had always been missing.
 - **0.9 — LED brightness.** `LED_Brightness` and `LED_Rest_Brightness` (percent) dim the LEDs with a 500 Hz software PWM on TIM2; the rest level lets Reverse/AlwaysOn buttons look different when idle and when active.
 - **0.8 — Expression pedal calibration.** `Expression_Settings` section and Expression tab with live view and one-click calibration: per pedal end points, curve, invert and channel. SysEx `GET_PEDALS` (62).
 - **0.7 — Long press.** Second command set per button (`LongPress_Settings`), `Long_Press_ms`, separate toggle state, Short/Long switch in the editor.
@@ -275,7 +278,6 @@ Firmware versions are shown on the display at boot and reported by the tools.
 ## Still to come
 
 - Battery management has not been considered; battery operation is untested.
-- HID media keys (play/pause, volume).
 - More than 8 banks; the flash has room for it.
 
 Ideas and bug reports are welcome through the [issues](https://github.com/Charles5150/midi-commander-custom/issues/new/choose) and [discussions](https://github.com/Charles5150/midi-commander-custom/discussions).

@@ -16,11 +16,15 @@
 #include  "usbd_ioreq.h"
 
 #define HID_EPIN_ADDR                 0x82
-#define HID_EPIN_SIZE                 0x08
+#define HID_EPIN_SIZE                 0x10
+
+// Report IDs: the interface carries a keyboard and a consumer control report
+#define HID_REPORT_ID_KEYBOARD        0x01   // 8 bytes: modifiers, reserved, 6 keys
+#define HID_REPORT_ID_CONSUMER        0x02   // 2 bytes: 16-bit consumer usage (0 = release)
 
 #define USB_HID_CONFIG_DESC_SIZ       34
 #define USB_HID_DESC_SIZ              9
-#define HID_KEYBOARD_REPORT_DESC_SIZE 63
+#define HID_KEYBOARD_REPORT_DESC_SIZE 90
 
 #define HID_DESCRIPTOR_TYPE           0x21
 #define HID_REPORT_DESC               0x22

@@ -10,6 +10,24 @@ CMD_NOTE_NIBBLE = 0x90
 CMD_START_NIBBLE = 0x10
 CMD_STOP_NIBBLE = 0x20
 CMD_KEY_NIBBLE = 0xD0
+CMD_MEDIA_NIBBLE = 0x30
+
+# USB HID Consumer Control usage IDs (usage page 0x0C) for media keys
+MEDIA_KEYS = {
+    "play_pause": 0xCD,
+    "play": 0xB0,
+    "pause": 0xB1,
+    "stop": 0xB7,
+    "next": 0xB5,
+    "prev": 0xB6,
+    "record": 0xB2,
+    "fast_forward": 0xB3,
+    "rewind": 0xB4,
+    "eject": 0xB8,
+    "mute": 0xE2,
+    "vol_up": 0xE9,
+    "vol_down": 0xEA,
+}
 
 
 # Standard command
@@ -232,6 +250,23 @@ def cmd_key(cmd):
     return cmd_bytes
 
 
+def get_media_usage(val) -> int:
+    s_val = str(val).strip().lower().replace(" ", "_").replace("-", "_")
+    if s_val in MEDIA_KEYS:
+        return MEDIA_KEYS[s_val]
+    try:
+        return int(s_val, 16) if s_val.startswith("0x") else int(float(s_val))
+    except ValueError:
+        return 0
+
+
+def cmd_media(cmd):
+    usage = get_media_usage(cmd.get("OnValue_(CC/PB)", "")) & 0x3FF
+    duration = safe_int(cmd.get("Duration_(Note/PB)", 0)) & 0x7F
+    toggle_bit = get_toggle_bit(str(cmd.get("Toggle_(CC/PB/Note)", "")))
+    return [CMD_MEDIA_NIBBLE, usage & 0xFF, (usage >> 8) & 0x03, duration | toggle_bit]
+
+
 def cmd_stop(cmd):
     return [CMD_STOP_NIBBLE, 0, 0, 0]
 
@@ -248,6 +283,7 @@ cmd_route_table = {
     "Start": cmd_start,
     "Stop": cmd_stop,
     "Key": cmd_key,
+    "Media": cmd_media,
 }
 
 

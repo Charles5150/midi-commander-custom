@@ -59,6 +59,7 @@
 #define CMD_PB_NIBBLE		(0xE0)
 #define CMD_NOTE_NIBBLE		(0x90)
 #define CMD_KEY_NIBBLE		(0xD0)
+#define CMD_MEDIA_NIBBLE	(0x30)	// Consumer control (media) key: bytes 1-2 = usage (10 bits), byte 3 = duration | toggle
 #define CMD_START_NIBBLE	(0x10)
 #define CMD_STOP_NIBBLE		(0x20)
 

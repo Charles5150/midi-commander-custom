@@ -354,6 +354,8 @@ USBD_StatusTypeDef USBD_LL_Init(USBD_HandleTypeDef *pdev)
 
   HAL_PCDEx_PMAConfig((PCD_HandleTypeDef*)pdev->pData , 0x01 , PCD_SNG_BUF, (0x58 + 0x40));
   HAL_PCDEx_PMAConfig((PCD_HandleTypeDef*)pdev->pData , 0x81 , PCD_SNG_BUF, (0x58 + 0x40 + 0x40));
+  // HID interrupt IN endpoint (keyboard + consumer reports, 16 bytes)
+  HAL_PCDEx_PMAConfig((PCD_HandleTypeDef*)pdev->pData , 0x82 , PCD_SNG_BUF, (0x58 + 0x40 + 0x40 + 0x40));
   /* USER CODE END EndPoint_Configuration */
   return USBD_OK;
 }
