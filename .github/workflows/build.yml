@@ -1,0 +1,71 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  firmware:
+    name: Firmware (PlatformIO)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Build debug image
+        run: pio run -e midi_debug
+
+      - name: Build DFU image
+        run: pio run -e midi_dfu
+
+      - name: Upload DFU artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-dfu
+          path: |
+            artifacts/dfu/platformio-latest.dfu
+            .pio/build/midi_dfu/firmware.bin
+          if-no-files-found: error
+
+  python:
+    name: Python tools
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        # python-rtmidi needs ALSA headers on Linux; customtkinter needs tk
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev python3-tk
+          pip install -r python/requirements.txt
+
+      - name: Run tests
+        run: python -m unittest discover -s python/tests -v
+
+      - name: Import check for the GUI and tools
+        run: |
+          cd python
+          python -c "import lib.configPacker, lib.binaryUnpacker, lib.midiDevice, lib.configCsv"
+          python CSV_to_Flash.py --help
+          python Flash_to_CSV.py --help
