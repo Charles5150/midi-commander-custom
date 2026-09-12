@@ -24,6 +24,8 @@ LONG_PRESS_SECTION = "LongPress_Settings"
 EXPRESSION_SECTION = "Expression_Settings"
 BANK_ENTER_SECTION = "BankEnter_Settings"
 SYSEX_SECTION = "SysEx_Strings"
+BANK_SWITCH_SECTION = "BankSwitch_Settings"
+BANK_SWITCH_LISTS = [("Down", "Short"), ("Down", "Long"), ("Up", "Short"), ("Up", "Long")]
 SYSEX_STRING_COUNT = 16
 SYSEX_STRING_MAX = 23
 SYSEX_STRING_STRIDE = SYSEX_STRING_MAX + 1
@@ -94,6 +96,23 @@ def parse_sysex_bytes(text) -> bytes:
     if any(v > 0x7F for v in out):
         return b""
     return bytes(out[:SYSEX_STRING_MAX])
+
+
+def empty_bank_switch_settings():
+    """A BankSwitch_Settings frame with one blank row per switch and press."""
+    import pandas as pd
+
+    from lib.binaryUnpacker import CMD_FIELDS, SLOT_NAMES
+
+    rows = []
+    for switch, press in BANK_SWITCH_LISTS:
+        row = {"Switch": switch, "Press": press}
+        for slot in SLOT_NAMES:
+            for f in CMD_FIELDS:
+                row[f"{slot}_{f}"] = "N" if f.startswith("Toggle") else ""
+            row[f"{slot}_KeyMode_(Key)"] = ""
+        rows.append(row)
+    return pd.DataFrame(rows)
 
 
 def empty_sysex_strings():
@@ -261,5 +280,19 @@ def pack_config(sections: dict) -> bytes:
             out += cbp.pack_row(row)
 
     out += list(pack_sysex_strings(sections.get(SYSEX_SECTION)))
+
+    # Bank switch command lists; rows are optional and may be in any order
+    sw_rows = {}
+    if BANK_SWITCH_SECTION in sections:
+        for _, row in sections[BANK_SWITCH_SECTION].iterrows():
+            key = (str(row.get("Switch", "")).strip().title(),
+                   str(row.get("Press", "")).strip().title())
+            sw_rows[key] = row
+    for key in BANK_SWITCH_LISTS:
+        row = sw_rows.get(key)
+        if row is None:
+            out += [0] * (cbp.MIDI_NUM_COMMANDS_PER_SWITCH * 4)
+        else:
+            out += cbp.pack_row(row)
 
     return bytes(out)

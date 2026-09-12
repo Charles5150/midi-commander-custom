@@ -22,9 +22,12 @@ from lib.configCsv import read_config_csv, write_config_csv  # noqa: E402
 from lib.configPacker import NUM_BANKS, BUTTON_IDS  # noqa: E402
 from lib.configPacker import (  # noqa: E402
     BANK_ENTER_SECTION,
+    BANK_SWITCH_SECTION,
+    BANK_SWITCH_LISTS,
     SYSEX_SECTION,
     SYSEX_STRING_COUNT,
     empty_bank_enter_settings,
+    empty_bank_switch_settings,
     empty_sysex_strings,
     parse_sysex_bytes,
 )
@@ -49,6 +52,8 @@ CHANNELS = [str(i) for i in range(1, 17)]
 NO_COMMAND = "(none)"
 COMMAND_TYPES = [NO_COMMAND, "PC", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop"]
 TAP_MODES = ["Tap", "Clock"]
+BANK_SWITCH_MODES = ["Bank", "Bank+MIDI", "MIDI only"]
+BANK_SWITCH_CHOICES = [f"{sw} / {pr}" for sw, pr in BANK_SWITCH_LISTS]
 CCINC_DIRECTIONS = ["Up", "Down"]
 BANK_MODES = ["GoTo", "Up", "Down"]
 BANKS = [str(i) for i in range(32)]
@@ -386,6 +391,9 @@ class MidiCommanderGUI(ctk.CTk):
         self.df_enter = None
         self.enter_editors = []
         self.df_sysex = None
+        self.df_bank_switch = None
+        self.bank_switch_editors = []
+        self.bank_switch_row = None
         self.sysex_widgets = {}
         self.current_csv_path = None
         self.live = None            # MidiCommander while the live pedal view is on
@@ -441,6 +449,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.tabview.add("Expression")
         self.tabview.add("Bank Enter")
         self.tabview.add("SysEx")
+        self.tabview.add("Bank Switch")
 
         self.global_scroll = ctk.CTkScrollableFrame(self.tabview.tab("Global Settings"))
         self.global_scroll.pack(fill="both", expand=True)
@@ -452,6 +461,7 @@ class MidiCommanderGUI(ctk.CTk):
         self._setup_expression_tab()
         self._setup_bank_enter_tab()
         self._setup_sysex_tab()
+        self._setup_bank_switch_tab()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
         if os.path.exists(DEFAULT_CSV):
@@ -512,6 +522,7 @@ class MidiCommanderGUI(ctk.CTk):
                 ("Bank_Change_Mode", "Off"),
                 ("Bank_Change_Channel", "Any"),
                 ("Bank_Change_CC", "0"),
+                ("Bank_Switch_Mode", "Bank"),
             ]
             missing = [{"Label": l, "Value": v} for l, v in defaults if l not in labels]
             if missing:
@@ -576,6 +587,11 @@ class MidiCommanderGUI(ctk.CTk):
                 data[BANK_ENTER_SECTION].astype(object).reset_index(drop=True)
                 if BANK_ENTER_SECTION in data
                 else empty_bank_enter_settings()
+            )
+            self.df_bank_switch = (
+                data[BANK_SWITCH_SECTION].astype(object).reset_index(drop=True)
+                if BANK_SWITCH_SECTION in data
+                else empty_bank_switch_settings()
             )
             self.df_sysex = (
                 data[SYSEX_SECTION].astype(object).reset_index(drop=True)
@@ -679,6 +695,8 @@ class MidiCommanderGUI(ctk.CTk):
                 w = IntEntry(self.global_scroll, 1, 31, value, width=70)
             elif label == "Bank_Change_Mode":
                 w = Option(self.global_scroll, ["Off", "PC", "CC"], value, width=80)
+            elif label == "Bank_Switch_Mode":
+                w = Option(self.global_scroll, BANK_SWITCH_MODES, value, width=110)
             elif label == "Bank_Change_Channel":
                 w = Option(self.global_scroll, ["Any"] + CHANNELS, value, width=80)
             elif label == "Bank_Change_CC":
@@ -703,6 +721,7 @@ class MidiCommanderGUI(ctk.CTk):
             "Bank_Change_Mode": "let an incoming PC or CC select a bank",
             "Bank_Change_Channel": "channel the pedal listens on for bank changes",
             "Bank_Change_CC": "CC number that selects a bank, when the mode is CC",
+            "Bank_Switch_Mode": "what the Bank Up/Down switches do, see the Bank Switch tab",
             "ConfigName": "shown on the display at boot (16 chars)",
             "Exp1_CC": "CC number sent by expression pedal 1 (0-127)",
             "Exp2_CC": "CC number sent by expression pedal 2 (0-127)",
@@ -1096,6 +1115,67 @@ class MidiCommanderGUI(ctk.CTk):
                     val if val != "" else float("nan")
                 )
 
+    # --- Bank Switch tab -----------------------------------------------------------
+    def _setup_bank_switch_tab(self):
+        tab = self.tabview.tab("Bank Switch")
+        top = ctk.CTkFrame(tab, fg_color="transparent")
+        top.pack(fill="x", padx=10, pady=(10, 4))
+        ctk.CTkLabel(
+            top,
+            text="Commands sent by the Bank Down and Bank Up switches themselves, the same "
+            "in every bank. Bank_Switch_Mode in Global Settings decides whether they also "
+            "change bank (Bank+MIDI), change bank silently (Bank) or stop changing bank "
+            "altogether (MIDI only), which turns the pedal into a ten switch controller. "
+            "Each list fires as a tap, press then release, so toggles flip once. Bank "
+            "commands are ignored here.",
+            text_color="gray",
+            wraplength=780,
+            justify="left",
+        ).pack(anchor="w")
+
+        sel = ctk.CTkFrame(tab, fg_color="transparent")
+        sel.pack(fill="x", padx=10)
+        ctk.CTkLabel(sel, text="Switch:").pack(side="left")
+        self.bank_switch_selector = ctk.CTkOptionMenu(
+            sel, values=BANK_SWITCH_CHOICES, width=170,
+            command=self._on_bank_switch_change,
+        )
+        self.bank_switch_selector.pack(side="left", padx=8)
+
+        self.bank_switch_frame = ctk.CTkScrollableFrame(tab)
+        self.bank_switch_frame.pack(fill="both", expand=True, padx=10, pady=8)
+
+    def _on_bank_switch_change(self, choice):
+        self.apply_bank_switch_changes()
+        for w in self.bank_switch_frame.winfo_children():
+            w.destroy()
+        self.bank_switch_editors = []
+        if self.df_bank_switch is None:
+            return
+        switch, press = [p.strip() for p in choice.split("/")]
+        df = self.df_bank_switch
+        match = df[(df["Switch"].map(clean) == switch) & (df["Press"].map(clean) == press)]
+        if not len(match):
+            return
+        self.bank_switch_row = match.index[0]
+        current = df.loc[self.bank_switch_row]
+        table = ctk.CTkFrame(self.bank_switch_frame)
+        table.pack(fill="x")
+        for slot in SLOTS:
+            initial = {f: current.get(f"{slot}_{f}") for f in CMD_FIELDS}
+            self.bank_switch_editors.append(SlotEditor(table, slot, initial))
+
+    def apply_bank_switch_changes(self):
+        if not self.bank_switch_editors or self.df_bank_switch is None:
+            return
+        if self.bank_switch_row is None:
+            return
+        for editor in self.bank_switch_editors:
+            for field, val in editor.values().items():
+                self.df_bank_switch.at[self.bank_switch_row, f"{editor.slot}_{field}"] = (
+                    val if val != "" else float("nan")
+                )
+
     # --- SysEx tab -----------------------------------------------------------------
     def _setup_sysex_tab(self):
         tab = self.tabview.tab("SysEx")
@@ -1155,6 +1235,7 @@ class MidiCommanderGUI(ctk.CTk):
         """Pull every tab's widgets into the DataFrames."""
         self.apply_button_changes(silent=True)
         self.apply_bank_enter_changes()
+        self.apply_bank_switch_changes()
         self.apply_sysex_changes()
         for idx, w in self.global_widgets.items():
             self.df_global.at[idx, "Value"] = w.value()
@@ -1190,6 +1271,7 @@ class MidiCommanderGUI(ctk.CTk):
                 df_expression=self.df_exp,
                 df_bank_enter=self.df_enter,
                 df_sysex=self.df_sysex,
+                df_bank_switch=self.df_bank_switch,
             )
             messagebox.showinfo("Success", "CSV Saved Successfully!")
         except Exception as e:  # noqa: BLE001
@@ -1247,6 +1329,7 @@ class MidiCommanderGUI(ctk.CTk):
                 df_expression=self.df_exp,
                 df_bank_enter=self.df_enter,
                 df_sysex=self.df_sysex,
+                df_bank_switch=self.df_bank_switch,
             )
         except Exception as e:  # noqa: BLE001
             messagebox.showerror("Error", f"Could not save CSV before flashing: {e}")

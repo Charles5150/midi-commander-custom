@@ -11,6 +11,9 @@ GLOBAL_SETTINGS_BANK_JUMP_STEP = 11
 GLOBAL_SETTINGS_BANK_CHANGE_MODE = 12
 GLOBAL_SETTINGS_BANK_CHANGE_CHANNEL = 13
 GLOBAL_SETTINGS_BANK_CHANGE_CC = 14
+GLOBAL_SETTINGS_BANK_SWITCH_MODE = 15
+
+BANK_SWITCH_MODES = {"BANK": 0, "BANK+MIDI": 1, "MIDI": 2}
 
 BANK_CHANGE_MODES = {"OFF": 0, "PC": 1, "CC": 2}
 
@@ -113,6 +116,17 @@ def pack_global_settings(df):
         except ValueError:
             cc = 0
     bin_list[GLOBAL_SETTINGS_BANK_CHANGE_CC] = cc
+
+    # What the Bank Up/Down switches do: change bank, both, or MIDI only
+    mode_text = str(df.loc["Bank_Switch_Mode", "Value"]).strip().upper() if "Bank_Switch_Mode" in df.index else "BANK"
+    mode_text = mode_text.replace(" ", "").replace("_", "")
+    if mode_text.startswith("MIDIONLY") or mode_text == "MIDI":
+        bsm = 2
+    elif "MIDI" in mode_text:
+        bsm = 1
+    else:
+        bsm = 0
+    bin_list[GLOBAL_SETTINGS_BANK_SWITCH_MODE] = bsm
 
     # print('{:8.8}'.format(df.loc['ConfigName'].Value))
     bin_list += ("{:16.16}".format(df.loc["ConfigName"].Value)).encode("ASCII")

@@ -19,6 +19,17 @@ extern uint8_t *pLongPressCmds;	// Second command set per button, same layout as
 extern uint8_t *pExpSettings;	// Expression pedal calibration, EXP_SETTINGS_STRIDE bytes per pedal
 extern uint8_t *pBankEnterCmds;	// Commands sent when a bank is entered, same shape as one button's list per bank
 extern uint8_t *pSysExStrings;	// Table of stored SysEx payloads: [length][up to SYSEX_STRING_MAX data bytes]
+extern uint8_t *pBankSwitchCmds;	// Command lists for the Bank Down/Up switches
+
+/*
+ * Four command lists, one per switch and press length, in this order:
+ *   0 Down short   1 Down long   2 Up short   3 Up long
+ * They are global rather than per bank: the switches are navigation, so the
+ * same thing should happen wherever you are.
+ */
+#define BANK_SWITCH_DOWN	(0)
+#define BANK_SWITCH_UP		(1)
+#define BANK_SWITCH_LISTS	(4)
 
 #define SYSEX_STRING_COUNT	(16)
 #define SYSEX_STRING_MAX	(23)	// data bytes, F0 and F7 are added when sending
@@ -95,7 +106,9 @@ extern uint8_t *pSysExStrings;	// Table of stored SysEx payloads: [length][up to
 #define CFG_BANK_ENTER_OFF	(CFG_EXP_OFF + CFG_EXP_SIZE)
 #define CFG_SYSEX_SIZE		(SYSEX_STRING_COUNT * SYSEX_STRING_STRIDE)
 #define CFG_SYSEX_OFF		(CFG_BANK_ENTER_OFF + CFG_BANK_ENTER_SIZE)
-#define CFG_TOTAL_SIZE		(CFG_SYSEX_OFF + CFG_SYSEX_SIZE)
+#define CFG_BANK_SWITCH_SIZE	(BANK_SWITCH_LISTS * MIDI_ROM_KEY_STRIDE)
+#define CFG_BANK_SWITCH_OFF	(CFG_SYSEX_OFF + CFG_SYSEX_SIZE)
+#define CFG_TOTAL_SIZE		(CFG_BANK_SWITCH_OFF + CFG_BANK_SWITCH_SIZE)
 
 void flash_settings_erase(void);
 void flash_settings_write(uint8_t* data, uint32_t offset);

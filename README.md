@@ -1,6 +1,6 @@
 # Midi Commander Custom Firmware
 
-Custom firmware and configuration tools for the **MeloAudio Midi Commander** foot controller: eight banks of eight buttons, up to ten MIDI commands per press plus ten more on a long press, USB keyboard keys, two calibrated expression pedals, button labels on the display, USB-to-DIN MIDI thru, and a desktop configurator that talks to the pedal over USB.
+Custom firmware and configuration tools for the **MeloAudio Midi Commander** foot controller, sold in Europe as the **Harley Benton MP-100**: 32 banks of eight buttons, up to ten MIDI commands per press plus ten more on a long press, tap tempo and MIDI clock, USB keyboard and media keys, two calibrated expression pedals, button labels on the display, USB-to-DIN MIDI thru, and a desktop configurator that talks to the pedal over USB.
 
 This repository is a fork of [arasan95/midi-commander-custom](https://github.com/arasan95/midi-commander-custom), which in turn builds on the original project by [harvie256](https://github.com/harvie256/midi-commander-custom). None of this would exist without their work and that of the other contributors listed in the [Acknowledgements](#acknowledgements). Thank you all.
 
@@ -26,6 +26,7 @@ The firmware replaces the stock MeloAudio one but never touches its bootloader, 
 ## Features
 
 - **32 banks × 8 buttons.** A short press on Bank Up / Bank Down steps one bank, a long press jumps a configurable number of banks, and both wrap around. A `Bank` command can also jump straight to a given bank, so one bank can act as a setlist index. Each bank has a name shown on the display.
+- **The Bank Up / Down switches send MIDI too.** Each has its own command list for a short and a long press, the same in every bank. `Bank_Switch_Mode` chooses whether they also change bank, or stop changing bank altogether, which turns the pedal into a plain ten switch controller.
 - **Up to 10 commands per button press**, sent in order. Any mix of Program Change (with optional Bank Select), Control Change, Note, Pitch Bend, Start, Stop, USB keyboard keys and media keys, each MIDI command on its own channel.
 - **Long press.** A second set of up to 10 commands fires when a button is held past a configurable time (default 500 ms). Buttons without long press commands react instantly, as before.
 - **Momentary or toggle** behaviour per command, and timed auto-release (up to 1.27 s) for Notes, Pitch Bend and keys.
@@ -111,7 +112,15 @@ Connect the pedal in normal mode (not DFU), click **Read from Device** to load w
 
 **Button Config** — pick a bank, then a button. At the top you set its **display label** and **LED light mode**; below, ten command slots A–J. Choose a slot's command type and only the fields that type uses appear. **Short press / Long press** switches the slots between the two command sets of the button. Edits are kept in memory automatically when you switch button, bank or tab.
 
+<img src="docs/images/gui_button_config.png" width="500">
+
 **Bank Names** — the 4 character name and 8 character info line of each bank.
+
+**Bank Enter** — the commands each bank sends when you switch to it. **SysEx** — the sixteen stored SysEx messages, with the byte count or a parse warning as you type.
+
+**Bank Switch** — the command lists of the Bank Down and Bank Up switches, one per switch and press length. Combine it with `Bank_Switch_Mode` in Global Settings.
+
+<img src="docs/images/gui_bank_switch.png" width="500">
 
 **Expression** — per pedal: end points, response curve, invert, channel. **Connect live view** shows the pedal position and the CC being sent, read from the pedal in real time. To calibrate: press **Calibrate**, sweep the pedal slowly from heel to toe and back a couple of times, press **Done**; the end points are filled in with a small margin so 0 and 127 are always reached.
 
@@ -163,6 +172,7 @@ Both expression pedals are configured, one linear and one logarithmic and invert
 | `Bank_Change_Mode` | Off / PC / CC | Let an incoming Program Change, or Control Change, select a bank. |
 | `Bank_Change_Channel` | Any / 1–16 | Channel the pedal listens on for those messages. |
 | `Bank_Change_CC` | 0–127 | CC number that selects a bank, when the mode is CC. Its value is the bank. |
+| `Bank_Switch_Mode` | Bank / Bank+MIDI / MIDI only | What the Bank Up / Down switches do. `Bank` is the original behaviour, they only change bank. `Bank+MIDI` also sends their commands from `BankSwitch_Settings`. `MIDI only` stops them changing bank, leaving a ten switch controller. Default `Bank`. |
 
 ### Bank_Naming
 
@@ -234,6 +244,12 @@ Optional; sixteen rows with an `Index` (0–15) and `Bytes`. Write the bytes in 
 ### BankEnter_Settings
 
 Optional; one row per bank with the same ten command slots as a button, minus the button columns. These commands are sent once when the bank is entered, from any source: the bank switches, a `Bank` command or an incoming MIDI message. No release is sent, and `Bank` commands are ignored so entering a bank cannot chain into another one. Edit it in the configurator's **Bank Enter** tab.
+
+### BankSwitch_Settings
+
+Optional; four rows, one per switch and press length: `Switch` `Down` or `Up`, `Press` `Short` or `Long`, then the same ten command slots as a button. Rows may be missing or in any order.
+
+These lists are global, not per bank, because the switches are navigation and should behave the same wherever you are. Each list fires as a tap, press then release, so a `Toggle` command flips once per press and keeps its own state. `Bank` commands are ignored here; where you end up is decided by the switch itself and by `Bank_Switch_Mode`. Nothing is sent while the mode is `Bank`. Edit it in the configurator's **Bank Switch** tab.
 
 ### Expression_Settings
 
@@ -315,6 +331,7 @@ Hardware notes (MCU, pinout, I²C addresses) are in `HardwareNotes.txt`; `backup
 
 Firmware versions are shown on the display at boot and reported by the tools.
 
+- **0.17 — MIDI from the bank switches, and no more freeze.** The Bank Down and Bank Up switches have their own command lists for a short and a long press (`BankSwitch_Settings`, Bank Switch tab), and `Bank_Switch_Mode` decides whether they also change bank or stop changing bank altogether, which makes the pedal a ten switch controller. A full MIDI transmit buffer no longer calls `Error()`, which disabled interrupts and spun forever: the pedal froze until it was power cycled. The message is dropped instead, and the number of buffers goes from 20 to 32 so it rarely comes to that. These answer two long-standing requests in the original project, [#39](https://github.com/harvie256/midi-commander-custom/issues/39) and [#40](https://github.com/harvie256/midi-commander-custom/issues/40). A new test parses the firmware's own `CFG_*` macros and compares every section offset with the Python tools, so the two can no longer drift apart. **Configuration format change:** it grows by 160 bytes to 24032, still within the same 12 flash pages; re-flash after updating.
 - **0.16 — Journal wear.** The saved-state journal now spans four flash pages instead of one, so a fill-and-erase cycle absorbs 124 saves and the journal is good for over a million of them. This replaces the idea of moving it to the external EEPROM: the EEPROM shares the I2C bus with the DMA-driven display and holds only 896 free bytes, so it would have meant coordinating blocking writes with screen updates for no practical gain, while spare flash costs nothing.
 - **0.15 — Expression pedals as switches.** Reaching the toe, or returning to the heel, taps a button of the current bank (`Toe_Button`, `Toe_Level`, `Heel_Button`, `Heel_Level`), so a pedal gives you two more footswitches while still sending its CC. Stored in bytes that were already reserved in each pedal's record, so the configuration does not grow.
 - **0.14 — Tap tempo and MIDI clock.** New `Tap` command type, in Tap or Clock mode. The clock is generated from the millisecond tick with fractional accumulation, so its average tempo is exact and it does not drift, and the bytes are emitted from the main loop rather than an interrupt. USB MIDI transmission was rewritten around a queue: it used to busy-wait for the previous packet, which made sending from an interrupt impossible and could hang for good if the USB interrupt never ran.

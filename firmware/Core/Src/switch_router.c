@@ -556,9 +556,13 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 		break;
 	}
 
-	if (status == ERROR_BUFFERS_FULL) {
-		Error("Buffers full");
- 	}
+	/*
+	 * A full transmit buffer used to call Error(), which disables interrupts
+	 * and spins forever: the pedal froze until it was power cycled. Dropping
+	 * the message is the right answer for a MIDI stream, so the status is
+	 * deliberately ignored here.
+	 */
+	(void)status;
 }
 
 void handle_cmd_sw_up(uint8_t *pRom, uint8_t toggleState){
@@ -612,9 +616,13 @@ void handle_cmd_sw_up(uint8_t *pRom, uint8_t toggleState){
 		break;
 	}
 
-	if (status == ERROR_BUFFERS_FULL) {
-		Error("Buffers full");
- 	}
+	/*
+	 * A full transmit buffer used to call Error(), which disables interrupts
+	 * and spins forever: the pedal froze until it was power cycled. Dropping
+	 * the message is the right answer for a MIDI stream, so the status is
+	 * deliberately ignored here.
+	 */
+	(void)status;
 }
 
 void set_led(uint8_t sw_no, uint8_t level){
@@ -742,13 +750,52 @@ typedef struct {
 static bank_press_t bank_down_press = { .state = PRESS_IDLE };
 static bank_press_t bank_up_press = { .state = PRESS_IDLE };
 
+static uint8_t bank_switch_mode(void){
+	uint8_t v = pGlobalSettings[GLOBAL_SETTINGS_BANK_SWITCH_MODE];
+	return (v <= BANK_SWITCH_MIDI_ONLY) ? v : BANK_SWITCH_BANK_ONLY;
+}
+
+/*
+ * Commands for one of the bank switches. Fired as a tap, the down list then
+ * the up list, so toggles flip once per press. Each list keeps its own toggle
+ * state. Bank commands are ignored here: the switch's own bank change, or the
+ * mode that suppresses it, is what decides where you end up.
+ */
+static uint8_t bank_switch_toggle[BANK_SWITCH_LISTS];
+
+static void fire_bank_switch_cmds(uint8_t which, bool long_press){
+	if(bank_switch_mode() == BANK_SWITCH_BANK_ONLY) return;
+
+	uint8_t list = (uint8_t)(which * 2 + (long_press ? 1 : 0));
+	if(list >= BANK_SWITCH_LISTS) return;
+
+	bank_switch_toggle[list] ^= 1;
+	uint8_t toggle = bank_switch_toggle[list];
+	uint8_t *base = pBankSwitchCmds + list * MIDI_ROM_KEY_STRIDE;
+
+	for(int j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
+		uint8_t *pRom = base + j * MIDI_ROM_CMD_SIZE;
+		if((*pRom & 0xF0) == CMD_BANK_NIBBLE) continue;
+		handle_cmd_sw_down(pRom, toggle);
+	}
+	for(int j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
+		uint8_t *pRom = base + j * MIDI_ROM_CMD_SIZE;
+		if((*pRom & 0xF0) == CMD_BANK_NIBBLE) continue;
+		handle_cmd_sw_up(pRom, toggle);
+	}
+	pending_bank = 0xFF;
+}
+
 static void handle_bank_switch(bank_press_t *bp, GPIO_TypeDef *port, uint16_t pin,
 		volatile uint16_t *pChanged, uint8_t led_id, uint8_t led_mode,
-		int16_t direction, uint32_t now){
+		int16_t direction, uint32_t now, uint8_t which){
 	// Held past the threshold: jump by the configured step, once per press
 	if(bp->state == PRESS_PENDING && (now - bp->press_tick) >= long_press_threshold_ms()){
 		bp->state = PRESS_LONG;
-		goto_bank(bank_step(direction * (int16_t)bank_jump_step()));
+		if(bank_switch_mode() != BANK_SWITCH_MIDI_ONLY){
+			goto_bank(bank_step(direction * (int16_t)bank_jump_step()));
+		}
+		fire_bank_switch_cmds(which, true);
 	}
 
 	// Keep blinking LED modes alive while the switch is held
@@ -767,7 +814,10 @@ static void handle_bank_switch(bank_press_t *bp, GPIO_TypeDef *port, uint16_t pi
 	} else {
 		// Released: a press that never reached the threshold steps one bank
 		if(bp->state == PRESS_PENDING){
-			goto_bank(bank_step(direction));
+			if(bank_switch_mode() != BANK_SWITCH_MIDI_ONLY){
+				goto_bank(bank_step(direction));
+			}
+			fire_bank_switch_cmds(which, false);
 		}
 		bp->state = PRESS_IDLE;
 		leds_set(led_id, calculate_led_state(0, led_mode));
@@ -888,9 +938,9 @@ void handle_switches(void){
 	// The bank change switches: a short press steps one bank, a long press
 	// jumps Bank_Jump_Step banks. Both wrap around.
 	handle_bank_switch(&bank_down_press, SW_E_GPIO_Port, SW_E_Pin, &port_A_switches_changed,
-			LED_ID_BANK_DOWN, bank_down_mode, -1, now);
+			LED_ID_BANK_DOWN, bank_down_mode, -1, now, BANK_SWITCH_DOWN);
 	handle_bank_switch(&bank_up_press, SW_5_GPIO_Port, SW_5_Pin, &port_B_switches_changed,
-			LED_ID_BANK_UP, bank_up_mode, +1, now);
+			LED_ID_BANK_UP, bank_up_mode, +1, now, BANK_SWITCH_UP);
 }
 
 void set_all_leds(uint8_t state){

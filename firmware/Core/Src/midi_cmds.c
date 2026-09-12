@@ -26,7 +26,13 @@ uint8_t midi_usb_assembly_buffer[16];
  * written to them. Since each push of a switch can potentially send MIDI_NUM_COMMANDS_PER_SWITCH commands as well as another
  * MIDI_NUM_COMMANDS_PER_SWITCH commands if not in toggle mode, then we need 2 * MIDI_NUM_COMMANDS_PER_SWITCH buffers.
  */
-#define NO_BUFFERS (2 * MIDI_NUM_COMMANDS_PER_SWITCH)
+/*
+ * One buffer per message in flight. A single press can send one message per
+ * command on the way down and another on the way up, and the DIN port only
+ * drains about one message per millisecond, so a fast player can outrun it.
+ * Generous here: 32 x 48 bytes is cheap and makes running out very unlikely.
+ */
+#define NO_BUFFERS (32)
 #define BUFFER_SIZE (48) // Holds every MIDI byte of one 64 byte USB packet (16 events x 3)
 
 // Implementing as a series of buffers

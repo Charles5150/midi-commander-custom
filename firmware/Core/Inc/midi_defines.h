@@ -82,6 +82,11 @@
 #define GLOBAL_SETTINGS_BANK_CHANGE_MODE (12)	// 0 off, 1 Program Change, 2 Control Change
 #define GLOBAL_SETTINGS_BANK_CHANGE_CHANNEL (13)	// 0 = any channel, 1-16 = that channel only
 #define GLOBAL_SETTINGS_BANK_CHANGE_CC (14)	// CC number when the mode is Control Change
+#define GLOBAL_SETTINGS_BANK_SWITCH_MODE (15)	// What the Bank Up/Down switches do
+
+#define BANK_SWITCH_BANK_ONLY	(0)	// change bank, send nothing (the original behaviour)
+#define BANK_SWITCH_BANK_MIDI	(1)	// change bank and send the switch's commands
+#define BANK_SWITCH_MIDI_ONLY	(2)	// send the commands only, never change bank
 
 #define BANK_CHANGE_OFF		(0)
 #define BANK_CHANGE_PC		(1)

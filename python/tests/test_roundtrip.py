@@ -17,9 +17,11 @@ sys.path.insert(0, os.path.dirname(HERE))
 import lib.binaryUnpacker as unpacker  # noqa: E402
 import lib.cmdBinaryPacker as cbp  # noqa: E402
 from lib.configCsv import read_config_csv  # noqa: E402
+import lib.configPacker as packer  # noqa: E402
 from lib.configPacker import pack_config  # noqa: E402
 
 SAMPLE_CSV = os.path.join(os.path.dirname(HERE), "MeloConfig_10_Cmds - RC-600.csv")
+DEMO_CSV = os.path.join(os.path.dirname(HERE), "demo-all-features.csv")
 
 
 def pack_csv(path: str) -> bytes:
@@ -49,7 +51,7 @@ class RoundTripTest(unittest.TestCase):
         cls.sections = read_config_csv(SAMPLE_CSV)
         cls.packed = pack_csv(SAMPLE_CSV)
         (cls.df_global, cls.df_banks, cls.df_buttons, cls.df_long, cls.df_exp,
-         cls.df_enter, cls.df_sysex) = unpacker.unpack_config(
+         cls.df_enter, cls.df_sysex, cls.df_bank_switch) = unpacker.unpack_config(
             cls.packed
         )
 
@@ -135,7 +137,7 @@ class RoundTripTest(unittest.TestCase):
 
     def test_erased_flash_decodes_as_empty(self):
         blank = bytes([0xFF]) * unpacker.CONFIG_SIZE
-        _, _, df, df_long, df_exp, df_enter, df_sysex = unpacker.unpack_config(blank)
+        _, _, df, df_long, df_exp, df_enter, df_sysex, *_ = unpacker.unpack_config(blank)
         self.assertTrue((df["A_CommandType"] == "").all())
         self.assertTrue((df["Light_Mode"] == "Normal").all())
         self.assertTrue((df["Label"] == "").all())
@@ -500,3 +502,130 @@ class RoundTripTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BankSwitchTest(unittest.TestCase):
+    """The Bank Down/Up switches send commands of their own (upstream issue 39)."""
+
+    def test_demo_commands_round_trip(self):
+        packed = packer.pack_config(read_config_csv(DEMO_CSV))
+        table = unpacker.unpack_config(packed)[7]
+        rows = {(r["Switch"], r["Press"]): r for _, r in table.iterrows()}
+        self.assertEqual(len(rows), 4)
+        expected = {("Down", "Short"): "81", ("Up", "Short"): "82",
+                    ("Down", "Long"): "83", ("Up", "Long"): "84"}
+        for key, number in expected.items():
+            self.assertEqual(rows[key]["A_CommandType"], "CC", key)
+            self.assertEqual(rows[key]["A_Number_(PC/CC/Note)"], number, key)
+        # Long presses latch, short presses do not
+        self.assertEqual(rows[("Down", "Short")]["A_Toggle_(CC/PB/Note)"], "N")
+        self.assertEqual(rows[("Down", "Long")]["A_Toggle_(CC/PB/Note)"], "Y")
+        # A second slot on the same list is kept
+        self.assertEqual(rows[("Up", "Long")]["B_CommandType"], "PC")
+
+    def test_section_is_optional(self):
+        """A CSV written before the section existed still packs."""
+        sections = read_config_csv(DEMO_CSV)
+        del sections[packer.BANK_SWITCH_SECTION]
+        packed = packer.pack_config(sections)
+        self.assertEqual(len(packed), unpacker.CONFIG_SIZE)
+        table = unpacker.unpack_config(packed)[7]
+        for _, row in table.iterrows():
+            self.assertEqual(row["A_CommandType"], "")
+
+    def test_mode_round_trips(self):
+        for text, expected in (("Bank", 0), ("Bank+MIDI", 1), ("MIDI only", 2)):
+            sections = read_config_csv(DEMO_CSV)
+            g = sections["Global_Settings"]
+            g.loc[g["Label"] == "Bank_Switch_Mode", "Value"] = text
+            packed = packer.pack_config(sections)
+            self.assertEqual(packed[15], expected, text)
+            back = unpacker.unpack_config(packed)[0].set_index("Label")["Value"]
+            self.assertEqual(back["Bank_Switch_Mode"], text, text)
+
+
+class FirmwareLayoutTest(unittest.TestCase):
+    """The Python offsets must match the CFG_* macros the firmware uses.
+
+    A mismatch here silently writes every section to the wrong address, which
+    is how the button labels were lost when the bank count went to 32.
+    """
+
+    HEADERS = ("flash_midi_settings.h", "midi_defines.h", "display.h", "expression.h")
+
+    @classmethod
+    def setUpClass(cls):
+        import os
+        import re
+
+        inc = os.path.join(os.path.dirname(__file__), "..", "..",
+                           "firmware", "Core", "Inc")
+        text = ""
+        for name in cls.HEADERS:
+            path = os.path.join(inc, name)
+            if os.path.exists(path):
+                with open(path) as handle:
+                    text += handle.read() + "\n"
+        cls.macros = dict(
+            re.findall(r"^#define\s+([A-Z_][A-Z0-9_]*)\s+(\(?[0-9A-Za-z_ ()*+\-]*\)?)\s*(?://.*)?$",
+                       text, re.M)
+        )
+
+    def value(self, name):
+        """Evaluate a macro, resolving the macros it refers to."""
+        import re
+
+        seen = set()
+
+        def resolve(expr, depth=0):
+            self.assertLess(depth, 20, expr)
+            def sub(m):
+                key = m.group(0)
+                if key in self.macros:
+                    return "(" + resolve(self.macros[key], depth + 1) + ")"
+                return key
+            return re.sub(r"[A-Za-z_][A-Za-z0-9_]*", sub, expr)
+
+        self.assertIn(name, self.macros, name)
+        expr = resolve(self.macros[name])
+        self.assertNotRegex(expr, r"[A-Za-z_]", f"{name} -> {expr}")
+        return eval(expr)  # noqa: S307 - integer arithmetic from our own headers
+
+    def test_offsets_match(self):
+        pairs = [
+            ("CFG_GLOBAL_SIZE", "GLOBAL_SIZE"),
+            ("CFG_BANK_STRINGS_SIZE", "BANK_STRINGS_SIZE"),
+            ("CFG_CMDS_OFF", "COMMANDS_OFFSET"),
+            ("CFG_LED_MODES_OFF", "LED_MODES_OFFSET"),
+            ("CFG_LABELS_OFF", "LABELS_OFFSET"),
+            ("CFG_LONG_CMDS_OFF", "LONG_PRESS_OFFSET"),
+            ("CFG_EXP_OFF", "EXP_OFFSET"),
+            ("CFG_BANK_ENTER_OFF", "BANK_ENTER_OFFSET"),
+            ("CFG_SYSEX_OFF", "SYSEX_OFFSET"),
+            ("CFG_BANK_SWITCH_OFF", "BANK_SWITCH_OFFSET"),
+            ("CFG_TOTAL_SIZE", "CONFIG_SIZE"),
+            ("MIDI_NUM_BANKS", "NUM_BANKS"),
+            ("MIDI_ROM_KEY_STRIDE", "BUTTON_STRIDE"),
+            ("MIDI_ROM_CMD_SIZE", "CMD_SIZE"),
+            ("SYSEX_STRING_COUNT", "SYSEX_STRING_COUNT"),
+            ("SYSEX_STRING_STRIDE", "SYSEX_STRING_STRIDE"),
+        ]
+        for macro, attr in pairs:
+            self.assertEqual(self.value(macro), getattr(unpacker, attr),
+                             f"{macro} != binaryUnpacker.{attr}")
+
+    def test_configuration_fits_the_erased_pages(self):
+        pages = self.value("FLASH_SETTINGS_NO_PAGES")
+        self.assertLessEqual(unpacker.CONFIG_SIZE, pages * 2048)
+        # ...and no page is erased for nothing
+        self.assertGreater(unpacker.CONFIG_SIZE, (pages - 1) * 2048)
+
+    def test_global_settings_indices_match(self):
+        from lib import settingsBinaryPacker as sbp
+
+        checked = 0
+        for name in dir(sbp):
+            if name.startswith("GLOBAL_SETTINGS_") and name in self.macros:
+                self.assertEqual(self.value(name), getattr(sbp, name), name)
+                checked += 1
+        self.assertGreaterEqual(checked, 10)

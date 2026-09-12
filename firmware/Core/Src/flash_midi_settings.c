@@ -21,6 +21,7 @@ uint8_t *pLongPressCmds  = (uint8_t*)(FLASH_SETTINGS_START + CFG_LONG_CMDS_OFF);
 uint8_t *pExpSettings    = (uint8_t*)(FLASH_SETTINGS_START + CFG_EXP_OFF);
 uint8_t *pBankEnterCmds  = (uint8_t*)(FLASH_SETTINGS_START + CFG_BANK_ENTER_OFF);
 uint8_t *pSysExStrings   = (uint8_t*)(FLASH_SETTINGS_START + CFG_SYSEX_OFF);
+uint8_t *pBankSwitchCmds = (uint8_t*)(FLASH_SETTINGS_START + CFG_BANK_SWITCH_OFF);
 
 // The whole configuration must fit in the pages the tools erase and write.
 _Static_assert(CFG_TOTAL_SIZE <= FLASH_SETTINGS_SIZE,

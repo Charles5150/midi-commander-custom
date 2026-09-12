@@ -52,7 +52,10 @@ SYSEX_OFFSET = BANK_ENTER_OFFSET + NUM_BANKS * BUTTON_STRIDE
 SYSEX_STRING_COUNT = 16
 SYSEX_STRING_MAX = 23
 SYSEX_STRING_STRIDE = SYSEX_STRING_MAX + 1
-CONFIG_SIZE = SYSEX_OFFSET + SYSEX_STRING_COUNT * SYSEX_STRING_STRIDE
+BANK_SWITCH_OFFSET = SYSEX_OFFSET + SYSEX_STRING_COUNT * SYSEX_STRING_STRIDE
+# 0 Down short, 1 Down long, 2 Up short, 3 Up long
+BANK_SWITCH_LISTS = [("Down", "Short"), ("Down", "Long"), ("Up", "Short"), ("Up", "Long")]
+CONFIG_SIZE = BANK_SWITCH_OFFSET + len(BANK_SWITCH_LISTS) * BUTTON_STRIDE
 EXP_CURVE_NAMES = {0: "Linear", 1: "Log", 2: "Exp"}
 EXP_BUTTON_IDS = ["1", "2", "3", "4", "A", "B", "C", "D"]
 
@@ -115,6 +118,7 @@ def unpack_global_settings(data: bytes) -> pd.DataFrame:
         ("Bank_Change_Mode", {1: "PC", 2: "CC"}.get(g[12], "Off")),
         ("Bank_Change_Channel", str(g[13]) if 1 <= g[13] <= 16 else "Any"),
         ("Bank_Change_CC", str(g[14] if g[14] <= 127 else 0)),
+        ("Bank_Switch_Mode", {1: "Bank+MIDI", 2: "MIDI only"}.get(g[15], "Bank")),
     ]
     return pd.DataFrame(rows, columns=["Label", "Value"])
 
@@ -316,6 +320,26 @@ def unpack_bank_enter_settings(data: bytes) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=columns)
 
 
+def unpack_bank_switch_settings(data: bytes) -> pd.DataFrame:
+    """Command lists for the Bank Down/Up switches, short and long press."""
+    columns = ["Switch", "Press"]
+    for slot in SLOT_NAMES:
+        columns += [f"{slot}_{f}" for f in CMD_FIELDS]
+    columns += [f"{slot}_KeyMode_(Key)" for slot in SLOT_NAMES]
+
+    rows = []
+    for i, (switch, press) in enumerate(BANK_SWITCH_LISTS):
+        row = {"Switch": switch, "Press": press}
+        for slot_index, slot in enumerate(SLOT_NAMES):
+            offset = BANK_SWITCH_OFFSET + i * BUTTON_STRIDE + slot_index * CMD_SIZE
+            cmd = unpack_command(data[offset : offset + CMD_SIZE])
+            for f in CMD_FIELDS:
+                row[f"{slot}_{f}"] = cmd[f]
+            row[f"{slot}_KeyMode_(Key)"] = cmd["KeyMode_(Key)"]
+        rows.append(row)
+    return pd.DataFrame(rows, columns=columns)
+
+
 def unpack_sysex_strings(data: bytes) -> pd.DataFrame:
     """The stored SysEx payloads, as space separated hex bytes."""
     rows = []
@@ -343,4 +367,5 @@ def unpack_config(data: bytes):
         unpack_expression_settings(data),
         unpack_bank_enter_settings(data),
         unpack_sysex_strings(data),
+        unpack_bank_switch_settings(data),
     )

@@ -23,6 +23,7 @@ from lib.configPacker import (  # noqa: E402
     BUTTON_IDS,
     NUM_BANKS,
     empty_bank_enter_settings,
+    empty_bank_switch_settings,
     empty_expression_settings,
     empty_sysex_strings,
 )
@@ -80,6 +81,7 @@ class Demo:
         self.long = empty_long_rows()
         self.enter = empty_bank_enter_settings()
         self.sysex = empty_sysex_strings()
+        self.bank_switch_frame = empty_bank_switch_settings()
         self.exp = empty_expression_settings()
 
     # --- helpers --------------------------------------------------------
@@ -104,6 +106,18 @@ class Demo:
         i = self._index(self.long, bank, btn)
         for key, value in fields.items():
             self.long.at[i, f"{slot}_{key}"] = value
+
+    def bank_switch(self, switch, press, slot="A", **fields):
+        """A command on one of the Bank Down/Up switches."""
+        frame = self.bank_switch_frame
+        mask = (frame["Switch"].astype(str) == switch) & (frame["Press"].astype(str) == press)
+        found = frame[mask]
+        assert len(found) == 1, (switch, press, len(found))
+        i = found.index[0]
+        for key, value in fields.items():
+            column = f"{slot}_{key}"
+            assert column in frame.columns, column
+            frame.at[i, column] = value
 
     def on_enter(self, bank, slot="A", **fields):
         i = self._index(self.enter, bank)
@@ -346,6 +360,31 @@ def build() -> Demo:
     d.exp.loc[1, ["Min_ADC", "Max_ADC", "Curve", "Invert", "Channel"]] = ["100", "3900", "Log", "Y", "2"]
     d.exp.loc[1, ["Toe_Button", "Toe_Level", "Heel_Button", "Heel_Level"]] = ["C", "110", "D", "5"]
 
+    # The Bank Down/Up switches send MIDI of their own as well as changing
+    # bank, which is what Bank_Switch_Mode = Bank+MIDI means. A host can use
+    # these to follow the pedal, and the long presses are a mute and a tuner.
+    d.bank_switch("Down", "Short", CommandType="CC",
+                  **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": "81",
+                     "OnValue_(CC/PB)": "127", "OffValue_(CC)": "0",
+                     "Toggle_(CC/PB/Note)": "N"})
+    d.bank_switch("Up", "Short", CommandType="CC",
+                  **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": "82",
+                     "OnValue_(CC/PB)": "127", "OffValue_(CC)": "0",
+                     "Toggle_(CC/PB/Note)": "N"})
+    # Long press Down: latching mute, so the toggle sends 127 then 0
+    d.bank_switch("Down", "Long", CommandType="CC",
+                  **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": "83",
+                     "OnValue_(CC/PB)": "127", "OffValue_(CC)": "0",
+                     "Toggle_(CC/PB/Note)": "Y"})
+    # Long press Up: tuner on the host, plus a program change to a clean patch
+    d.bank_switch("Up", "Long", CommandType="CC",
+                  **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": "84",
+                     "OnValue_(CC/PB)": "127", "OffValue_(CC)": "0",
+                     "Toggle_(CC/PB/Note)": "Y"})
+    d.bank_switch("Up", "Long", slot="B", CommandType="PC",
+                  **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": "0",
+                     "BankSelect_(PC)": "", "BankSelectHighByte_(PC)": "N"})
+
     return d
 
 
@@ -370,6 +409,7 @@ def global_settings() -> pd.DataFrame:
                 ("Bank_Change_Mode", "CC"),
                 ("Bank_Change_Channel", "Any"),
                 ("Bank_Change_CC", "32"),
+                ("Bank_Switch_Mode", "Bank+MIDI"),
             )
         ]
     )
@@ -393,6 +433,7 @@ def main() -> int:
         df_expression=d.exp,
         df_bank_enter=d.enter,
         df_sysex=d.sysex,
+        df_bank_switch=d.bank_switch_frame,
     )
     print(f"wrote {OUT}")
     return 0
