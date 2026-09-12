@@ -10,6 +10,7 @@
 #include "flash_midi_settings.h"
 #include "display.h"
 #include "usbd_hid_custom.h"
+#include "state_store.h"
 
 void update_leds_on_bank_change(void);
 
@@ -114,6 +115,7 @@ static inline uint8_t get_sw_toggle_state(sw_t *sw){
 
 static inline void toggle_sw_state(sw_t *sw){
 	sw->switch_toggle_state ^= (1 << switch_current_page);
+	state_store_mark_dirty();
 }
 
 
@@ -553,6 +555,7 @@ void handle_switches(void){
 				switch_current_page--;
 				update_leds_on_bank_change();
 				display_setBankName(switch_current_page);
+				state_store_mark_dirty();
 			}
 		} else {
 			// Bank Down Released
@@ -573,6 +576,7 @@ void handle_switches(void){
 				switch_current_page++;
 				update_leds_on_bank_change();
 				display_setBankName(switch_current_page);
+				state_store_mark_dirty();
 			}
 		} else {
 			// Bank Up Released
@@ -593,6 +597,26 @@ void set_all_leds(uint8_t state){
 	GPIO_PinState pinState = (state) ? GPIO_PIN_RESET : GPIO_PIN_SET;
 	HAL_GPIO_WritePin(LED_E_GPIO_Port, LED_E_Pin, pinState);
 	HAL_GPIO_WritePin(LED_5_GPIO_Port, LED_5_Pin, pinState);
+}
+
+uint8_t sw_get_current_page(void){
+	return switch_current_page;
+}
+
+void sw_get_toggle_states(uint8_t out[8]){
+	for(int i=0; i<8; i++){
+		out[i] = a_sw_obj[i].switch_toggle_state;
+	}
+}
+
+void sw_restore_state(uint8_t page, const uint8_t toggles[8]){
+	if(page < MIDI_NUM_BANKS){
+		switch_current_page = page;
+	}
+	for(int i=0; i<8; i++){
+		a_sw_obj[i].switch_toggle_state = toggles[i];
+	}
+	update_leds_on_bank_change();
 }
 
 void setIsSuspended(uint8_t suspended){

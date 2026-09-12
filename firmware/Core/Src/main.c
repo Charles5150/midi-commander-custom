@@ -32,6 +32,8 @@
 #include "switch_router.h"
 #include "display.h"
 #include "expression.h"
+#include "flash_midi_settings.h"
+#include "state_store.h"
 
 /* USER CODE END Includes */
 
@@ -147,7 +149,15 @@ int main(void)
 
   HAL_Delay(200);
   f_sys_config_complete = 1; // Don't scan switch changes until everything is init'd
-  display_setBankName(0);
+
+  // Restore the last bank and toggle states if the user asked for it
+  if(pGlobalSettings[GLOBAL_SETTINGS_REMEMBER_STATE] == 1){
+    uint8_t bank, toggles[8];
+    if(state_store_load(&bank, toggles)){
+      sw_restore_state(bank, toggles);
+    }
+  }
+  display_setBankName(sw_get_current_page());
 
   // ADC DMA will be started in expression_task
 
@@ -161,6 +171,7 @@ int main(void)
   {
 	  handle_switches();
       expression_task();
+      state_store_task();
 
     /* USER CODE END WHILE */
 

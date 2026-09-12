@@ -401,6 +401,7 @@ class MidiCommanderGUI(ctk.CTk):
                 ("Bank_Up_LED_Mode", "Normal"),
                 ("Bank_Down_LED_Mode", "Normal"),
                 ("USB_MIDI_Thru", "N"),
+                ("Remember_State", "N"),
             ]
             missing = [{"Label": l, "Value": v} for l, v in defaults if l not in labels]
             if missing:
@@ -445,7 +446,7 @@ class MidiCommanderGUI(ctk.CTk):
 
             if label == "MIDI_Channel":
                 w = Option(self.global_scroll, CHANNELS, value, width=80)
-            elif label in ("RealTime_Passthrough", "USB_MIDI_Thru"):
+            elif label in ("RealTime_Passthrough", "USB_MIDI_Thru", "Remember_State"):
                 w = Check(self.global_scroll, text="", checked=is_yes(value))
             elif label in ("Bank_Up_LED_Mode", "Bank_Down_LED_Mode"):
                 w = Option(self.global_scroll, LED_MODES, value, width=110)
@@ -463,6 +464,7 @@ class MidiCommanderGUI(ctk.CTk):
             "MIDI_Channel": "channel used by the expression pedals",
             "RealTime_Passthrough": "forward Clock/Start/Continue/Stop from USB to DIN",
             "USB_MIDI_Thru": "forward all other MIDI from USB to DIN",
+            "Remember_State": "restore the last bank and toggle states at power on",
             "ConfigName": "shown on the display at boot (16 chars)",
             "Exp1_CC": "CC number sent by expression pedal 1 (0-127)",
             "Exp2_CC": "CC number sent by expression pedal 2 (0-127)",

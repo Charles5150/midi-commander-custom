@@ -6,6 +6,8 @@ This repository is a fork of [arasan95/midi-commander-custom](https://github.com
 
 ## Changes in this fork
 
+- **Remember the last bank and toggle states (firmware 0.5).** New global setting `Remember_State` (Y/N, default N). When enabled, the pedal powers up in the bank you were using, with every toggle button in the state you left it, instead of always starting in bank 0 with everything off. The state is journaled in a dedicated flash page two seconds after the last change, so it survives configuration re-flashes and does not wear the flash with every press.
+- **Continuous integration.** GitHub Actions builds both firmware images and runs the Python tests on every push and pull request.
 - **USB to DIN MIDI thru (firmware 0.4).** New global setting `USB_MIDI_Thru` (Y/N, default N). When enabled, every channel message (notes, CC, PC, pitch bend, pressure), system common message and SysEx not addressed to the pedal received over USB is forwarded to the DIN output, so the Midi Commander doubles as a USB MIDI interface for whatever is plugged into its MIDI OUT. Clock, Start, Continue and Stop are still governed by `RealTime_Passthrough`. The USB receive parser was rewritten to walk 4 byte USB MIDI events properly, which also fixes a buffer overflow when a long SysEx from another device was received.
 - **LED light modes moved out of the command bytes (firmware 0.3).** Previously `Light_Mode` was encoded in bit 7 of bytes 2 and 3 of the button's first command, which corrupted that command depending on its type: a CC with AlwaysOn never sent its off value, a Note with AlwaysOn got a 1.28 s or longer duration, a Key with AlwaysOn became a toggle or with Reverse sent the wrong key, and a PC without Bank Select MSB always showed as Reverse. The modes now live in a separate 64 byte table after the commands. **This changes the configuration format:** after flashing firmware 0.3, re-flash your configuration with the updated tools, otherwise every button LED falls back to Normal.
 - **GUI rework.** Every bounded field is now a drop-down or a check box (channels, LED modes, toggles, key names, keyboard modifiers, Y/N settings) and numeric fields only accept values in their valid range. The button editor shows just the fields each command type uses, and gains the Bank Select, Bank Select MSB, Velocity, Start and Stop fields that were previously only editable in the CSV. Edits are applied automatically when switching buttons, and FLASH TO DEVICE saves the CSV first.
@@ -46,7 +48,7 @@ When the connected PC enters sleep (suspend) mode, the device will automatically
 
 Before using the new features (GUI Configurator, Sleep Mode, etc.), you must update the device firmware.
 Please flash the following file included in this repository:
-`artifacts/release-0.4.dfu` (previous releases are kept in `artifacts/` for reference)
+`artifacts/release-0.5.dfu` (previous releases are kept in `artifacts/` for reference)
 
 (See [Loading the firmware](#loading-the-firmware) section for detailed flashing instructions.)
 

@@ -173,6 +173,16 @@ class RoundTripTest(unittest.TestCase):
         value = df_global.set_index("Label")["Value"]["USB_MIDI_Thru"]
         self.assertEqual(value, "Y")
 
+    def test_remember_state_flag(self):
+        sections = read_config_csv(SAMPLE_CSV)
+        g = sections["Global_Settings"].copy()
+        self.assertEqual(pack_config(sections)[7], 0)
+        g.loc[g["Label"] == "Remember_State", "Value"] = "Y"
+        packed = pack_config({**sections, "Global_Settings": g})
+        self.assertEqual(packed[7], 1)
+        df_global, _, _ = unpacker.unpack_config(packed)
+        self.assertEqual(df_global.set_index("Label")["Value"]["Remember_State"], "Y")
+
     def test_cc_alwayson_keeps_off_value(self):
         """Regression: AlwaysOn used to set bit 7 of the CC off value."""
         row = pd.Series(

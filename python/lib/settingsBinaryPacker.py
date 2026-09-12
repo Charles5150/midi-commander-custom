@@ -3,6 +3,7 @@ GLOBAL_SETTINGS_REALTIME_PASS = 1
 GLOBAL_SETTINGS_EXP1_CC = 2
 GLOBAL_SETTINGS_EXP2_CC = 3
 GLOBAL_SETTINGS_USB_THRU = 6
+GLOBAL_SETTINGS_REMEMBER_STATE = 7
 
 def pack_global_settings(df):
     # global settings will be 32 bytes long
@@ -46,6 +47,10 @@ def pack_global_settings(df):
     # USB to DIN thru: forward channel/system common/foreign SysEx (Y/N)
     if "USB_MIDI_Thru" in df.index and "Y" in str(df.loc["USB_MIDI_Thru", "Value"]).upper():
         bin_list[GLOBAL_SETTINGS_USB_THRU] = 0x1
+
+    # Restore last bank and toggle states at power on (Y/N)
+    if "Remember_State" in df.index and "Y" in str(df.loc["Remember_State", "Value"]).upper():
+        bin_list[GLOBAL_SETTINGS_REMEMBER_STATE] = 0x1
 
     # print('{:8.8}'.format(df.loc['ConfigName'].Value))
     bin_list += ("{:16.16}".format(df.loc["ConfigName"].Value)).encode("ASCII")

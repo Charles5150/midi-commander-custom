@@ -89,6 +89,7 @@ def unpack_global_settings(data: bytes) -> pd.DataFrame:
         ("Bank_Up_LED_Mode", _led_mode_name(g[4])),
         ("Bank_Down_LED_Mode", _led_mode_name(g[5])),
         ("USB_MIDI_Thru", "Y" if g[6] == 1 else "N"),
+        ("Remember_State", "Y" if g[7] == 1 else "N"),
     ]
     return pd.DataFrame(rows, columns=["Label", "Value"])
 
