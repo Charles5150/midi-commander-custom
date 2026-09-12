@@ -1,552 +1,594 @@
-import customtkinter as ctk
-import pandas as pd
+"""GUI configurator for the Midi Commander custom firmware.
+
+Edits the sectioned configuration CSV (see lib/configCsv.py), reads the
+configuration back from the device and flashes it. Every field with a bounded
+set of values is a drop-down or a check box; numeric fields only accept
+numbers inside their valid range.
+"""
+
 import os
-import io
-import sys
 import subprocess
+import sys
 from tkinter import filedialog, messagebox
 
-# Ensure we can import local modules
-sys.path.append("python")
+import customtkinter as ctk
+import pandas as pd
 
-# Set theme
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+
+from lib.cmdBinaryPacker import HID_SPECIAL_KEYS  # noqa: E402
+from lib.configCsv import read_config_csv, write_config_csv  # noqa: E402
+
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
 
+DEFAULT_CSV = os.path.join(HERE, "MeloConfig_10_Cmds - RC-600.csv")
 
+# --- Value sets -------------------------------------------------------------
+LED_MODES = ["Normal", "Reverse", "AlwaysOn"]
+CHANNELS = [str(i) for i in range(1, 17)]
+NO_COMMAND = "(none)"
+COMMAND_TYPES = [NO_COMMAND, "PC", "CC", "Note", "PB", "Key", "Start", "Stop"]
+KEY_MODES = ["Normal", "Down", "Up"]
+KEY_NAMES = (
+    [chr(c) for c in range(ord("a"), ord("z") + 1)]
+    + [str(d) for d in range(10)]
+    + [k for k in HID_SPECIAL_KEYS if k != "escape"]
+)
+MODIFIERS = [("Ctrl", 1), ("Shift", 2), ("Alt", 4), ("Cmd", 8)]
+SLOTS = [chr(ord("A") + i) for i in range(10)]
+
+# Per-slot CSV columns (without the "A_" prefix)
+CMD_FIELDS = [
+    "CommandType",
+    "Channel_(PC/CC/Note/PB)",
+    "Number_(PC/CC/Note)",
+    "OnValue_(CC/PB)",
+    "OffValue_(CC)",
+    "BankSelect_(PC)",
+    "BankSelectHighByte_(PC)",
+    "Toggle_(CC/PB/Note)",
+    "Velocity_(Note)",
+    "Duration_(Note/PB)",
+    "KeyMode_(Key)",
+]
+
+BOLD = ("Arial", 12, "bold")
+
+
+def clean(val) -> str:
+    """CSV cell -> clean string: NaN/None -> '', '5.0' -> '5'."""
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return ""
+    s = str(val).strip()
+    if s.lower() == "nan":
+        return ""
+    if s.endswith(".0") and s[:-2].lstrip("-").isdigit():
+        s = s[:-2]
+    return s
+
+
+def to_int(val, default=0) -> int:
+    try:
+        return int(float(clean(val)))
+    except ValueError:
+        return default
+
+
+def is_yes(val) -> bool:
+    return clean(val).upper().startswith("Y")
+
+
+# --- Validated widgets ------------------------------------------------------
+class IntEntry(ctk.CTkEntry):
+    """Entry that only accepts integers and clamps them to [lo, hi] on focus out."""
+
+    def __init__(self, master, lo: int, hi: int, value="", width=60):
+        vcmd = (master.register(self._validate), "%P")
+        super().__init__(master, width=width, validate="key", validatecommand=vcmd)
+        self.lo, self.hi = lo, hi
+        value = clean(value)
+        if value:
+            self.insert(0, str(max(lo, min(hi, to_int(value)))))
+        self.bind("<FocusOut>", lambda _e: self.value())
+
+    def _validate(self, text: str) -> bool:
+        if text == "":
+            return True
+        if text == "-":
+            return self.lo < 0
+        try:
+            int(text)
+        except ValueError:
+            return False
+        return True
+
+    def value(self) -> str:
+        text = self.get().strip()
+        if text in ("", "-"):
+            return ""
+        clamped = str(max(self.lo, min(self.hi, int(text))))
+        if clamped != text:
+            self.delete(0, "end")
+            self.insert(0, clamped)
+        return clamped
+
+
+class TextEntry(ctk.CTkEntry):
+    """Entry limited to max_len characters."""
+
+    def __init__(self, master, max_len: int, value="", width=150):
+        vcmd = (master.register(lambda t: len(t) <= max_len), "%P")
+        super().__init__(master, width=width, validate="key", validatecommand=vcmd)
+        value = clean(value)[:max_len]
+        if value:
+            self.insert(0, value)
+
+    def value(self) -> str:
+        return self.get()
+
+
+class Check(ctk.CTkCheckBox):
+    def __init__(self, master, text="", checked=False, width=20):
+        super().__init__(master, text=text, width=width)
+        if checked:
+            self.select()
+
+    def value(self) -> str:
+        return "Y" if self.get() == 1 else "N"
+
+
+class Option(ctk.CTkOptionMenu):
+    def __init__(self, master, values, value=None, width=90, command=None):
+        super().__init__(master, values=values, width=width, command=command)
+        value = clean(value)
+        self.set(value if value in values else values[0])
+
+    def value(self) -> str:
+        return self.get()
+
+
+class Combo(ctk.CTkComboBox):
+    def __init__(self, master, values, value="", width=100):
+        super().__init__(master, values=values, width=width)
+        self.set(clean(value))
+
+    def value(self) -> str:
+        return self.get().strip()
+
+
+# --- Slot editor ------------------------------------------------------------
+class SlotEditor:
+    """One row of the button editor: command type plus the fields it needs."""
+
+    def __init__(self, parent, slot: str, initial: dict):
+        self.slot = slot
+        self.initial = initial
+        self.widgets = {}
+
+        self.frame = ctk.CTkFrame(parent, fg_color="transparent")
+        self.frame.pack(fill="x", pady=2)
+
+        ctk.CTkLabel(self.frame, text=slot, width=24, font=BOLD).pack(
+            side="left", padx=(0, 4)
+        )
+        cmd_type = clean(initial.get("CommandType")) or NO_COMMAND
+        self.type_menu = Option(
+            self.frame, COMMAND_TYPES, cmd_type, width=80, command=self._rebuild
+        )
+        self.type_menu.pack(side="left", padx=4)
+
+        self.params = ctk.CTkFrame(self.frame, fg_color="transparent")
+        self.params.pack(side="left", fill="x", expand=True)
+        self._rebuild(self.type_menu.get())
+
+    # Small builders --------------------------------------------------------
+    def _label(self, text):
+        ctk.CTkLabel(self.params, text=text).pack(side="left", padx=(8, 2))
+
+    def _channel(self):
+        self._label("Ch")
+        w = Option(self.params, CHANNELS, self.initial.get("Channel_(PC/CC/Note/PB)"), width=60)
+        w.pack(side="left")
+        self.widgets["channel"] = w
+
+    def _int(self, key, label, field, lo, hi, width=55):
+        self._label(label)
+        w = IntEntry(self.params, lo, hi, self.initial.get(field), width=width)
+        w.pack(side="left")
+        self.widgets[key] = w
+
+    def _check(self, key, text, field):
+        w = Check(self.params, text=text, checked=is_yes(self.initial.get(field)), width=60)
+        w.pack(side="left", padx=(10, 0))
+        self.widgets[key] = w
+
+    def _rebuild(self, cmd_type: str):
+        for w in self.params.winfo_children():
+            w.destroy()
+        self.widgets = {}
+
+        if cmd_type == "PC":
+            self._channel()
+            self._int("number", "Program", "Number_(PC/CC/Note)", 0, 127)
+            self._int("bank", "Bank", "BankSelect_(PC)", 0, 16383, width=65)
+            self._check("bank_msb", "Send bank MSB", "BankSelectHighByte_(PC)")
+        elif cmd_type == "CC":
+            self._channel()
+            self._int("number", "CC#", "Number_(PC/CC/Note)", 0, 127)
+            self._int("on", "On", "OnValue_(CC/PB)", 0, 127)
+            self._int("off", "Off", "OffValue_(CC)", 0, 127)
+            self._check("toggle", "Toggle", "Toggle_(CC/PB/Note)")
+        elif cmd_type == "Note":
+            self._channel()
+            self._int("number", "Note", "Number_(PC/CC/Note)", 0, 127)
+            self._int("velocity", "Vel", "Velocity_(Note)", 0, 127)
+            self._int("duration", "Dur", "Duration_(Note/PB)", 0, 127)
+            self._check("toggle", "Toggle", "Toggle_(CC/PB/Note)")
+        elif cmd_type == "PB":
+            self._channel()
+            self._int("on", "Bend", "OnValue_(CC/PB)", -8192, 8191, width=65)
+            self._int("duration", "Dur", "Duration_(Note/PB)", 0, 127)
+            self._check("toggle", "Toggle", "Toggle_(CC/PB/Note)")
+        elif cmd_type == "Key":
+            mask = to_int(self.initial.get("Number_(PC/CC/Note)"))
+            for name, bit in MODIFIERS:
+                w = Check(self.params, text=name, checked=bool(mask & bit), width=55)
+                w.pack(side="left", padx=(4, 0))
+                self.widgets[f"mod_{bit}"] = w
+            self._label("Key")
+            w = Combo(self.params, KEY_NAMES, self.initial.get("OnValue_(CC/PB)"), width=90)
+            w.pack(side="left")
+            self.widgets["key"] = w
+            self._label("Mode")
+            w = Option(self.params, KEY_MODES, self.initial.get("KeyMode_(Key)"), width=80)
+            w.pack(side="left")
+            self.widgets["keymode"] = w
+            self._int("duration", "Dur", "Duration_(Note/PB)", 0, 127)
+            self._check("toggle", "Hold", "Toggle_(CC/PB/Note)")
+        # Start, Stop and (none) have no parameters
+
+    # Read back ------------------------------------------------------------
+    def values(self) -> dict:
+        """Return every per-slot CSV field for this slot ('' = empty cell)."""
+        out = {f: "" for f in CMD_FIELDS}
+        out["Toggle_(CC/PB/Note)"] = "N"
+        cmd_type = self.type_menu.get()
+        out["CommandType"] = "" if cmd_type == NO_COMMAND else cmd_type
+        w = self.widgets
+
+        if "channel" in w:
+            out["Channel_(PC/CC/Note/PB)"] = w["channel"].value()
+        if "number" in w:
+            out["Number_(PC/CC/Note)"] = w["number"].value()
+        if "on" in w:
+            out["OnValue_(CC/PB)"] = w["on"].value()
+        if "off" in w:
+            out["OffValue_(CC)"] = w["off"].value()
+        if "bank" in w:
+            out["BankSelect_(PC)"] = w["bank"].value()
+        if "bank_msb" in w:
+            out["BankSelectHighByte_(PC)"] = w["bank_msb"].value()
+        if "velocity" in w:
+            out["Velocity_(Note)"] = w["velocity"].value()
+        if "duration" in w:
+            out["Duration_(Note/PB)"] = w["duration"].value()
+        if "toggle" in w:
+            out["Toggle_(CC/PB/Note)"] = w["toggle"].value()
+        if cmd_type == "Key":
+            mask = sum(bit for _, bit in MODIFIERS if w[f"mod_{bit}"].get() == 1)
+            out["Number_(PC/CC/Note)"] = str(mask)
+            out["OnValue_(CC/PB)"] = w["key"].value()
+            out["KeyMode_(Key)"] = w["keymode"].value()
+        return out
+
+
+# --- Main window ------------------------------------------------------------
 class MidiCommanderGUI(ctk.CTk):
     def __init__(self):
         super().__init__()
 
         self.title("MIDI Commander Configurator")
-        self.geometry("1100x700")
+        self.geometry("1150x720")
 
-        # Data placeholders
         self.df_global = None
         self.df_banks = None
         self.df_buttons = None
         self.current_csv_path = None
 
-        # --- Layout ---
+        self.global_widgets = {}  # df index -> widget with .value()
+        self.bank_widgets = {}  # df index -> (large, small)
+        self.slot_editors = []
+        self.editing_row = None
+        self.light_mode = None
+
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
         # Sidebar
-        self.sidebar_frame = ctk.CTkFrame(self, width=200, corner_radius=0)
-        self.sidebar_frame.grid(row=0, column=0, sticky="nsew")
-        self.sidebar_frame.grid_rowconfigure(5, weight=1)
+        self.sidebar = ctk.CTkFrame(self, width=200, corner_radius=0)
+        self.sidebar.grid(row=0, column=0, sticky="nsew")
+        self.sidebar.grid_rowconfigure(5, weight=1)
 
-        self.logo_label = ctk.CTkLabel(
-            self.sidebar_frame,
+        ctk.CTkLabel(
+            self.sidebar,
             text="Midi Commander\nConfigurator",
             font=ctk.CTkFont(size=20, weight="bold"),
-        )
-        self.logo_label.grid(row=0, column=0, padx=20, pady=(20, 10))
+        ).grid(row=0, column=0, padx=20, pady=(20, 10))
 
-        self.btn_load = ctk.CTkButton(
-            self.sidebar_frame, text="Load CSV", command=self.load_csv
+        ctk.CTkButton(self.sidebar, text="Load CSV", command=self.load_csv).grid(
+            row=1, column=0, padx=20, pady=10
         )
-        self.btn_load.grid(row=1, column=0, padx=20, pady=10)
-
-        self.btn_read = ctk.CTkButton(
-            self.sidebar_frame, text="Read from Device", command=self.read_device
+        ctk.CTkButton(
+            self.sidebar, text="Read from Device", command=self.read_device
+        ).grid(row=2, column=0, padx=20, pady=10)
+        ctk.CTkButton(self.sidebar, text="Save CSV", command=self.save_csv).grid(
+            row=3, column=0, padx=20, pady=10
         )
-        self.btn_read.grid(row=2, column=0, padx=20, pady=10)
-
-        self.btn_save = ctk.CTkButton(
-            self.sidebar_frame, text="Save CSV", command=self.save_csv
-        )
-        self.btn_save.grid(row=3, column=0, padx=20, pady=10)
-
-        self.btn_flash = ctk.CTkButton(
-            self.sidebar_frame,
+        ctk.CTkButton(
+            self.sidebar,
             text="FLASH TO DEVICE",
             fg_color="red",
             hover_color="darkred",
             command=self.flash_device,
-        )
-        self.btn_flash.grid(row=4, column=0, padx=20, pady=20)
+        ).grid(row=4, column=0, padx=20, pady=20)
 
         # Tabs
-        self.tabview = ctk.CTkTabview(self, width=850)
+        self.tabview = ctk.CTkTabview(self, width=900)
         self.tabview.grid(row=0, column=1, padx=(20, 0), pady=(20, 0), sticky="nsew")
         self.tabview.add("Global Settings")
         self.tabview.add("Button Config")
         self.tabview.add("Bank Names")
 
-        # --- Global Settings Tab ---
-        self.setup_global_tab()
-
-        # --- Button Config Tab ---
-        self.setup_button_tab()
-
-        # --- Bank Names Tab ---
-        self.setup_bank_tab()
-
-        # Load default if exists
-        default_csv = "python/MeloConfig_10_Cmds - RC-600.csv"
-        if os.path.exists(default_csv):
-            self.load_csv(default_csv)
-
-    def setup_global_tab(self):
-        self.global_frame = self.tabview.tab("Global Settings")
-        self.global_entries = {}
-
-        # Labels and Entries will be created dynamically on load
-        self.global_scroll = ctk.CTkScrollableFrame(self.global_frame)
+        self.global_scroll = ctk.CTkScrollableFrame(self.tabview.tab("Global Settings"))
         self.global_scroll.pack(fill="both", expand=True)
 
-    def setup_bank_tab(self):
-        self.bank_frame = self.tabview.tab("Bank Names")
-        self.bank_scroll = ctk.CTkScrollableFrame(self.bank_frame)
+        self.bank_scroll = ctk.CTkScrollableFrame(self.tabview.tab("Bank Names"))
         self.bank_scroll.pack(fill="both", expand=True)
-        self.bank_entries = {}
 
-    def setup_button_tab(self):
-        self.btn_cfg_frame = self.tabview.tab("Button Config")
-        self.btn_cfg_frame.grid_columnconfigure(1, weight=1)
-        self.btn_cfg_frame.grid_rowconfigure(1, weight=1)
+        self._setup_button_tab()
 
-        # Top: Bank Selector
-        self.top_bar = ctk.CTkFrame(self.btn_cfg_frame, height=40)
-        self.top_bar.grid(row=0, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
+        if os.path.exists(DEFAULT_CSV):
+            self.load_csv(DEFAULT_CSV)
 
-        self.lbl_bank = ctk.CTkLabel(self.top_bar, text="Select Bank:")
-        self.lbl_bank.pack(side="left", padx=10)
+    # --- Button tab layout ----------------------------------------------------
+    def _setup_button_tab(self):
+        tab = self.tabview.tab("Button Config")
+        tab.grid_columnconfigure(1, weight=1)
+        tab.grid_rowconfigure(1, weight=1)
 
-        self.bank_selector = ctk.CTkOptionMenu(
-            self.top_bar, command=self.on_bank_change
-        )
+        top = ctk.CTkFrame(tab, height=40)
+        top.grid(row=0, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
+        ctk.CTkLabel(top, text="Bank:").pack(side="left", padx=10)
+        self.bank_selector = ctk.CTkOptionMenu(top, command=self.on_bank_change, width=80)
         self.bank_selector.pack(side="left", padx=10)
 
-        # Left: Button Matrix (10 buttons)
-        self.button_matrix_frame = ctk.CTkFrame(self.btn_cfg_frame, width=300)
-        self.button_matrix_frame.grid(row=1, column=0, sticky="ns", padx=5, pady=5)
+        self.button_matrix = ctk.CTkFrame(tab, width=160)
+        self.button_matrix.grid(row=1, column=0, sticky="ns", padx=5, pady=5)
 
-        self.ui_buttons = []
-        # Layout: 1-4, A-D, Up/Down?
-        # Based on CSV: IDs are 1, 2, 3, 4, A, B, C, D, UP, DOWN (represented as 0A, 0B for bank change?)
-        # Let's check CSV data. IDs are 1,2,3,4,A,B,C,D often.
-        # I'll create a list of buttons dynamically.
-
-        # Right: Command Editor (Scrollable)
-        self.cmd_editor_frame = ctk.CTkScrollableFrame(self.btn_cfg_frame)
-        self.cmd_editor_frame.grid(row=1, column=1, sticky="nsew", padx=5, pady=5)
-
-        self.lbl_editing = ctk.CTkLabel(
-            self.cmd_editor_frame, text="Select a button to edit", font=("Arial", 16)
+        self.cmd_editor = ctk.CTkScrollableFrame(tab)
+        self.cmd_editor.grid(row=1, column=1, sticky="nsew", padx=5, pady=5)
+        ctk.CTkLabel(self.cmd_editor, text="Select a button to edit", font=("Arial", 16)).pack(
+            pady=10
         )
-        self.lbl_editing.pack(pady=10)
 
-        self.cmd_widgets = []
-
-    def parse_csv_sections(self, filepath):
-        with open(filepath, "r", encoding="utf-8") as f:
-            raw_content = f.readlines()
-
-        no_comments = [l for l in raw_content if "#" not in l]
-
-        title_lines = []
-        for i, l in enumerate(no_comments):
-            if "*" in l:
-                title_lines.append((l.replace(",", " ").strip(" *"), i))
-
-        df_dic = {}
-        for i, tline in enumerate(title_lines):
-            start_line = tline[1] + 1
-            if i == len(title_lines) - 1:
-                end_line = len(no_comments)
-            else:
-                end_line = title_lines[i + 1][1]
-            frame_lines = no_comments[start_line:end_line]
-
-            # Clean up trailing commas which confuse pandas if column count mismatches
-            cleaned_lines = []
-            for ln in frame_lines:
-                # Remove trailing commas/whitespace
-                # But keep enough commas to match header? No, pandas is smart if we just remove empty trailing fields.
-                # Actually, simpler to just let pandas handle it with on_bad_lines='skip' or use python engine?
-                # Better: Trim trailing commas from the string itself.
-                cleaned_lines.append(ln.rstrip().rstrip(","))
-
-            csv_data = "\n".join(cleaned_lines)
-            if not csv_data.strip():
-                continue
-
-            try:
-                # Use python engine for more lenient parsing, and treat everything as string to avoid type errors on edit
-                df = pd.read_csv(
-                    io.StringIO(csv_data),
-                    delimiter=",",
-                    header=0,
-                    engine="python",
-                    dtype=str,
-                ).dropna(how="all")
-                # Remove unnamed columns
-                df = df.loc[:, ~df.columns.str.contains("^Unnamed")]
-                df_dic[tline[0].strip()] = df
-            except Exception as e:
-                print(f"Error parsing section {tline[0]}: {e}")
-
-        return df_dic
-
+    # --- Loading ----------------------------------------------------------------
     def load_csv(self, path=None):
         if path is None:
             path = filedialog.askopenfilename(filetypes=[("CSV Files", "*.csv")])
             if not path:
                 return
+        try:
+            data = read_config_csv(path)
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("Error", f"Failed to load CSV: {e}")
+            return
 
         self.current_csv_path = path
-        try:
-            data = self.parse_csv_sections(path)
-            if "Global_Settings" in data:
-                self.df_global = data["Global_Settings"].astype(object)
-                # Clean up whitespace in Label
-                self.df_global["Label"] = (
-                    self.df_global["Label"].astype(str).str.strip()
+        self.editing_row = None
+        self.slot_editors = []
+
+        if "Global_Settings" in data:
+            self.df_global = data["Global_Settings"].astype(object).reset_index(drop=True)
+            self.df_global["Label"] = self.df_global["Label"].astype(str).str.strip()
+            labels = self.df_global["Label"].tolist()
+            defaults = [
+                ("Exp1_CC", "11"),
+                ("Exp2_CC", "4"),
+                ("Bank_Up_LED_Mode", "Normal"),
+                ("Bank_Down_LED_Mode", "Normal"),
+                ("USB_MIDI_Thru", "N"),
+            ]
+            missing = [{"Label": l, "Value": v} for l, v in defaults if l not in labels]
+            if missing:
+                self.df_global = pd.concat(
+                    [self.df_global, pd.DataFrame(missing)], ignore_index=True
                 )
+            self.populate_global()
 
-                # Check for Bank LED modes
-                labels = self.df_global["Label"].tolist()
-                new_rows = []
-                if "Bank_Up_LED_Mode" not in labels:
-                    new_rows.append({"Label": "Bank_Up_LED_Mode", "Value": "Normal"})
-                if "Bank_Down_LED_Mode" not in labels:
-                    new_rows.append({"Label": "Bank_Down_LED_Mode", "Value": "Normal"})
-                if "USB_MIDI_Thru" not in labels:
-                    new_rows.append({"Label": "USB_MIDI_Thru", "Value": "N"})
+        if "Bank_Naming" in data:
+            self.df_banks = data["Bank_Naming"].astype(object).reset_index(drop=True)
+            self.populate_banks()
 
-                if new_rows:
-                    self.df_global = pd.concat(
-                        [self.df_global, pd.DataFrame(new_rows)], ignore_index=True
-                    )
+        if "Button_Settings" in data:
+            self.df_buttons = data["Button_Settings"].astype(object).reset_index(drop=True)
+            if "Light_Mode" not in self.df_buttons.columns:
+                self.df_buttons["Light_Mode"] = "Normal"
+            else:
+                self.df_buttons["Light_Mode"] = self.df_buttons["Light_Mode"].fillna("Normal")
+            for slot in SLOTS:
+                for field in CMD_FIELDS:
+                    col = f"{slot}_{field}"
+                    if col not in self.df_buttons.columns:
+                        self.df_buttons[col] = float("nan")
 
-                self.populate_global()
+            banks = [clean(b) for b in self.df_buttons["Bank_Number"].unique()]
+            self.bank_selector.configure(values=banks)
+            self.bank_selector.set(banks[0])
+            self.on_bank_change(banks[0])
 
-            if "Bank_Naming" in data:
-                self.df_banks = data["Bank_Naming"].astype(object)
-                self.populate_banks()
-
-            if "Button_Settings" in data:
-                self.df_buttons = data["Button_Settings"].astype(object)
-                # Ensure columns are stripped
-                self.df_buttons.columns = self.df_buttons.columns.str.strip()
-
-                # Ensure Light_Mode column exists
-                if "Light_Mode" not in self.df_buttons.columns:
-                    self.df_buttons["Light_Mode"] = "Normal"
-                else:
-                    # Fill NaNs with Normal
-                    self.df_buttons["Light_Mode"] = self.df_buttons[
-                        "Light_Mode"
-                    ].fillna("Normal")
-
-                # Update bank selector
-                banks = self.df_buttons["Bank_Number"].unique()
-                self.bank_selector.configure(values=[str(b) for b in banks])
-                self.bank_selector.set(str(banks[0]))
-                self.on_bank_change(str(banks[0]))
-
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to load CSV: {e}")
-            print(e)  # Debug
-
+    # --- Global tab ---------------------------------------------------------------
     def populate_global(self):
-        # Clear existing
         for w in self.global_scroll.winfo_children():
             w.destroy()
-        self.global_entries = {}
+        self.global_widgets = {}
 
-        row = 0
-        for index, r in self.df_global.iterrows():
-            label_text = str(r["Label"])
-            lbl = ctk.CTkLabel(self.global_scroll, text=label_text)
-            lbl.grid(row=row, column=0, padx=10, pady=5, sticky="e")
+        for row, (idx, r) in enumerate(self.df_global.iterrows()):
+            label = str(r["Label"])
+            value = r["Value"]
+            ctk.CTkLabel(self.global_scroll, text=label).grid(
+                row=row, column=0, padx=10, pady=5, sticky="e"
+            )
 
-            val = r["Value"]
-
-            if label_text in ["Bank_Up_LED_Mode", "Bank_Down_LED_Mode"]:
-                ent = ctk.CTkComboBox(
-                    self.global_scroll, values=["Normal", "Reverse", "AlwaysOn"]
-                )
-                ent.set(str(val))
+            if label == "MIDI_Channel":
+                w = Option(self.global_scroll, CHANNELS, value, width=80)
+            elif label in ("RealTime_Passthrough", "USB_MIDI_Thru"):
+                w = Check(self.global_scroll, text="", checked=is_yes(value))
+            elif label in ("Bank_Up_LED_Mode", "Bank_Down_LED_Mode"):
+                w = Option(self.global_scroll, LED_MODES, value, width=110)
+            elif label in ("Exp1_CC", "Exp2_CC"):
+                w = IntEntry(self.global_scroll, 0, 127, value, width=70)
+            elif label == "ConfigName":
+                w = TextEntry(self.global_scroll, 16, value, width=180)
             else:
-                ent = ctk.CTkEntry(self.global_scroll)
-                ent.insert(0, str(val))
+                w = TextEntry(self.global_scroll, 64, value, width=180)
 
-            ent.grid(row=row, column=1, padx=10, pady=5, sticky="w")
+            w.grid(row=row, column=1, padx=10, pady=5, sticky="w")
+            self.global_widgets[idx] = w
 
-            self.global_entries[index] = ent
-            row += 1
+        hints = {
+            "MIDI_Channel": "channel used by the expression pedals",
+            "RealTime_Passthrough": "forward Clock/Start/Continue/Stop from USB to DIN",
+            "USB_MIDI_Thru": "forward all other MIDI from USB to DIN",
+            "ConfigName": "shown on the display at boot (16 chars)",
+            "Exp1_CC": "CC number sent by expression pedal 1 (0-127)",
+            "Exp2_CC": "CC number sent by expression pedal 2 (0-127)",
+            "Bank_Up_LED_Mode": "LED of the Bank Up button",
+            "Bank_Down_LED_Mode": "LED of the Bank Down button",
+        }
+        for row, (idx, r) in enumerate(self.df_global.iterrows()):
+            hint = hints.get(str(r["Label"]))
+            if hint:
+                ctk.CTkLabel(self.global_scroll, text=hint, text_color="gray").grid(
+                    row=row, column=2, padx=10, sticky="w"
+                )
 
+    # --- Bank tab -------------------------------------------------------------------
     def populate_banks(self):
         for w in self.bank_scroll.winfo_children():
             w.destroy()
-        self.bank_entries = {}
+        self.bank_widgets = {}
 
-        row = 0
-        ctk.CTkLabel(self.bank_scroll, text="Bank Number").grid(row=0, column=0)
-        ctk.CTkLabel(self.bank_scroll, text="Name (Large)").grid(row=0, column=1)
-        ctk.CTkLabel(self.bank_scroll, text="Info (Small)").grid(row=0, column=2)
-        row += 1
+        ctk.CTkLabel(self.bank_scroll, text="Bank").grid(row=0, column=0)
+        ctk.CTkLabel(self.bank_scroll, text="Name (large, 4 chars)").grid(row=0, column=1)
+        ctk.CTkLabel(self.bank_scroll, text="Info (small, 8 chars)").grid(row=0, column=2)
 
-        for index, r in self.df_banks.iterrows():
-            lbl_num = ctk.CTkLabel(self.bank_scroll, text=str(r["Bank_Number"]))
-            lbl_num.grid(row=row, column=0, padx=5, pady=2)
+        for row, (idx, r) in enumerate(self.df_banks.iterrows(), start=1):
+            ctk.CTkLabel(self.bank_scroll, text=clean(r["Bank_Number"])).grid(
+                row=row, column=0, padx=5, pady=2
+            )
+            large = TextEntry(self.bank_scroll, 4, r["Bank_Name_Large"], width=100)
+            large.grid(row=row, column=1, padx=5, pady=2)
+            small = TextEntry(self.bank_scroll, 8, r["Bank_Info_Small"], width=150)
+            small.grid(row=row, column=2, padx=5, pady=2)
+            self.bank_widgets[idx] = (large, small)
 
-            ent_name = ctk.CTkEntry(self.bank_scroll, width=150)
-            if pd.notna(r["Bank_Name_Large"]):
-                ent_name.insert(0, str(r["Bank_Name_Large"]))
-            ent_name.grid(row=row, column=1, padx=5, pady=2)
-
-            ent_info = ctk.CTkEntry(self.bank_scroll, width=150)
-            if pd.notna(r["Bank_Info_Small"]):
-                ent_info.insert(0, str(r["Bank_Info_Small"]))
-            ent_info.grid(row=row, column=2, padx=5, pady=2)
-
-            self.bank_entries[index] = (ent_name, ent_info)
-            row += 1
-
+    # --- Button tab -------------------------------------------------------------
     def on_bank_change(self, bank_val):
-        # Populate buttons for this bank
-        for w in self.button_matrix_frame.winfo_children():
+        self.apply_button_changes(silent=True)
+        for w in self.button_matrix.winfo_children():
             w.destroy()
 
-        # Filter buttons (DataFrame is all strings now)
-        # Handle potential float-like strings if reloaded
-        # Safest is to convert column to string for comparison
         rows = self.df_buttons[
-            self.df_buttons["Bank_Number"].astype(str) == str(bank_val)
+            self.df_buttons["Bank_Number"].map(clean) == clean(bank_val)
         ]
-
-        # We assume buttons are 1,2,3,4,A,B,C,D... etc.
-        # Create a grid of buttons
-        r = 0
-        for i, row_data in rows.iterrows():
-            btn_id = str(row_data["Button_Identifier"])
-            btn = ctk.CTkButton(
-                self.button_matrix_frame,
+        for idx, row_data in rows.iterrows():
+            btn_id = clean(row_data["Button_Identifier"])
+            ctk.CTkButton(
+                self.button_matrix,
                 text=f"Button {btn_id}",
-                command=lambda rid=i, bid=btn_id: self.load_button_commands(rid, bid),
-            )
-            btn.pack(pady=5, padx=10, fill="x")
+                command=lambda rid=idx, bid=btn_id: self.load_button_commands(rid, bid),
+            ).pack(pady=5, padx=10, fill="x")
 
     def load_button_commands(self, row_index, btn_id):
-        # Clear right panel
-        for w in self.cmd_editor_frame.winfo_children():
+        self.apply_button_changes(silent=True)
+
+        for w in self.cmd_editor.winfo_children():
             w.destroy()
-
-        # Title
-        # Recreate the label fresh
-        self.lbl_editing = ctk.CTkLabel(
-            self.cmd_editor_frame,
-            text=f"Editing: Bank {self.bank_selector.get()} - Button {btn_id}",
-            font=("Arial", 16, "bold"),
-        )
-        self.lbl_editing.pack(pady=(10, 20))
-
-        current_row = self.df_buttons.loc[row_index]
-        self.cmd_widgets = []  # Store widgets to save back later
-
-        # Grid Container for Table
-        table_frame = ctk.CTkFrame(self.cmd_editor_frame, fg_color="transparent")
-        table_frame.pack(fill="x", padx=10)
-
-        # --- Headers ---
-        headers = [
-            "Slot",
-            "Type",
-            "Channel",
-            "Number",
-            "On Value",
-            "Off Value",
-            "Delay/Dur",
-            "Toggle",
-            "Key Mode",
-        ]
-        widths = [40, 80, 60, 60, 70, 70, 60, 60, 80]
-
-        for col, header in enumerate(headers):
-            lbl = ctk.CTkLabel(table_frame, text=header, font=("Arial", 12, "bold"))
-            lbl.grid(row=0, column=col, padx=5, pady=(0, 5))
-
-        # --- Rows (Slots A-J) ---
-        slots = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
-
-        for i, slot in enumerate(slots):
-            row = i + 1
-
-            # Slot Label
-            ctk.CTkLabel(table_frame, text=slot, width=widths[0]).grid(
-                row=row, column=0, padx=5, pady=5
-            )
-
-            # Type
-            type_val = current_row.get(f"{slot}_CommandType", "")
-            if pd.isna(type_val):
-                type_val = ""
-            combo_type = ctk.CTkComboBox(
-                table_frame,
-                values=["", "CC", "PC", "Note", "PB", "Key"],
-                width=widths[1],
-            )
-            combo_type.set(str(type_val).strip())
-            combo_type.grid(row=row, column=1, padx=5, pady=5)
-
-            # Channel
-            ch_val = current_row.get(f"{slot}_Channel_(PC/CC/Note/PB)", "")
-            ent_ch = ctk.CTkEntry(table_frame, width=widths[2])
-            if pd.notna(ch_val):
-                ent_ch.insert(0, str(ch_val).replace(".0", ""))  # Simple cleanup
-            ent_ch.grid(row=row, column=2, padx=5, pady=5)
-
-            # Number
-            num_val = current_row.get(f"{slot}_Number_(PC/CC/Note)", "")
-            ent_num = ctk.CTkEntry(table_frame, width=widths[3])
-            if pd.notna(num_val):
-                ent_num.insert(0, str(num_val).replace(".0", ""))
-            ent_num.grid(row=row, column=3, padx=5, pady=5)
-
-            # On Value
-            on_val = current_row.get(f"{slot}_OnValue_(CC/PB)", "")
-            ent_on = ctk.CTkEntry(table_frame, width=widths[4])
-            if pd.notna(on_val):
-                ent_on.insert(0, str(on_val).replace(".0", ""))
-            ent_on.grid(row=row, column=4, padx=5, pady=5)
-
-            # Off Value
-            off_val = current_row.get(f"{slot}_OffValue_(CC)", "")
-            ent_off = ctk.CTkEntry(table_frame, width=widths[5])
-            if pd.notna(off_val):
-                ent_off.insert(0, str(off_val).replace(".0", ""))
-            ent_off.grid(row=row, column=5, padx=5, pady=5)
-
-            # Duration (Labelled Delay/Dur in header)
-            dur_val = current_row.get(f"{slot}_Duration_(Note/PB)", "")
-            ent_dur = ctk.CTkEntry(table_frame, width=widths[6])
-            if pd.notna(dur_val):
-                ent_dur.insert(0, str(dur_val).replace(".0", ""))
-            ent_dur.grid(row=row, column=6, padx=5, pady=5)
-
-            # Toggle
-            tog_val = current_row.get(f"{slot}_Toggle_(CC/PB/Note)", "")
-            chk_tog = ctk.CTkCheckBox(table_frame, text="", width=20)
-            if str(tog_val).strip().upper() == "Y":
-                chk_tog.select()
-            chk_tog.grid(row=row, column=7, padx=5, pady=5)
-
-            # Key Mode (New)
-            km_val = current_row.get(f"{slot}_KeyMode_(Key)", "")
-            combo_km = ctk.CTkComboBox(
-                table_frame,
-                values=["Normal", "Down", "Up"],
-                width=widths[8],
-            )
-            # Default to Normal if empty?
-            if not km_val or pd.isna(km_val):
-                combo_km.set("Normal")
-            else:
-                combo_km.set(str(km_val).strip())
-
-            combo_km.grid(row=row, column=8, padx=5, pady=5)
-
-            # Save ref
-            self.cmd_widgets.append(
-                {
-                    "row_index": row_index,
-                    "slot": slot,
-                    "type": combo_type,
-                    "ch": ent_ch,
-                    "num": ent_num,
-                    "on": ent_on,
-                    "off": ent_off,
-                    "dur": ent_dur,
-                    "tog": chk_tog,
-                    "keymode": combo_km,
-                }
-            )
-
-        # --- Light Mode Setting ---
-        light_frame = ctk.CTkFrame(self.cmd_editor_frame, fg_color="transparent")
-        light_frame.pack(pady=10)
+        self.slot_editors = []
+        self.editing_row = row_index
 
         ctk.CTkLabel(
-            light_frame, text="LED Light Mode:", font=("Arial", 12, "bold")
-        ).pack(side="left", padx=5)
+            self.cmd_editor,
+            text=f"Editing: Bank {self.bank_selector.get()} - Button {btn_id}",
+            font=("Arial", 16, "bold"),
+        ).pack(pady=(10, 5))
 
-        current_light = "Normal"
-        if "Light_Mode" in current_row:
-            val = current_row["Light_Mode"]
-            if pd.notna(val) and str(val).strip() != "":
-                current_light = str(val).strip()
+        current = self.df_buttons.loc[row_index]
 
-        self.combo_light_mode = ctk.CTkComboBox(
-            light_frame, values=["Normal", "Reverse", "AlwaysOn"], width=120
-        )
-        self.combo_light_mode.set(current_light)
-        self.combo_light_mode.pack(side="left", padx=5)
+        light_frame = ctk.CTkFrame(self.cmd_editor, fg_color="transparent")
+        light_frame.pack(pady=(0, 10))
+        ctk.CTkLabel(light_frame, text="LED light mode:", font=BOLD).pack(side="left", padx=5)
+        self.light_mode = Option(light_frame, LED_MODES, current.get("Light_Mode"), width=110)
+        self.light_mode.pack(side="left", padx=5)
 
-        btn_apply = ctk.CTkButton(
-            self.cmd_editor_frame,
+        ctk.CTkLabel(
+            self.cmd_editor,
+            text="Commands are sent in order A to J when the button is pressed",
+            text_color="gray",
+        ).pack()
+
+        table = ctk.CTkFrame(self.cmd_editor, fg_color="transparent")
+        table.pack(fill="x", padx=10, pady=5)
+        for slot in SLOTS:
+            initial = {f: current.get(f"{slot}_{f}") for f in CMD_FIELDS}
+            self.slot_editors.append(SlotEditor(table, slot, initial))
+
+        ctk.CTkLabel(
+            self.cmd_editor,
+            text=(
+                "Dur = duration in 10 ms steps (0-127). "
+                "Bend = -8192..8191. Bank = 0..16383. Hold = key stays pressed until next press."
+            ),
+            text_color="gray",
+        ).pack(pady=(5, 0))
+
+        ctk.CTkButton(
+            self.cmd_editor,
             text="Apply Changes to Memory",
             command=self.apply_button_changes,
             fg_color="green",
             hover_color="darkgreen",
-        )
-        btn_apply.pack(pady=20)
+        ).pack(pady=15)
 
-    def apply_button_changes(self):
-        def safe_val(val, dtype_hint=None):
-            # Try to keep as number if it looks like one
-            if not val:
-                return float("nan")  # Empty string -> NaN
-            if str(val).isdigit():
-                return int(val)
-            try:
-                return float(val)
-            except ValueError:
-                return str(val)
+    def apply_button_changes(self, silent=False):
+        """Copy the editor widgets back into df_buttons."""
+        if self.editing_row is None or not self.slot_editors:
+            return
+        idx = self.editing_row
+        for editor in self.slot_editors:
+            for field, val in editor.values().items():
+                self.df_buttons.at[idx, f"{editor.slot}_{field}"] = (
+                    val if val != "" else float("nan")
+                )
+        if self.light_mode is not None:
+            self.df_buttons.at[idx, "Light_Mode"] = self.light_mode.value()
 
-        for w in self.cmd_widgets:
-            idx = w["row_index"]
-            s = w["slot"]
-
-            # Helper to set value with type awareness
-            # Since the dataframe might have mixed types or floats (with NaNs), we need to be careful.
-            # Best approach: explicitely cast based on what we expect or force column to object type.
-            # For simplicity, we try to cast to what pandas likely inferred.
-
-            self.df_buttons.at[idx, f"{s}_CommandType"] = w["type"].get()
-            self.df_buttons.at[idx, f"{s}_Channel_(PC/CC/Note/PB)"] = safe_val(
-                w["ch"].get()
+        if not silent:
+            messagebox.showinfo(
+                "Info", "Changes applied to memory (Don't forget to Save CSV!)"
             )
-            self.df_buttons.at[idx, f"{s}_Number_(PC/CC/Note)"] = safe_val(
-                w["num"].get()
-            )
-            self.df_buttons.at[idx, f"{s}_OnValue_(CC/PB)"] = safe_val(w["on"].get())
-            self.df_buttons.at[idx, f"{s}_OffValue_(CC)"] = safe_val(w["off"].get())
-            self.df_buttons.at[idx, f"{s}_Duration_(Note/PB)"] = safe_val(
-                w["dur"].get()
-            )
-            self.df_buttons.at[idx, f"{s}_Toggle_(CC/PB/Note)"] = (
-                "Y" if w["tog"].get() == 1 else "N"
-            )
-            # Save Key Mode
-            self.df_buttons.at[idx, f"{s}_KeyMode_(Key)"] = w["keymode"].get()
 
-        # Save Light Mode
-        if hasattr(self, "combo_light_mode") and self.cmd_widgets:
-            idx = self.cmd_widgets[0]["row_index"]
-            # Ensure column exists
-            if "Light_Mode" not in self.df_buttons.columns:
-                self.df_buttons["Light_Mode"] = "Normal"
-
-            self.df_buttons.at[idx, "Light_Mode"] = self.combo_light_mode.get()
-
-        print("Updated button memory.")
-        messagebox.showinfo(
-            "Info", "Changes applied to memory (Don't forget to Save CSV!)"
-        )
+    # --- Saving / device -----------------------------------------------------------
+    def _collect(self):
+        """Pull every tab's widgets into the DataFrames."""
+        self.apply_button_changes(silent=True)
+        for idx, w in self.global_widgets.items():
+            self.df_global.at[idx, "Value"] = w.value()
+        for idx, (large, small) in self.bank_widgets.items():
+            self.df_banks.at[idx, "Bank_Name_Large"] = large.value()
+            self.df_banks.at[idx, "Bank_Info_Small"] = small.value()
 
     def save_csv(self):
         if not self.current_csv_path:
@@ -555,41 +597,22 @@ class MidiCommanderGUI(ctk.CTk):
                 return
             self.current_csv_path = save_path
 
-        # Save updates from Global and Bank tabs back to DF
-        for idx, ent in self.global_entries.items():
-            self.df_global.at[idx, "Value"] = ent.get()
-
-        for idx, (ename, einfo) in self.bank_entries.items():
-            self.df_banks.at[idx, "Bank_Name_Large"] = ename.get()
-            self.df_banks.at[idx, "Bank_Info_Small"] = einfo.get()
-
-        # Write to file manualy to preserve structure
+        self._collect()
         try:
-            with open(self.current_csv_path, "w", newline="", encoding="utf-8") as f:
-                # Header
-                f.write("# Notes" + "," * 50 + "\n")
-                f.write("# Generated by GUI" + "," * 50 + "\n")
-                f.write("#" + "," * 50 + "\n")
-
-                # Global
-                f.write("* Global_Settings" + "," * 50 + "\n")
-                self.df_global.to_csv(f, index=False)
-                f.write("," * 50 + "\n")
-
-                # Bank
-                f.write("* Bank_Naming" + "," * 50 + "\n")
-                self.df_banks.to_csv(f, index=False)
-                f.write("," * 50 + "\n")
-
-                # Button
-                f.write("* Button_Settings" + "," * 50 + "\n")
-                # Important comments for parser????? Parser just skips #
-                self.df_buttons.to_csv(f, index=False)
-
+            write_config_csv(
+                self.current_csv_path, self.df_global, self.df_banks, self.df_buttons
+            )
             messagebox.showinfo("Success", "CSV Saved Successfully!")
-
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             messagebox.showerror("Error", f"Could not save CSV: {e}")
+
+    def _run_tool(self, script, *args):
+        cmd = [sys.executable, os.path.join(HERE, script), *args]
+        startupinfo = None
+        if os.name == "nt":
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        return subprocess.run(cmd, capture_output=True, text=True, startupinfo=startupinfo)
 
     def read_device(self):
         save_path = filedialog.asksaveasfilename(
@@ -600,25 +623,15 @@ class MidiCommanderGUI(ctk.CTk):
         )
         if not save_path:
             return
-
-        script_path = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "Flash_to_CSV.py"
-        )
         try:
-            p = subprocess.run(
-                [sys.executable, script_path, save_path],
-                capture_output=True,
-                text=True,
-            )
-        except Exception as e:
+            p = self._run_tool("Flash_to_CSV.py", save_path)
+        except Exception as e:  # noqa: BLE001
             messagebox.showerror("Error", f"Failed to run read script: {e}")
             return
-
         if p.returncode != 0:
             detail = (p.stdout + "\n" + p.stderr).strip()
             messagebox.showerror("Read Error", detail or f"Exit code {p.returncode}")
             return
-
         self.load_csv(save_path)
         messagebox.showinfo("Read Complete", p.stdout.strip().splitlines()[-1])
 
@@ -626,73 +639,52 @@ class MidiCommanderGUI(ctk.CTk):
         if not self.current_csv_path:
             messagebox.showwarning("Warning", "Please save or load a CSV file first.")
             return
-
-        # Ensure user saved
-        ans = messagebox.askyesno(
+        if not messagebox.askyesno(
             "Flash Device",
-            "Are you ready to flash? Ensure the Midi Commander is connected via USB.\n(This will take a few seconds)",
-        )
-        if not ans:
+            "Save the current settings and flash them? Ensure the Midi Commander "
+            "is connected via USB.\n(This will take a few seconds)",
+        ):
             return
 
-        # Use subprocess to isolate execution and prevent app crashes
-        script_path = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "CSV_to_Flash.py"
-        )
+        self._collect()
+        try:
+            write_config_csv(
+                self.current_csv_path, self.df_global, self.df_banks, self.df_buttons
+            )
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("Error", f"Could not save CSV before flashing: {e}")
+            return
 
         try:
-            # Run with --yes to skip prompt
-            cmd = [sys.executable, script_path, self.current_csv_path, "--yes"]
-
-            # Hide console window on Windows? (optional, but keep it simple for now)
-            # Create NO_WINDOW flag if needed, but let's just capture output.
-            startupinfo = None
-            if os.name == "nt":
-                startupinfo = subprocess.STARTUPINFO()
-                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-
-            p = subprocess.run(
-                cmd, capture_output=True, text=True, startupinfo=startupinfo
-            )
-
-            if p.returncode == 0:
-                # Success - simplify message
-                # Maybe extract byte count if present in stdout?
-                msg = "Flash Complete!\nSettings have been written to the device."
-                messagebox.showinfo("Flash Success", msg)
-            else:
-                # Log error for debugging
-                err_msg = f"Output:\n{p.stdout}\n\nError:\n{p.stderr}"
-                with open("flash_error.log", "w", encoding="utf-8") as f:
-                    f.write(err_msg)
-
-                # Analyze error
-                user_msg = ""
-
-                # Known specific errors
-                if (
-                    "no input found" in p.stdout.lower()
-                    or "no outputs found" in p.stdout.lower()
-                ):
-                    user_msg = "Midi Commander not found or disconnected.\nPlease check the USB connection."
-                else:
-                    # Default error assumption: Device is busy
-                    user_msg = "Failed to access MIDI device.\n\nMost likely, the device is being used by another application (DAW, Chrome, etc)."
-                    user_msg += (
-                        "\n\nPlease close other MIDI applications and try again."
-                    )
-
-                # Append technical info slightly separated
-                user_msg += f"\n\n(Technical details: Exit Code {p.returncode})"
-                if p.stderr.strip():
-                    user_msg += (
-                        f"\nError: {p.stderr.strip()[:100]}..."  # Truncate if too long
-                    )
-
-                messagebox.showerror("Flash Error", user_msg)
-
-        except Exception as e:
+            p = self._run_tool("CSV_to_Flash.py", self.current_csv_path, "--yes")
+        except Exception as e:  # noqa: BLE001
             messagebox.showerror("Error", f"Failed to run flash script: {e}")
+            return
+
+        if p.returncode == 0:
+            messagebox.showinfo(
+                "Flash Success", "Flash Complete!\nSettings have been written to the device."
+            )
+            return
+
+        with open(os.path.join(HERE, "flash_error.log"), "w", encoding="utf-8") as f:
+            f.write(f"Output:\n{p.stdout}\n\nError:\n{p.stderr}")
+
+        out = (p.stdout + p.stderr).lower()
+        if "no matching midi device" in out or "no midi" in out:
+            msg = "Midi Commander not found or disconnected.\nPlease check the USB connection."
+        elif "stopped responding" in out:
+            msg = "The device stopped responding while flashing. Power cycle it and try again."
+        else:
+            msg = (
+                "Failed to access MIDI device.\n\nMost likely, the device is being used by "
+                "another application (DAW, Chrome, etc).\n\nPlease close other MIDI "
+                "applications and try again."
+            )
+        msg += f"\n\n(Technical details: exit code {p.returncode})"
+        if p.stderr.strip():
+            msg += f"\nError: {p.stderr.strip()[:200]}"
+        messagebox.showerror("Flash Error", msg)
 
 
 if __name__ == "__main__":

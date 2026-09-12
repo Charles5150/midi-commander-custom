@@ -8,6 +8,7 @@ This repository is a fork of [arasan95/midi-commander-custom](https://github.com
 
 - **USB to DIN MIDI thru (firmware 0.4).** New global setting `USB_MIDI_Thru` (Y/N, default N). When enabled, every channel message (notes, CC, PC, pitch bend, pressure), system common message and SysEx not addressed to the pedal received over USB is forwarded to the DIN output, so the Midi Commander doubles as a USB MIDI interface for whatever is plugged into its MIDI OUT. Clock, Start, Continue and Stop are still governed by `RealTime_Passthrough`. The USB receive parser was rewritten to walk 4 byte USB MIDI events properly, which also fixes a buffer overflow when a long SysEx from another device was received.
 - **LED light modes moved out of the command bytes (firmware 0.3).** Previously `Light_Mode` was encoded in bit 7 of bytes 2 and 3 of the button's first command, which corrupted that command depending on its type: a CC with AlwaysOn never sent its off value, a Note with AlwaysOn got a 1.28 s or longer duration, a Key with AlwaysOn became a toggle or with Reverse sent the wrong key, and a PC without Bank Select MSB always showed as Reverse. The modes now live in a separate 64 byte table after the commands. **This changes the configuration format:** after flashing firmware 0.3, re-flash your configuration with the updated tools, otherwise every button LED falls back to Normal.
+- **GUI rework.** Every bounded field is now a drop-down or a check box (channels, LED modes, toggles, key names, keyboard modifiers, Y/N settings) and numeric fields only accept values in their valid range. The button editor shows just the fields each command type uses, and gains the Bank Select, Bank Select MSB, Velocity, Start and Stop fields that were previously only editable in the CSV. Edits are applied automatically when switching buttons, and FLASH TO DEVICE saves the CSV first.
 - **Configuration read-back (firmware 0.2).** The device can now send its stored configuration back over USB MIDI. `python/Flash_to_CSV.py <file.csv>` dumps it as a CSV in the usual layout, and the GUI has a **Read from Device** button that does the same and loads the result into the editor. Two SysEx commands were added: `READ_FLASH` (56) and `GET_VERSION` (58). Older firmware ignores them, so the tools detect the missing support and ask you to update.
 - **Round-trip tests for the packers.** `python -m unittest python/tests/test_roundtrip.py` packs the sample CSV, decodes it again and compares every field.
 - **Fixed a spurious Note Off after timed pitch bend commands.** When a pitch bend with a duration expired, the firmware also sent a Note Off built from the pitch bend bytes because of a missing `break` in `handle_delayed_cmds`. Only the pitch bend reset is sent now.
@@ -63,17 +64,15 @@ Configuration Workflow
 
 1. When the application starts, the sample configuration CSV is loaded. Click **Read from Device** to pull the configuration currently stored on the connected Midi Commander instead (requires firmware 0.2 or later), or **Load CSV** to open one of your own.
 
-2. Click buttons on the screen to change assigned MIDI commands and LED modes.
+2. Click a button on the screen to edit its LED mode and its ten command slots. Pick the command type of each slot and only the fields that type uses appear: channel and value drop-downs, check boxes for toggles, a key picker and Ctrl/Shift/Alt/Cmd boxes for keyboard commands, and number fields that only accept values in range.
 
-3. After making changes, click Apply Changes to Memory
-(At this point, the settings are applied in memory but not yet saved).
+3. Edits are kept in memory automatically when you switch button or bank. Apply Changes to Memory does the same explicitly.
 
-4. In the Global Settings tab, you can also configure LED behavior for bank buttons and other global options.
+4. In the Global Settings tab, you can also configure the expression pedal CCs, LED behavior for bank buttons, realtime passthrough and USB MIDI thru.
 
-5. Be sure to click Save CSV to save the configuration file.
+5. Click Save CSV to save the configuration file.
 
-6. Finally, click FLASH TO DEVICE.
-The settings will be transferred to the hardware, and the device will automatically reboot.
+6. Finally, click FLASH TO DEVICE. The current settings are saved to the CSV and transferred to the hardware, and the device automatically reboots.
 
 <img src="docs/images/gui_workflow.png" width="500">
 
