@@ -19,6 +19,7 @@ sys.path.insert(0, HERE)
 
 from lib.cmdBinaryPacker import HID_SPECIAL_KEYS  # noqa: E402
 from lib.configCsv import read_config_csv, write_config_csv  # noqa: E402
+from lib.configPacker import LONG_PRESS_SECTION, empty_long_press_settings  # noqa: E402
 
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
@@ -297,7 +298,10 @@ class MidiCommanderGUI(ctk.CTk):
         self.df_global = None
         self.df_banks = None
         self.df_buttons = None
+        self.df_long = None
         self.current_csv_path = None
+        self.press_mode = "Short press"
+        self.editing_button = None  # (row_index, btn_id) of the button being edited
 
         self.global_widgets = {}  # df index -> widget with .value()
         self.bank_widgets = {}  # df index -> (large, small)
@@ -403,6 +407,7 @@ class MidiCommanderGUI(ctk.CTk):
                 ("Bank_Down_LED_Mode", "Normal"),
                 ("USB_MIDI_Thru", "N"),
                 ("Remember_State", "N"),
+                ("Long_Press_ms", "500"),
             ]
             missing = [{"Label": l, "Value": v} for l, v in defaults if l not in labels]
             if missing:
@@ -437,6 +442,23 @@ class MidiCommanderGUI(ctk.CTk):
                 )
             self.df_buttons = df.copy()
 
+            # Long press command sets: optional section, one row per button
+            if LONG_PRESS_SECTION in data:
+                self.df_long = data[LONG_PRESS_SECTION].astype(object).reset_index(drop=True)
+            else:
+                self.df_long = empty_long_press_settings()
+            missing = [
+                f"{slot}_{field}"
+                for slot in SLOTS
+                for field in CMD_FIELDS
+                if f"{slot}_{field}" not in self.df_long.columns
+            ]
+            if missing:
+                self.df_long = pd.concat(
+                    [self.df_long, pd.DataFrame(float("nan"), index=self.df_long.index, columns=missing)],
+                    axis=1,
+                ).copy()
+
             banks = [clean(b) for b in self.df_buttons["Bank_Number"].unique()]
             self.bank_selector.configure(values=banks)
             self.bank_selector.set(banks[0])
@@ -463,6 +485,8 @@ class MidiCommanderGUI(ctk.CTk):
                 w = Option(self.global_scroll, LED_MODES, value, width=110)
             elif label in ("Exp1_CC", "Exp2_CC"):
                 w = IntEntry(self.global_scroll, 0, 127, value, width=70)
+            elif label == "Long_Press_ms":
+                w = IntEntry(self.global_scroll, 100, 2500, value, width=70)
             elif label == "ConfigName":
                 w = TextEntry(self.global_scroll, 16, value, width=180)
             else:
@@ -476,6 +500,7 @@ class MidiCommanderGUI(ctk.CTk):
             "RealTime_Passthrough": "forward Clock/Start/Continue/Stop from USB to DIN",
             "USB_MIDI_Thru": "forward all other MIDI from USB to DIN",
             "Remember_State": "restore the last bank and toggle states at power on",
+            "Long_Press_ms": "hold time that turns a press into a long press (100-2500 ms)",
             "ConfigName": "shown on the display at boot (16 chars)",
             "Exp1_CC": "CC number sent by expression pedal 1 (0-127)",
             "Exp2_CC": "CC number sent by expression pedal 2 (0-127)",
@@ -528,6 +553,29 @@ class MidiCommanderGUI(ctk.CTk):
                 command=lambda rid=idx, bid=btn_id: self.load_button_commands(rid, bid),
             ).pack(pady=5, padx=8)
 
+    def _long_row_index(self, row_index):
+        """Index in df_long of the button at df_buttons row_index (created if missing)."""
+        short = self.df_buttons.loc[row_index]
+        bank, btn = clean(short["Bank_Number"]), clean(short["Button_Identifier"]).upper()
+        match = self.df_long[
+            (self.df_long["Bank_Number"].map(clean) == bank)
+            & (self.df_long["Button_Identifier"].map(clean).str.upper() == btn)
+        ]
+        if len(match):
+            return match.index[0]
+        new_row = {c: float("nan") for c in self.df_long.columns}
+        new_row["Bank_Number"], new_row["Button_Identifier"] = bank, btn
+        self.df_long = pd.concat([self.df_long, pd.DataFrame([new_row])], ignore_index=True)
+        return self.df_long.index[-1]
+
+    def _set_press_mode(self, mode):
+        if self.editing_button is None:
+            return
+        self.apply_button_changes(silent=True)
+        self.slot_editors = []  # already applied; don't apply them again under the new mode
+        self.press_mode = mode
+        self.load_button_commands(*self.editing_button)
+
     def load_button_commands(self, row_index, btn_id):
         self.apply_button_changes(silent=True)
 
@@ -535,6 +583,10 @@ class MidiCommanderGUI(ctk.CTk):
             w.destroy()
         self.slot_editors = []
         self.editing_row = row_index
+        self.editing_button = (row_index, btn_id)
+        self.label_entry = None
+        self.light_mode = None
+        long_mode = self.press_mode == "Long press"
 
         ctk.CTkLabel(
             self.cmd_editor,
@@ -544,20 +596,35 @@ class MidiCommanderGUI(ctk.CTk):
 
         current = self.df_buttons.loc[row_index]
 
-        light_frame = ctk.CTkFrame(self.cmd_editor, fg_color="transparent")
-        light_frame.pack(anchor="w", padx=10, pady=(0, 8))
-        ctk.CTkLabel(light_frame, text="Display label:", font=BOLD).pack(side="left")
-        self.label_entry = TextEntry(light_frame, 4, current.get("Label"), width=70)
-        self.label_entry.pack(side="left", padx=(8, 20))
-        ctk.CTkLabel(light_frame, text="LED light mode:", font=BOLD).pack(side="left")
-        self.light_mode = Option(light_frame, LED_MODES, current.get("Light_Mode"), width=110)
-        self.light_mode.pack(side="left", padx=8)
+        if not long_mode:
+            light_frame = ctk.CTkFrame(self.cmd_editor, fg_color="transparent")
+            light_frame.pack(anchor="w", padx=10, pady=(0, 8))
+            ctk.CTkLabel(light_frame, text="Display label:", font=BOLD).pack(side="left")
+            self.label_entry = TextEntry(light_frame, 4, current.get("Label"), width=70)
+            self.label_entry.pack(side="left", padx=(8, 20))
+            ctk.CTkLabel(light_frame, text="LED light mode:", font=BOLD).pack(side="left")
+            self.light_mode = Option(light_frame, LED_MODES, current.get("Light_Mode"), width=110)
+            self.light_mode.pack(side="left", padx=8)
 
+        mode_frame = ctk.CTkFrame(self.cmd_editor, fg_color="transparent")
+        mode_frame.pack(anchor="w", padx=10, pady=(0, 4))
+        self.mode_switch = ctk.CTkSegmentedButton(
+            mode_frame, values=["Short press", "Long press"], command=self._set_press_mode
+        )
+        self.mode_switch.set(self.press_mode)
+        self.mode_switch.pack(side="left")
         ctk.CTkLabel(
-            self.cmd_editor,
-            text="Commands, sent in order A to J when the button is pressed:",
-            font=BOLD,
-        ).pack(anchor="w", padx=10, pady=(0, 2))
+            mode_frame,
+            text=(
+                "commands sent in order A to J when the button is held past Long_Press_ms"
+                if long_mode
+                else "commands sent in order A to J when the button is pressed"
+            ),
+            text_color="gray",
+        ).pack(side="left", padx=10)
+
+        if long_mode:
+            current = self.df_long.loc[self._long_row_index(row_index)]
 
         table = ctk.CTkFrame(self.cmd_editor)
         table.pack(fill="x", padx=10, pady=(0, 5))
@@ -588,12 +655,13 @@ class MidiCommanderGUI(ctk.CTk):
         """Copy the editor widgets back into df_buttons."""
         if self.editing_row is None or not self.slot_editors:
             return
-        idx = self.editing_row
+        if self.press_mode == "Long press":
+            df, idx = self.df_long, self._long_row_index(self.editing_row)
+        else:
+            df, idx = self.df_buttons, self.editing_row
         for editor in self.slot_editors:
             for field, val in editor.values().items():
-                self.df_buttons.at[idx, f"{editor.slot}_{field}"] = (
-                    val if val != "" else float("nan")
-                )
+                df.at[idx, f"{editor.slot}_{field}"] = val if val != "" else float("nan")
         if self.light_mode is not None:
             self.df_buttons.at[idx, "Light_Mode"] = self.light_mode.value()
         if self.label_entry is not None:
@@ -624,7 +692,11 @@ class MidiCommanderGUI(ctk.CTk):
         self._collect()
         try:
             write_config_csv(
-                self.current_csv_path, self.df_global, self.df_banks, self.df_buttons
+                self.current_csv_path,
+                self.df_global,
+                self.df_banks,
+                self.df_buttons,
+                df_long_press=self.df_long,
             )
             messagebox.showinfo("Success", "CSV Saved Successfully!")
         except Exception as e:  # noqa: BLE001
@@ -673,7 +745,11 @@ class MidiCommanderGUI(ctk.CTk):
         self._collect()
         try:
             write_config_csv(
-                self.current_csv_path, self.df_global, self.df_banks, self.df_buttons
+                self.current_csv_path,
+                self.df_global,
+                self.df_banks,
+                self.df_buttons,
+                df_long_press=self.df_long,
             )
         except Exception as e:  # noqa: BLE001
             messagebox.showerror("Error", f"Could not save CSV before flashing: {e}")

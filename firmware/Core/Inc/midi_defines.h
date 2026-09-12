@@ -68,5 +68,6 @@
 #define GLOBAL_SETTINGS_BANK_DOWN_LED (5)
 #define GLOBAL_SETTINGS_USB_THRU (6)		// Forward channel, system common and foreign SysEx from USB to DIN
 #define GLOBAL_SETTINGS_REMEMBER_STATE (7)	// Restore last bank and toggle states at power on
+#define GLOBAL_SETTINGS_LONG_PRESS (8)		// Long press threshold in 10 ms units (0/0xFF = 500 ms)
 
 #endif /* INC_MIDI_DEFINES_H_ */

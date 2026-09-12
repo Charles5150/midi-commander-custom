@@ -15,6 +15,7 @@ extern uint8_t *pGlobalSettings;
 extern uint8_t *pBankStrings;
 extern uint8_t *pButtonLedModes;
 extern uint8_t *pButtonLabels;
+extern uint8_t *pLongPressCmds;	// Second command set per button, same layout as pSwitchCmds
 
 #define MIDI_NUM_BANKS			(8)
 #define MIDI_NUM_SWITCHES		(8)

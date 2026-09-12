@@ -4,6 +4,7 @@ GLOBAL_SETTINGS_EXP1_CC = 2
 GLOBAL_SETTINGS_EXP2_CC = 3
 GLOBAL_SETTINGS_USB_THRU = 6
 GLOBAL_SETTINGS_REMEMBER_STATE = 7
+GLOBAL_SETTINGS_LONG_PRESS = 8
 
 def pack_global_settings(df):
     # global settings will be 32 bytes long
@@ -51,6 +52,15 @@ def pack_global_settings(df):
     # Restore last bank and toggle states at power on (Y/N)
     if "Remember_State" in df.index and "Y" in str(df.loc["Remember_State", "Value"]).upper():
         bin_list[GLOBAL_SETTINGS_REMEMBER_STATE] = 0x1
+
+    # Long press threshold in ms, stored in 10 ms units (10..2500 ms)
+    long_ms = 500
+    if "Long_Press_ms" in df.index:
+        try:
+            long_ms = int(float(str(df.loc["Long_Press_ms", "Value"])))
+        except ValueError:
+            long_ms = 500
+    bin_list[GLOBAL_SETTINGS_LONG_PRESS] = max(1, min(250, round(long_ms / 10)))
 
     # print('{:8.8}'.format(df.loc['ConfigName'].Value))
     bin_list += ("{:16.16}".format(df.loc["ConfigName"].Value)).encode("ASCII")

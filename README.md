@@ -6,6 +6,7 @@ This repository is a fork of [arasan95/midi-commander-custom](https://github.com
 
 ## Changes in this fork
 
+- **Long press (firmware 0.7).** Every button has a second set of up to 10 commands that fires when the button is held longer than `Long_Press_ms` (global setting, default 500 ms). A short press fires the normal commands on release. Buttons with no long press commands keep reacting instantly on press, so nothing changes for them. Long press commands live in a new `LongPress_Settings` CSV section with the same columns as `Button_Settings`; in the GUI, switch the editor between **Short press** and **Long press**. Long press toggles keep their own state, also restored at power on when `Remember_State` is on. Typical use with a looper: short press = record/play, long press = undo or clear.
 - **Button labels on the display (firmware 0.6).** Each button has a 4 character `Label` (new column in `Button_Settings`, "Display label" field in the GUI). The screen now shows the bank name on the top line and a 2x4 grid below it laid out like the pedal: buttons 1 2 3 4 on the top row, A B C D on the bottom row. Buttons without a label show their identifier. Cells of toggle buttons are drawn inverted while the toggle is on, so you can see the state of every button at a glance. The label table follows the LED mode table in flash; older configurations read as blank labels.
 - **Flash page size corrected.** The STM32F103RE has 2 kB pages, so the configuration area is 6 kB rather than the 3 kB the code assumed. The tools now report the real limit.
 - **Remember the last bank and toggle states (firmware 0.5).** New global setting `Remember_State` (Y/N, default N). When enabled, the pedal powers up in the bank you were using, with every toggle button in the state you left it, instead of always starting in bank 0 with everything off. The state is journaled in a dedicated flash page two seconds after the last change, so it survives configuration re-flashes and does not wear the flash with every press.
@@ -50,7 +51,7 @@ When the connected PC enters sleep (suspend) mode, the device will automatically
 
 Before using the new features (GUI Configurator, Sleep Mode, etc.), you must update the device firmware.
 Please flash the following file included in this repository:
-`artifacts/release-0.6.dfu` (previous releases are kept in `artifacts/` for reference)
+`artifacts/release-0.7.dfu` (previous releases are kept in `artifacts/` for reference)
 
 (See [Loading the firmware](#loading-the-firmware) section for detailed flashing instructions.)
 
@@ -115,6 +116,7 @@ I have had a lot of issues under Windows 10, and there are reports from others o
 - The Channel for each message is configured on each individual command.  So it can address seperate pieces of hardware in a midi chain.
 - 8 banks of 8 buttons.  Each bank can display message strings for identification, and each button a 4 character label shown in a grid on the display with its toggle state.
 - 0 to 10 independant chained commands on each switch/bank position.  Enables configuring different devices, or a series of actions of each button push.
+- A second set of 0 to 10 commands per switch fired by a long press (configurable hold time).
 - CC, Note and Pitch Bend support momentary, toggle, or an on-duration of up to 2.5 sec in 10ms increments. CC can also send just the start message.
 - Program Change messages can include the Bank Select messages prior to the PC message, either just the Lease Signficant Byte or both the LSB & MSB.
 - Pass through of Sync/Start/Stop messages from USB to the Serial MIDI connector (`RealTime_Passthrough`), and optionally of all other MIDI traffic (`USB_MIDI_Thru`) so the pedal works as a USB MIDI interface for the device on its MIDI OUT.

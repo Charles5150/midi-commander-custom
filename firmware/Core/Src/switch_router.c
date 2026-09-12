@@ -26,7 +26,18 @@ typedef struct {
 	uint16_t led_gpio_pin;
 	uint8_t switch_toggle_state; // Each bit will be a flag for pages 0-7
 	uint8_t led_cmd_toggle;
+	// Long press: a second command set fired when the button is held
+	uint8_t long_toggle_state;   // Toggle state of the long press commands, bit per page
+	uint8_t long_cmd_present;    // Bit per page: this button has long press commands
+	uint8_t long_cmd_toggle;     // Bit per page: any long press command is a toggle
+	uint32_t press_tick;         // HAL tick when the button went down
+	uint8_t press_state;         // PRESS_IDLE / PRESS_PENDING / PRESS_SHORT / PRESS_LONG
 } sw_t;
+
+#define PRESS_IDLE		(0)  // Released
+#define PRESS_PENDING	(1)  // Down, waiting to see if it becomes a long press
+#define PRESS_SHORT		(2)  // Short press commands fired, waiting for release
+#define PRESS_LONG		(3)  // Long press commands fired, waiting for release
 
 typedef struct {
 	uint32_t systick_timout;
@@ -170,6 +181,21 @@ uint8_t* get_rom_pointer(uint8_t page, uint8_t sw, uint8_t cmd){
 	return pSwitchCmds + (MIDI_ROM_KEY_STRIDE * sw) + (MIDI_ROM_CMD_SIZE * cmd) + (MIDI_ROM_KEY_STRIDE * 8 * page);
 }
 
+static uint8_t* get_long_rom_pointer(uint8_t page, uint8_t sw, uint8_t cmd){
+	return pLongPressCmds + (MIDI_ROM_KEY_STRIDE * sw) + (MIDI_ROM_CMD_SIZE * cmd) + (MIDI_ROM_KEY_STRIDE * 8 * page);
+}
+
+static inline uint8_t cmd_is_present(const uint8_t *pRom){
+	uint8_t t = *pRom & 0xF0;
+	return t != CMD_NO_CMD_NIBBLE && t != 0xF0; // 0xF0 = erased flash
+}
+
+static uint32_t long_press_threshold_ms(void){
+	uint8_t v = pGlobalSettings[GLOBAL_SETTINGS_LONG_PRESS];
+	if(v == 0 || v == 0xFF) return 500;
+	return (uint32_t)v * 10;
+}
+
 static inline uint8_t sanitize_led_mode(uint8_t mode){
 	// Erased flash (0xFF) or any unknown value falls back to Normal
 	return (mode <= LED_MODE_ALWAYS_ON) ? mode : LED_MODE_NORMAL;
@@ -218,6 +244,20 @@ void sw_led_init(void){
 					a_sw_obj[sw].led_cmd_toggle |= (1<<page);
 				}
 			}
+
+			// Same for the long press command set
+			a_sw_obj[sw].long_cmd_present &= ~(1<<page);
+			a_sw_obj[sw].long_cmd_toggle &= ~(1<<page);
+			for(int cmd=0; cmd<MIDI_NUM_COMMANDS_PER_SWITCH; cmd++){
+				uint8_t *pCmd = get_long_rom_pointer(page, sw, cmd);
+				if(cmd_is_present(pCmd)){
+					a_sw_obj[sw].long_cmd_present |= (1<<page);
+					if(midiCmd_get_cmd_toggle(pCmd)){
+						a_sw_obj[sw].long_cmd_toggle |= (1<<page);
+					}
+				}
+			}
+			a_sw_obj[sw].press_state = PRESS_IDLE;
 		}
 	}
 
@@ -449,53 +489,109 @@ void update_leds_on_bank_change(void){
 	}
 }
 
+// LED of a momentary (non toggle) button following the physical press
+static void set_momentary_led(uint8_t i, uint8_t pressed){
+	if(!(a_sw_obj[i].led_cmd_toggle & (1<<switch_current_page))){
+		uint8_t mode = get_button_led_mode(i);
+		uint8_t state = calculate_led_state(pressed, mode);
+		set_led(i, state ? SET : RESET);
+	}
+}
+
+static void fire_short_down(uint8_t i){
+	sw_t *sw = &a_sw_obj[i];
+	toggle_sw_state(sw);
+
+	// Either toggle the LED, or set it if not toggling
+	if(sw->led_cmd_toggle & (1<<switch_current_page)){
+		uint8_t mode = get_button_led_mode(i);
+		uint8_t active = get_sw_toggle_state(sw);
+		uint8_t state = calculate_led_state(active, mode);
+		set_led(i, state ? SET : RESET);
+	} else {
+		set_momentary_led(i, 1);
+	}
+
+	for(int j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
+		handle_cmd_sw_down(get_rom_pointer(switch_current_page, i, j), get_sw_toggle_state(sw));
+	}
+}
+
+static void fire_short_up(uint8_t i){
+	sw_t *sw = &a_sw_obj[i];
+	set_momentary_led(i, 0);
+	for(int j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
+		handle_cmd_sw_up(get_rom_pointer(switch_current_page, i, j), get_sw_toggle_state(sw));
+	}
+}
+
+static void fire_long_down(uint8_t i){
+	sw_t *sw = &a_sw_obj[i];
+	sw->long_toggle_state ^= (1 << switch_current_page);
+	state_store_mark_dirty();
+	uint8_t toggleState = (sw->long_toggle_state >> switch_current_page) & 1;
+	for(int j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
+		handle_cmd_sw_down(get_long_rom_pointer(switch_current_page, i, j), toggleState);
+	}
+}
+
+static void fire_long_up(uint8_t i){
+	sw_t *sw = &a_sw_obj[i];
+	set_momentary_led(i, 0);
+	uint8_t toggleState = (sw->long_toggle_state >> switch_current_page) & 1;
+	for(int j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
+		handle_cmd_sw_up(get_long_rom_pointer(switch_current_page, i, j), toggleState);
+	}
+}
+
 void handle_switches(void){
 	if(is_app_suspended) return;
 
 	// The Command switches
+	uint32_t now = HAL_GetTick();
 	for(int i=0; i<8; i++){
-		if(*a_sw_obj[i].pSwChangeState & a_sw_obj[i].sw_gpio_pin){
-				*a_sw_obj[i].pSwChangeState &= ~a_sw_obj[i].sw_gpio_pin;
+		sw_t *sw = &a_sw_obj[i];
 
-				if(!HAL_GPIO_ReadPin(a_sw_obj[i].sw_gpio_port, a_sw_obj[i].sw_gpio_pin)){
-					// Switch Down
-					toggle_sw_state(&a_sw_obj[i]);
+		// A pending press becomes a long press once held past the threshold
+		if(sw->press_state == PRESS_PENDING && (now - sw->press_tick) >= long_press_threshold_ms()){
+			fire_long_down(i);
+			sw->press_state = PRESS_LONG;
+		}
 
-					// Either toggle the LED, or set it if not toggling
-					if(a_sw_obj[i].led_cmd_toggle & (1<<switch_current_page)){
-						uint8_t mode = get_button_led_mode(i);
-						uint8_t active = get_sw_toggle_state(&a_sw_obj[i]);
-						uint8_t state = calculate_led_state(active, mode);
-						set_led(i, state ? SET : RESET);
-					} else {
-						// Momentary Logic
-						uint8_t mode = get_button_led_mode(i);
-						uint8_t state = calculate_led_state(1, mode); // Pressed = 1
-						set_led(i, state ? SET : RESET);
-					}
+		if(*sw->pSwChangeState & sw->sw_gpio_pin){
+			*sw->pSwChangeState &= ~sw->sw_gpio_pin;
 
-					for(int j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
-						handle_cmd_sw_down(pSwitchCmds + (MIDI_ROM_KEY_STRIDE * (i + switch_current_page*8)) + (MIDI_ROM_CMD_SIZE * j),
-								get_sw_toggle_state(&a_sw_obj[i]));
-					}
-				}else {
-					// Switch up
-					// Clear the LED if it's not toggling.
-					if(!(a_sw_obj[i].led_cmd_toggle & (1<<switch_current_page))){
-						// Momentary Logic
-						uint8_t mode = get_button_led_mode(i);
-						uint8_t state = calculate_led_state(0, mode); // Pressed = 0
-						set_led(i, state ? SET : RESET);
-					}
-
-					for(int j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
-						handle_cmd_sw_up(pSwitchCmds + (MIDI_ROM_KEY_STRIDE * (i + switch_current_page*8)) + (MIDI_ROM_CMD_SIZE * j),
-								get_sw_toggle_state(&a_sw_obj[i]));
-					}
-
+			if(!HAL_GPIO_ReadPin(sw->sw_gpio_port, sw->sw_gpio_pin)){
+				// Switch Down
+				if(sw->long_cmd_present & (1<<switch_current_page)){
+					// Can't tell yet whether this is a short or a long press
+					sw->press_tick = now;
+					sw->press_state = PRESS_PENDING;
+					set_momentary_led(i, 1);
+				} else {
+					fire_short_down(i);
+					sw->press_state = PRESS_SHORT;
 				}
+			} else {
+				// Switch up
+				switch(sw->press_state){
+				case PRESS_PENDING:
+					// Released before the threshold: it was a short press
+					fire_short_down(i);
+					fire_short_up(i);
+					break;
+				case PRESS_SHORT:
+					fire_short_up(i);
+					break;
+				case PRESS_LONG:
+					fire_long_up(i);
+					break;
+				default:
+					break;
+				}
+				sw->press_state = PRESS_IDLE;
 			}
-
+		}
 	}
 
 	handle_delayed_cmds();
@@ -622,12 +718,19 @@ void sw_get_toggle_states(uint8_t out[8]){
 	}
 }
 
-void sw_restore_state(uint8_t page, const uint8_t toggles[8]){
+void sw_get_long_toggle_states(uint8_t out[8]){
+	for(int i=0; i<8; i++){
+		out[i] = a_sw_obj[i].long_toggle_state;
+	}
+}
+
+void sw_restore_state(uint8_t page, const uint8_t toggles[8], const uint8_t long_toggles[8]){
 	if(page < MIDI_NUM_BANKS){
 		switch_current_page = page;
 	}
 	for(int i=0; i<8; i++){
 		a_sw_obj[i].switch_toggle_state = toggles[i];
+		a_sw_obj[i].long_toggle_state = long_toggles[i];
 	}
 	update_leds_on_bank_change();
 }

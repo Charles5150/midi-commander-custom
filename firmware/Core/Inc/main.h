@@ -107,7 +107,7 @@ void Error(char *msg);
 #define EXP2_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
-#define FIRMWARE_VERSION	"0.6"
+#define FIRMWARE_VERSION	"0.7"
 
 /* USER CODE END Private defines */
 
