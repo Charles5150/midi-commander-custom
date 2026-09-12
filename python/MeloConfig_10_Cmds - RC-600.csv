@@ -3,9 +3,9 @@
 #,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 * Global_Settings,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 Label,Value
-MIDI_Channel,14
+MIDI_Channel,15
 RealTime_Passthrough,N
-ConfigName,RC-600
+ConfigName,Charles
 Exp1_CC,18
 Exp2_CC,19
 Bank_Up_LED_Mode,Normal
@@ -24,12 +24,12 @@ Bank_Number,Bank_Name_Large,Bank_Info_Small
 ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 * Button_Settings,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 Bank_Number,Button_Identifier,A_CommandType,A_Channel_(PC/CC/Note/PB),A_Number_(PC/CC/Note),A_OnValue_(CC/PB),A_OffValue_(CC),A_BankSelect_(PC),A_BankSelectHighByte_(PC),A_Toggle_(CC/PB/Note),A_Velocity_(Note),A_Duration_(Note/PB),B_CommandType,B_Channel_(PC/CC/Note/PB),B_Number_(PC/CC/Note),B_OnValue_(CC/PB),B_OffValue_(CC),B_BankSelect_(PC),B_BankSelectHighByte_(PC),B_Toggle_(CC/PB/Note),B_Velocity_(Note),B_Duration_(Note/PB),C_CommandType,C_Channel_(PC/CC/Note/PB),C_Number_(PC/CC/Note),C_OnValue_(CC/PB),C_OffValue_(CC),C_BankSelect_(PC),C_BankSelectHighByte_(PC),C_Toggle_(CC/PB/Note),C_Velocity_(Note),C_Duration_(Note/PB),D_CommandType,D_Channel_(PC/CC/Note/PB),D_Number_(PC/CC/Note),D_OnValue_(CC/PB),D_OffValue_(CC),D_BankSelect_(PC),D_BankSelectHighByte_(PC),D_Toggle_(CC/PB/Note),D_Velocity_(Note),D_Duration_(Note/PB),E_CommandType,E_Channel_(PC/CC/Note/PB),E_Number_(PC/CC/Note),E_OnValue_(CC/PB),E_OffValue_(CC),E_BankSelect_(PC),E_BankSelectHighByte_(PC),E_Toggle_(CC/PB/Note),E_Velocity_(Note),E_Duration_(Note/PB),F_CommandType,F_Channel_(PC/CC/Note/PB),F_Number_(PC/CC/Note),F_OnValue_(CC/PB),F_OffValue_(CC),F_BankSelect_(PC),F_BankSelectHighByte_(PC),F_Toggle_(CC/PB/Note),F_Velocity_(Note),F_Duration_(Note/PB),G_CommandType,G_Channel_(PC/CC/Note/PB),G_Number_(PC/CC/Note),G_OnValue_(CC/PB),G_OffValue_(CC),G_BankSelect_(PC),G_BankSelectHighByte_(PC),G_Toggle_(CC/PB/Note),G_Velocity_(Note),G_Duration_(Note/PB),H_CommandType,H_Channel_(PC/CC/Note/PB),H_Number_(PC/CC/Note),H_OnValue_(CC/PB),H_OffValue_(CC),H_BankSelect_(PC),H_BankSelectHighByte_(PC),H_Toggle_(CC/PB/Note),H_Velocity_(Note),H_Duration_(Note/PB),I_CommandType,I_Channel_(PC/CC/Note/PB),I_Number_(PC/CC/Note),I_OnValue_(CC/PB),I_OffValue_(CC),I_BankSelect_(PC),I_BankSelectHighByte_(PC),I_Toggle_(CC/PB/Note),I_Velocity_(Note),I_Duration_(Note/PB),J_CommandType,J_Channel_(PC/CC/Note/PB),J_Number_(PC/CC/Note),J_OnValue_(CC/PB),J_OffValue_(CC),J_BankSelect_(PC),J_BankSelectHighByte_(PC),J_Toggle_(CC/PB/Note),J_Velocity_(Note),J_Duration_(Note/PB),Light_Mode,A_KeyMode_(Key),B_KeyMode_(Key),C_KeyMode_(Key),D_KeyMode_(Key),E_KeyMode_(Key),F_KeyMode_(Key),G_KeyMode_(Key),H_KeyMode_(Key),I_KeyMode_(Key),J_KeyMode_(Key)
-0,1,CC,5,5,127,0,,,Y,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,AlwaysOn,,,,,,,,,,
+0,1,CC,5,5,127,0,,,Y,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,Normal,Normal,Normal,Normal,Normal,Normal,Normal,Normal,Normal,Normal,Normal
 0,2,CC,5,6,127,0,,,Y,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,Normal,,,,,,,,,,
 0,3,CC,5,7,127,0,,,Y,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,Normal,,,,,,,,,,
 0,4,CC,5,8,127,0,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,Normal,,,,,,,,,,
-0,A,CC,5,1,127,0,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,Reverse,,,,,,,,,,
-0,B,CC,5,2,127,0,,,N,,,,5,2,0,0,,,N,,,,5,11,0,0,,,N,,,,5,12,127,127,,,N,,,,5,13,0,0,,,N,,,,5,14,0,0,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,Reverse,,,,,,,,,,
+0,A,CC,5,1,127,0,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,Normal,Normal,Normal,Normal,Normal,Normal,Normal,Normal,Normal,Normal,Normal
+0,B,CC,5,2,127,0,,,N,,,,5,2,0,0,,,N,,,,5,11,0,0,,,N,,,,5,12,127,127,,,N,,,,5,13,0,0,,,N,,,,5,14,0,0,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,Normal,Normal,Normal,Normal,Normal,Normal,Normal,Normal,Normal,Normal,Normal
 0,C,Key,5,,A,A,,,N,,0,,5,2,0,0,,,N,,,,5,11,0,0,,,N,,,,5,12,0,0,,,N,,,,5,13,127,127,,,N,,,,5,14,127,127,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,Normal,,,,,,,,,,
 0,D,Key,5,2,l,0,,,N,,0,Key,5,2,l,0,,,N,,1,,5,11,127,127,,,N,,,,5,12,0,0,,,N,,,,5,13,0,0,,,N,,,,5,14,0,0,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,,,,,,,,N,,,Normal,Down,Up,Normal,Normal,Normal,Normal,Normal,Normal,Normal,Normal
 1,1,CC,5.0,16.0,127.0,0.0,,,N,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,Normal,,,,,,,,,,
