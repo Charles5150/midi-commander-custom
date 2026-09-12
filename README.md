@@ -99,16 +99,9 @@ This project provides the following components that work together:
 3. The `python/CSV_to_Flash.py` tool that can load a configuration spreadsheet to the Midi Commander through a simple USB connection
 
 # Build status
-There is the current build under `artifacts/dfu/generated_xxx.dfu`. See the instructions in the [development environment section](#basic-instructions-for-setting-up-development-environment) for building the firmware locally and/or loading it to the device.
+Ready-to-flash images live in `artifacts/`: `release-<version>.dfu` for each tagged firmware, and `artifacts/dfu/platformio-latest.dfu` for the most recent build. Every push is built by CI. See the [development environment section](#basic-instructions-for-setting-up-development-environment) to build the firmware yourself and [Loading the firmware](#loading-the-firmware) to flash it with `dfu-util`.
 
-Anything I leave in there has had a bit of testing on my device, and everything appears to be working ok.  These are still Dev builds, so it's likely they'll have bugs.  But it's something you can play with, and you should be able to go back to an meloaudio build.
-
-Uploading the DFU binary is the same as for the meloaudio firmware.  So download the firmware update tools from the meloaudio website (or directly from ST - package STSW-STM32080) and follow the upgrade manual.
-
-I have had a lot of issues under Windows 10, and there are reports from others on the net to this effect. So I'm using a Windows 7 Virtual Machine to test the DFU aspects, which works fine.
-
-# Improvements in this commit
-24 Apr 22 - The display driver has been modified to use DMA for all transfers, and interrupts to kick off the transfer of each line.  The result is the processor isn't stalled waiting for the display to update. This will allow the display to be utilised more on individual key presses without resulting in delays.  From an end user perspective, there should be no visable change.
+Every release has been tested on a real pedal, but this remains a hobby firmware: keep a copy of your configuration and expect the occasional rough edge. You can always go back to the stock MeloAudio firmware by flashing a vendor DFU image, since the bootloader is never touched.
 
 # Current features list
 - Completely open source, so feel free to contribute (even just bug reports! or better still user guides)
@@ -118,30 +111,30 @@ I have had a lot of issues under Windows 10, and there are reports from others o
 - 8 banks of 8 buttons.  Each bank can display message strings for identification, and each button a 4 character label shown in a grid on the display with its toggle state.
 - 0 to 10 independant chained commands on each switch/bank position.  Enables configuring different devices, or a series of actions of each button push.
 - A second set of 0 to 10 commands per switch fired by a long press (configurable hold time).
-- CC, Note and Pitch Bend support momentary, toggle, or an on-duration of up to 2.5 sec in 10ms increments. CC can also send just the start message.
+- CC, Note and Pitch Bend support momentary, toggle, or an on-duration of up to 1.27 s in 10 ms increments (0-127). CC can also send just the start message.
 - Program Change messages can include the Bank Select messages prior to the PC message, either just the Lease Signficant Byte or both the LSB & MSB.
 - Pass through of Sync/Start/Stop messages from USB to the Serial MIDI connector (`RealTime_Passthrough`), and optionally of all other MIDI traffic (`USB_MIDI_Thru`) so the pedal works as a USB MIDI interface for the device on its MIDI OUT.
-- Dual expression pedal inputs (PA7/PB0 via ADC1 ch7/ch8) emit MIDI CCs (EXP1 → CC#11, EXP2 → CC#4) on the configured global channel.
+- Dual expression pedal inputs (PA7/PB0 via ADC1 ch7/ch8) emit MIDI CCs (EXP1 → CC#11, EXP2 → CC#4 by default; CC numbers, channel, range and response curve are configurable, see [Expression pedals](#expression-pedals)).
 
 - Firmware can be loaded through the normal DFU update process.
 - Configuration has been moved to the FLASH memory, so this will not affect the standard Melo firmware configuration that is stored in an external EEPROM.
 
 # Still to come
-- The battery management has not been considered yet.  Not sure if it even works on batteries with this.
-- Plenty of code tidying to be done
-- Plenty of testing needed
-- Needs documentation.
+- Battery management has not been considered; battery operation is untested.
+- LED brightness control (software PWM).
+- HID media keys (play/pause, volume).
+- More than 8 banks; the flash has room for it.
 
 ## Expression pedals
 
-Both 1/4" expression jacks now route to `ADC1` (channels 7 and 8 on PA7/PB0). The firmware samples each pedal every 5 ms, applies a small dead-zone, and transmits MIDI CC messages immediately when the value moves at least two counts. By default:
+Both 1/4" expression jacks route to `ADC1` (channels 7 and 8 on PA7/PB0). Each pedal is sampled every millisecond with the pin switched to pull-down between readings (which prevents crosstalk between the two inputs), smoothed with an adaptive filter that tracks fast movements immediately and averages small jitter, and passed through a small hysteresis so a resting pedal does not chatter. A CC is sent only when the resulting 7-bit value changes. By default:
 
 - EXP1 → CC #11 (Expression 1)
 - EXP2 → CC #4 (Foot Control 2)
 
-The channel comes from the `MIDI_Channel` field (1-16) in the `Global_Settings` section of the configuration, or from the per-pedal `Channel` in `Expression_Settings`, so you can point the pedals at any target rig without code changes. The CC numbers can be overridden with the `Exp1_CC` and `Exp2_CC` fields, and the range, curve and direction of each pedal are calibrated from the GUI's Expression tab. You can tweak CC numbers or the sampling interval in `firmware/Core/Src/expression.c` if you need a different mapping or response curve.
+The channel comes from the `MIDI_Channel` field (1-16) in the `Global_Settings` section of the configuration, or from the per-pedal `Channel` in `Expression_Settings`. The CC numbers are set with `Exp1_CC` and `Exp2_CC`. The end points, response curve (linear, log, exp) and direction of each pedal are calibrated from the GUI's Expression tab, which shows the live pedal position read from the device; uncalibrated pedals map 80..3900 ADC counts linearly. Only the sampling interval and filter constants remain compile-time values in `firmware/Core/Src/expression.c`.
 
-If a connected pedal still produces no CC output (e.g. `amidi -d` remains silent), follow the step-by-step guide in `docs/expression_pedal_troubleshooting.md` to verify firmware, hardware wiring, and MIDI monitoring.
+If a connected pedal produces no CC output, open the GUI's Expression tab and press **Connect live view**: if the raw value does not move with the pedal, the problem is the cable or jack; if it moves but no CC appears in your MIDI monitor, check the channel and CC number in the configuration.
 
 
 # Configuration
@@ -153,7 +146,7 @@ https://docs.google.com/spreadsheets/d/1KwKj3sYrNEkEl8ONipW-ZGSLD7r_W1NfWwyGgjnb
 
 Roughly, the spreadsheet allows you to specify for each button press up to 10 independant MIDI commands. For each command the following characteristics can be chosen independently:
 
-- Type: PC/CC/Note/PB (Pitch Bend)/Start/Stop
+- Type: PC/CC/Note/PB (Pitch Bend)/Key/Start/Stop
 - Midi Channel
 - PC/CC/Note number
 - CC/PB button on value
@@ -164,7 +157,7 @@ Roughly, the spreadsheet allows you to specify for each button press up to 10 in
   - If disabled, the button on value is sent when the button is held down, and the button off value is sent when the button is released. So each button press results in 2 commands sent.
   - If enabled, the button on value is sent at the first button press, and the button off value is sent at the next button press and so on. So each button press results in 1 command sent. The LED of the button is toggled on and off at each button press.
 - Note velocity
-- Note/PB duration (up to 2.5 seconds in 10ms increments)
+- Note/PB duration (up to 1.27 s, in 10 ms increments from 0 to 127)
 
 ### Sending Keyboard Keys (HID)
 
@@ -297,10 +290,10 @@ Found DFU: [0483:df11] ver=0200, devnum=12, cfg=1, intf=0, path="4-1", alt=1, na
 Found DFU: [0483:df11] ver=0200, devnum=12, cfg=1, intf=0, path="4-1", alt=0, name="@Internal Flash  /0x08000000/06*002Ka,250*002Kg", serial="5CE867623433"
 ```
 
-If you have a DFU file (e.g. from `artifacts/dfu/generated-*.dfu`), you can load it as follows. `--alt 0` should be used because it corresponds to the address range of the internal flash `0x80000000` in the list above.
+To load a release image (`artifacts/release-<version>.dfu`), use `--alt 0`, which corresponds to the internal flash entry `0x08000000` in the list above:
 
 ```bash
-dfu-util --alt 0 --download ./artifacts/dfu/generated-*.dfu
+dfu-util -d 0483:df11 --alt 0 --download artifacts/release-0.8.dfu
 ```
 
 If you are building the firmware yourself, `platformio run -e midi_dfu` already emits both `.pio/build/midi_dfu/firmware.bin` and the packaged DFU under `artifacts/dfu`. You can also sidestep the DFU wrapper and push the raw binary directly:
@@ -324,9 +317,9 @@ This command emits `artifacts/dfu/platformio-<timestamp>.dfu`, refreshes `platfo
 
 ## Python development
 
-Python files under `python/` can be edited directly, however it is recommended to use the VS Code workspace at the root of this repository with the recommended extensions. It is configured to use auto-formatting with Black and type checking with MyPy.
+Python files under `python/` can be edited directly; the repository recommends the Black and MyPy VS Code extensions (`.vscode/extensions.json`).
 
-The main entry point is `python/CSV_to_Flash.py` and some functionality is offloaded to modules under `python/lib`.
+The entry points are `python/gui_configurator.py`, `python/CSV_to_Flash.py` and `python/Flash_to_CSV.py`; the CSV parsing, packing and unpacking live in `python/lib`, with round-trip tests under `python/tests`.
 
 ## Acknowledgements
 - @harvie256: project founder, original firmware, flash-based configuration and SysEx flashing tool
