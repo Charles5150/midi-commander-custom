@@ -261,6 +261,7 @@ void handle_delayed_cmds(void){
 			switch(*pRom & 0xF0){
 			case CMD_PB_NIBBLE:
 				midiCmd_send_pb_command_from_rom(pRom, MIDI_CONTROL_OFF);
+				break;
 			case CMD_NOTE_NIBBLE:
 				midiCmd_send_note_command_from_rom(pRom, MIDI_CONTROL_OFF);
 				break;
