@@ -167,8 +167,8 @@ class SlotEditor:
         self.initial = initial
         self.widgets = {}
 
-        self.frame = ctk.CTkFrame(parent, fg_color="transparent")
-        self.frame.pack(fill="x", pady=2)
+        self.frame = ctk.CTkFrame(parent, fg_color="transparent", height=36)
+        self.frame.pack(fill="x", padx=6, pady=1, anchor="w")
 
         ctk.CTkLabel(self.frame, text=slot, width=24, font=BOLD).pack(
             side="left", padx=(0, 4)
@@ -179,8 +179,10 @@ class SlotEditor:
         )
         self.type_menu.pack(side="left", padx=4)
 
-        self.params = ctk.CTkFrame(self.frame, fg_color="transparent")
-        self.params.pack(side="left", fill="x", expand=True)
+        # A frame with no children keeps its configured size instead of
+        # shrinking, so give it a small one for slots without parameters.
+        self.params = ctk.CTkFrame(self.frame, fg_color="transparent", width=10, height=30)
+        self.params.pack(side="left")
         self._rebuild(self.type_menu.get())
 
     # Small builders --------------------------------------------------------
@@ -200,7 +202,7 @@ class SlotEditor:
         self.widgets[key] = w
 
     def _check(self, key, text, field):
-        w = Check(self.params, text=text, checked=is_yes(self.initial.get(field)), width=60)
+        w = Check(self.params, text=text, checked=is_yes(self.initial.get(field)), width=20)
         w.pack(side="left", padx=(10, 0))
         self.widgets[key] = w
 
@@ -234,18 +236,18 @@ class SlotEditor:
         elif cmd_type == "Key":
             mask = to_int(self.initial.get("Number_(PC/CC/Note)"))
             for name, bit in MODIFIERS:
-                w = Check(self.params, text=name, checked=bool(mask & bit), width=55)
-                w.pack(side="left", padx=(4, 0))
+                w = Check(self.params, text=name, checked=bool(mask & bit), width=20)
+                w.pack(side="left", padx=(6, 0))
                 self.widgets[f"mod_{bit}"] = w
             self._label("Key")
-            w = Combo(self.params, KEY_NAMES, self.initial.get("OnValue_(CC/PB)"), width=90)
+            w = Combo(self.params, KEY_NAMES, self.initial.get("OnValue_(CC/PB)"), width=85)
             w.pack(side="left")
             self.widgets["key"] = w
             self._label("Mode")
-            w = Option(self.params, KEY_MODES, self.initial.get("KeyMode_(Key)"), width=80)
+            w = Option(self.params, KEY_MODES, self.initial.get("KeyMode_(Key)"), width=78)
             w.pack(side="left")
             self.widgets["keymode"] = w
-            self._int("duration", "Dur", "Duration_(Note/PB)", 0, 127)
+            self._int("duration", "Dur", "Duration_(Note/PB)", 0, 127, width=50)
             self._check("toggle", "Hold", "Toggle_(CC/PB/Note)")
         # Start, Stop and (none) have no parameters
 
@@ -290,7 +292,7 @@ class MidiCommanderGUI(ctk.CTk):
         super().__init__()
 
         self.title("MIDI Commander Configurator")
-        self.geometry("1150x720")
+        self.geometry("1200x720")
 
         self.df_global = None
         self.df_banks = None
@@ -364,8 +366,8 @@ class MidiCommanderGUI(ctk.CTk):
         self.bank_selector = ctk.CTkOptionMenu(top, command=self.on_bank_change, width=80)
         self.bank_selector.pack(side="left", padx=10)
 
-        self.button_matrix = ctk.CTkFrame(tab, width=160)
-        self.button_matrix.grid(row=1, column=0, sticky="ns", padx=5, pady=5)
+        self.button_matrix = ctk.CTkFrame(tab, width=130)
+        self.button_matrix.grid(row=1, column=0, sticky="ns", padx=(5, 0), pady=5)
 
         self.cmd_editor = ctk.CTkScrollableFrame(tab)
         self.cmd_editor.grid(row=1, column=1, sticky="nsew", padx=5, pady=5)
@@ -508,8 +510,9 @@ class MidiCommanderGUI(ctk.CTk):
             ctk.CTkButton(
                 self.button_matrix,
                 text=f"Button {btn_id}",
+                width=110,
                 command=lambda rid=idx, bid=btn_id: self.load_button_commands(rid, bid),
-            ).pack(pady=5, padx=10, fill="x")
+            ).pack(pady=5, padx=8)
 
     def load_button_commands(self, row_index, btn_id):
         self.apply_button_changes(silent=True)
@@ -521,26 +524,26 @@ class MidiCommanderGUI(ctk.CTk):
 
         ctk.CTkLabel(
             self.cmd_editor,
-            text=f"Editing: Bank {self.bank_selector.get()} - Button {btn_id}",
+            text=f"Bank {self.bank_selector.get()} - Button {btn_id}",
             font=("Arial", 16, "bold"),
-        ).pack(pady=(10, 5))
+        ).pack(anchor="w", padx=10, pady=(5, 5))
 
         current = self.df_buttons.loc[row_index]
 
         light_frame = ctk.CTkFrame(self.cmd_editor, fg_color="transparent")
-        light_frame.pack(pady=(0, 10))
-        ctk.CTkLabel(light_frame, text="LED light mode:", font=BOLD).pack(side="left", padx=5)
+        light_frame.pack(anchor="w", padx=10, pady=(0, 8))
+        ctk.CTkLabel(light_frame, text="LED light mode:", font=BOLD).pack(side="left")
         self.light_mode = Option(light_frame, LED_MODES, current.get("Light_Mode"), width=110)
-        self.light_mode.pack(side="left", padx=5)
+        self.light_mode.pack(side="left", padx=8)
 
         ctk.CTkLabel(
             self.cmd_editor,
-            text="Commands are sent in order A to J when the button is pressed",
-            text_color="gray",
-        ).pack()
+            text="Commands, sent in order A to J when the button is pressed:",
+            font=BOLD,
+        ).pack(anchor="w", padx=10, pady=(0, 2))
 
-        table = ctk.CTkFrame(self.cmd_editor, fg_color="transparent")
-        table.pack(fill="x", padx=10, pady=5)
+        table = ctk.CTkFrame(self.cmd_editor)
+        table.pack(fill="x", padx=10, pady=(0, 5))
         for slot in SLOTS:
             initial = {f: current.get(f"{slot}_{f}") for f in CMD_FIELDS}
             self.slot_editors.append(SlotEditor(table, slot, initial))
@@ -548,11 +551,13 @@ class MidiCommanderGUI(ctk.CTk):
         ctk.CTkLabel(
             self.cmd_editor,
             text=(
-                "Dur = duration in 10 ms steps (0-127). "
-                "Bend = -8192..8191. Bank = 0..16383. Hold = key stays pressed until next press."
+                "Dur = duration in 10 ms steps (0-127).  Bend = -8192..8191.  "
+                "Bank = 0..16383.  Hold = key stays pressed until the next press."
             ),
             text_color="gray",
-        ).pack(pady=(5, 0))
+            justify="left",
+            wraplength=720,
+        ).pack(anchor="w", padx=10)
 
         ctk.CTkButton(
             self.cmd_editor,
@@ -560,7 +565,7 @@ class MidiCommanderGUI(ctk.CTk):
             command=self.apply_button_changes,
             fg_color="green",
             hover_color="darkgreen",
-        ).pack(pady=15)
+        ).pack(anchor="w", padx=10, pady=12)
 
     def apply_button_changes(self, silent=False):
         """Copy the editor widgets back into df_buttons."""
