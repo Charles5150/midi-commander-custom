@@ -244,7 +244,8 @@ class RoundTripTest(unittest.TestCase):
         off = unpacker.LONG_PRESS_OFFSET + 3 * unpacker.BUTTON_STRIDE
         self.assertEqual(list(packed[off : off + 4]), [0xB4, 20, 127, 0])
         off = unpacker.LONG_PRESS_OFFSET + 63 * unpacker.BUTTON_STRIDE + 4
-        self.assertEqual(list(packed[off : off + 4]), [0xC0, 9, 0x80, 0])
+        # 0xFF in byte 3: no Bank Select configured, so none is sent
+        self.assertEqual(list(packed[off : off + 4]), [0xC0, 9, 0x80, 0xFF])
         # Short press commands untouched
         self.assertEqual(packed[: unpacker.LONG_PRESS_OFFSET], base[: unpacker.LONG_PRESS_OFFSET])
 
@@ -392,7 +393,8 @@ class RoundTripTest(unittest.TestCase):
         df.loc[3, ["A_CommandType", "A_Channel_(PC/CC/Note/PB)", "A_Number_(PC/CC/Note)"]] = ["PC", "2", "7"]
         packed = pack_config({**sections, "BankEnter_Settings": df})
         off = unpacker.BANK_ENTER_OFFSET + 3 * unpacker.BUTTON_STRIDE
-        self.assertEqual(list(packed[off : off + 4]), [0xC1, 7, 0x80, 0])
+        # 0xFF in byte 3: no Bank Select configured, so none is sent
+        self.assertEqual(list(packed[off : off + 4]), [0xC1, 7, 0x80, 0xFF])
         # Nothing before the section moved
         self.assertEqual(packed[: unpacker.BANK_ENTER_OFFSET], base[: unpacker.BANK_ENTER_OFFSET])
         decoded = unpacker.unpack_config(packed)[5]
@@ -629,3 +631,83 @@ class FirmwareLayoutTest(unittest.TestCase):
                 self.assertEqual(self.value(name), getattr(sbp, name), name)
                 checked += 1
         self.assertGreaterEqual(checked, 10)
+
+
+class BankSelectTest(unittest.TestCase):
+    """A Program Change must only send Bank Select when one is configured.
+
+    The firmware sends a Bank Select byte whenever its byte is below 0x80, so
+    writing 0 for an empty field made every Program Change send an unwanted
+    Bank Select LSB of 0, which changes bank on some devices.
+    """
+
+    @staticmethod
+    def encode(bank_select, high_byte="N", number="7"):
+        row = {f"A_{f}": "" for f in unpacker.CMD_FIELDS}
+        row["A_CommandType"] = "PC"
+        row["A_Channel_(PC/CC/Note/PB)"] = "1"
+        row["A_Number_(PC/CC/Note)"] = number
+        row["A_BankSelect_(PC)"] = bank_select
+        row["A_BankSelectHighByte_(PC)"] = high_byte
+        row["A_KeyMode_(Key)"] = ""
+        return bytes(cbp.pack_row(pd.Series(row)))[:4]
+
+    @staticmethod
+    def sends_msb(packed):
+        return packed[2] < 0x80
+
+    @staticmethod
+    def sends_lsb(packed):
+        return packed[3] < 0x80
+
+    def test_empty_sends_no_bank_select(self):
+        for empty in ("", "  ", float("nan"), None):
+            packed = self.encode(empty)
+            self.assertFalse(self.sends_msb(packed), repr(empty))
+            self.assertFalse(self.sends_lsb(packed), repr(empty))
+            self.assertEqual(packed[1], 7, repr(empty))
+
+    def test_zero_still_sends_bank_select_zero(self):
+        """An explicit 0 is a real Bank Select and must survive."""
+        packed = self.encode("0")
+        self.assertFalse(self.sends_msb(packed))
+        self.assertTrue(self.sends_lsb(packed))
+        self.assertEqual(packed[3], 0)
+
+    def test_low_byte_only(self):
+        packed = self.encode("5")
+        self.assertFalse(self.sends_msb(packed))
+        self.assertTrue(self.sends_lsb(packed))
+        self.assertEqual(packed[3], 5)
+
+    def test_high_byte(self):
+        packed = self.encode("1000", high_byte="Y")
+        self.assertTrue(self.sends_msb(packed))
+        self.assertTrue(self.sends_lsb(packed))
+        self.assertEqual((packed[2] << 7) | (packed[3] & 0x7F), 1000)
+
+    def test_round_trip(self):
+        cases = [("", "N", ""), ("0", "N", "0"), ("5", "N", "5"), ("1000", "Y", "1000")]
+        for value, high, expected in cases:
+            decoded = unpacker.unpack_command(self.encode(value, high))
+            self.assertEqual(decoded["BankSelect_(PC)"], expected, value)
+            if expected:
+                self.assertEqual(decoded["BankSelectHighByte_(PC)"], high, value)
+
+    def test_demo_has_both_kinds(self):
+        """The demo must keep covering a Program Change with and without one."""
+        packed = packer.pack_config(read_config_csv(DEMO_CSV))
+        with_bs = without_bs = 0
+        regions = [(unpacker.COMMANDS_OFFSET, 256), (unpacker.LONG_PRESS_OFFSET, 256),
+                   (unpacker.BANK_ENTER_OFFSET, 32), (unpacker.BANK_SWITCH_OFFSET, 4)]
+        for start, count in regions:
+            for i in range(count):
+                for j in range(10):
+                    o = start + i * unpacker.BUTTON_STRIDE + j * unpacker.CMD_SIZE
+                    if packed[o] & 0xF0 == 0xC0:
+                        if packed[o + 2] < 0x80 or packed[o + 3] < 0x80:
+                            with_bs += 1
+                        else:
+                            without_bs += 1
+        self.assertGreater(without_bs, 0, "no plain Program Change in the demo")
+        self.assertGreater(with_bs, 0, "no Program Change with Bank Select in the demo")

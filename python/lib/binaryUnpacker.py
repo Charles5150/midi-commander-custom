@@ -156,10 +156,15 @@ def unpack_command(raw: bytes) -> dict:
         cmd["Channel_(PC/CC/Note/PB)"] = channel
         cmd["Number_(PC/CC/Note)"] = str(b1 & 0x7F)
         if b2 < 0x80:
+            # High byte present, so the value spans both bytes
             cmd["BankSelect_(PC)"] = str((b2 << 7) | (b3 & 0x7F))
             cmd["BankSelectHighByte_(PC)"] = "Y"
-        else:
+        elif b3 < 0x80:
             cmd["BankSelect_(PC)"] = str(b3 & 0x7F)
+            cmd["BankSelectHighByte_(PC)"] = "N"
+        else:
+            # Neither byte holds a value: the command sends no Bank Select
+            cmd["BankSelect_(PC)"] = ""
             cmd["BankSelectHighByte_(PC)"] = "N"
     elif cmd_type == CMD_CC_NIBBLE:
         cmd["CommandType"] = "CC"

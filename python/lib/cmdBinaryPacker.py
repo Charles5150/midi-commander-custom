@@ -131,6 +131,23 @@ def get_toggle_bit(toggle_str):
 
 # Program Change (or patch change) command, including back select
 def cmd_pc(cmd):
+    """Encode a Program Change, with Bank Select only when one is asked for.
+
+    The firmware sends a Bank Select byte whenever its byte is below 0x80, so
+    0x80 or above is the only way to say "send none". Writing 0 for an empty
+    field, as this used to, made every Program Change send an unwanted
+    Bank Select LSB of 0, which on some devices changes bank.
+    """
+    raw = str(cmd["BankSelect_(PC)"]).strip()
+    if raw.lower() in ("", "nan", "none"):
+        # No Bank Select at all: both bytes marked as absent
+        return [
+            CMD_PC_NIBBLE | channel_nibble(cmd["Channel_(PC/CC/Note/PB)"]),
+            safe_int(cmd["Number_(PC/CC/Note)"]) & 0x7F,
+            0x80,
+            0xFF,
+        ]
+
     bank_select_low = safe_int(cmd["BankSelect_(PC)"]) & 0x7F
 
     bs_high_str = str(cmd["BankSelectHighByte_(PC)"])
