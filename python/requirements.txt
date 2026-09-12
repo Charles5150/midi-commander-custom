@@ -2,3 +2,4 @@ argparse
 pandas
 mido
 python-rtmidi
+customtkinter

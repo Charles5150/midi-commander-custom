@@ -1,7 +1,16 @@
 # Midi Commander Custom Firmware
 
-This is a fork of the custom firmware for MeloAudio Midi Commander.
-It introduces a GUI configuration tool and advanced LED control modes.
+Custom firmware for the MeloAudio Midi Commander, with a GUI configuration tool, advanced LED control modes, HID keyboard output, dual expression pedals and sleep mode.
+
+This repository is a fork of [arasan95/midi-commander-custom](https://github.com/arasan95/midi-commander-custom), which in turn builds on the original project by [harvie256](https://github.com/harvie256/midi-commander-custom). None of this would exist without their work and that of the other contributors listed in the [Acknowledgements](#acknowledgements). Thank you all.
+
+## Changes in this fork
+
+- **Fixed a spurious Note Off after timed pitch bend commands.** When a pitch bend with a duration expired, the firmware also sent a Note Off built from the pitch bend bytes because of a missing `break` in `handle_delayed_cmds`. Only the pitch bend reset is sent now.
+- **Global `MIDI_Channel` is now 1-based (1-16)**, matching the per-command `Channel` field. Previously the packer wrote the CSV value straight to flash, so a value of 14 made the expression pedals transmit on channel 15. If you had compensated for this in your CSV, adjust the value.
+- **Documented the expression pedal settings** (`MIDI_Channel`, `Exp1_CC`, `Exp2_CC`) in the README.
+- **Added `customtkinter` to `python/requirements.txt`**, which the GUI needs but was missing.
+- Rebuilt `artifacts/dfu/platformio-latest.dfu` with the firmware fix.
 
 ## New Features
 
@@ -302,6 +311,9 @@ Python files under `python/` can be edited directly, however it is recommended t
 The main entry point is `python/CSV_to_Flash.py` and some functionality is offloaded to modules under `python/lib`.
 
 ## Acknowledgements
-- @harvie256: project founder
-- @eliericha: expansion to 10 commands per button
+- @harvie256: project founder, original firmware, flash-based configuration and SysEx flashing tool
+- @eliericha: expansion to 10 commands per button, Python tooling and macOS documentation
+- @redcloud80: DMA and interrupt driven display driver
 - @BenjaminJensen: the info on expression pedals
+- Ivaylo Milanov: PlatformIO migration, DFU packaging workflow and expression pedal ADC pin map
+- @arasan95: GUI configurator, LED light modes, HID keyboard output, dual expression pedal filtering and sleep mode
