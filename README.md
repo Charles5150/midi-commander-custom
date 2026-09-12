@@ -1,327 +1,287 @@
 # Midi Commander Custom Firmware
 
-Custom firmware for the MeloAudio Midi Commander, with a GUI configuration tool, advanced LED control modes, HID keyboard output, dual expression pedals and sleep mode.
+Custom firmware and configuration tools for the **MeloAudio Midi Commander** foot controller: eight banks of eight buttons, up to ten MIDI commands per press plus ten more on a long press, USB keyboard keys, two calibrated expression pedals, button labels on the display, USB-to-DIN MIDI thru, and a desktop configurator that talks to the pedal over USB.
 
 This repository is a fork of [arasan95/midi-commander-custom](https://github.com/arasan95/midi-commander-custom), which in turn builds on the original project by [harvie256](https://github.com/harvie256/midi-commander-custom). None of this would exist without their work and that of the other contributors listed in the [Acknowledgements](#acknowledgements). Thank you all.
 
-## Changes in this fork
-
-- **Expression pedal calibration (firmware 0.8).** New `Expression_Settings` CSV section and **Expression** tab in the GUI with, per pedal: calibrated minimum and maximum ADC values, response curve (Linear, Log = fast at the start, Exp = slow at the start), invert, and a fixed MIDI channel or the global one. The GUI shows the live pedal position and CC value read from the device over SysEx (`GET_PEDALS`, 62) and has a **Calibrate** button: press it, sweep the pedal from heel to toe a couple of times, press Done, and the end points are filled in with a small margin so 0 and 127 are always reached. Pedals with no calibration behave as before (80..3900 linear).
-- **Long press (firmware 0.7).** Every button has a second set of up to 10 commands that fires when the button is held longer than `Long_Press_ms` (global setting, default 500 ms). A short press fires the normal commands on release. Buttons with no long press commands keep reacting instantly on press, so nothing changes for them. Long press commands live in a new `LongPress_Settings` CSV section with the same columns as `Button_Settings`; in the GUI, switch the editor between **Short press** and **Long press**. Long press toggles keep their own state, also restored at power on when `Remember_State` is on. Typical use with a looper: short press = record/play, long press = undo or clear.
-- **Button labels on the display (firmware 0.6).** Each button has a 4 character `Label` (new column in `Button_Settings`, "Display label" field in the GUI). The screen now shows the bank name on the top line and a 2x4 grid below it laid out like the pedal: buttons 1 2 3 4 on the top row, A B C D on the bottom row. Buttons without a label show their identifier. Cells of toggle buttons are drawn inverted while the toggle is on, so you can see the state of every button at a glance. The label table follows the LED mode table in flash; older configurations read as blank labels.
-- **Flash page size corrected.** The STM32F103RE has 2 kB pages, so the configuration area is 6 kB rather than the 3 kB the code assumed. The tools now report the real limit.
-- **Remember the last bank and toggle states (firmware 0.5).** New global setting `Remember_State` (Y/N, default N). When enabled, the pedal powers up in the bank you were using, with every toggle button in the state you left it, instead of always starting in bank 0 with everything off. The state is journaled in a dedicated flash page two seconds after the last change, so it survives configuration re-flashes and does not wear the flash with every press.
-- **Continuous integration.** GitHub Actions builds both firmware images and runs the Python tests on every push and pull request.
-- **USB to DIN MIDI thru (firmware 0.4).** New global setting `USB_MIDI_Thru` (Y/N, default N). When enabled, every channel message (notes, CC, PC, pitch bend, pressure), system common message and SysEx not addressed to the pedal received over USB is forwarded to the DIN output, so the Midi Commander doubles as a USB MIDI interface for whatever is plugged into its MIDI OUT. Clock, Start, Continue and Stop are still governed by `RealTime_Passthrough`. The USB receive parser was rewritten to walk 4 byte USB MIDI events properly, which also fixes a buffer overflow when a long SysEx from another device was received.
-- **LED light modes moved out of the command bytes (firmware 0.3).** Previously `Light_Mode` was encoded in bit 7 of bytes 2 and 3 of the button's first command, which corrupted that command depending on its type: a CC with AlwaysOn never sent its off value, a Note with AlwaysOn got a 1.28 s or longer duration, a Key with AlwaysOn became a toggle or with Reverse sent the wrong key, and a PC without Bank Select MSB always showed as Reverse. The modes now live in a separate 64 byte table after the commands. **This changes the configuration format:** after flashing firmware 0.3, re-flash your configuration with the updated tools, otherwise every button LED falls back to Normal.
-- **GUI rework.** Every bounded field is now a drop-down or a check box (channels, LED modes, toggles, key names, keyboard modifiers, Y/N settings) and numeric fields only accept values in their valid range. The button editor shows just the fields each command type uses, and gains the Bank Select, Bank Select MSB, Velocity, Start and Stop fields that were previously only editable in the CSV. Edits are applied automatically when switching buttons, and FLASH TO DEVICE saves the CSV first.
-- **Configuration read-back (firmware 0.2).** The device can now send its stored configuration back over USB MIDI. `python/Flash_to_CSV.py <file.csv>` dumps it as a CSV in the usual layout, and the GUI has a **Read from Device** button that does the same and loads the result into the editor. Two SysEx commands were added: `READ_FLASH` (56) and `GET_VERSION` (58). Older firmware ignores them, so the tools detect the missing support and ask you to update.
-- **Round-trip tests for the packers.** `python -m unittest python/tests/test_roundtrip.py` packs the sample CSV, decodes it again and compares every field.
-- **Fixed a spurious Note Off after timed pitch bend commands.** When a pitch bend with a duration expired, the firmware also sent a Note Off built from the pitch bend bytes because of a missing `break` in `handle_delayed_cmds`. Only the pitch bend reset is sent now.
-- **Global `MIDI_Channel` is now 1-based (1-16)**, matching the per-command `Channel` field. Previously the packer wrote the CSV value straight to flash, so a value of 14 made the expression pedals transmit on channel 15. If you had compensated for this in your CSV, adjust the value.
-- **Documented the expression pedal settings** (`MIDI_Channel`, `Exp1_CC`, `Exp2_CC`) in the README.
-- **Added `customtkinter` to `python/requirements.txt`**, which the GUI needs but was missing.
-- Rebuilt `artifacts/dfu/platformio-latest.dfu` with the firmware fix.
-
-## New Features
-
-### GUI Configurator
-
-A Python-based GUI (`python/gui_configurator.py`) allows for easy configuration editing and flashing, removing the need to edit CSV files manually.
-
-### LED Light Modes
-
-Three modes are available for button LEDs:
-
-- **Normal** : Standard behavior.
-- **Reverse** : Inverted behavior (lit when released/OFF).
-- **AlwaysOn** : Always lit, blinks when active (pressed/ON).
-
-### Bank LED Settings
-
-Bank Up/Down LED behaviors can also be customized via Global Settings.
-
-### Sleep Mode Support
-
-When the connected PC enters sleep (suspend) mode, the device will automatically turn off all LEDs and the display to save power. It will wake up automatically when the PC wakes up.
-*Note: Button inputs are disabled during sleep mode.*
-
-### Usage
-
-**IMPORTANT: Firmware Update Required**
-
-Before using the new features (GUI Configurator, Sleep Mode, etc.), you must update the device firmware.
-Please flash the following file included in this repository:
-`artifacts/release-0.8.dfu` (previous releases are kept in `artifacts/` for reference)
-
-(See [Loading the firmware](#loading-the-firmware) section for detailed flashing instructions.)
-
-Launching the GUI Tool
-
-1. Start the Midi Commander in normal mode and connect it to your PC.
-2. Then run the following command:
-
-```
-bash
-python python/gui_configurator.py
-```
-
-Configuration Workflow
-
-1. When the application starts, the sample configuration CSV is loaded. Click **Read from Device** to pull the configuration currently stored on the connected Midi Commander instead (requires firmware 0.2 or later), or **Load CSV** to open one of your own.
-
-2. Click a button on the screen to edit its LED mode and its ten command slots. Pick the command type of each slot and only the fields that type uses appear: channel and value drop-downs, check boxes for toggles, a key picker and Ctrl/Shift/Alt/Cmd boxes for keyboard commands, and number fields that only accept values in range.
-
-3. Edits are kept in memory automatically when you switch button or bank. Apply Changes to Memory does the same explicitly.
-
-4. In the Global Settings tab, you can also configure the expression pedal CCs, LED behavior for bank buttons, realtime passthrough and USB MIDI thru.
-
-5. Click Save CSV to save the configuration file.
-
-6. Finally, click FLASH TO DEVICE. The current settings are saved to the CSV and transferred to the hardware, and the device automatically reboots.
-
-<img src="docs/images/gui_workflow.png" width="500">
+The firmware replaces the stock MeloAudio one but never touches its bootloader, so you can always flash the vendor image back. Its configuration lives in the microcontroller's own flash, so the stock configuration stored in the external EEPROM is left untouched.
 
 ---
 
-# midi-commander-custom
+## Contents
 
-Custom Firmware for the MeloAudio Midi Commander
+1. [Features](#features)
+2. [Getting started](#getting-started)
+3. [The configurator](#the-configurator)
+4. [Configuration reference](#configuration-reference)
+5. [The display](#the-display)
+6. [Command line tools](#command-line-tools)
+7. [Building and flashing from source](#building-and-flashing-from-source)
+8. [Changelog](#changelog)
+9. [Still to come](#still-to-come)
+10. [Acknowledgements](#acknowledgements)
 
-There's no intention of this replacing the default firmware functions. I'm creating this purely for custom requirements that the original firmware will never fulfill.
+---
 
-This project provides the following components that work together:
+## Features
 
-1. A custom firmware to be loaded onto the Midi Commander (e.g. using DFU tool)
+- **8 banks × 8 buttons.** Bank Up / Bank Down switch banks; each bank has a name shown on the display.
+- **Up to 10 commands per button press**, sent in order. Any mix of Program Change (with optional Bank Select), Control Change, Note, Pitch Bend, Start, Stop and USB keyboard keys, each on its own MIDI channel.
+- **Long press.** A second set of up to 10 commands fires when a button is held past a configurable time (default 500 ms). Buttons without long press commands react instantly, as before.
+- **Momentary or toggle** behaviour per command, and timed auto-release (up to 1.27 s) for Notes, Pitch Bend and keys.
+- **Button labels on the display.** Each button has a 4 character label; the screen shows the current bank and a 2×4 grid mirroring the pedal, with toggle buttons drawn inverted while on.
+- **LED modes** per button: Normal, Reverse (lit when off) or AlwaysOn (blinks while active). The Bank Up / Down LEDs have the same options.
+- **USB keyboard (HID).** A command can press a key with Ctrl / Shift / Alt / Cmd modifiers, tap it, hold it or release it.
+- **Two expression pedals** with per-pedal CC number, MIDI channel, calibrated end points, response curve and direction, calibrated live from the configurator.
+- **USB-to-DIN MIDI thru.** Optionally forward everything received over USB to the MIDI OUT jack, so the pedal doubles as a USB MIDI interface for the device behind it. Clock / Start / Continue / Stop have their own switch.
+- **Remember state.** Optionally power up in the last bank with every toggle exactly as you left it.
+- **Sleep mode.** When the computer suspends, LEDs and display switch off; they come back when it wakes.
+- **Configuration over USB.** Flash a configuration to the pedal and read it back, from the GUI or the command line, over ordinary USB MIDI SysEx. No special driver.
+- Firmware updates through the stock DFU bootloader with `dfu-util`.
 
-2. A publicly available configuration template spreadsheet on Google Sheets that you can customize to your needs
+---
 
-3. The `python/CSV_to_Flash.py` tool that can load a configuration spreadsheet to the Midi Commander through a simple USB connection
+## Getting started
 
-# Build status
-Ready-to-flash images live in `artifacts/`: `release-<version>.dfu` for each tagged firmware, and `artifacts/dfu/platformio-latest.dfu` for the most recent build. Every push is built by CI. See the [development environment section](#basic-instructions-for-setting-up-development-environment) to build the firmware yourself and [Loading the firmware](#loading-the-firmware) to flash it with `dfu-util`.
+You need the pedal, a USB cable, Python 3 and, to update the firmware, `dfu-util`.
 
-Every release has been tested on a real pedal, but this remains a hobby firmware: keep a copy of your configuration and expect the occasional rough edge. You can always go back to the stock MeloAudio firmware by flashing a vendor DFU image, since the bootloader is never touched.
+### 1. Flash the firmware
 
-# Current features list
-- Completely open source, so feel free to contribute (even just bug reports! or better still user guides)
-- "Spreadsheet" based configuration, no scrolling through menus on that tiny screen with huge buttons. Easy Copy/Paste, Fill, etc. Easy sharing.
-- Supports Program Change (aka Patch Change), Controller Change, Note, Pitch Bend and Start/Stop messages for any of the buttons.
-- The Channel for each message is configured on each individual command.  So it can address seperate pieces of hardware in a midi chain.
-- 8 banks of 8 buttons.  Each bank can display message strings for identification, and each button a 4 character label shown in a grid on the display with its toggle state.
-- 0 to 10 independant chained commands on each switch/bank position.  Enables configuring different devices, or a series of actions of each button push.
-- A second set of 0 to 10 commands per switch fired by a long press (configurable hold time).
-- CC, Note and Pitch Bend support momentary, toggle, or an on-duration of up to 1.27 s in 10 ms increments (0-127). CC can also send just the start message.
-- Program Change messages can include the Bank Select messages prior to the PC message, either just the Lease Signficant Byte or both the LSB & MSB.
-- Pass through of Sync/Start/Stop messages from USB to the Serial MIDI connector (`RealTime_Passthrough`), and optionally of all other MIDI traffic (`USB_MIDI_Thru`) so the pedal works as a USB MIDI interface for the device on its MIDI OUT.
-- Dual expression pedal inputs (PA7/PB0 via ADC1 ch7/ch8) emit MIDI CCs (EXP1 → CC#11, EXP2 → CC#4 by default; CC numbers, channel, range and response curve are configurable, see [Expression pedals](#expression-pedals)).
+The current release is **`artifacts/release-0.8.dfu`**. Earlier releases are kept in `artifacts/` for reference.
 
-- Firmware can be loaded through the normal DFU update process.
-- Configuration has been moved to the FLASH memory, so this will not affect the standard Melo firmware configuration that is stored in an external EEPROM.
+1. Install `dfu-util` (macOS: `brew install dfu-util`; Linux: your package manager; Windows: [dfu-util.sourceforge.net](https://dfu-util.sourceforge.net/)).
+2. With the pedal off, hold **Bank Down** and **D** (the two bottom-right buttons) and switch it on. The display stays dark and LED 3 lights up: the pedal is in DFU mode.
+3. Connect it over USB and check it is seen:
 
-# Still to come
+   ```text
+   $ dfu-util --list
+   Found DFU: [0483:df11] ... alt=0, name="@Internal Flash  /0x08000000/06*002Ka,250*002Kg", ...
+   ```
+
+4. Flash, using `--alt 0` (the internal flash entry above):
+
+   ```bash
+   dfu-util -d 0483:df11 --alt 0 --download artifacts/release-0.8.dfu
+   ```
+
+5. Power cycle the pedal. The firmware version shows on the display for a moment, then the first bank.
+
+Flashing firmware does not erase your configuration. When a release changes the configuration format the [changelog](#changelog) says so; re-flash your configuration with the updated tools in that case.
+
+### 2. Install the Python tools
+
+```bash
+git clone https://github.com/Charles5150/midi-commander-custom.git
+cd midi-commander-custom
+python3 -m venv .venv
+.venv/bin/pip install -r python/requirements.txt
+```
+
+On macOS with Homebrew Python, the GUI also needs Tk: `brew install python-tk`.
+
+### 3. Configure the pedal
+
+```bash
+.venv/bin/python python/gui_configurator.py
+```
+
+Connect the pedal in normal mode (not DFU), click **Read from Device** to load what it currently holds, edit, then **FLASH TO DEVICE**. The next section walks through the configurator.
+
+---
+
+## The configurator
+
+`python/gui_configurator.py` edits a configuration CSV and exchanges it with the pedal over USB MIDI.
+
+<img src="docs/images/gui_workflow.png" width="500">
+
+**Sidebar**
+
+- **Load CSV** opens a configuration file. The sample `python/MeloConfig_10_Cmds - RC-600.csv` is loaded at start.
+- **Read from Device** pulls the configuration stored on the connected pedal into a CSV you choose, and loads it.
+- **Save CSV** writes the current settings to the open file.
+- **FLASH TO DEVICE** saves the CSV, transfers it to the pedal and reboots it.
+
+**Global Settings** — MIDI channel, config name, expression pedal CC numbers, bank LED modes, realtime passthrough, USB MIDI thru, remember state and the long press time. Bounded settings are drop-downs or check boxes; numbers are limited to their valid range. See the [reference](#global_settings).
+
+**Button Config** — pick a bank, then a button. At the top you set its **display label** and **LED light mode**; below, ten command slots A–J. Choose a slot's command type and only the fields that type uses appear. **Short press / Long press** switches the slots between the two command sets of the button. Edits are kept in memory automatically when you switch button, bank or tab.
+
+**Bank Names** — the 4 character name and 8 character info line of each bank.
+
+**Expression** — per pedal: end points, response curve, invert, channel. **Connect live view** shows the pedal position and the CC being sent, read from the pedal in real time. To calibrate: press **Calibrate**, sweep the pedal slowly from heel to toe and back a couple of times, press **Done**; the end points are filled in with a small margin so 0 and 127 are always reached.
+
+---
+
+## Configuration reference
+
+A configuration is a CSV with several sections, each introduced by a line starting with `*` and the section name. Lines containing `#` are comments. The configurator reads and writes this format; you can also edit it in a spreadsheet, and the sample file is the reference for the column names. (The original project's [Google Sheets template](https://docs.google.com/spreadsheets/d/1KwKj3sYrNEkEl8ONipW-ZGSLD7r_W1NfWwyGgjnbk08/edit?usp=sharing) predates several columns; start from the sample CSV instead.)
+
+### Global_Settings
+
+`Label,Value` rows.
+
+| Label | Values | Meaning |
+|---|---|---|
+| `MIDI_Channel` | 1–16 | Channel used by the expression pedals (unless a pedal sets its own). Buttons use the channel of each command. |
+| `RealTime_Passthrough` | Y / N | Forward MIDI Clock, Start, Continue and Stop received over USB to the DIN output. |
+| `USB_MIDI_Thru` | Y / N | Forward every other MIDI message received over USB (notes, CC, PC, pitch bend, system common, other devices' SysEx) to the DIN output. |
+| `ConfigName` | up to 16 chars | Shown on the display at boot. |
+| `Exp1_CC`, `Exp2_CC` | 1–127 | CC number sent by each expression pedal. Defaults 11 and 4. |
+| `Bank_Up_LED_Mode`, `Bank_Down_LED_Mode` | Normal / Reverse / AlwaysOn | LED behaviour of the bank buttons (see [LED modes](#led-modes)). |
+| `Remember_State` | Y / N | Power up in the last bank with all toggles as they were. |
+| `Long_Press_ms` | 100–2500 | Hold time that turns a press into a long press. Default 500. |
+
+### Bank_Naming
+
+One row per bank, `Bank_Number` 0–7: `Bank_Name_Large` (4 characters, big font) and `Bank_Info_Small` (8 characters, small font).
+
+### Button_Settings
+
+One row per button, 64 rows in bank order and, within a bank, in the order `1, 2, 3, 4, A, B, C, D` (top row of the pedal, then bottom row). Columns:
+
+- `Bank_Number`, `Button_Identifier`
+- `Label` — up to 4 characters shown on the display. Empty shows the button identifier.
+- `Light_Mode` — Normal / Reverse / AlwaysOn.
+- Ten command slots, prefixed `A_` to `J_`, each with the fields below.
+
+#### Command fields
+
+| Field | PC | CC | Note | PB | Key | Meaning |
+|---|---|---|---|---|---|---|
+| `CommandType` | | | | | | `PC`, `CC`, `Note`, `PB`, `Key`, `Start`, `Stop`, or empty for none |
+| `Channel_(PC/CC/Note/PB)` | ✓ | ✓ | ✓ | ✓ | | MIDI channel 1–16 |
+| `Number_(PC/CC/Note)` | ✓ | ✓ | ✓ | | ✓ | PC: program 0–127. CC: controller number. Note: note number. Key: modifier mask |
+| `OnValue_(CC/PB)` | | ✓ | | ✓ | ✓ | CC: value on press (0–127). PB: −8192..8191. Key: key name |
+| `OffValue_(CC)` | | ✓ | | | | CC: value on release / toggle off (0–127) |
+| `BankSelect_(PC)` | ✓ | | | | | 0–16383, sent as CC#32 (LSB) before the PC |
+| `BankSelectHighByte_(PC)` | ✓ | | | | | Y: also send CC#0 (MSB) |
+| `Toggle_(CC/PB/Note)` | | ✓ | ✓ | ✓ | ✓ | Y: alternate on / off on successive presses. Key: hold until the next press |
+| `Velocity_(Note)` | | | ✓ | | | 0–127 |
+| `Duration_(Note/PB)` | | | ✓ | ✓ | ✓ | In 10 ms steps, 0–127 (max 1.27 s) |
+| `KeyMode_(Key)` | | | | | ✓ | Normal / Down / Up |
+
+`Start` and `Stop` take no parameters; they send MIDI Start (0xFA) / Stop (0xFC) over USB and DIN.
+
+**When the "off" is sent**
+
+- `Toggle = N`, `Duration = 0`: on when pressed, off when released (momentary).
+- `Toggle = N`, `Duration > 0`: on when pressed, off automatically after the duration, even if still held. Notes, pitch bend and keys only; CC ignores the duration.
+- `Toggle = Y`: the first press sends on, the next sends off, and so on. Toggle state is kept per button and per bank, and drives the LED.
+
+**Keyboard keys.** `Number` is the sum of the modifiers: 1 Ctrl, 2 Shift, 4 Alt, 8 Cmd/Win (3 = Ctrl+Shift). `OnValue` is a single character (`a`, `7`) or one of `enter`, `esc`, `tab`, `space`, `backspace`, `minus`, `equal`, `leftbr`, `rightbr`, `backslash`, `semicolon`, `quote`, `grave`, `comma`, `dot`, `slash`, `f1`–`f12`. `KeyMode`: **Normal** taps the key (held for `Duration` if set); **Down** presses and leaves it pressed, **Up** releases it, both after a `Duration` delay, so one button can build combinations across several slots. `Toggle` holds the key until the next press.
+
+#### LED modes
+
+- **Normal**: lit while the button is active, off otherwise.
+- **Reverse**: lit at rest, off while active.
+- **AlwaysOn**: lit at rest, blinking while active.
+
+"Active" means physically pressed for a momentary button, or toggled on when any of the button's commands is a toggle.
+
+### LongPress_Settings
+
+Optional. Same columns as `Button_Settings` minus `Label` and `Light_Mode`. Rows may be missing or in any order; a button without a row has no long press commands and reacts instantly on press. Long press commands have their own toggle state.
+
+### Expression_Settings
+
+Optional; two rows, `Pedal` 1 and 2.
+
+| Column | Values | Meaning |
+|---|---|---|
+| `Min_ADC`, `Max_ADC` | 0–4095 | Calibrated heel and toe readings. Defaults 80 and 3900. |
+| `Curve` | Linear / Log / Exp | Log is fast at the start of the travel, Exp is slow at the start. |
+| `Invert` | Y / N | Swap heel and toe. |
+| `Channel` | Global or 1–16 | Global uses `MIDI_Channel`. |
+
+Both 1/4" jacks are read through the ADC every millisecond, with the pin pulled down between readings to prevent crosstalk between the two inputs, smoothed with an adaptive filter and a small hysteresis so a resting pedal does not chatter. A CC is sent only when the 7-bit value changes.
+
+If a pedal produces no CC, open the Expression tab and press **Connect live view**: if the raw value does not follow the pedal, the problem is the cable or jack; if it does but no CC reaches your MIDI monitor, check the channel and CC number.
+
+---
+
+## The display
+
+The 128×64 OLED shows, on the top line, the bank's large 4 character name and its 8 character info. Below it, a 2×4 grid laid out like the pedal: buttons **1 2 3 4** on the top row, **A B C D** on the bottom. Each cell shows the button's label, or its identifier when it has none, and cells of toggle buttons are drawn inverted while the toggle is on, so the state of the whole bank is visible at a glance.
+
+---
+
+## Command line tools
+
+Everything the GUI does is available from the terminal, from the repository root:
+
+```bash
+# Flash a configuration to the pedal (normal mode, connected over USB)
+.venv/bin/python python/CSV_to_Flash.py my-config.csv
+
+# Read the configuration stored on the pedal into a CSV
+.venv/bin/python python/Flash_to_CSV.py current-config.csv
+```
+
+The tools find the pedal by its USB MIDI name (`MIDI Commander Custom`), check the firmware version, and exchange the configuration as SysEx messages under manufacturer ID `0x7D`: erase (52), write 16-byte chunk (54), read chunk (56), version (58), reset (60), pedal readings (62). The read-back commands need firmware 0.2 or later; the tools tell you if the pedal is older.
+
+To watch what the pedal sends, use any MIDI monitor (MIDI Monitor on macOS, MIDI-OX on Windows, `aseqdump -p 'MIDI Commander Custom'` on Linux).
+
+---
+
+## Building and flashing from source
+
+The firmware is built with [PlatformIO](https://platformio.org/) (`pip install platformio`, `pipx install platformio` or the VS Code extension). All sources live under `firmware/`; the first build downloads the ARM toolchain.
+
+```bash
+platformio run -e midi_dfu      # DFU image, linked at 0x08003000 behind the stock bootloader
+platformio run -e midi_debug    # ST-Link image at 0x08000000 (for SWD debugging, replaces the bootloader)
+```
+
+`midi_dfu` also packages the binary as a DfuSe container through `scripts/post_build_dfuse.py` and `tools/bin_to_dfuse.py`, writing `artifacts/dfu/platformio-<timestamp>.dfu` and a stable `artifacts/dfu/platformio-latest.dfu`. Flash it as in [Getting started](#1-flash-the-firmware), or let PlatformIO drive `dfu-util`:
+
+```bash
+platformio run -e midi_dfu -t upload
+```
+
+The raw binary can also be flashed directly: `dfu-util --alt 0 -s 0x08003000 --download .pio/build/midi_dfu/firmware.bin`.
+
+The Python tools have round-trip tests for the configuration packers:
+
+```bash
+.venv/bin/python -m unittest discover -s python/tests
+```
+
+GitHub Actions builds both firmware images and runs these tests on every push and pull request. See `CONTRIBUTING.md` for the repository layout and what to keep in sync when changing the configuration format.
+
+Hardware notes (MCU, pinout, I²C addresses) are in `HardwareNotes.txt`; `backup/` holds a dump of the original firmware and EEPROM.
+
+---
+
+## Changelog
+
+Firmware versions are shown on the display at boot and reported by the tools.
+
+- **0.8 — Expression pedal calibration.** `Expression_Settings` section and Expression tab with live view and one-click calibration: per pedal end points, curve, invert and channel. SysEx `GET_PEDALS` (62).
+- **0.7 — Long press.** Second command set per button (`LongPress_Settings`), `Long_Press_ms`, separate toggle state, Short/Long switch in the editor.
+- **0.6 — Button labels on the display.** `Label` column, 2×4 grid mirroring the pedal, inverted cells for active toggles. Flash page size corrected to the real 2 kB (configuration area is 6 kB).
+- **0.5 — Remember state.** `Remember_State` restores the last bank and toggles at power on, journaled in a dedicated flash page. GitHub Actions CI added.
+- **0.4 — USB-to-DIN MIDI thru.** `USB_MIDI_Thru` forwards channel, system common and foreign SysEx messages to the DIN output. The USB receive parser was rewritten to walk 4-byte USB MIDI events, fixing a buffer overflow on long SysEx from other devices.
+- **0.3 — LED modes moved to their own table.** Previously `Light_Mode` was encoded in bit 7 of two bytes of the button's first command, which corrupted that command depending on its type (a CC with AlwaysOn never sent its off value, a Note got a long duration, a Key became a toggle or sent the wrong key, a PC without Bank Select MSB read as Reverse). **Configuration format change:** re-flash your configuration after updating.
+- **GUI rework.** Bounded fields as drop-downs and check boxes, range-checked numbers, type-aware command editor with the previously missing Bank Select, Bank Select MSB, Velocity, Start and Stop fields, automatic apply, save before flash.
+- **0.2 — Configuration read-back.** `Flash_to_CSV.py` and **Read from Device**; SysEx `READ_FLASH` (56) and `GET_VERSION` (58).
+- **0.1B fixes.** Spurious Note Off after a timed pitch bend (missing `break`); global `MIDI_Channel` was 0-based while every other channel field is 1-based; `customtkinter` added to `requirements.txt`; round-trip tests added.
+- **0.1B Sleep and earlier** (arasan95, harvie256 and contributors): GUI configurator, LED modes, HID keyboard, dual expression pedals with pull-down switching, sleep mode, PlatformIO build, DMA display driver, 10 commands per button, flash-based configuration and the SysEx flashing tool.
+
+---
+
+## Still to come
+
 - Battery management has not been considered; battery operation is untested.
 - LED brightness control (software PWM).
 - HID media keys (play/pause, volume).
 - More than 8 banks; the flash has room for it.
 
-## Expression pedals
+Ideas and bug reports are welcome through the [issues](https://github.com/Charles5150/midi-commander-custom/issues/new/choose) and [discussions](https://github.com/Charles5150/midi-commander-custom/discussions).
 
-Both 1/4" expression jacks route to `ADC1` (channels 7 and 8 on PA7/PB0). Each pedal is sampled every millisecond with the pin switched to pull-down between readings (which prevents crosstalk between the two inputs), smoothed with an adaptive filter that tracks fast movements immediately and averages small jitter, and passed through a small hysteresis so a resting pedal does not chatter. A CC is sent only when the resulting 7-bit value changes. By default:
-
-- EXP1 → CC #11 (Expression 1)
-- EXP2 → CC #4 (Foot Control 2)
-
-The channel comes from the `MIDI_Channel` field (1-16) in the `Global_Settings` section of the configuration, or from the per-pedal `Channel` in `Expression_Settings`. The CC numbers are set with `Exp1_CC` and `Exp2_CC`. The end points, response curve (linear, log, exp) and direction of each pedal are calibrated from the GUI's Expression tab, which shows the live pedal position read from the device; uncalibrated pedals map 80..3900 ADC counts linearly. Only the sampling interval and filter constants remain compile-time values in `firmware/Core/Src/expression.c`.
-
-If a connected pedal produces no CC output, open the GUI's Expression tab and press **Connect live view**: if the raw value does not move with the pedal, the problem is the cable or jack; if it moves but no CC appears in your MIDI monitor, check the channel and CC number in the configuration.
-
-
-# Configuration
-The configuration is done via a spreadsheet. Here is a publicly available template on Google Sheets that you can copy and customize to your needs:
-
-https://docs.google.com/spreadsheets/d/1KwKj3sYrNEkEl8ONipW-ZGSLD7r_W1NfWwyGgjnbk08/edit?usp=sharing
-
-(a copy of this spreasheet is also availble in the repository at `python/MeloConfig_10_Cmds - RC-600.csv`)
-
-Roughly, the spreadsheet allows you to specify for each button press up to 10 independant MIDI commands. For each command the following characteristics can be chosen independently:
-
-- Type: PC/CC/Note/PB (Pitch Bend)/Key/Start/Stop
-- Midi Channel
-- PC/CC/Note number
-- CC/PB button on value
-- CC/PB button off value
-- PC bank select value
-- PC bank select value high byte
-- CC/PB/Note toggle mode
-  - If disabled, the button on value is sent when the button is held down, and the button off value is sent when the button is released. So each button press results in 2 commands sent.
-  - If enabled, the button on value is sent at the first button press, and the button off value is sent at the next button press and so on. So each button press results in 1 command sent. The LED of the button is toggled on and off at each button press.
-- Note velocity
-- Note/PB duration (up to 1.27 s, in 10 ms increments from 0 to 127)
-
-### Sending Keyboard Keys (HID)
-
-You can assign keyboard strokes to buttons by selecting the **Key** Command Type.
-
-- **Command Type**: `Key`
-- **Number**: Modifier Keys Bitmask (1=Ctrl, 2=Shift, 4=Alt, 8=Win/GUI). Add values for combinations (e.g., 3 = Ctrl+Shift).
-- **On Value**: The key to press. You can use:
-  - Single characters: `a`, `z`, `0`, `9`.
-  - Special key names: `enter`, `esc`, `tab`, `space`, `backspace`, `f1`-`f12`, `minus`, `equal`, `leftbr`, `rightbr`, `backslash`, `semicolon`, `quote`, `grave`, `comma`, `dot`, `slash`.
-- **Duration**: Hold duration or delay (depending on Key Mode).
-- **Key Mode** (Optional Column `KeyMode_(Key)`):
-  - `Normal` (or empty): Press and release.
-  - `Down`: Press only (hold).
-  - `Up`: Release only.
-
-Lines starting with `#` or `*` are simply ignored which allows you to include comments in the configuration file to keep track of your work.
-
-Once you are happy with your configuration, download it from Google Sheets as a CSV file (or use "Save As" if you chose to edit it locally with Excel or similar spreadsheet software).
-
-Then prepare a Python environment as follows:
-
-1. Download and install [Python](https://www.python.org/).
-2. Check out this repository with Git or download it as a Zip and extract it somewhere.
-3. Open a Terminal (or Windows Command Prompt) and run the following:
-
-   ```
-   cd /path/to/midi-commander-custom
-   python3 -m pip install -r python/requirements.txt
-   python3 python/CSV_to_Flash.py -h
-   ```
-
-   If your setup is successful, the last command should display the help message of the tool.
-
-Once your Python environment is operational, you can load your configuration onto the Midi Commander as follows:
-
-1. Turn on the Midi Commander in normal mode (not DFU)
-2. Connect it to the USB port of your computer
-3. Run the following in a Terminal or in the Windows Command Prompt:
-
-   ```
-   cd /path/to/midi-commander-custom
-   python3 python/CSV_to_Flash.py /path/to/you/configuration-file.csv
-   ```
-
-The tool will convert the CSV file to a binary format and transmit it to the Midi Commander. At the end of the operation the Midi Commander should restart to load the new configuration.
-
-To do the reverse and save the configuration currently stored on the device as a CSV file:
-
-   ```
-   python3 python/Flash_to_CSV.py my-current-config.csv
-   ```
-
-The resulting file uses the same layout, so you can edit it and flash it back with `CSV_to_Flash.py` or open it in the GUI.
-
-# Basic instructions for setting up development environment
-Install the [PlatformIO](https://platformio.org/) CLI (`pipx install platformio` works well) or the PlatformIO VS Code extension. All firmware sources now live under `firmware/`, so `platformio run -e midi_debug` produces the debugger-friendly image and `platformio run -e midi_dfu` outputs the DFU-offset build (and packages it automatically). No STM32CubeIDE metadata remains in the repository.
-
-## PlatformIO workflow (Linux/macOS/Windows)
-
-PlatformIO reproduces both build targets from the command line or the VS Code extension and keeps the sources inside `firmware/`. The firmware is still linked to run at `0x08003000` and the startup code now relocates the vector table automatically, so no extra bootloader tweaks are required.
-
-1. Install the PlatformIO CLI (`pipx install platformio`, `pip install --user platformio`, or use the PlatformIO VS Code extension).
-2. Build the DFU-offset firmware:
-
-   ```bash
-   platformio run -e midi_dfu
-   ```
-
-   On success PlatformIO prints a line from `[post_build_dfuse]` showing the freshly generated DFU file under `artifacts/dfu/platformio-<timestamp>.dfu` and copies it to `artifacts/dfu/platformio-latest.dfu`.
-3. Put the pedal in DFU mode and flash the DFU container. You can either let PlatformIO handle both the packaging and upload via the bundled `dfu-util`:
-
-   ```bash
-   platformio run -e midi_dfu -t upload
-   ```
-
-   The `scripts/post_build_dfuse.py` hook regenerates `artifacts/dfu/platformio-<timestamp>.dfu` and a stable `platformio-latest.dfu`, then `scripts/dfu_upload.py` runs `dfu-util --alt 0 --download artifacts/dfu/platformio-latest.dfu` with the STM32 DFU VID/PID (`0483:df11`).
-
-   Or invoke `dfu-util` yourself (handy when scripting or working on a different machine):
-
-   ```bash
-   dfu-util --alt 0 --download artifacts/dfu/platformio-latest.dfu
-   ```
-
-   The DFU file already targets `0x08003000`, so you do not need to pass `--dfuse-address` when using the packaged image. If you prefer writing the raw binary directly, use:
-
-   ```bash
-   dfu-util --alt 0 -s 0x08003000 --download .pio/build/midi_dfu/firmware.bin
-   ```
-
-4. For ST-Link workflows run `platformio run -e midi_debug -t upload`; this mirrors the Cube “Debug” target.
-
-Every build keeps the MeloAudio bootloader intact, so you can always revert to the stock firmware by flashing a vendor DFU image.
-
-### Capturing MIDI traffic for debugging
-
-Once the pedal enumerates as `MIDI Commander Custom`, you can monitor the raw MIDI stream via ALSA tools on Linux:
-
-```bash
-# List ALSA raw MIDI ports and note the hw:X,Y,Z number
-amidi -l
-
-# Dump incoming bytes until Ctrl+C
-amidi -d -p hw:2,0,0
-
-# Record to a file for later inspection
-amidi -d -p hw:2,0,0 > midi_dump.bin
-
-# View decoded events instead of raw hex
-aseqdump -p 'MIDI Commander Custom'
-```
-
-Make sure no other application exclusively owns the ALSA port (close DAWs/PipeWire bridges or use their routing features) before running `amidi`. On macOS/Windows you can use MIDI-OX, MIDI Monitor, or similar tools to achieve the same result.
-
-## Loading the firmware
-
-### macOS
-
-On macOS the firmware can be loaded with [dfu-util](https://dfu-util.sourceforge.net/) which can be installed using [Homebrew](https://brew.sh/) with a simple `brew install dfu-util`.
-
-Then you connect the Midi Commander to the USB port of the computer and start it in DFU mode by holding down the `bank down` and `D` buttons (the two buttons on the bottom-right corner) while pressing the power button. The device should start with nothing on the display, and the LED 3 turned on.
-
-`dfu-util` should now be able to detect the device:
-
-```text
-$ dfu-util --list
-...
-Found DFU: [0483:df11] ver=0200, devnum=12, cfg=1, intf=0, path="4-1", alt=2, name="@NOR Flash : M29W128F/0x64000000/0256*64Kg", serial="5CE867623433"
-Found DFU: [0483:df11] ver=0200, devnum=12, cfg=1, intf=0, path="4-1", alt=1, name="@SPI Flash : M25P64/0x00000000/128*64Kg", serial="5CE867623433"
-Found DFU: [0483:df11] ver=0200, devnum=12, cfg=1, intf=0, path="4-1", alt=0, name="@Internal Flash  /0x08000000/06*002Ka,250*002Kg", serial="5CE867623433"
-```
-
-To load a release image (`artifacts/release-<version>.dfu`), use `--alt 0`, which corresponds to the internal flash entry `0x08000000` in the list above:
-
-```bash
-dfu-util -d 0483:df11 --alt 0 --download artifacts/release-0.8.dfu
-```
-
-If you are building the firmware yourself, `platformio run -e midi_dfu` already emits both `.pio/build/midi_dfu/firmware.bin` and the packaged DFU under `artifacts/dfu`. You can also sidestep the DFU wrapper and push the raw binary directly:
-
-```bash
-dfu-util --alt 0 -s 0x8003000 --download .pio/build/midi_dfu/firmware.bin
-```
-
-Once the firmware is loaded, turn off the device and turn it back on in normal mode. You should see the name and version of the custom firmware on the display briefly, and then the name of the first configured bank. You can now load your own configuration following the instructions in the section [Configuration](#configuration).
-
-### Manually re-running the DFU packer
-
-The post-build hook calls `tools/bin_to_dfuse.py` for you (producing both a timestamped file and `platformio-latest.dfu`), but you can still run it manually to regenerate a DFU with custom metadata or filenames:
-
-```bash
-platformio run -e midi_dfu
-python tools/bin_to_dfuse.py --bin .pio/build/midi_dfu/firmware.bin
-```
-
-This command emits `artifacts/dfu/platformio-<timestamp>.dfu`, refreshes `platformio-latest.dfu`, and keeps everything ready for flashing with ST's DFU utilities. Use `--out` to choose a different filename or `--address`, `--vendor`, `--product`, etc. if you ever need to adjust the metadata. Pass `--overwrite` when reusing the same output path.
-
-## Python development
-
-Python files under `python/` can be edited directly; the repository recommends the Black and MyPy VS Code extensions (`.vscode/extensions.json`).
-
-The entry points are `python/gui_configurator.py`, `python/CSV_to_Flash.py` and `python/Flash_to_CSV.py`; the CSV parsing, packing and unpacking live in `python/lib`, with round-trip tests under `python/tests`.
+---
 
 ## Acknowledgements
+
 - @harvie256: project founder, original firmware, flash-based configuration and SysEx flashing tool
 - @eliericha: expansion to 10 commands per button, Python tooling and macOS documentation
 - @redcloud80: DMA and interrupt driven display driver
