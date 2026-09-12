@@ -18,6 +18,11 @@ extern uint8_t *pButtonLabels;
 extern uint8_t *pLongPressCmds;	// Second command set per button, same layout as pSwitchCmds
 extern uint8_t *pExpSettings;	// Expression pedal calibration, EXP_SETTINGS_STRIDE bytes per pedal
 extern uint8_t *pBankEnterCmds;	// Commands sent when a bank is entered, same shape as one button's list per bank
+extern uint8_t *pSysExStrings;	// Table of stored SysEx payloads: [length][up to SYSEX_STRING_MAX data bytes]
+
+#define SYSEX_STRING_COUNT	(16)
+#define SYSEX_STRING_MAX	(23)	// data bytes, F0 and F7 are added when sending
+#define SYSEX_STRING_STRIDE	(SYSEX_STRING_MAX + 1)
 
 // Per pedal: [0..1] min ADC (LE), [2..3] max ADC (LE), [4] curve, [5] invert,
 // [6] channel (0 = global, 1-16), rest reserved. Blank flash = defaults.
@@ -80,7 +85,9 @@ extern uint8_t *pBankEnterCmds;	// Commands sent when a bank is entered, same sh
 #define CFG_EXP_OFF			(CFG_LONG_CMDS_OFF + CFG_CMDS_SIZE)
 #define CFG_BANK_ENTER_SIZE	(MIDI_NUM_BANKS * MIDI_ROM_KEY_STRIDE)
 #define CFG_BANK_ENTER_OFF	(CFG_EXP_OFF + CFG_EXP_SIZE)
-#define CFG_TOTAL_SIZE		(CFG_BANK_ENTER_OFF + CFG_BANK_ENTER_SIZE)
+#define CFG_SYSEX_SIZE		(SYSEX_STRING_COUNT * SYSEX_STRING_STRIDE)
+#define CFG_SYSEX_OFF		(CFG_BANK_ENTER_OFF + CFG_BANK_ENTER_SIZE)
+#define CFG_TOTAL_SIZE		(CFG_SYSEX_OFF + CFG_SYSEX_SIZE)
 
 void flash_settings_erase(void);
 void flash_settings_write(uint8_t* data, uint32_t offset);

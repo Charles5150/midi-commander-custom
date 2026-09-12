@@ -12,6 +12,8 @@ CMD_STOP_NIBBLE = 0x20
 CMD_KEY_NIBBLE = 0xD0
 CMD_MEDIA_NIBBLE = 0x30
 CMD_BANK_NIBBLE = 0x40
+CMD_CCINC_NIBBLE = 0x50
+CMD_SYSEX_NIBBLE = 0x60
 
 # Bank command modes, packed in the low nibble of byte 0
 BANK_MODES = {"GOTO": 0, "UP": 1, "DOWN": 2}
@@ -271,6 +273,30 @@ def cmd_media(cmd):
     return [CMD_MEDIA_NIBBLE, usage & 0xFF, (usage >> 8) & 0x03, duration | toggle_bit]
 
 
+def cmd_ccinc(cmd):
+    """Relative CC: each press moves the value by a step.
+
+    OnValue is the starting value, OffValue the step, KeyMode the direction
+    (Up/Down) and Toggle enables wrapping past the ends.
+    """
+    start = max(0, min(127, safe_int(cmd.get("OnValue_(CC/PB)", 0))))
+    step = max(1, min(127, safe_int(cmd.get("OffValue_(CC)", 1)) or 1))
+    down = str(cmd.get("KeyMode_(Key)", "")).strip().upper().startswith("DOWN")
+    wrap = get_toggle_bit(str(cmd.get("Toggle_(CC/PB/Note)", ""))) != 0
+    return [
+        CMD_CCINC_NIBBLE | channel_nibble(cmd["Channel_(PC/CC/Note/PB)"]),
+        (safe_int(cmd["Number_(PC/CC/Note)"]) & 0x7F) | (0x80 if wrap else 0),
+        step,
+        (0x80 if down else 0) | start,
+    ]
+
+
+def cmd_sysex(cmd):
+    """Send a stored SysEx string. Number selects the table entry."""
+    index = max(0, min(15, safe_int(cmd.get("Number_(PC/CC/Note)", 0))))
+    return [CMD_SYSEX_NIBBLE, index, 0, 0]
+
+
 def cmd_bank(cmd):
     """Bank change. OnValue holds the target bank, or the step for Up/Down."""
     mode_text = str(cmd.get("KeyMode_(Key)", "")).strip().upper()
@@ -301,6 +327,8 @@ cmd_route_table = {
     "Key": cmd_key,
     "Media": cmd_media,
     "Bank": cmd_bank,
+    "CCInc": cmd_ccinc,
+    "SysEx": cmd_sysex,
 }
 
 

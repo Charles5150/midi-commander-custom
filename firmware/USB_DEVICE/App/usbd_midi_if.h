@@ -37,6 +37,9 @@ void USBD_MIDI_SendPacket (uint8_t* buffer, uint8_t len);
 uint16_t MIDI_DataRx(uint8_t *msg, uint16_t length);
 uint16_t MIDI_DataTx(uint8_t *msg, uint16_t length);
 
+// Send a complete SysEx message (F0 ... F7) over USB, split into USB MIDI events
+void sysex_send_message(uint8_t* buffer, uint8_t length);
+
 #ifdef __cplusplus
 }
 #endif

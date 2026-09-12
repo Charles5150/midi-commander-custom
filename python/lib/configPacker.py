@@ -23,6 +23,10 @@ LABEL_LEN = 4
 LONG_PRESS_SECTION = "LongPress_Settings"
 EXPRESSION_SECTION = "Expression_Settings"
 BANK_ENTER_SECTION = "BankEnter_Settings"
+SYSEX_SECTION = "SysEx_Strings"
+SYSEX_STRING_COUNT = 16
+SYSEX_STRING_MAX = 23
+SYSEX_STRING_STRIDE = SYSEX_STRING_MAX + 1
 EXP_STRIDE = 16
 EXP_CURVES = {"LINEAR": 0, "LOG": 1, "EXP": 2}
 EXP_DEFAULTS = {"Min_ADC": "80", "Max_ADC": "3900", "Curve": "Linear", "Invert": "N", "Channel": "Global"}
@@ -51,6 +55,63 @@ def empty_long_press_settings(num_banks=NUM_BANKS):
                 row[f"{slot}_KeyMode_(Key)"] = ""
             rows.append(row)
     return pd.DataFrame(rows)
+
+
+def parse_sysex_bytes(text) -> bytes:
+    """Parse "F0 41 10 42 F7" into the 7-bit data bytes to store.
+
+    Bytes are hexadecimal, the convention every device manual uses; an
+    optional 0x prefix is accepted. A leading F0 and trailing F7 are stripped
+    because they are added when sending. Everything else must be 0x00..0x7F;
+    anything invalid yields an empty string rather than a wrong message.
+    """
+    if text is None:
+        return b""
+    s = str(text).strip()
+    if s.lower() in ("", "nan"):
+        return b""
+    out = []
+    for token in s.replace(",", " ").split():
+        t = token.lower()
+        if t.startswith("0x"):
+            t = t[2:]
+        try:
+            v = int(t, 16)
+        except ValueError:
+            return b""
+        if v > 0xFF:
+            return b""
+        out.append(v)
+    while out and out[0] == 0xF0:
+        out.pop(0)
+    while out and out[-1] == 0xF7:
+        out.pop()
+    if any(v > 0x7F for v in out):
+        return b""
+    return bytes(out[:SYSEX_STRING_MAX])
+
+
+def empty_sysex_strings():
+    """An empty SysEx string table."""
+    import pandas as pd
+
+    return pd.DataFrame([{"Index": str(i), "Bytes": ""} for i in range(SYSEX_STRING_COUNT)])
+
+
+def pack_sysex_strings(df) -> bytes:
+    rows = {}
+    if df is not None:
+        for _, row in df.iterrows():
+            key = str(row.get("Index", "")).strip()
+            if key.endswith(".0"):
+                key = key[:-2]
+            rows[key] = row
+    out = b""
+    for i in range(SYSEX_STRING_COUNT):
+        row = rows.get(str(i))
+        payload = parse_sysex_bytes(row.get("Bytes")) if row is not None else b""
+        out += bytes([len(payload)]) + payload.ljust(SYSEX_STRING_MAX, b"\x00")
+    return out
 
 
 def empty_bank_enter_settings(num_banks=NUM_BANKS):
@@ -180,5 +241,7 @@ def pack_config(sections: dict) -> bytes:
             out += [0] * (cbp.MIDI_NUM_COMMANDS_PER_SWITCH * 4)
         else:
             out += cbp.pack_row(row)
+
+    out += list(pack_sysex_strings(sections.get(SYSEX_SECTION)))
 
     return bytes(out)

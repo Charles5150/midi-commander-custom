@@ -59,6 +59,8 @@
 #define CMD_PB_NIBBLE		(0xE0)
 #define CMD_NOTE_NIBBLE		(0x90)
 #define CMD_KEY_NIBBLE		(0xD0)
+#define CMD_CCINC_NIBBLE	(0x50)	// Relative CC: byte1 = CC | wrap<<7, byte2 = step, byte3 = down<<7 | start value
+#define CMD_SYSEX_NIBBLE	(0x60)	// Stored SysEx string: byte1 = index into the string table
 #define CMD_BANK_NIBBLE		(0x40)	// Bank change: low nibble = mode (0 go to, 1 up by, 2 down by), byte 1 = value
 #define CMD_MEDIA_NIBBLE	(0x30)	// Consumer control (media) key: bytes 1-2 = usage (10 bits), byte 3 = duration | toggle
 #define CMD_START_NIBBLE	(0x10)

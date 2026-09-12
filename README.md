@@ -31,6 +31,8 @@ The firmware replaces the stock MeloAudio one but never touches its bootloader, 
 - **Momentary or toggle** behaviour per command, and timed auto-release (up to 1.27 s) for Notes, Pitch Bend and keys.
 - **Button labels on the display.** Each button has a 4 character label; the screen shows the current bank and a 2×4 grid mirroring the pedal, with toggle buttons drawn inverted while on.
 - **LED modes** per button: Normal, Reverse (lit when off) or AlwaysOn (blinks while active). The Bank Up / Down LEDs have the same options. Global brightness for lit LEDs and, separately, for LEDs lit at rest, so an active button stands out from an idle one.
+- **Relative CC.** A button can nudge a CC value up or down by a step on each press, optionally wrapping, for setting a parameter with your foot.
+- **Custom SysEx.** Up to sixteen SysEx messages can be stored and sent from a button, for devices that are only controllable that way.
 - **USB keyboard and media keys (HID).** A command can press a key with Ctrl / Shift / Alt / Cmd modifiers, tap it, hold it or release it, or send a media key (play/pause, next, previous, stop, volume, mute, record) to the computer.
 - **Two expression pedals** with per-pedal CC number, MIDI channel, calibrated end points, response curve and direction, calibrated live from the configurator.
 - **USB-to-DIN MIDI thru.** Optionally forward everything received over USB to the MIDI OUT jack, so the pedal doubles as a USB MIDI interface for the device behind it. Clock / Start / Continue / Stop have their own switch.
@@ -49,7 +51,7 @@ You need the pedal, a USB cable, Python 3 and, to update the firmware, `dfu-util
 
 ### 1. Flash the firmware
 
-The current release is **`artifacts/release-0.12.dfu`**. Earlier releases are kept in `artifacts/` for reference.
+The current release is **`artifacts/release-0.13.dfu`**. Earlier releases are kept in `artifacts/` for reference.
 
 1. Install `dfu-util` (macOS: `brew install dfu-util`; Linux: your package manager; Windows: [dfu-util.sourceforge.net](https://dfu-util.sourceforge.net/)).
 2. With the pedal off, hold **Bank Down** and **D** (the two bottom-right buttons) and switch it on. The display stays dark and LED 3 lights up: the pedal is in DFU mode.
@@ -63,7 +65,7 @@ The current release is **`artifacts/release-0.12.dfu`**. Earlier releases are ke
 4. Flash, using `--alt 0` (the internal flash entry above):
 
    ```bash
-   dfu-util -d 0483:df11 --alt 0 --download artifacts/release-0.12.dfu
+   dfu-util -d 0483:df11 --alt 0 --download artifacts/release-0.13.dfu
    ```
 
 5. Power cycle the pedal. The firmware version shows on the display for a moment, then the first bank.
@@ -156,7 +158,7 @@ One row per button, 256 rows in bank order and, within a bank, in the order `1, 
 
 | Field | PC | CC | Note | PB | Key | Meaning |
 |---|---|---|---|---|---|---|
-| `CommandType` | | | | | | `PC`, `CC`, `Note`, `PB`, `Key`, `Media`, `Bank`, `Start`, `Stop`, or empty for none |
+| `CommandType` | | | | | | `PC`, `CC`, `CCInc`, `Note`, `PB`, `Key`, `Media`, `Bank`, `SysEx`, `Start`, `Stop`, or empty for none |
 | `Channel_(PC/CC/Note/PB)` | ✓ | ✓ | ✓ | ✓ | | MIDI channel 1–16 |
 | `Number_(PC/CC/Note)` | ✓ | ✓ | ✓ | | ✓ | PC: program 0–127. CC: controller number. Note: note number. Key: modifier mask |
 | `OnValue_(CC/PB)` | | ✓ | | ✓ | ✓ | CC: value on press (0–127). PB: −8192..8191. Key: key name. Media: media key name |
@@ -178,6 +180,10 @@ One row per button, 256 rows in bank order and, within a bank, in the order `1, 
 
 **Keyboard keys.** `Number` is the sum of the modifiers: 1 Ctrl, 2 Shift, 4 Alt, 8 Cmd/Win (3 = Ctrl+Shift). `OnValue` is a single character (`a`, `7`) or one of `enter`, `esc`, `tab`, `space`, `backspace`, `minus`, `equal`, `leftbr`, `rightbr`, `backslash`, `semicolon`, `quote`, `grave`, `comma`, `dot`, `slash`, `f1`–`f12`. `KeyMode`: **Normal** taps the key (held for `Duration` if set); **Down** presses and leaves it pressed, **Up** releases it, both after a `Duration` delay, so one button can build combinations across several slots. `Toggle` holds the key until the next press.
 
+**Relative CC.** `CommandType` `CCInc` sends a CC whose value moves on every press instead of being fixed. `Number` is the CC, `OnValue` the value it starts from at power on, `OffValue` the step, `KeyMode` the direction (`Up` or `Down`) and `Toggle` enables wrapping past the ends instead of sticking at 0 and 127. The running value lives in memory, one per command slot, and resets to the start value when the pedal is switched off.
+
+**Custom SysEx.** `CommandType` `SysEx` sends one of the messages stored in the `SysEx_Strings` section; `Number` selects which, 0 to 15. Nothing else in the command is used. The message goes to both USB and the DIN output.
+
 **Bank changes.** `CommandType` `Bank` switches bank. `KeyMode` selects the action: `GoTo` jumps to the bank number in `OnValue` (0–31), `Up` and `Down` move by the number of banks in `OnValue`, wrapping around. The change is applied after the button's remaining commands have been sent, so a button can send MIDI and then move to another bank. Nothing else in the command is used.
 
 **Media keys.** `CommandType` `Media` sends a USB consumer-control key to the computer, the same ones a keyboard's media buttons send, so they work in any player or DAW without MIDI mapping. `OnValue` is one of `play_pause`, `play`, `pause`, `stop`, `next`, `prev`, `record`, `fast_forward`, `rewind`, `eject`, `mute`, `vol_up`, `vol_down`, or a raw usage number (`0xE9`). The key is tapped on press and released on release, held for `Duration` if set, or held until the next press with `Toggle`. `Number` and `Channel` are unused.
@@ -195,6 +201,10 @@ One row per button, 256 rows in bank order and, within a bank, in the order `1, 
 Optional. Same columns as `Button_Settings` minus `Label` and `Light_Mode`. Rows may be missing or in any order; a button without a row has no long press commands and reacts instantly on press. Long press commands have their own toggle state.
 
 Rows are optional in `Button_Settings` and `Bank_Naming` too: a configuration that only defines the first few banks, including one written for the 8 bank firmware, flashes unchanged and leaves the rest empty. The configurator always shows all 32 banks and writes them all when you save.
+
+### SysEx_Strings
+
+Optional; sixteen rows with an `Index` (0–15) and `Bytes`. Write the bytes in hexadecimal as the device manual shows them, separated by spaces or commas, with an optional `0x` prefix. A leading `F0` and trailing `F7` are optional and added when sending. Up to 23 data bytes, each `00`–`7F`. A line that cannot be parsed is stored empty and the command sends nothing, rather than sending a malformed message. Edit it in the configurator's **SysEx** tab, which shows the byte count or a warning as you type.
 
 ### BankEnter_Settings
 
@@ -274,6 +284,7 @@ Hardware notes (MCU, pinout, I²C addresses) are in `HardwareNotes.txt`; `backup
 
 Firmware versions are shown on the display at boot and reported by the tools.
 
+- **0.13 — Relative CC and custom SysEx.** New `CCInc` command type nudges a CC value by a step per press, with optional wrapping and a per-slot running value. New `SysEx` command type sends one of sixteen stored messages from the new `SysEx_Strings` section, to both USB and DIN, with a SysEx tab in the configurator that validates the bytes as you type.
 - **0.12 — Bank automation.** Each bank can send commands when entered (`BankEnter_Settings`, Bank Enter tab), typically a Program Change for its patch. An incoming Program Change or Control Change over USB can select a bank (`Bank_Change_Mode`, `Bank_Change_Channel`, `Bank_Change_CC`), so a DAW or another pedal drives this one. **Configuration format change:** it grows to 23 kB over 12 flash pages; re-flash after updating.
 - **0.11 — 32 banks and bank navigation.** Banks go from 8 to 32. A short press on Bank Up / Down steps one bank and a long press jumps `Bank_Jump_Step` banks (default 8), both wrapping around. A new `Bank` command type jumps to a given bank or moves relative to it, applied after the button's other commands, so one bank can act as a setlist index. **Configuration format change:** the configuration grows to 22 kB over 11 flash pages and takes about 13 seconds to transfer; re-flash it after updating. Configurations written for 8 banks still flash, leaving the new banks empty. The per-bank toggle bitmasks and the saved-state journal widened accordingly.
 - **0.10 — Media keys.** New `Media` command type sends USB consumer-control keys (play/pause, next, previous, stop, volume, mute, record, ...). The HID interface now carries two reports with IDs (keyboard and consumer control) on a 16-byte endpoint, and gets the USB packet-memory allocation it had always been missing.

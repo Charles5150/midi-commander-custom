@@ -49,7 +49,7 @@ class RoundTripTest(unittest.TestCase):
         cls.sections = read_config_csv(SAMPLE_CSV)
         cls.packed = pack_csv(SAMPLE_CSV)
         (cls.df_global, cls.df_banks, cls.df_buttons, cls.df_long, cls.df_exp,
-         cls.df_enter) = unpacker.unpack_config(
+         cls.df_enter, cls.df_sysex) = unpacker.unpack_config(
             cls.packed
         )
 
@@ -135,7 +135,7 @@ class RoundTripTest(unittest.TestCase):
 
     def test_erased_flash_decodes_as_empty(self):
         blank = bytes([0xFF]) * unpacker.CONFIG_SIZE
-        _, _, df, df_long, df_exp, df_enter = unpacker.unpack_config(blank)
+        _, _, df, df_long, df_exp, df_enter, df_sysex = unpacker.unpack_config(blank)
         self.assertTrue((df["A_CommandType"] == "").all())
         self.assertTrue((df["Light_Mode"] == "Normal").all())
         self.assertTrue((df["Label"] == "").all())
@@ -279,7 +279,7 @@ class RoundTripTest(unittest.TestCase):
         r1 = packed[unpacker.EXP_OFFSET + 16 : unpacker.EXP_OFFSET + 23]
         self.assertEqual(list(r0), [150, 0, 3800 & 0xFF, 3800 >> 8, 1, 1, 7])
         self.assertEqual(list(r1), [0, 0, 0xFF, 0x0F, 2, 0, 0])
-        _, _, _, _, decoded, _ = unpacker.unpack_config(packed)
+        decoded = unpacker.unpack_config(packed)[4]
         self.assertEqual(decoded.iloc[0].tolist(), ["1", "150", "3800", "Log", "Y", "7"])
         self.assertEqual(decoded.iloc[1].tolist(), ["2", "0", "4095", "Exp", "N", "Global"])
 
@@ -396,6 +396,58 @@ class RoundTripTest(unittest.TestCase):
         self.assertEqual(tuple(packed[12:14]), (1, 0))
         df = unpacker.unpack_config(packed)[0].set_index("Label")["Value"]
         self.assertEqual(df["Bank_Change_Channel"], "Any")
+
+    def test_ccinc_command(self):
+        row = pd.Series({
+            "A_CommandType": "CCInc", "A_Channel_(PC/CC/Note/PB)": "3",
+            "A_Number_(PC/CC/Note)": "7", "A_OnValue_(CC/PB)": "64",
+            "A_OffValue_(CC)": "5", "A_KeyMode_(Key)": "Up",
+            "A_Toggle_(CC/PB/Note)": "N",
+            "B_CommandType": "CCInc", "B_Channel_(PC/CC/Note/PB)": "3",
+            "B_Number_(PC/CC/Note)": "7", "B_OnValue_(CC/PB)": "64",
+            "B_OffValue_(CC)": "5", "B_KeyMode_(Key)": "Down",
+            "B_Toggle_(CC/PB/Note)": "Y",
+        })
+        p = cbp.pack_row(row)
+        self.assertEqual(p[0:4], [0x52, 7, 5, 64])          # up, no wrap
+        self.assertEqual(p[4:8], [0x52, 7 | 0x80, 5, 0xC0])  # down, wrap, start 64
+        d = unpacker.unpack_command(bytes(p[0:4]))
+        self.assertEqual(
+            (d["CommandType"], d["Number_(PC/CC/Note)"], d["OffValue_(CC)"],
+             d["OnValue_(CC/PB)"], d["KeyMode_(Key)"], d["Toggle_(CC/PB/Note)"]),
+            ("CCInc", "7", "5", "64", "Up", "N"))
+        d = unpacker.unpack_command(bytes(p[4:8]))
+        self.assertEqual((d["KeyMode_(Key)"], d["Toggle_(CC/PB/Note)"]), ("Down", "Y"))
+
+    def test_sysex_strings(self):
+        from lib.configPacker import empty_sysex_strings, parse_sysex_bytes
+
+        # Parsing: hex, optional 0x, F0/F7 stripped, junk rejected
+        self.assertEqual(parse_sysex_bytes("F0 41 10 42 12 F7"), bytes([0x41, 0x10, 0x42, 0x12]))
+        self.assertEqual(parse_sysex_bytes("0x41 0x10"), bytes([0x41, 0x10]))
+        self.assertEqual(parse_sysex_bytes("FF 01"), b"")   # not 7-bit
+        self.assertEqual(parse_sysex_bytes("zz"), b"")
+        self.assertEqual(parse_sysex_bytes(""), b"")
+
+        sections = read_config_csv(SAMPLE_CSV)
+        df = empty_sysex_strings()
+        df.loc[0, "Bytes"] = "F0 41 10 42 12 00 7F F7"
+        df.loc[3, "Bytes"] = "7E 7F 06 01"
+        packed = pack_config({**sections, "SysEx_Strings": df})
+        self.assertEqual(len(packed), unpacker.CONFIG_SIZE)
+        e0 = packed[unpacker.SYSEX_OFFSET : unpacker.SYSEX_OFFSET + 8]
+        self.assertEqual(list(e0), [6, 0x41, 0x10, 0x42, 0x12, 0x00, 0x7F, 0])
+        e3 = packed[unpacker.SYSEX_OFFSET + 3 * unpacker.SYSEX_STRING_STRIDE :][:5]
+        self.assertEqual(list(e3), [4, 0x7E, 0x7F, 0x06, 0x01])
+        table = unpacker.unpack_config(packed)[6]
+        self.assertEqual(table.at[0, "Bytes"], "41 10 42 12 00 7F")
+        self.assertEqual(table.at[1, "Bytes"], "")
+
+        # A SysEx command just references a table entry
+        row = pd.Series({"A_CommandType": "SysEx", "A_Number_(PC/CC/Note)": "3"})
+        self.assertEqual(cbp.pack_row(row)[0:4], [0x60, 3, 0, 0])
+        d = unpacker.unpack_command(bytes([0x60, 3, 0, 0]))
+        self.assertEqual((d["CommandType"], d["Number_(PC/CC/Note)"]), ("SysEx", "3"))
 
     def test_cc_alwayson_keeps_off_value(self):
         """Regression: AlwaysOn used to set bit 7 of the CC off value."""

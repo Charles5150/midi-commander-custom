@@ -19,12 +19,14 @@ import pandas as pd
 from lib.cmdBinaryPacker import (
     CMD_CC_NIBBLE,
     CMD_BANK_NIBBLE,
+    CMD_CCINC_NIBBLE,
     CMD_KEY_NIBBLE,
     CMD_MEDIA_NIBBLE,
     CMD_NOTE_NIBBLE,
     CMD_PB_NIBBLE,
     CMD_PC_NIBBLE,
     CMD_START_NIBBLE,
+    CMD_SYSEX_NIBBLE,
     CMD_STOP_NIBBLE,
     HID_SPECIAL_KEYS,
     MEDIA_KEYS,
@@ -45,7 +47,11 @@ LONG_PRESS_OFFSET = LABELS_OFFSET + NUM_BANKS * len(BUTTON_IDS) * LABEL_LEN
 EXP_OFFSET = LONG_PRESS_OFFSET + NUM_BANKS * len(BUTTON_IDS) * BUTTON_STRIDE
 EXP_STRIDE = 16
 BANK_ENTER_OFFSET = EXP_OFFSET + 2 * EXP_STRIDE
-CONFIG_SIZE = BANK_ENTER_OFFSET + NUM_BANKS * BUTTON_STRIDE
+SYSEX_OFFSET = BANK_ENTER_OFFSET + NUM_BANKS * BUTTON_STRIDE
+SYSEX_STRING_COUNT = 16
+SYSEX_STRING_MAX = 23
+SYSEX_STRING_STRIDE = SYSEX_STRING_MAX + 1
+CONFIG_SIZE = SYSEX_OFFSET + SYSEX_STRING_COUNT * SYSEX_STRING_STRIDE
 EXP_CURVE_NAMES = {0: "Linear", 1: "Log", 2: "Exp"}
 
 SLOT_NAMES = [chr(ord("A") + i) for i in range(MIDI_NUM_COMMANDS_PER_SWITCH)]
@@ -183,6 +189,17 @@ def unpack_command(raw: bytes) -> dict:
         cmd["OnValue_(CC/PB)"] = _MEDIA_NAMES.get(usage, str(usage))
         cmd["Duration_(Note/PB)"] = str(b3 & 0x7F)
         cmd["Toggle_(CC/PB/Note)"] = "Y" if b3 & 0x80 else "N"
+    elif cmd_type == CMD_CCINC_NIBBLE:
+        cmd["CommandType"] = "CCInc"
+        cmd["Channel_(PC/CC/Note/PB)"] = channel
+        cmd["Number_(PC/CC/Note)"] = str(b1 & 0x7F)
+        cmd["OnValue_(CC/PB)"] = str(b3 & 0x7F)
+        cmd["OffValue_(CC)"] = str(b2)
+        cmd["KeyMode_(Key)"] = "Down" if b3 & 0x80 else "Up"
+        cmd["Toggle_(CC/PB/Note)"] = "Y" if b1 & 0x80 else "N"
+    elif cmd_type == CMD_SYSEX_NIBBLE:
+        cmd["CommandType"] = "SysEx"
+        cmd["Number_(PC/CC/Note)"] = str(b1)
     elif cmd_type == CMD_BANK_NIBBLE:
         cmd["CommandType"] = "Bank"
         mode = b0 & 0x0F
@@ -290,8 +307,21 @@ def unpack_bank_enter_settings(data: bytes) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=columns)
 
 
+def unpack_sysex_strings(data: bytes) -> pd.DataFrame:
+    """The stored SysEx payloads, as space separated hex bytes."""
+    rows = []
+    for i in range(SYSEX_STRING_COUNT):
+        entry = data[SYSEX_OFFSET + i * SYSEX_STRING_STRIDE :][:SYSEX_STRING_STRIDE]
+        length = entry[0]
+        payload = "" if length == 0 or length > SYSEX_STRING_MAX else " ".join(
+            f"{b:02X}" for b in entry[1 : 1 + length]
+        )
+        rows.append({"Index": str(i), "Bytes": payload})
+    return pd.DataFrame(rows)
+
+
 def unpack_config(data: bytes):
-    """Return ``(df_global, df_banks, df_buttons, df_long_press, df_expression, df_bank_enter)``."""
+    """Return the six configuration frames plus the SysEx string table."""
     if len(data) < CONFIG_SIZE:
         raise ValueError(
             f"Settings dump is {len(data)} bytes, expected at least {CONFIG_SIZE}"
@@ -303,4 +333,5 @@ def unpack_config(data: bytes):
         unpack_long_press_settings(data),
         unpack_expression_settings(data),
         unpack_bank_enter_settings(data),
+        unpack_sysex_strings(data),
     )

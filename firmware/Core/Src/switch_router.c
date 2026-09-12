@@ -10,6 +10,7 @@
 #include "flash_midi_settings.h"
 #include "display.h"
 #include "usbd_hid_custom.h"
+#include "usbd_midi_if.h"
 #include "state_store.h"
 #include "leds.h"
 
@@ -189,6 +190,71 @@ static inline uint16_t media_usage_from_rom(const uint8_t *pRom){
     return pRom[1] | ((pRom[2] & 0x03) << 8);
 }
 
+/*
+ * Relative CC ("CCInc"): every press moves a value by a step and sends it.
+ * The value has to live in RAM, indexed by which command slot it came from,
+ * so it survives repeated presses but resets at power on to the configured
+ * start value. 0xFF marks a slot that has not been used yet.
+ */
+#define CCINC_SLOTS (2 * MIDI_NUM_BANKS * MIDI_NUM_SWITCHES * MIDI_NUM_COMMANDS_PER_SWITCH)
+static uint8_t ccinc_value[CCINC_SLOTS];
+
+static void ccinc_reset(void){
+	for(uint32_t i=0; i<CCINC_SLOTS; i++) ccinc_value[i] = 0xFF;
+}
+
+// Unique slot index for a command, whether it came from the short or long list
+static int32_t ccinc_index(const uint8_t *pRom){
+	int32_t per_set = MIDI_NUM_BANKS * MIDI_NUM_SWITCHES * MIDI_NUM_COMMANDS_PER_SWITCH;
+	if(pRom >= pSwitchCmds && pRom < pSwitchCmds + per_set * MIDI_ROM_CMD_SIZE){
+		return (pRom - pSwitchCmds) / MIDI_ROM_CMD_SIZE;
+	}
+	if(pRom >= pLongPressCmds && pRom < pLongPressCmds + per_set * MIDI_ROM_CMD_SIZE){
+		return per_set + (pRom - pLongPressCmds) / MIDI_ROM_CMD_SIZE;
+	}
+	return -1; // e.g. a bank-enter command: no stored value, always starts fresh
+}
+
+static void send_ccinc(uint8_t *pRom){
+	uint8_t channel = pRom[0] & 0x0F;
+	uint8_t cc = pRom[1] & 0x7F;
+	uint8_t wrap = (pRom[1] & 0x80) != 0;
+	uint8_t step = pRom[2] ? pRom[2] : 1;
+	uint8_t down = (pRom[3] & 0x80) != 0;
+	uint8_t start = pRom[3] & 0x7F;
+
+	int32_t slot = ccinc_index(pRom);
+	uint8_t current = start;
+	if(slot >= 0){
+		if(ccinc_value[slot] == 0xFF) ccinc_value[slot] = start;
+		current = ccinc_value[slot];
+	}
+
+	int16_t next = (int16_t)current + (down ? -(int16_t)step : (int16_t)step);
+	if(next > 127) next = wrap ? (int16_t)(next - 128) : 127;
+	if(next < 0)   next = wrap ? (int16_t)(next + 128) : 0;
+
+	if(slot >= 0) ccinc_value[slot] = (uint8_t)next;
+	midiCmd_send_cc(channel, cc, (uint8_t)next);
+}
+
+// A stored SysEx payload, wrapped in F0 ... F7 and sent to USB and DIN
+static void send_stored_sysex(const uint8_t *pRom){
+	uint8_t index = pRom[1];
+	if(index >= SYSEX_STRING_COUNT) return;
+	const uint8_t *entry = pSysExStrings + index * SYSEX_STRING_STRIDE;
+	uint8_t len = entry[0];
+	if(len == 0 || len > SYSEX_STRING_MAX) return; // empty or erased flash
+
+	uint8_t msg[SYSEX_STRING_MAX + 2];
+	msg[0] = SYSEX_START;
+	for(uint8_t i=0; i<len; i++) msg[1+i] = entry[1+i] & 0x7F;
+	msg[1+len] = SYSEX_END;
+
+	sysex_send_message(msg, len + 2);
+	midiCmd_send_bytes_serial(msg, len + 2);
+}
+
 uint8_t* get_rom_pointer(uint8_t page, uint8_t sw, uint8_t cmd){
 	return pSwitchCmds + (MIDI_ROM_KEY_STRIDE * sw) + (MIDI_ROM_CMD_SIZE * cmd) + (MIDI_ROM_KEY_STRIDE * 8 * page);
 }
@@ -314,6 +380,8 @@ void sw_led_init(void){
 			a_sw_obj[sw].press_state = PRESS_IDLE;
 		}
 	}
+
+	ccinc_reset();
 
 	// Init all delayed cmds to off
 	for(int i=0; i<MAX_DELAYED_CMDS; i++){
@@ -453,6 +521,12 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 				set_cmd_duration_delay(pRom); // auto release
 			}
 		}
+		break;
+	case CMD_CCINC_NIBBLE:
+		send_ccinc(pRom);
+		break;
+	case CMD_SYSEX_NIBBLE:
+		send_stored_sysex(pRom);
 		break;
 	case CMD_BANK_NIBBLE:
 		// Applied after the command list finishes (see pending_bank)

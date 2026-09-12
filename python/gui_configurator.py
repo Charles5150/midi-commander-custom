@@ -20,7 +20,14 @@ sys.path.insert(0, HERE)
 from lib.cmdBinaryPacker import HID_SPECIAL_KEYS, MEDIA_KEYS  # noqa: E402
 from lib.configCsv import read_config_csv, write_config_csv  # noqa: E402
 from lib.configPacker import NUM_BANKS, BUTTON_IDS  # noqa: E402
-from lib.configPacker import BANK_ENTER_SECTION, empty_bank_enter_settings  # noqa: E402
+from lib.configPacker import (  # noqa: E402
+    BANK_ENTER_SECTION,
+    SYSEX_SECTION,
+    SYSEX_STRING_COUNT,
+    empty_bank_enter_settings,
+    empty_sysex_strings,
+    parse_sysex_bytes,
+)
 from lib.configPacker import (  # noqa: E402
     EXPRESSION_SECTION,
     LONG_PRESS_SECTION,
@@ -38,7 +45,8 @@ DEFAULT_CSV = os.path.join(HERE, "MeloConfig_10_Cmds - RC-600.csv")
 LED_MODES = ["Normal", "Reverse", "AlwaysOn"]
 CHANNELS = [str(i) for i in range(1, 17)]
 NO_COMMAND = "(none)"
-COMMAND_TYPES = [NO_COMMAND, "PC", "CC", "Note", "PB", "Key", "Media", "Bank", "Start", "Stop"]
+COMMAND_TYPES = [NO_COMMAND, "PC", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Start", "Stop"]
+CCINC_DIRECTIONS = ["Up", "Down"]
 BANK_MODES = ["GoTo", "Up", "Down"]
 BANKS = [str(i) for i in range(32)]
 MEDIA_NAMES = list(MEDIA_KEYS.keys())
@@ -261,6 +269,24 @@ class SlotEditor:
             self.widgets["keymode"] = w
             self._int("duration", "Dur", "Duration_(Note/PB)", 0, 127, width=50)
             self._check("toggle", "Hold", "Toggle_(CC/PB/Note)")
+        elif cmd_type == "CCInc":
+            self._channel()
+            self._int("number", "CC#", "Number_(PC/CC/Note)", 0, 127)
+            self._label("Dir")
+            w = Option(self.params, CCINC_DIRECTIONS, self.initial.get("KeyMode_(Key)"), width=75)
+            w.pack(side="left")
+            self.widgets["ccincdir"] = w
+            self._int("step", "Step", "OffValue_(CC)", 1, 127, width=50)
+            self._int("on", "Start", "OnValue_(CC/PB)", 0, 127, width=55)
+            self._check("toggle", "Wrap", "Toggle_(CC/PB/Note)")
+        elif cmd_type == "SysEx":
+            self._label("String")
+            w = Option(self.params, [str(i) for i in range(SYSEX_STRING_COUNT)],
+                       self.initial.get("Number_(PC/CC/Note)"), width=70)
+            w.pack(side="left")
+            self.widgets["sysexindex"] = w
+            ctk.CTkLabel(self.params, text="(edit the bytes in the SysEx tab)",
+                         text_color="gray").pack(side="left", padx=8)
         elif cmd_type == "Bank":
             self._label("Action")
             w = Option(self.params, BANK_MODES, self.initial.get("KeyMode_(Key)"), width=80,
@@ -321,6 +347,11 @@ class SlotEditor:
         if cmd_type == "Bank":
             out["KeyMode_(Key)"] = w["bankmode"].value()
             out["OnValue_(CC/PB)"] = w["bankvalue"].value()
+        if cmd_type == "CCInc":
+            out["KeyMode_(Key)"] = w["ccincdir"].value()
+            out["OffValue_(CC)"] = w["step"].value()
+        if cmd_type == "SysEx":
+            out["Number_(PC/CC/Note)"] = w["sysexindex"].value()
         return out
 
 
@@ -339,6 +370,8 @@ class MidiCommanderGUI(ctk.CTk):
         self.df_exp = None
         self.df_enter = None
         self.enter_editors = []
+        self.df_sysex = None
+        self.sysex_widgets = {}
         self.current_csv_path = None
         self.live = None            # MidiCommander while the live pedal view is on
         self.calibrating = {}       # pedal index -> [min_seen, max_seen]
@@ -392,6 +425,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.tabview.add("Bank Names")
         self.tabview.add("Expression")
         self.tabview.add("Bank Enter")
+        self.tabview.add("SysEx")
 
         self.global_scroll = ctk.CTkScrollableFrame(self.tabview.tab("Global Settings"))
         self.global_scroll.pack(fill="both", expand=True)
@@ -402,6 +436,7 @@ class MidiCommanderGUI(ctk.CTk):
         self._setup_button_tab()
         self._setup_expression_tab()
         self._setup_bank_enter_tab()
+        self._setup_sysex_tab()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
         if os.path.exists(DEFAULT_CSV):
@@ -527,6 +562,13 @@ class MidiCommanderGUI(ctk.CTk):
                 if BANK_ENTER_SECTION in data
                 else empty_bank_enter_settings()
             )
+            self.df_sysex = (
+                data[SYSEX_SECTION].astype(object).reset_index(drop=True)
+                if SYSEX_SECTION in data
+                else empty_sysex_strings()
+            )
+            self.populate_sysex()
+
             missing = [
                 f"{slot}_{field}"
                 for slot in SLOTS
@@ -1019,11 +1061,66 @@ class MidiCommanderGUI(ctk.CTk):
                     val if val != "" else float("nan")
                 )
 
+    # --- SysEx tab -----------------------------------------------------------------
+    def _setup_sysex_tab(self):
+        tab = self.tabview.tab("SysEx")
+        ctk.CTkLabel(
+            tab,
+            text="Stored SysEx messages a SysEx command can send. Write the bytes in "
+            "hexadecimal as the device manual shows them; a leading F0 and trailing F7 "
+            "are optional and added when sending. Up to 23 data bytes, each 00-7F. "
+            "A line that cannot be parsed is stored empty and nothing is sent.",
+            text_color="gray",
+            wraplength=780,
+            justify="left",
+        ).pack(anchor="w", padx=10, pady=(10, 6))
+        self.sysex_frame = ctk.CTkScrollableFrame(tab)
+        self.sysex_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+
+    def populate_sysex(self):
+        for w in self.sysex_frame.winfo_children():
+            w.destroy()
+        self.sysex_widgets = {}
+        rows = {clean(r.get("Index")): r for _, r in self.df_sysex.iterrows()}
+        for i in range(SYSEX_STRING_COUNT):
+            line = ctk.CTkFrame(self.sysex_frame, fg_color="transparent")
+            line.pack(fill="x", pady=2)
+            ctk.CTkLabel(line, text=f"{i:>2}", width=24, font=BOLD).pack(side="left")
+            src = rows.get(str(i))
+            entry = TextEntry(line, 80, clean(src.get("Bytes")) if src is not None else "", width=430)
+            entry.pack(side="left", padx=6)
+            status = ctk.CTkLabel(line, text="", text_color="gray", width=160, anchor="w")
+            status.pack(side="left")
+            self.sysex_widgets[i] = (entry, status)
+            entry.bind("<KeyRelease>", lambda _e, n=i: self._sysex_status(n))
+            self._sysex_status(i)
+
+    def _sysex_status(self, i):
+        entry, status = self.sysex_widgets[i]
+        text = entry.value().strip()
+        if not text:
+            status.configure(text="", text_color="gray")
+            return
+        data = parse_sysex_bytes(text)
+        if data:
+            status.configure(text=f"{len(data)} bytes", text_color="gray")
+        else:
+            status.configure(text="cannot be parsed", text_color="orange")
+
+    def apply_sysex_changes(self):
+        if self.df_sysex is None:
+            return
+        rows = [{"Index": str(i), "Bytes": w[0].value().strip()}
+                for i, w in sorted(self.sysex_widgets.items())]
+        if rows:
+            self.df_sysex = pd.DataFrame(rows)
+
     # --- Saving / device -----------------------------------------------------------
     def _collect(self):
         """Pull every tab's widgets into the DataFrames."""
         self.apply_button_changes(silent=True)
         self.apply_bank_enter_changes()
+        self.apply_sysex_changes()
         for idx, w in self.global_widgets.items():
             self.df_global.at[idx, "Value"] = w.value()
         for idx, (large, small) in self.bank_widgets.items():
@@ -1053,6 +1150,7 @@ class MidiCommanderGUI(ctk.CTk):
                 df_long_press=self.df_long,
                 df_expression=self.df_exp,
                 df_bank_enter=self.df_enter,
+                df_sysex=self.df_sysex,
             )
             messagebox.showinfo("Success", "CSV Saved Successfully!")
         except Exception as e:  # noqa: BLE001
@@ -1109,6 +1207,7 @@ class MidiCommanderGUI(ctk.CTk):
                 df_long_press=self.df_long,
                 df_expression=self.df_exp,
                 df_bank_enter=self.df_enter,
+                df_sysex=self.df_sysex,
             )
         except Exception as e:  # noqa: BLE001
             messagebox.showerror("Error", f"Could not save CSV before flashing: {e}")
