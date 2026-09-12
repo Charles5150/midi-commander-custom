@@ -39,7 +39,7 @@ The firmware replaces the stock MeloAudio one but never touches its bootloader, 
 - **USB-to-DIN MIDI thru.** Optionally forward everything received over USB to the MIDI OUT jack, so the pedal doubles as a USB MIDI interface for the device behind it. Clock / Start / Continue / Stop have their own switch.
 - **Commands on entering a bank.** Each bank can send a set of commands when you switch to it, typically a Program Change that selects its patch, so no button is spent on it.
 - **Bank changes from incoming MIDI.** A Program Change or a Control Change arriving over USB can select a bank, so a DAW or another pedal can drive this one.
-- **Remember state.** Optionally power up in the last bank with every toggle exactly as you left it.
+- **Remember state.** Optionally power up in the last bank with every toggle exactly as you left it, journaled across several flash pages so wear is not a concern.
 - **Sleep mode.** When the computer suspends, LEDs and display switch off; they come back when it wakes.
 - **Configuration over USB.** Flash a configuration to the pedal and read it back, from the GUI or the command line, over ordinary USB MIDI SysEx. No special driver.
 - Firmware updates through the stock DFU bootloader with `dfu-util`.
@@ -52,7 +52,7 @@ You need the pedal, a USB cable, Python 3 and, to update the firmware, `dfu-util
 
 ### 1. Flash the firmware
 
-The current release is **`artifacts/release-0.15.dfu`**. Earlier releases are kept in `artifacts/` for reference.
+The current release is **`artifacts/release-0.16.dfu`**. Earlier releases are kept in `artifacts/` for reference.
 
 1. Install `dfu-util` (macOS: `brew install dfu-util`; Linux: your package manager; Windows: [dfu-util.sourceforge.net](https://dfu-util.sourceforge.net/)).
 2. With the pedal off, hold **Bank Down** and **D** (the two bottom-right buttons) and switch it on. The display stays dark and LED 3 lights up: the pedal is in DFU mode.
@@ -66,7 +66,7 @@ The current release is **`artifacts/release-0.15.dfu`**. Earlier releases are ke
 4. Flash, using `--alt 0` (the internal flash entry above):
 
    ```bash
-   dfu-util -d 0483:df11 --alt 0 --download artifacts/release-0.15.dfu
+   dfu-util -d 0483:df11 --alt 0 --download artifacts/release-0.16.dfu
    ```
 
 5. Power cycle the pedal. The firmware version shows on the display for a moment, then the first bank.
@@ -293,6 +293,7 @@ Hardware notes (MCU, pinout, I²C addresses) are in `HardwareNotes.txt`; `backup
 
 Firmware versions are shown on the display at boot and reported by the tools.
 
+- **0.16 — Journal wear.** The saved-state journal now spans four flash pages instead of one, so a fill-and-erase cycle absorbs 124 saves and the journal is good for over a million of them. This replaces the idea of moving it to the external EEPROM: the EEPROM shares the I2C bus with the DMA-driven display and holds only 896 free bytes, so it would have meant coordinating blocking writes with screen updates for no practical gain, while spare flash costs nothing.
 - **0.15 — Expression pedals as switches.** Reaching the toe, or returning to the heel, taps a button of the current bank (`Toe_Button`, `Toe_Level`, `Heel_Button`, `Heel_Level`), so a pedal gives you two more footswitches while still sending its CC. Stored in bytes that were already reserved in each pedal's record, so the configuration does not grow.
 - **0.14 — Tap tempo and MIDI clock.** New `Tap` command type, in Tap or Clock mode. The clock is generated from the millisecond tick with fractional accumulation, so its average tempo is exact and it does not drift, and the bytes are emitted from the main loop rather than an interrupt. USB MIDI transmission was rewritten around a queue: it used to busy-wait for the previous packet, which made sending from an interrupt impossible and could hang for good if the USB interrupt never ran.
 - **0.13 — Relative CC and custom SysEx.** New `CCInc` command type nudges a CC value by a step per press, with optional wrapping and a per-slot running value. New `SysEx` command type sends one of sixteen stored messages from the new `SysEx_Strings` section, to both USB and DIN, with a SysEx tab in the configurator that validates the bytes as you type.

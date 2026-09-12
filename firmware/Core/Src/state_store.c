@@ -1,13 +1,16 @@
 /*
  * state_store.c
  *
- * Journal of (toggle states, bank) entries in one dedicated flash page.
+ * Journal of (toggle states, bank) entries in a dedicated flash region.
  *
  * Flash bits can only be cleared by programming, so instead of rewriting one
- * slot we append a new entry each time and erase the page only when it is
- * full. With MIDI_NUM_BANKS banks an entry holds two 32-bit masks per button,
- * so a 2 kB page still fits enough entries to spread the 10k erase cycle
- * endurance over hundreds of thousands of saves.
+ * slot we append a new entry each time and erase only when the region is
+ * full. The region spans several pages, which is what keeps flash wear a
+ * non-issue: each fill-and-erase cycle absorbs STATE_ENTRIES saves, and the
+ * flash endures 10k erase cycles, so the journal is good for over a million
+ * saves. There is plenty of spare flash, so this is far cheaper than moving
+ * the journal to the external EEPROM, which would have to share the I2C bus
+ * with the DMA-driven display.
  *
  * Entry layout (halfword writes, 2 byte aligned):
  *   [0 .. 4n-1]   short press toggle masks, one uint32 LE per button
@@ -28,10 +31,15 @@
 #include <string.h>
 
 #define STATE_STORE_ADDR	(FLASH_BASE + (1024U * 128U) + FLASH_SETTINGS_NO_PAGES * FLASH_PAGE_SIZE)
+#define STATE_STORE_PAGES	(4U)
+#define STATE_REGION_SIZE	(STATE_STORE_PAGES * FLASH_PAGE_SIZE)
 #define STATE_MASK_BYTES	(MIDI_NUM_SWITCHES * 4U)		// one uint32 per button
 #define STATE_BANK_OFF		(2U * STATE_MASK_BYTES)
 #define STATE_ENTRY_SIZE	(STATE_BANK_OFF + 2U)
-#define STATE_ENTRIES		(FLASH_PAGE_SIZE / STATE_ENTRY_SIZE)
+// Entries are packed continuously and may straddle a page boundary, which is
+// fine: reads are linear, each halfword write lands inside one page, and the
+// whole region is erased together.
+#define STATE_ENTRIES		(STATE_REGION_SIZE / STATE_ENTRY_SIZE)
 #define STATE_MARKER		(0xA7U)
 #define STATE_SAVE_DELAY_MS	(2000U)
 
@@ -64,7 +72,7 @@ static void read_masks(const uint8_t *src, uint32_t *out){
 	}
 }
 
-// Scan the page once: find the latest valid entry and the first blank slot.
+// Scan the region once: find the latest valid entry and the first blank slot.
 static void scan(void){
 	next_free = STATE_ENTRIES;
 	last_saved_bank = 0xFF;
@@ -102,13 +110,13 @@ void state_store_mark_dirty(void){
 	dirty_since = HAL_GetTick();
 }
 
-static void erase_page(void){
+static void erase_region(void){
 	uint32_t pageError;
 	FLASH_EraseInitTypeDef eraseInit = {
 			.TypeErase = FLASH_TYPEERASE_PAGES,
 			.Banks = FLASH_BANK_1,
 			.PageAddress = STATE_STORE_ADDR,
-			.NbPages = 1
+			.NbPages = STATE_STORE_PAGES
 	};
 	HAL_FLASHEx_Erase(&eraseInit, &pageError);
 }
@@ -120,7 +128,7 @@ static void write_entry(uint8_t bank, const uint32_t *toggles, const uint32_t *l
 	HAL_FLASH_Unlock();
 
 	if(next_free >= STATE_ENTRIES){
-		erase_page();
+		erase_region();
 		next_free = 0;
 	}
 
