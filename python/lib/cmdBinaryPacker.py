@@ -20,6 +20,41 @@ CMD_KEY_NIBBLE = 0xD0
 # Most significant bit -> toggle control
 
 
+# USB HID usage IDs for named keys (keyboard/keypad page). Shared with the
+# unpacker so that names round-trip through the device.
+HID_SPECIAL_KEYS = {
+    "enter": 40,
+    "esc": 41,
+    "escape": 41,
+    "backspace": 42,
+    "tab": 43,
+    "space": 44,
+    "minus": 45,
+    "equal": 46,
+    "leftbr": 47,
+    "rightbr": 48,
+    "backslash": 49,
+    "semicolon": 51,
+    "quote": 52,
+    "grave": 53,
+    "comma": 54,
+    "dot": 55,
+    "slash": 56,
+    "f1": 58,
+    "f2": 59,
+    "f3": 60,
+    "f4": 61,
+    "f5": 62,
+    "f6": 63,
+    "f7": 64,
+    "f8": 65,
+    "f9": 66,
+    "f10": 67,
+    "f11": 68,
+    "f12": 69,
+    }
+
+
 def safe_int(val, default=0):
     try:
         if pd.isna(val) or str(val).strip() == "":
@@ -44,40 +79,8 @@ def get_hid_code(val):
         if c == " ":
             return 44  # Space
 
-    # Special keys
-    special = {
-        "enter": 40,
-        "esc": 41,
-        "escape": 41,
-        "backspace": 42,
-        "tab": 43,
-        "space": 44,
-        "minus": 45,
-        "equal": 46,
-        "leftbr": 47,
-        "rightbr": 48,
-        "backslash": 49,
-        "semicolon": 51,
-        "quote": 52,
-        "grave": 53,
-        "comma": 54,
-        "dot": 55,
-        "slash": 56,
-        "f1": 58,
-        "f2": 59,
-        "f3": 60,
-        "f4": 61,
-        "f5": 62,
-        "f6": 63,
-        "f7": 64,
-        "f8": 65,
-        "f9": 66,
-        "f10": 67,
-        "f11": 68,
-        "f12": 69,
-    }
-    if s_val.lower() in special:
-        return special[s_val.lower()]
+    if s_val.lower() in HID_SPECIAL_KEYS:
+        return HID_SPECIAL_KEYS[s_val.lower()]
 
     # Fallback to raw int
     try:

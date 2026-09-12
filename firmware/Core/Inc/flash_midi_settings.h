@@ -15,6 +15,11 @@ extern uint8_t *pGlobalSettings;
 extern uint8_t *pBankStrings;
 
 
+// Number of 1kB flash pages reserved for the settings. Must stay in sync with
+// ALLOWED_NUM_FLASH_PAGES in python/CSV_to_Flash.py.
+#define FLASH_SETTINGS_NO_PAGES	(3)
+#define FLASH_SETTINGS_SIZE		(FLASH_SETTINGS_NO_PAGES * 1024)
+
 #define MIDI_ROM_CMD_SIZE	(4)
 #define MIDI_NUM_COMMANDS_PER_SWITCH (10)
 #define MIDI_ROM_KEY_STRIDE	(MIDI_NUM_COMMANDS_PER_SWITCH*MIDI_ROM_CMD_SIZE)

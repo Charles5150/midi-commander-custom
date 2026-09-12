@@ -42,6 +42,10 @@
 #define SYSEX_RSP_ERASE_FLASH	(53) // zero length response to confirm success
 #define SYSEX_CMD_WRITE_FLASH	(54) // first byte is the page address (16 byte pages), valid range 0-63.  Following 16 bytes are the data to write
 #define SYSEX_RSP_WRITE_FLASH	(55) // zero length response to confirm write
+#define SYSEX_CMD_READ_FLASH	(56) // two bytes: chunk address high/low (7 bits each, 16 byte chunks)
+#define SYSEX_RSP_READ_FLASH	(57) // echoes the chunk address, followed by 16 bytes as 32 nibbles (high nibble first)
+#define SYSEX_CMD_GET_VERSION	(58) // no parameters
+#define SYSEX_RSP_GET_VERSION	(59) // firmware version string as 7-bit ASCII
 #define SYSEX_CMD_RESET			(60) // Reset the device
 
 #define SYSEX_START (0xF0)

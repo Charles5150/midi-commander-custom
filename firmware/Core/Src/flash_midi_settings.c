@@ -12,8 +12,6 @@
 #define FLASH_SETTINGS_OFFSET	(1024*128)
 #define FLASH_SETTINGS_START	(FLASH_BASE + FLASH_SETTINGS_OFFSET)
 
-#define FLASH_SETTINGS_NO_PAGES	(3)
-
 uint8_t *pGlobalSettings = (uint8_t*)FLASH_SETTINGS_START;
 uint8_t *pBankStrings = (uint8_t*)FLASH_SETTINGS_START+32;
 uint8_t *pSwitchCmds = (uint8_t*)FLASH_SETTINGS_START+32+96;

@@ -34,7 +34,7 @@ class MidiCommanderGUI(ctk.CTk):
         # Sidebar
         self.sidebar_frame = ctk.CTkFrame(self, width=200, corner_radius=0)
         self.sidebar_frame.grid(row=0, column=0, sticky="nsew")
-        self.sidebar_frame.grid_rowconfigure(4, weight=1)
+        self.sidebar_frame.grid_rowconfigure(5, weight=1)
 
         self.logo_label = ctk.CTkLabel(
             self.sidebar_frame,
@@ -48,10 +48,15 @@ class MidiCommanderGUI(ctk.CTk):
         )
         self.btn_load.grid(row=1, column=0, padx=20, pady=10)
 
+        self.btn_read = ctk.CTkButton(
+            self.sidebar_frame, text="Read from Device", command=self.read_device
+        )
+        self.btn_read.grid(row=2, column=0, padx=20, pady=10)
+
         self.btn_save = ctk.CTkButton(
             self.sidebar_frame, text="Save CSV", command=self.save_csv
         )
-        self.btn_save.grid(row=2, column=0, padx=20, pady=10)
+        self.btn_save.grid(row=3, column=0, padx=20, pady=10)
 
         self.btn_flash = ctk.CTkButton(
             self.sidebar_frame,
@@ -60,7 +65,7 @@ class MidiCommanderGUI(ctk.CTk):
             hover_color="darkred",
             command=self.flash_device,
         )
-        self.btn_flash.grid(row=3, column=0, padx=20, pady=20)
+        self.btn_flash.grid(row=4, column=0, padx=20, pady=20)
 
         # Tabs
         self.tabview = ctk.CTkTabview(self, width=850)
@@ -583,6 +588,37 @@ class MidiCommanderGUI(ctk.CTk):
 
         except Exception as e:
             messagebox.showerror("Error", f"Could not save CSV: {e}")
+
+    def read_device(self):
+        save_path = filedialog.asksaveasfilename(
+            title="Save device configuration as",
+            defaultextension=".csv",
+            initialfile="device_config.csv",
+            filetypes=[("CSV Files", "*.csv")],
+        )
+        if not save_path:
+            return
+
+        script_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "Flash_to_CSV.py"
+        )
+        try:
+            p = subprocess.run(
+                [sys.executable, script_path, save_path],
+                capture_output=True,
+                text=True,
+            )
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to run read script: {e}")
+            return
+
+        if p.returncode != 0:
+            detail = (p.stdout + "\n" + p.stderr).strip()
+            messagebox.showerror("Read Error", detail or f"Exit code {p.returncode}")
+            return
+
+        self.load_csv(save_path)
+        messagebox.showinfo("Read Complete", p.stdout.strip().splitlines()[-1])
 
     def flash_device(self):
         if not self.current_csv_path:

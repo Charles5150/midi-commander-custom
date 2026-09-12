@@ -6,6 +6,8 @@ This repository is a fork of [arasan95/midi-commander-custom](https://github.com
 
 ## Changes in this fork
 
+- **Configuration read-back (firmware 0.2).** The device can now send its stored configuration back over USB MIDI. `python/Flash_to_CSV.py <file.csv>` dumps it as a CSV in the usual layout, and the GUI has a **Read from Device** button that does the same and loads the result into the editor. Two SysEx commands were added: `READ_FLASH` (56) and `GET_VERSION` (58). Older firmware ignores them, so the tools detect the missing support and ask you to update.
+- **Round-trip tests for the packers.** `python -m unittest python/tests/test_roundtrip.py` packs the sample CSV, decodes it again and compares every field.
 - **Fixed a spurious Note Off after timed pitch bend commands.** When a pitch bend with a duration expired, the firmware also sent a Note Off built from the pitch bend bytes because of a missing `break` in `handle_delayed_cmds`. Only the pitch bend reset is sent now.
 - **Global `MIDI_Channel` is now 1-based (1-16)**, matching the per-command `Channel` field. Previously the packer wrote the CSV value straight to flash, so a value of 14 made the expression pedals transmit on channel 15. If you had compensated for this in your CSV, adjust the value.
 - **Documented the expression pedal settings** (`MIDI_Channel`, `Exp1_CC`, `Exp2_CC`) in the README.
@@ -41,7 +43,7 @@ When the connected PC enters sleep (suspend) mode, the device will automatically
 
 Before using the new features (GUI Configurator, Sleep Mode, etc.), you must update the device firmware.
 Please flash the following file included in this repository:
-`artifacts/release-0.1B-Sleep.dfu`
+`artifacts/release-0.2.dfu` (the previous release, `artifacts/release-0.1B-Sleep.dfu`, is kept for reference)
 
 (See [Loading the firmware](#loading-the-firmware) section for detailed flashing instructions.)
 
@@ -57,7 +59,7 @@ python python/gui_configurator.py
 
 Configuration Workflow
 
-1. When the application starts, the current device configuration is automatically loaded.
+1. When the application starts, the sample configuration CSV is loaded. Click **Read from Device** to pull the configuration currently stored on the connected Midi Commander instead (requires firmware 0.2 or later), or **Load CSV** to open one of your own.
 
 2. Click buttons on the screen to change assigned MIDI commands and LED modes.
 
@@ -201,6 +203,14 @@ Once your Python environment is operational, you can load your configuration ont
    ```
 
 The tool will convert the CSV file to a binary format and transmit it to the Midi Commander. At the end of the operation the Midi Commander should restart to load the new configuration.
+
+To do the reverse and save the configuration currently stored on the device as a CSV file:
+
+   ```
+   python3 python/Flash_to_CSV.py my-current-config.csv
+   ```
+
+The resulting file uses the same layout, so you can edit it and flash it back with `CSV_to_Flash.py` or open it in the GUI.
 
 # Basic instructions for setting up development environment
 Install the [PlatformIO](https://platformio.org/) CLI (`pipx install platformio` works well) or the PlatformIO VS Code extension. All firmware sources now live under `firmware/`, so `platformio run -e midi_debug` produces the debugger-friendly image and `platformio run -e midi_dfu` outputs the DFU-offset build (and packages it automatically). No STM32CubeIDE metadata remains in the repository.

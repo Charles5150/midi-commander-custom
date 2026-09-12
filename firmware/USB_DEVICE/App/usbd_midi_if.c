@@ -108,6 +108,51 @@ void sysex_write_flash(uint8_t* data_packet_start){
 
 }
 
+/*
+ * Read back one 16 byte chunk of the settings area. The request carries the
+ * chunk address as two 7-bit bytes (high, low). The response echoes the
+ * address and returns the 16 bytes as 32 nibbles so every byte stays 7-bit
+ * clean, mirroring the WRITE_FLASH encoding.
+ */
+void sysex_read_flash(uint8_t* data_packet_start){
+	uint32_t flash_byte_offset = ( (data_packet_start[0] << 7) | data_packet_start[1]) * 16;
+
+	if(flash_byte_offset + 16 > FLASH_SETTINGS_SIZE){
+		return; // Out of range, ignore silently
+	}
+
+	uint8_t *src = pGlobalSettings + flash_byte_offset;
+	uint8_t *p = midi_msg_tx_buffer;
+
+	*(p++) = SYSEX_START;
+	*(p++) = MIDI_MANUF_ID;
+	*(p++) = SYSEX_RSP_READ_FLASH;
+	*(p++) = data_packet_start[0];
+	*(p++) = data_packet_start[1];
+	for (int i=0; i<16; i++){
+		*(p++) = src[i] >> 4;
+		*(p++) = src[i] & 0x0F;
+	}
+	*(p++) = SYSEX_END;
+
+	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
+}
+
+void sysex_get_version(void){
+	const char *version = FIRMWARE_VERSION;
+	uint8_t *p = midi_msg_tx_buffer;
+
+	*(p++) = SYSEX_START;
+	*(p++) = MIDI_MANUF_ID;
+	*(p++) = SYSEX_RSP_GET_VERSION;
+	while(*version && (p - midi_msg_tx_buffer) < (SYSEX_MAX_LENGTH - 1)){
+		*(p++) = (uint8_t)(*version++) & 0x7F;
+	}
+	*(p++) = SYSEX_END;
+
+	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
+}
+
 void process_sysex_message(void){
 	// Check start and end bytes
 	if(sysex_rx_buffer[0] != SYSEX_START ||
@@ -130,6 +175,15 @@ void process_sysex_message(void){
 	case SYSEX_CMD_WRITE_FLASH:
 		// TODO: check data length
 		sysex_write_flash(&(pSysexHead->start_parameters));
+		break;
+	case SYSEX_CMD_READ_FLASH:
+		// F0 7D 56 hi lo F7 = 6 bytes minimum
+		if(sysex_rx_counter >= 6){
+			sysex_read_flash(&(pSysexHead->start_parameters));
+		}
+		break;
+	case SYSEX_CMD_GET_VERSION:
+		sysex_get_version();
 		break;
 	case SYSEX_CMD_RESET:
 		NVIC_SystemReset();
