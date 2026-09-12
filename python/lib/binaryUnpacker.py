@@ -11,6 +11,7 @@ Memory layout (see firmware/Core/Src/flash_midi_settings.c):
     16..31   config name (ASCII, space padded)
     32..127  8 banks x (4 byte large name + 8 byte small name)
     128..    8 banks x 8 buttons x 10 commands x 4 bytes
+    2688..   button LED mode table, one byte per button (bank * 8 + button)
 """
 
 import pandas as pd
@@ -33,9 +34,9 @@ NUM_BANKS = 8
 BUTTON_IDS = ["1", "2", "3", "4", "A", "B", "C", "D"]
 CMD_SIZE = 4
 BUTTON_STRIDE = MIDI_NUM_COMMANDS_PER_SWITCH * CMD_SIZE
-CONFIG_SIZE = (
-    GLOBAL_SIZE + BANK_STRINGS_SIZE + NUM_BANKS * len(BUTTON_IDS) * BUTTON_STRIDE
-)
+COMMANDS_OFFSET = GLOBAL_SIZE + BANK_STRINGS_SIZE
+LED_MODES_OFFSET = COMMANDS_OFFSET + NUM_BANKS * len(BUTTON_IDS) * BUTTON_STRIDE
+CONFIG_SIZE = LED_MODES_OFFSET + NUM_BANKS * len(BUTTON_IDS)
 
 SLOT_NAMES = [chr(ord("A") + i) for i in range(MIDI_NUM_COMMANDS_PER_SWITCH)]
 
@@ -110,32 +111,11 @@ def _empty_cmd() -> dict:
     return cmd
 
 
-def unpack_command(raw: bytes, slot_a: bool):
-    """Decode one 4 byte command.
-
-    Returns ``(fields, light_mode)``. ``light_mode`` is only meaningful for
-    slot A, where the packer stores the button's LED mode in the MSB of
-    bytes 2 (Reverse) and 3 (AlwaysOn). Those bits are stripped before the
-    command itself is decoded so the CSV matches what was originally packed.
-
-    Known ambiguity: a PC command in slot A without Bank Select MSB is stored
-    as byte 2 == 0x80, which is indistinguishable from "Reverse + MSB 0". It is
-    decoded as "no MSB, Normal", the far more common case.
-    """
+def unpack_command(raw: bytes) -> dict:
+    """Decode one 4 byte command into its CSV fields."""
     b0, b1, b2, b3 = raw
     cmd = _empty_cmd()
-    light_mode = "Normal"
     cmd_type = b0 & 0xF0
-
-    if slot_a and cmd_type not in (0x00, 0xF0):
-        if cmd_type == CMD_PC_NIBBLE and b2 == 0x80:
-            pass  # "no bank select MSB", not Reverse
-        elif b2 & 0x80:
-            light_mode = "Reverse"
-        if b3 & 0x80:
-            light_mode = "AlwaysOn"
-        b2 &= 0x7F
-        b3 &= 0x7F
 
     channel = str((b0 & 0x0F) + 1)
     toggle = "Y" if b1 & 0x80 else "N"
@@ -184,7 +164,7 @@ def unpack_command(raw: bytes, slot_a: bool):
         cmd["CommandType"] = "Stop"
     # 0x00 (no command) and 0xF0 (erased flash) leave the empty template
 
-    return cmd, light_mode
+    return cmd
 
 
 def unpack_button_settings(data: bytes) -> pd.DataFrame:
@@ -195,26 +175,19 @@ def unpack_button_settings(data: bytes) -> pd.DataFrame:
     columns += [f"{slot}_KeyMode_(Key)" for slot in SLOT_NAMES]
 
     rows = []
-    base = GLOBAL_SIZE + BANK_STRINGS_SIZE
     for bank in range(NUM_BANKS):
         for btn_index, btn_id in enumerate(BUTTON_IDS):
+            button_number = bank * len(BUTTON_IDS) + btn_index
             row = {"Bank_Number": str(bank), "Button_Identifier": btn_id}
-            light_mode = "Normal"
             for slot_index, slot in enumerate(SLOT_NAMES):
                 offset = (
-                    base
-                    + (bank * len(BUTTON_IDS) + btn_index) * BUTTON_STRIDE
-                    + slot_index * CMD_SIZE
+                    COMMANDS_OFFSET + button_number * BUTTON_STRIDE + slot_index * CMD_SIZE
                 )
-                cmd, slot_light = unpack_command(
-                    data[offset : offset + CMD_SIZE], slot_index == 0
-                )
-                if slot_index == 0:
-                    light_mode = slot_light
+                cmd = unpack_command(data[offset : offset + CMD_SIZE])
                 for f in CMD_FIELDS:
                     row[f"{slot}_{f}"] = cmd[f]
                 row[f"{slot}_KeyMode_(Key)"] = cmd["KeyMode_(Key)"]
-            row["Light_Mode"] = light_mode
+            row["Light_Mode"] = _led_mode_name(data[LED_MODES_OFFSET + button_number])
             rows.append(row)
 
     return pd.DataFrame(rows, columns=columns)

@@ -16,31 +16,15 @@ sys.path.insert(0, os.path.dirname(HERE))
 
 import lib.binaryUnpacker as unpacker  # noqa: E402
 import lib.cmdBinaryPacker as cbp  # noqa: E402
-import lib.settingsBinaryPacker as sbp  # noqa: E402
 from lib.configCsv import read_config_csv  # noqa: E402
+from lib.configPacker import pack_config  # noqa: E402
 
 SAMPLE_CSV = os.path.join(os.path.dirname(HERE), "MeloConfig_10_Cmds - RC-600.csv")
 
 
 def pack_csv(path: str) -> bytes:
     """Pack a CSV exactly like CSV_to_Flash.py does."""
-    sections = read_config_csv(path)
-    df_global = sections["Global_Settings"].set_index("Label")
-    df_banks = sections["Bank_Naming"].set_index("Bank_Number")
-    df_buttons = sections["Button_Settings"].copy()
-    # CSV_to_Flash reads numbers as floats; mimic that for the numeric columns
-    # the packers do arithmetic on.
-    for col in df_buttons.columns:
-        if "Channel_" in col:
-            df_buttons[col] = pd.to_numeric(df_buttons[col], errors="coerce")
-    df_buttons = df_buttons.set_index(["Bank_Number", "Button_Identifier"])
-
-    out = []
-    out += sbp.pack_global_settings(df_global)
-    out += sbp.pack_bank_strings(df_banks)
-    for _, row in df_buttons.iterrows():
-        out += cbp.pack_row(row)
-    return bytes(out)
+    return pack_config(read_config_csv(path))
 
 
 def norm(value) -> str:
@@ -151,6 +135,43 @@ class RoundTripTest(unittest.TestCase):
         _, _, df = unpacker.unpack_config(blank)
         self.assertTrue((df["A_CommandType"] == "").all())
         self.assertTrue((df["Light_Mode"] == "Normal").all())
+
+    def test_light_mode_does_not_touch_command_bytes(self):
+        """LED modes live in their own table and never set bits in slot A."""
+        sections = read_config_csv(SAMPLE_CSV)
+        df = sections["Button_Settings"].copy()
+        # Force every LED mode onto buttons with different slot A types
+        df["Light_Mode"] = ["Reverse", "AlwaysOn"] * (len(df) // 2)
+        modified = {**sections, "Button_Settings": df}
+        packed = pack_config(modified)
+
+        # Command bytes identical to the all-Normal packing
+        base = pack_config(sections)
+        self.assertEqual(
+            packed[: unpacker.LED_MODES_OFFSET], base[: unpacker.LED_MODES_OFFSET]
+        )
+        # LED table carries the modes
+        table = packed[unpacker.LED_MODES_OFFSET : unpacker.CONFIG_SIZE]
+        self.assertEqual(list(table), [1, 2] * (len(df) // 2))
+        # And they come back by name
+        _, _, decoded = unpacker.unpack_config(packed)
+        self.assertEqual(decoded["Light_Mode"].tolist(), df["Light_Mode"].tolist())
+
+    def test_cc_alwayson_keeps_off_value(self):
+        """Regression: AlwaysOn used to set bit 7 of the CC off value."""
+        row = pd.Series(
+            {
+                "A_CommandType": "CC",
+                "A_Channel_(PC/CC/Note/PB)": "5",
+                "A_Number_(PC/CC/Note)": "5",
+                "A_OnValue_(CC/PB)": "127",
+                "A_OffValue_(CC)": "0",
+                "A_Toggle_(CC/PB/Note)": "Y",
+                "Light_Mode": "AlwaysOn",
+            }
+        )
+        cmd_a = cbp.pack_row(row)[:4]
+        self.assertEqual(cmd_a, [0xB0 | 4, 0x80 | 5, 127, 0])
 
 
 if __name__ == "__main__":

@@ -15,6 +15,8 @@
 uint8_t *pGlobalSettings = (uint8_t*)FLASH_SETTINGS_START;
 uint8_t *pBankStrings = (uint8_t*)FLASH_SETTINGS_START+32;
 uint8_t *pSwitchCmds = (uint8_t*)FLASH_SETTINGS_START+32+96;
+uint8_t *pButtonLedModes = (uint8_t*)FLASH_SETTINGS_START+32+96
+		+ (MIDI_NUM_BANKS * MIDI_NUM_SWITCHES * MIDI_ROM_KEY_STRIDE);
 
 
 void flash_settings_erase(void){

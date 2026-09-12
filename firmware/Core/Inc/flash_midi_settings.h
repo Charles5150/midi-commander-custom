@@ -13,6 +13,16 @@
 extern uint8_t *pSwitchCmds;
 extern uint8_t *pGlobalSettings;
 extern uint8_t *pBankStrings;
+extern uint8_t *pButtonLedModes;
+
+#define MIDI_NUM_BANKS			(8)
+#define MIDI_NUM_SWITCHES		(8)
+
+// Button LED modes, one byte per button indexed by (bank * 8 + switch).
+// 0 = Normal, 1 = Reverse, 2 = AlwaysOn. Erased flash (0xFF) reads as Normal.
+#define LED_MODE_NORMAL		(0)
+#define LED_MODE_REVERSE	(1)
+#define LED_MODE_ALWAYS_ON	(2)
 
 
 // Number of 1kB flash pages reserved for the settings. Must stay in sync with

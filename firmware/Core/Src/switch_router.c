@@ -165,37 +165,22 @@ uint8_t* get_rom_pointer(uint8_t page, uint8_t sw, uint8_t cmd){
 	return pSwitchCmds + (MIDI_ROM_KEY_STRIDE * sw) + (MIDI_ROM_CMD_SIZE * cmd) + (MIDI_ROM_KEY_STRIDE * 8 * page);
 }
 
-// Check if the switch should have inverted LED logic (On when Up, Off when Down)
-// Flag stored in MSB of Byte 3 (index 2) of Slot A
-uint8_t is_switch_inverted(uint8_t sw){
-	uint8_t *pRom = get_rom_pointer(switch_current_page, sw, 0); 
-	if(pRom[2] & 0x80) return 1;
-	return 0;
+static inline uint8_t sanitize_led_mode(uint8_t mode){
+	// Erased flash (0xFF) or any unknown value falls back to Normal
+	return (mode <= LED_MODE_ALWAYS_ON) ? mode : LED_MODE_NORMAL;
 }
 
-// Check if the switch LED should be Always On
-// Flag stored in MSB of Byte 4 (index 3) of Slot A
-uint8_t is_switch_always_on(uint8_t sw){
-	uint8_t *pRom = get_rom_pointer(switch_current_page, sw, 0); 
-	if(pRom[3] & 0x80) return 1;
-	return 0;
-}
-
-// 0=Normal, 1=Reverse, 2=AlwaysOn(Blink)
+// 0=Normal, 1=Reverse, 2=AlwaysOn(Blink), read from the per-button LED mode table
 uint8_t get_button_led_mode(uint8_t sw){
-	if(is_switch_always_on(sw)) return 2;
-	if(is_switch_inverted(sw)) return 1;
-	return 0;
+	return sanitize_led_mode(pButtonLedModes[switch_current_page * MIDI_NUM_SWITCHES + sw]);
 }
 
-uint8_t get_bank_down_led_mode(){ // SW_E is Bank Down (?) - Check usage below. SW_E logic decreases page.
-	if(pGlobalSettings[5] == 0xFF) return 0; // Default Normal
-	return pGlobalSettings[5]; 
+uint8_t get_bank_down_led_mode(){ // SW_E is Bank Down
+	return sanitize_led_mode(pGlobalSettings[5]);
 }
 
 uint8_t get_bank_up_led_mode(){ // SW_5 is Bank Up
-	if(pGlobalSettings[4] == 0xFF) return 0; // Default Normal
-	return pGlobalSettings[4];
+	return sanitize_led_mode(pGlobalSettings[4]);
 }
 
 // Helper to determine LED state based on Mode and Press state

@@ -89,6 +89,12 @@ def get_hid_code(val):
         return 0
 
 
+def channel_nibble(val) -> int:
+    """CSV channel 1-16 -> wire value 0-15. Empty or invalid defaults to channel 1."""
+    ch = safe_int(val, 1)
+    return min(max(ch, 1), 16) - 1
+
+
 def get_toggle_bit(toggle_str):
     if not isinstance(toggle_str, str):
         return 0
@@ -110,7 +116,7 @@ def cmd_pc(cmd):
 
     cmd_bytes = [
         CMD_PC_NIBBLE
-        | safe_int(cmd["Channel_(PC/CC/Note/PB)"] - 1),  # Command and channel
+        | channel_nibble(cmd["Channel_(PC/CC/Note/PB)"]),  # Command and channel
         safe_int(cmd["Number_(PC/CC/Note)"]) & 0x7F,  # Patch number
         bank_select_high,
         bank_select_low,
@@ -122,7 +128,7 @@ def cmd_pc(cmd):
 def cmd_cc(cmd):
     cmd_bytes = [
         CMD_CC_NIBBLE
-        | safe_int(cmd["Channel_(PC/CC/Note/PB)"] - 1),  # Command and channel
+        | channel_nibble(cmd["Channel_(PC/CC/Note/PB)"]),  # Command and channel
         safe_int(cmd["Number_(PC/CC/Note)"]) & 0x7F
         | get_toggle_bit(str(cmd["Toggle_(CC/PB/Note)"])),  # command number & toggle
         safe_int(cmd["OnValue_(CC/PB)"]) & 0x7F,
@@ -134,7 +140,7 @@ def cmd_cc(cmd):
 def cmd_note(cmd):
     cmd_bytes = [
         CMD_NOTE_NIBBLE
-        | safe_int(cmd["Channel_(PC/CC/Note/PB)"] - 1),  # Command and channel
+        | channel_nibble(cmd["Channel_(PC/CC/Note/PB)"]),  # Command and channel
         safe_int(cmd["Number_(PC/CC/Note)"]) & 0x7F
         | get_toggle_bit(str(cmd["Toggle_(CC/PB/Note)"])),  # note number & toggle
         safe_int(cmd["Velocity_(Note)"]) & 0x7F,
@@ -157,7 +163,7 @@ def cmd_pb(cmd):
 
     cmd_bytes = [
         CMD_PB_NIBBLE
-        | safe_int(cmd["Channel_(PC/CC/Note/PB)"] - 1),  # Command and channel
+        | channel_nibble(cmd["Channel_(PC/CC/Note/PB)"]),  # Command and channel
         pitch_LSB
         | get_toggle_bit(
             str(cmd["Toggle_(CC/PB/Note)"])
@@ -251,14 +257,31 @@ def remove_prefix(text, prefix):
     return text
 
 
+# Button LED modes. Stored in a separate table after the command area, one
+# byte per button indexed by (bank * 8 + button). Kept out of the command
+# bytes so they can never corrupt a command.
+LED_MODE_VALUES = {"NORMAL": 0, "REVERSE": 1, "ALWAYSON": 2}
+LED_MODE_NAMES = {v: k.title() if k != "ALWAYSON" else "AlwaysOn" for k, v in LED_MODE_VALUES.items()}
+
+
+def led_mode_value(name) -> int:
+    s = str(name).strip().upper().replace(" ", "").replace("_", "")
+    if s in ("", "NAN"):
+        return 0
+    if "REVERSE" in s:
+        return 1
+    if "ALWAYS" in s:
+        return 2
+    return LED_MODE_VALUES.get(s, 0)
+
+
+def pack_button_led_modes(light_modes) -> list:
+    """Pack one LED mode byte per button from an iterable of mode names."""
+    return [led_mode_value(m) for m in light_modes]
+
+
 def pack_row(row):
     row_byte_list = []
-
-    # Check Light Mode for this button (row)
-    # Default is Normal
-    light_mode = "Normal"
-    if "Light_Mode" in row:
-        light_mode = str(row["Light_Mode"]).strip()
 
     for i in range(0, MIDI_NUM_COMMANDS_PER_SWITCH):
         cmd_prefix = f"{chr(ord('A') + i)}_"
@@ -273,18 +296,8 @@ def pack_row(row):
             # Remove prefix from index to match cmd_xxx expectations
             cmd.index = cmd.index.str.replace(cmd_prefix, "", regex=False)
 
-            func = cmd_route_table.get(cmd["CommandType"], cmd_none)
+            func = cmd_route_table.get(str(cmd["CommandType"]).strip(), cmd_none)
             cmd_byte_list = func(cmd)
-
-        # Inject Light Mode bits into Slot A (i=0)
-        # Using MSB of Byte 3 (index 2) and Byte 4 (index 3)
-        # Byte 3 MSB -> Reverse
-        # Byte 4 MSB -> Always On
-        if i == 0 and len(cmd_byte_list) >= 4:
-            if light_mode == "Reverse":
-                cmd_byte_list[2] |= 0x80
-            elif light_mode == "AlwaysOn":
-                cmd_byte_list[3] |= 0x80
 
         row_byte_list += cmd_byte_list
 

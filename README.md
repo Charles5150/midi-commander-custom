@@ -6,6 +6,7 @@ This repository is a fork of [arasan95/midi-commander-custom](https://github.com
 
 ## Changes in this fork
 
+- **LED light modes moved out of the command bytes (firmware 0.3).** Previously `Light_Mode` was encoded in bit 7 of bytes 2 and 3 of the button's first command, which corrupted that command depending on its type: a CC with AlwaysOn never sent its off value, a Note with AlwaysOn got a 1.28 s or longer duration, a Key with AlwaysOn became a toggle or with Reverse sent the wrong key, and a PC without Bank Select MSB always showed as Reverse. The modes now live in a separate 64 byte table after the commands. **This changes the configuration format:** after flashing firmware 0.3, re-flash your configuration with the updated tools, otherwise every button LED falls back to Normal.
 - **Configuration read-back (firmware 0.2).** The device can now send its stored configuration back over USB MIDI. `python/Flash_to_CSV.py <file.csv>` dumps it as a CSV in the usual layout, and the GUI has a **Read from Device** button that does the same and loads the result into the editor. Two SysEx commands were added: `READ_FLASH` (56) and `GET_VERSION` (58). Older firmware ignores them, so the tools detect the missing support and ask you to update.
 - **Round-trip tests for the packers.** `python -m unittest python/tests/test_roundtrip.py` packs the sample CSV, decodes it again and compares every field.
 - **Fixed a spurious Note Off after timed pitch bend commands.** When a pitch bend with a duration expired, the firmware also sent a Note Off built from the pitch bend bytes because of a missing `break` in `handle_delayed_cmds`. Only the pitch bend reset is sent now.
@@ -43,7 +44,7 @@ When the connected PC enters sleep (suspend) mode, the device will automatically
 
 Before using the new features (GUI Configurator, Sleep Mode, etc.), you must update the device firmware.
 Please flash the following file included in this repository:
-`artifacts/release-0.2.dfu` (the previous release, `artifacts/release-0.1B-Sleep.dfu`, is kept for reference)
+`artifacts/release-0.3.dfu` (previous releases, `artifacts/release-0.2.dfu` and `artifacts/release-0.1B-Sleep.dfu`, are kept for reference)
 
 (See [Loading the firmware](#loading-the-firmware) section for detailed flashing instructions.)
 
