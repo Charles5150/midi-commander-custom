@@ -12,23 +12,17 @@
 #define FLASH_SETTINGS_OFFSET	(1024*128)
 #define FLASH_SETTINGS_START	(FLASH_BASE + FLASH_SETTINGS_OFFSET)
 
-uint8_t *pGlobalSettings = (uint8_t*)FLASH_SETTINGS_START;
-uint8_t *pBankStrings = (uint8_t*)FLASH_SETTINGS_START+32;
-uint8_t *pSwitchCmds = (uint8_t*)FLASH_SETTINGS_START+32+96;
-uint8_t *pButtonLedModes = (uint8_t*)FLASH_SETTINGS_START+32+96
-		+ (MIDI_NUM_BANKS * MIDI_NUM_SWITCHES * MIDI_ROM_KEY_STRIDE);
-uint8_t *pButtonLabels = (uint8_t*)FLASH_SETTINGS_START+32+96
-		+ (MIDI_NUM_BANKS * MIDI_NUM_SWITCHES * MIDI_ROM_KEY_STRIDE)
-		+ (MIDI_NUM_BANKS * MIDI_NUM_SWITCHES);
-uint8_t *pLongPressCmds = (uint8_t*)FLASH_SETTINGS_START+32+96
-		+ (MIDI_NUM_BANKS * MIDI_NUM_SWITCHES * MIDI_ROM_KEY_STRIDE)
-		+ (MIDI_NUM_BANKS * MIDI_NUM_SWITCHES)
-		+ (MIDI_NUM_BANKS * MIDI_NUM_SWITCHES * BUTTON_LABEL_LEN);
-uint8_t *pExpSettings = (uint8_t*)FLASH_SETTINGS_START+32+96
-		+ 2 * (MIDI_NUM_BANKS * MIDI_NUM_SWITCHES * MIDI_ROM_KEY_STRIDE)
-		+ (MIDI_NUM_BANKS * MIDI_NUM_SWITCHES)
-		+ (MIDI_NUM_BANKS * MIDI_NUM_SWITCHES * BUTTON_LABEL_LEN);
+uint8_t *pGlobalSettings = (uint8_t*)(FLASH_SETTINGS_START);
+uint8_t *pBankStrings    = (uint8_t*)(FLASH_SETTINGS_START + CFG_BANK_STRINGS_OFF);
+uint8_t *pSwitchCmds     = (uint8_t*)(FLASH_SETTINGS_START + CFG_CMDS_OFF);
+uint8_t *pButtonLedModes = (uint8_t*)(FLASH_SETTINGS_START + CFG_LED_MODES_OFF);
+uint8_t *pButtonLabels   = (uint8_t*)(FLASH_SETTINGS_START + CFG_LABELS_OFF);
+uint8_t *pLongPressCmds  = (uint8_t*)(FLASH_SETTINGS_START + CFG_LONG_CMDS_OFF);
+uint8_t *pExpSettings    = (uint8_t*)(FLASH_SETTINGS_START + CFG_EXP_OFF);
 
+// The whole configuration must fit in the pages the tools erase and write.
+_Static_assert(CFG_TOTAL_SIZE <= FLASH_SETTINGS_SIZE,
+		"configuration does not fit in FLASH_SETTINGS_NO_PAGES pages");
 
 void flash_settings_erase(void){
 	// Erase flash sectors containing the settings

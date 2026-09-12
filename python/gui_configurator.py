@@ -19,6 +19,7 @@ sys.path.insert(0, HERE)
 
 from lib.cmdBinaryPacker import HID_SPECIAL_KEYS, MEDIA_KEYS  # noqa: E402
 from lib.configCsv import read_config_csv, write_config_csv  # noqa: E402
+from lib.configPacker import NUM_BANKS, BUTTON_IDS  # noqa: E402
 from lib.configPacker import (  # noqa: E402
     EXPRESSION_SECTION,
     LONG_PRESS_SECTION,
@@ -36,7 +37,9 @@ DEFAULT_CSV = os.path.join(HERE, "MeloConfig_10_Cmds - RC-600.csv")
 LED_MODES = ["Normal", "Reverse", "AlwaysOn"]
 CHANNELS = [str(i) for i in range(1, 17)]
 NO_COMMAND = "(none)"
-COMMAND_TYPES = [NO_COMMAND, "PC", "CC", "Note", "PB", "Key", "Media", "Start", "Stop"]
+COMMAND_TYPES = [NO_COMMAND, "PC", "CC", "Note", "PB", "Key", "Media", "Bank", "Start", "Stop"]
+BANK_MODES = ["GoTo", "Up", "Down"]
+BANKS = [str(i) for i in range(32)]
 MEDIA_NAMES = list(MEDIA_KEYS.keys())
 KEY_MODES = ["Normal", "Down", "Up"]
 KEY_NAMES = (
@@ -222,7 +225,7 @@ class SlotEditor:
         if cmd_type == "PC":
             self._channel()
             self._int("number", "Program", "Number_(PC/CC/Note)", 0, 127)
-            self._int("bank", "Bank", "BankSelect_(PC)", 0, 16383, width=65)
+            self._int("bank", "BankSel", "BankSelect_(PC)", 0, 16383, width=65)
             self._check("bank_msb", "Send bank MSB", "BankSelectHighByte_(PC)")
         elif cmd_type == "CC":
             self._channel()
@@ -257,6 +260,20 @@ class SlotEditor:
             self.widgets["keymode"] = w
             self._int("duration", "Dur", "Duration_(Note/PB)", 0, 127, width=50)
             self._check("toggle", "Hold", "Toggle_(CC/PB/Note)")
+        elif cmd_type == "Bank":
+            self._label("Action")
+            w = Option(self.params, BANK_MODES, self.initial.get("KeyMode_(Key)"), width=80,
+                       command=lambda _v: self._rebuild("Bank"))
+            w.pack(side="left")
+            self.widgets["bankmode"] = w
+            if w.get() == "GoTo":
+                self._label("Bank")
+                v = Option(self.params, BANKS, self.initial.get("OnValue_(CC/PB)"), width=70)
+            else:
+                self._label("Banks")
+                v = IntEntry(self.params, 1, 31, self.initial.get("OnValue_(CC/PB)") or "8", width=55)
+            v.pack(side="left")
+            self.widgets["bankvalue"] = v
         elif cmd_type == "Media":
             self._label("Key")
             w = Option(self.params, MEDIA_NAMES, self.initial.get("OnValue_(CC/PB)"), width=130)
@@ -300,6 +317,9 @@ class SlotEditor:
             out["KeyMode_(Key)"] = w["keymode"].value()
         if cmd_type == "Media":
             out["OnValue_(CC/PB)"] = w["media"].value()
+        if cmd_type == "Bank":
+            out["KeyMode_(Key)"] = w["bankmode"].value()
+            out["OnValue_(CC/PB)"] = w["bankvalue"].value()
         return out
 
 
@@ -433,6 +453,7 @@ class MidiCommanderGUI(ctk.CTk):
                 ("Long_Press_ms", "500"),
                 ("LED_Brightness", "100"),
                 ("LED_Rest_Brightness", "100"),
+                ("Bank_Jump_Step", "8"),
             ]
             missing = [{"Label": l, "Value": v} for l, v in defaults if l not in labels]
             if missing:
@@ -442,7 +463,9 @@ class MidiCommanderGUI(ctk.CTk):
             self.populate_global()
 
         if "Bank_Naming" in data:
-            self.df_banks = data["Bank_Naming"].astype(object).reset_index(drop=True)
+            self.df_banks = self._pad_banks(
+                data["Bank_Naming"].astype(object).reset_index(drop=True)
+            )
             self.populate_banks()
 
         if "Button_Settings" in data:
@@ -491,10 +514,58 @@ class MidiCommanderGUI(ctk.CTk):
             )
             self.populate_expression()
 
-            banks = [clean(b) for b in self.df_buttons["Bank_Number"].unique()]
+            self.df_buttons = self._pad_buttons(self.df_buttons, with_extras=True)
+            self.df_long = self._pad_buttons(self.df_long, with_extras=False)
+
+            banks = [str(b) for b in range(NUM_BANKS)]
             self.bank_selector.configure(values=banks)
             self.bank_selector.set(banks[0])
             self.on_bank_change(banks[0])
+
+    def _pad_banks(self, df):
+        """Ensure one Bank_Naming row per bank, in order."""
+        rows = {clean(r["Bank_Number"]): r for _, r in df.iterrows()}
+        out = []
+        for b in range(NUM_BANKS):
+            r = rows.get(str(b))
+            out.append(
+                {
+                    "Bank_Number": str(b),
+                    "Bank_Name_Large": clean(r["Bank_Name_Large"]) if r is not None else "",
+                    "Bank_Info_Small": clean(r["Bank_Info_Small"]) if r is not None else "",
+                }
+            )
+        return pd.DataFrame(out)
+
+    def _pad_buttons(self, df, with_extras):
+        """Ensure one row per bank/button, in order, keeping existing values."""
+        rows = {
+            (clean(r["Bank_Number"]), clean(r["Button_Identifier"]).upper()): r
+            for _, r in df.iterrows()
+        }
+        columns = ["Bank_Number", "Button_Identifier"]
+        if with_extras:
+            columns += ["Label"]
+        for slot in SLOTS:
+            columns += [f"{slot}_{f}" for f in CMD_FIELDS]
+        if with_extras:
+            columns += ["Light_Mode"]
+
+        out = []
+        for b in range(NUM_BANKS):
+            for btn in BUTTON_IDS:
+                src = rows.get((str(b), btn))
+                row = {c: float("nan") for c in columns}
+                row["Bank_Number"], row["Button_Identifier"] = str(b), btn
+                if with_extras:
+                    row["Label"] = ""
+                    row["Light_Mode"] = "Normal"
+                if src is not None:
+                    for c in columns:
+                        if c in src.index and c not in ("Bank_Number", "Button_Identifier"):
+                            row[c] = src[c]
+                out.append(row)
+        return pd.DataFrame(out, columns=columns)
 
     # --- Global tab ---------------------------------------------------------------
     def populate_global(self):
@@ -521,6 +592,8 @@ class MidiCommanderGUI(ctk.CTk):
                 w = IntEntry(self.global_scroll, 100, 2500, value, width=70)
             elif label in ("LED_Brightness", "LED_Rest_Brightness"):
                 w = IntEntry(self.global_scroll, 1, 100, value, width=70)
+            elif label == "Bank_Jump_Step":
+                w = IntEntry(self.global_scroll, 1, 31, value, width=70)
             elif label == "ConfigName":
                 w = TextEntry(self.global_scroll, 16, value, width=180)
             else:
@@ -537,6 +610,7 @@ class MidiCommanderGUI(ctk.CTk):
             "Long_Press_ms": "hold time that turns a press into a long press (100-2500 ms)",
             "LED_Brightness": "brightness of a lit LED, 1-100 %",
             "LED_Rest_Brightness": "brightness of LEDs lit at rest by Reverse/AlwaysOn, 1-100 %",
+            "Bank_Jump_Step": "banks skipped by a long press on Bank Up/Down (1-31)",
             "ConfigName": "shown on the display at boot (16 chars)",
             "Exp1_CC": "CC number sent by expression pedal 1 (0-127)",
             "Exp2_CC": "CC number sent by expression pedal 2 (0-127)",
@@ -671,7 +745,8 @@ class MidiCommanderGUI(ctk.CTk):
         ctk.CTkLabel(
             self.cmd_editor,
             text=(
-                "Dur = duration in 10 ms steps (0-127).  Bend = -8192..8191.  Bank = 0..16383.  "
+                "Dur = duration in 10 ms steps (0-127).  Bend = -8192..8191.  "
+                "BankSel = MIDI Bank Select sent before a PC (0..16383).  "
                 "Hold = key (or media key) stays pressed until the next press."
             ),
             text_color="gray",

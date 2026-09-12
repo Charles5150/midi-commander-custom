@@ -11,6 +11,10 @@ CMD_START_NIBBLE = 0x10
 CMD_STOP_NIBBLE = 0x20
 CMD_KEY_NIBBLE = 0xD0
 CMD_MEDIA_NIBBLE = 0x30
+CMD_BANK_NIBBLE = 0x40
+
+# Bank command modes, packed in the low nibble of byte 0
+BANK_MODES = {"GOTO": 0, "UP": 1, "DOWN": 2}
 
 # USB HID Consumer Control usage IDs (usage page 0x0C) for media keys
 MEDIA_KEYS = {
@@ -267,6 +271,18 @@ def cmd_media(cmd):
     return [CMD_MEDIA_NIBBLE, usage & 0xFF, (usage >> 8) & 0x03, duration | toggle_bit]
 
 
+def cmd_bank(cmd):
+    """Bank change. OnValue holds the target bank, or the step for Up/Down."""
+    mode_text = str(cmd.get("KeyMode_(Key)", "")).strip().upper()
+    mode = 1 if mode_text.startswith("UP") else 2 if mode_text.startswith("DOWN") else 0
+    value = safe_int(cmd.get("OnValue_(CC/PB)", 0))
+    if mode == 0:
+        value = max(0, min(31, value))       # absolute bank number
+    else:
+        value = max(1, min(31, value or 1))  # relative step
+    return [CMD_BANK_NIBBLE | mode, value, 0, 0]
+
+
 def cmd_stop(cmd):
     return [CMD_STOP_NIBBLE, 0, 0, 0]
 
@@ -284,6 +300,7 @@ cmd_route_table = {
     "Stop": cmd_stop,
     "Key": cmd_key,
     "Media": cmd_media,
+    "Bank": cmd_bank,
 }
 
 

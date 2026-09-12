@@ -18,6 +18,7 @@ import pandas as pd
 
 from lib.cmdBinaryPacker import (
     CMD_CC_NIBBLE,
+    CMD_BANK_NIBBLE,
     CMD_KEY_NIBBLE,
     CMD_MEDIA_NIBBLE,
     CMD_NOTE_NIBBLE,
@@ -31,8 +32,8 @@ from lib.cmdBinaryPacker import (
 )
 
 GLOBAL_SIZE = 32
-BANK_STRINGS_SIZE = 8 * 12
-NUM_BANKS = 8
+NUM_BANKS = 32
+BANK_STRINGS_SIZE = NUM_BANKS * 12
 BUTTON_IDS = ["1", "2", "3", "4", "A", "B", "C", "D"]
 CMD_SIZE = 4
 BUTTON_STRIDE = MIDI_NUM_COMMANDS_PER_SWITCH * CMD_SIZE
@@ -101,6 +102,7 @@ def unpack_global_settings(data: bytes) -> pd.DataFrame:
         ("Long_Press_ms", str((g[8] if 0 < g[8] < 0xFF else 50) * 10)),
         ("LED_Brightness", str(g[9] if 0 < g[9] <= 100 else 100)),
         ("LED_Rest_Brightness", str(g[10] if 0 < g[10] <= 100 else 100)),
+        ("Bank_Jump_Step", str(g[11] if 0 < g[11] < NUM_BANKS else 8)),
     ]
     return pd.DataFrame(rows, columns=["Label", "Value"])
 
@@ -177,6 +179,11 @@ def unpack_command(raw: bytes) -> dict:
         cmd["OnValue_(CC/PB)"] = _MEDIA_NAMES.get(usage, str(usage))
         cmd["Duration_(Note/PB)"] = str(b3 & 0x7F)
         cmd["Toggle_(CC/PB/Note)"] = "Y" if b3 & 0x80 else "N"
+    elif cmd_type == CMD_BANK_NIBBLE:
+        cmd["CommandType"] = "Bank"
+        mode = b0 & 0x0F
+        cmd["KeyMode_(Key)"] = {1: "Up", 2: "Down"}.get(mode, "GoTo")
+        cmd["OnValue_(CC/PB)"] = str(b1)
     elif cmd_type == CMD_START_NIBBLE:
         cmd["CommandType"] = "Start"
     elif cmd_type == CMD_STOP_NIBBLE:

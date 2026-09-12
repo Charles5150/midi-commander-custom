@@ -15,7 +15,7 @@ Layout (must match firmware/Core/Src/flash_midi_settings.c):
 import lib.cmdBinaryPacker as cbp
 import lib.settingsBinaryPacker as sbp
 
-NUM_BANKS = 8
+NUM_BANKS = 32
 NUM_BUTTONS = 8
 BUTTON_IDS = ["1", "2", "3", "4", "A", "B", "C", "D"]
 LABEL_LEN = 4
@@ -33,14 +33,14 @@ def _key(bank, button) -> tuple:
     return (b, str(button).strip().upper())
 
 
-def empty_long_press_settings():
+def empty_long_press_settings(num_banks=NUM_BANKS):
     """A LongPress_Settings frame with one blank row per bank/button."""
     import pandas as pd
 
     from lib.binaryUnpacker import CMD_FIELDS, SLOT_NAMES
 
     rows = []
-    for bank in range(NUM_BANKS):
+    for bank in range(num_banks):
         for btn in BUTTON_IDS:
             row = {"Bank_Number": str(bank), "Button_Identifier": btn}
             for slot in SLOT_NAMES:
@@ -109,18 +109,25 @@ def pack_config(sections: dict) -> bytes:
     out += sbp.pack_global_settings(df_global)
     out += sbp.pack_bank_strings(df_banks)
 
-    if len(df_buttons) != NUM_BANKS * NUM_BUTTONS:
-        raise ValueError(
-            f"Button_Settings has {len(df_buttons)} rows, expected "
-            f"{NUM_BANKS * NUM_BUTTONS} (8 banks x 8 buttons)"
-        )
+    # Rows may be missing (a configuration written for fewer banks) or in any
+    # order; look each button up and pack an empty one when it is absent.
+    button_rows = {}
+    for _, row in df_buttons.iterrows():
+        button_rows[_key(row["Bank_Number"], row["Button_Identifier"])] = row
 
     light_modes = []
     labels = b""
-    for _, row in df_buttons.iterrows():
-        out += cbp.pack_row(row)
-        light_modes.append(row.get("Light_Mode", "Normal"))
-        labels += pack_label(row.get("Label", ""))
+    for bank in range(NUM_BANKS):
+        for btn in BUTTON_IDS:
+            row = button_rows.get((str(bank), btn))
+            if row is None:
+                out += [0] * (cbp.MIDI_NUM_COMMANDS_PER_SWITCH * 4)
+                light_modes.append("Normal")
+                labels += pack_label("")
+            else:
+                out += cbp.pack_row(row)
+                light_modes.append(row.get("Light_Mode", "Normal"))
+                labels += pack_label(row.get("Label", ""))
     out += cbp.pack_button_led_modes(light_modes)
     out += list(labels)
 

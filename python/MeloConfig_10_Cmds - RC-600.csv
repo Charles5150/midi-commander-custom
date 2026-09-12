@@ -15,6 +15,7 @@ Remember_State,Y
 Long_Press_ms,500
 LED_Brightness,100
 LED_Rest_Brightness,100
+Bank_Jump_Step,8
 ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 * Bank_Naming,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 Bank_Number,Bank_Name_Large,Bank_Info_Small

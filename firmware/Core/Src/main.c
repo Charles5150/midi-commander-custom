@@ -154,7 +154,8 @@ int main(void)
 
   // Restore the last bank and toggle states if the user asked for it
   if(pGlobalSettings[GLOBAL_SETTINGS_REMEMBER_STATE] == 1){
-    uint8_t bank, toggles[8], long_toggles[8];
+    uint8_t bank;
+    uint32_t toggles[8], long_toggles[8];
     if(state_store_load(&bank, toggles, long_toggles)){
       sw_restore_state(bank, toggles, long_toggles);
     }

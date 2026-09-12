@@ -25,12 +25,12 @@ typedef struct {
 	volatile uint16_t *pSwChangeState;
 	GPIO_TypeDef *led_gpio_port;
 	uint16_t led_gpio_pin;
-	uint8_t switch_toggle_state; // Each bit will be a flag for pages 0-7
-	uint8_t led_cmd_toggle;
+	uint32_t switch_toggle_state; // Bit per bank (0..MIDI_NUM_BANKS-1)
+	uint32_t led_cmd_toggle;
 	// Long press: a second command set fired when the button is held
-	uint8_t long_toggle_state;   // Toggle state of the long press commands, bit per page
-	uint8_t long_cmd_present;    // Bit per page: this button has long press commands
-	uint8_t long_cmd_toggle;     // Bit per page: any long press command is a toggle
+	uint32_t long_toggle_state;   // Toggle state of the long press commands, bit per bank
+	uint32_t long_cmd_present;    // Bit per bank: this button has long press commands
+	uint32_t long_cmd_toggle;     // Bit per bank: any long press command is a toggle
 	uint32_t press_tick;         // HAL tick when the button went down
 	uint8_t press_state;         // PRESS_IDLE / PRESS_PENDING / PRESS_SHORT / PRESS_LONG
 } sw_t;
@@ -122,13 +122,13 @@ void sw_scan(void){
 }
 
 static inline uint8_t get_sw_toggle_state(sw_t *sw){
-	return sw->switch_toggle_state & (1 << switch_current_page);
+	return (sw->switch_toggle_state >> switch_current_page) & 1U;
 }
 
 static inline void toggle_sw_state(sw_t *sw){
-	sw->switch_toggle_state ^= (1 << switch_current_page);
+	sw->switch_toggle_state ^= (1UL << switch_current_page);
 	state_store_mark_dirty();
-	if(sw->led_cmd_toggle & (1 << switch_current_page)){
+	if(sw->led_cmd_toggle & (1UL << switch_current_page)){
 		display_request_refresh();
 	}
 }
@@ -201,6 +201,33 @@ static inline uint8_t cmd_is_present(const uint8_t *pRom){
 	return t != CMD_NO_CMD_NIBBLE && t != 0xF0; // 0xF0 = erased flash
 }
 
+static uint8_t bank_jump_step(void){
+	uint8_t v = pGlobalSettings[GLOBAL_SETTINGS_BANK_JUMP_STEP];
+	if(v == 0 || v == 0xFF || v >= MIDI_NUM_BANKS) return 8;
+	return v;
+}
+
+// A bank change requested by a command is applied only once the whole command
+// list has run, so the remaining commands still come from the bank the button
+// belongs to.
+static uint8_t pending_bank = 0xFF;
+
+static void goto_bank(uint8_t bank){
+	if(bank >= MIDI_NUM_BANKS || bank == switch_current_page) return;
+	switch_current_page = bank;
+	update_leds_on_bank_change();
+	display_setBankName(switch_current_page);
+	state_store_mark_dirty();
+}
+
+// Step through the banks, wrapping around at both ends
+static uint8_t bank_step(int16_t delta){
+	int16_t b = (int16_t)switch_current_page + delta;
+	while(b < 0) b += MIDI_NUM_BANKS;
+	while(b >= MIDI_NUM_BANKS) b -= MIDI_NUM_BANKS;
+	return (uint8_t)b;
+}
+
 static uint32_t long_press_threshold_ms(void){
 	uint8_t v = pGlobalSettings[GLOBAL_SETTINGS_LONG_PRESS];
 	if(v == 0 || v == 0xFF) return 500;
@@ -246,27 +273,27 @@ uint8_t calculate_led_state(uint8_t pressed, uint8_t mode){
 
 void sw_led_init(void){
 	// Scan all commands in EEPROM, and build the table of whether the LED should toggle with the switch, or be momentary
-	for(int page=0; page<8; page++){
+	for(int page=0; page<MIDI_NUM_BANKS; page++){
 		for(int sw=0; sw<8; sw++){
 			// Clear the toggle bit
-			a_sw_obj[sw].led_cmd_toggle &= ~(1<<page);
+			a_sw_obj[sw].led_cmd_toggle &= ~(1UL<<page);
 
 			for(int cmd=0; cmd<MIDI_NUM_COMMANDS_PER_SWITCH; cmd++){
 				uint8_t *pCmd = get_rom_pointer(page, sw, cmd);
 				if(midiCmd_get_cmd_toggle(pCmd)){
-					a_sw_obj[sw].led_cmd_toggle |= (1<<page);
+					a_sw_obj[sw].led_cmd_toggle |= (1UL<<page);
 				}
 			}
 
 			// Same for the long press command set
-			a_sw_obj[sw].long_cmd_present &= ~(1<<page);
-			a_sw_obj[sw].long_cmd_toggle &= ~(1<<page);
+			a_sw_obj[sw].long_cmd_present &= ~(1UL<<page);
+			a_sw_obj[sw].long_cmd_toggle &= ~(1UL<<page);
 			for(int cmd=0; cmd<MIDI_NUM_COMMANDS_PER_SWITCH; cmd++){
 				uint8_t *pCmd = get_long_rom_pointer(page, sw, cmd);
 				if(cmd_is_present(pCmd)){
-					a_sw_obj[sw].long_cmd_present |= (1<<page);
+					a_sw_obj[sw].long_cmd_present |= (1UL<<page);
 					if(midiCmd_get_cmd_toggle(pCmd)){
-						a_sw_obj[sw].long_cmd_toggle |= (1<<page);
+						a_sw_obj[sw].long_cmd_toggle |= (1UL<<page);
 					}
 				}
 			}
@@ -413,6 +440,14 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 			}
 		}
 		break;
+	case CMD_BANK_NIBBLE:
+		// Applied after the command list finishes (see pending_bank)
+		switch(*pRom & 0x0F){
+		case 1:  pending_bank = bank_step(+(int16_t)pRom[1]); break;
+		case 2:  pending_bank = bank_step(-(int16_t)pRom[1]); break;
+		default: pending_bank = (pRom[1] < MIDI_NUM_BANKS) ? pRom[1] : 0xFF; break;
+		}
+		break;
 	case CMD_START_NIBBLE:
 		status = midiCmd_send_start_command();
 		break;
@@ -490,7 +525,7 @@ void set_led(uint8_t sw_no, uint8_t level){
 
 void update_leds_on_bank_change(void){
 	for(int i=0; i<8; i++){
-		if(a_sw_obj[i].led_cmd_toggle & (1<<switch_current_page)){
+		if(a_sw_obj[i].led_cmd_toggle & (1UL<<switch_current_page)){
 			uint8_t mode = get_button_led_mode(i);
 			uint8_t active = get_sw_toggle_state(&a_sw_obj[i]);
 			uint8_t state = calculate_led_state(active, mode);
@@ -519,9 +554,17 @@ void update_leds_on_bank_change(void){
 	}
 }
 
+static void apply_pending_bank(void){
+	if(pending_bank != 0xFF){
+		uint8_t target = pending_bank;
+		pending_bank = 0xFF;
+		goto_bank(target);
+	}
+}
+
 // LED of a momentary (non toggle) button following the physical press
 static void set_momentary_led(uint8_t i, uint8_t pressed){
-	if(!(a_sw_obj[i].led_cmd_toggle & (1<<switch_current_page))){
+	if(!(a_sw_obj[i].led_cmd_toggle & (1UL<<switch_current_page))){
 		uint8_t mode = get_button_led_mode(i);
 		uint8_t state = calculate_led_state(pressed, mode);
 		set_led(i, state);
@@ -533,7 +576,7 @@ static void fire_short_down(uint8_t i){
 	toggle_sw_state(sw);
 
 	// Either toggle the LED, or set it if not toggling
-	if(sw->led_cmd_toggle & (1<<switch_current_page)){
+	if(sw->led_cmd_toggle & (1UL<<switch_current_page)){
 		uint8_t mode = get_button_led_mode(i);
 		uint8_t active = get_sw_toggle_state(sw);
 		uint8_t state = calculate_led_state(active, mode);
@@ -545,6 +588,7 @@ static void fire_short_down(uint8_t i){
 	for(int j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
 		handle_cmd_sw_down(get_rom_pointer(switch_current_page, i, j), get_sw_toggle_state(sw));
 	}
+	apply_pending_bank();
 }
 
 static void fire_short_up(uint8_t i){
@@ -557,12 +601,13 @@ static void fire_short_up(uint8_t i){
 
 static void fire_long_down(uint8_t i){
 	sw_t *sw = &a_sw_obj[i];
-	sw->long_toggle_state ^= (1 << switch_current_page);
+	sw->long_toggle_state ^= (1UL << switch_current_page);
 	state_store_mark_dirty();
 	uint8_t toggleState = (sw->long_toggle_state >> switch_current_page) & 1;
 	for(int j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
 		handle_cmd_sw_down(get_long_rom_pointer(switch_current_page, i, j), toggleState);
 	}
+	apply_pending_bank();
 }
 
 static void fire_long_up(uint8_t i){
@@ -571,6 +616,48 @@ static void fire_long_up(uint8_t i){
 	uint8_t toggleState = (sw->long_toggle_state >> switch_current_page) & 1;
 	for(int j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
 		handle_cmd_sw_up(get_long_rom_pointer(switch_current_page, i, j), toggleState);
+	}
+}
+
+// Press tracking for the two bank switches, so they can tell a short press
+// (step one bank) from a long press (jump Bank_Jump_Step banks).
+typedef struct {
+	uint32_t press_tick;
+	uint8_t state;		// PRESS_IDLE / PRESS_PENDING / PRESS_LONG
+} bank_press_t;
+
+static bank_press_t bank_down_press = { .state = PRESS_IDLE };
+static bank_press_t bank_up_press = { .state = PRESS_IDLE };
+
+static void handle_bank_switch(bank_press_t *bp, GPIO_TypeDef *port, uint16_t pin,
+		volatile uint16_t *pChanged, uint8_t led_id, uint8_t led_mode,
+		int16_t direction, uint32_t now){
+	// Held past the threshold: jump by the configured step, once per press
+	if(bp->state == PRESS_PENDING && (now - bp->press_tick) >= long_press_threshold_ms()){
+		bp->state = PRESS_LONG;
+		goto_bank(bank_step(direction * (int16_t)bank_jump_step()));
+	}
+
+	// Keep blinking LED modes alive while the switch is held
+	if(led_mode == LED_MODE_ALWAYS_ON && bp->state != PRESS_IDLE){
+		leds_set(led_id, calculate_led_state(1, led_mode));
+	}
+
+	if(!(*pChanged & pin)) return;
+	*pChanged &= ~pin;
+
+	if(!HAL_GPIO_ReadPin(port, pin)){
+		// Pressed: wait to see whether this becomes a long press
+		bp->press_tick = now;
+		bp->state = PRESS_PENDING;
+		leds_set(led_id, calculate_led_state(1, led_mode));
+	} else {
+		// Released: a press that never reached the threshold steps one bank
+		if(bp->state == PRESS_PENDING){
+			goto_bank(bank_step(direction));
+		}
+		bp->state = PRESS_IDLE;
+		leds_set(led_id, calculate_led_state(0, led_mode));
 	}
 }
 
@@ -593,7 +680,7 @@ void handle_switches(void){
 
 			if(!HAL_GPIO_ReadPin(sw->sw_gpio_port, sw->sw_gpio_pin)){
 				// Switch Down
-				if(sw->long_cmd_present & (1<<switch_current_page)){
+				if(sw->long_cmd_present & (1UL<<switch_current_page)){
 					// Can't tell yet whether this is a short or a long press
 					sw->press_tick = now;
 					sw->press_state = PRESS_PENDING;
@@ -631,7 +718,7 @@ void handle_switches(void){
 		uint8_t mode = get_button_led_mode(i);
 		if(mode == 2){ // AlwaysOn (Blink)
 			uint8_t is_active = 0;
-			if(a_sw_obj[i].led_cmd_toggle & (1<<switch_current_page)){
+			if(a_sw_obj[i].led_cmd_toggle & (1UL<<switch_current_page)){
 				// Toggle Mode: Active if toggle state is ON
 				is_active = get_sw_toggle_state(&a_sw_obj[i]);
 			} else {
@@ -671,50 +758,13 @@ void handle_switches(void){
 	}
 
 
-	// The bank change switches logic (Event based)
-	if(port_A_switches_changed & SW_E_Pin){
-		port_A_switches_changed &= ~SW_E_Pin;
-
-		if(!HAL_GPIO_ReadPin(SW_E_GPIO_Port, SW_E_Pin)){
-			// Bank Down Pressed
-			uint8_t state = calculate_led_state(1, bank_down_mode);
-			leds_set(LED_ID_BANK_DOWN, state);
-
-			if(switch_current_page > 0){
-				switch_current_page--;
-				update_leds_on_bank_change();
-				display_setBankName(switch_current_page);
-				state_store_mark_dirty();
-			}
-		} else {
-			// Bank Down Released
-			uint8_t state = calculate_led_state(0, bank_down_mode);
-			leds_set(LED_ID_BANK_DOWN, state);
-		}
-	}
-
-	if(port_B_switches_changed & SW_5_Pin){
-		port_B_switches_changed &= ~SW_5_Pin;
-
-		if(!HAL_GPIO_ReadPin(SW_5_GPIO_Port, SW_5_Pin)){
-			// Bank Up Pressed
-			uint8_t state = calculate_led_state(1, bank_up_mode);
-			leds_set(LED_ID_BANK_UP, state);
-
-			if(switch_current_page < 7){
-				switch_current_page++;
-				update_leds_on_bank_change();
-				display_setBankName(switch_current_page);
-				state_store_mark_dirty();
-			}
-		} else {
-			// Bank Up Released
-			uint8_t state = calculate_led_state(0, bank_up_mode);
-			leds_set(LED_ID_BANK_UP, state);
-		}
-	}
+	// The bank change switches: a short press steps one bank, a long press
+	// jumps Bank_Jump_Step banks. Both wrap around.
+	handle_bank_switch(&bank_down_press, SW_E_GPIO_Port, SW_E_Pin, &port_A_switches_changed,
+			LED_ID_BANK_DOWN, bank_down_mode, -1, now);
+	handle_bank_switch(&bank_up_press, SW_5_GPIO_Port, SW_5_Pin, &port_B_switches_changed,
+			LED_ID_BANK_UP, bank_up_mode, +1, now);
 }
-
 
 void set_all_leds(uint8_t state){
 	leds_set_all(state ? leds_level_active() : 0);
@@ -734,19 +784,19 @@ uint8_t sw_get_toggle_state(uint8_t bank, uint8_t sw){
 	return (a_sw_obj[sw].switch_toggle_state >> bank) & 1;
 }
 
-void sw_get_toggle_states(uint8_t out[8]){
+void sw_get_toggle_states(uint32_t out[8]){
 	for(int i=0; i<8; i++){
 		out[i] = a_sw_obj[i].switch_toggle_state;
 	}
 }
 
-void sw_get_long_toggle_states(uint8_t out[8]){
+void sw_get_long_toggle_states(uint32_t out[8]){
 	for(int i=0; i<8; i++){
 		out[i] = a_sw_obj[i].long_toggle_state;
 	}
 }
 
-void sw_restore_state(uint8_t page, const uint8_t toggles[8], const uint8_t long_toggles[8]){
+void sw_restore_state(uint8_t page, const uint32_t toggles[8], const uint32_t long_toggles[8]){
 	if(page < MIDI_NUM_BANKS){
 		switch_current_page = page;
 	}

@@ -7,6 +7,7 @@ GLOBAL_SETTINGS_REMEMBER_STATE = 7
 GLOBAL_SETTINGS_LONG_PRESS = 8
 GLOBAL_SETTINGS_LED_BRIGHTNESS = 9
 GLOBAL_SETTINGS_LED_REST_BRIGHTNESS = 10
+GLOBAL_SETTINGS_BANK_JUMP_STEP = 11
 
 def pack_global_settings(df):
     # global settings will be 32 bytes long
@@ -76,15 +77,34 @@ def pack_global_settings(df):
     bin_list[GLOBAL_SETTINGS_LED_BRIGHTNESS] = percent("LED_Brightness")
     bin_list[GLOBAL_SETTINGS_LED_REST_BRIGHTNESS] = percent("LED_Rest_Brightness")
 
+    # Banks skipped by a long press on Bank Up/Down
+    step = 8
+    if "Bank_Jump_Step" in df.index:
+        try:
+            step = int(float(str(df.loc["Bank_Jump_Step", "Value"])))
+        except ValueError:
+            step = 8
+    bin_list[GLOBAL_SETTINGS_BANK_JUMP_STEP] = max(1, min(31, step))
+
     # print('{:8.8}'.format(df.loc['ConfigName'].Value))
     bin_list += ("{:16.16}".format(df.loc["ConfigName"].Value)).encode("ASCII")
 
     return bin_list
 
 
-def pack_bank_strings(df):
+def pack_bank_strings(df, num_banks=32):
     bin_list = []
+    rows = {}
     for index, row in df.iterrows():
+        key = str(index).strip()
+        if key.endswith(".0"):
+            key = key[:-2]
+        rows[key] = row
+    for bank in range(num_banks):
+        row = rows.get(str(bank))
+        if row is None:
+            bin_list += b"    " + b"        "   # blank large + small name
+            continue
         # Pack the bank info. The large name is 4 bytes and the small string is
         # 8 bytes. In case of an empty string, the value read from the CSV is
         # nan.

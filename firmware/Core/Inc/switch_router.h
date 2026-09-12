@@ -18,9 +18,9 @@ void setIsSuspended(uint8_t suspended);
 
 // Current bank and per-button toggle bitmasks, for persisting/restoring state
 uint8_t sw_get_current_page(void);
-void sw_get_toggle_states(uint8_t out[8]);
-void sw_get_long_toggle_states(uint8_t out[8]);
-void sw_restore_state(uint8_t page, const uint8_t toggles[8], const uint8_t long_toggles[8]);
+void sw_get_toggle_states(uint32_t out[8]);
+void sw_get_long_toggle_states(uint32_t out[8]);
+void sw_restore_state(uint8_t page, const uint32_t toggles[8], const uint32_t long_toggles[8]);
 
 // Per button/bank queries used by the display
 uint8_t sw_button_is_toggle(uint8_t bank, uint8_t sw);

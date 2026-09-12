@@ -59,6 +59,7 @@
 #define CMD_PB_NIBBLE		(0xE0)
 #define CMD_NOTE_NIBBLE		(0x90)
 #define CMD_KEY_NIBBLE		(0xD0)
+#define CMD_BANK_NIBBLE		(0x40)	// Bank change: low nibble = mode (0 go to, 1 up by, 2 down by), byte 1 = value
 #define CMD_MEDIA_NIBBLE	(0x30)	// Consumer control (media) key: bytes 1-2 = usage (10 bits), byte 3 = duration | toggle
 #define CMD_START_NIBBLE	(0x10)
 #define CMD_STOP_NIBBLE		(0x20)
@@ -74,5 +75,6 @@
 #define GLOBAL_SETTINGS_LONG_PRESS (8)		// Long press threshold in 10 ms units (0/0xFF = 500 ms)
 #define GLOBAL_SETTINGS_LED_BRIGHTNESS (9)		// Lit LED brightness in percent (0xFF = 100)
 #define GLOBAL_SETTINGS_LED_REST_BRIGHTNESS (10)	// Brightness of LEDs lit at rest by Reverse/AlwaysOn (0xFF = 100)
+#define GLOBAL_SETTINGS_BANK_JUMP_STEP (11)	// Banks skipped by a long press on Bank Up/Down (0/0xFF = 8)
 
 #endif /* INC_MIDI_DEFINES_H_ */

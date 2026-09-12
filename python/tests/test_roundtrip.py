@@ -63,6 +63,7 @@ class RoundTripTest(unittest.TestCase):
 
     def test_bank_names(self):
         expected = self.sections["Bank_Naming"]
+        self.assertEqual(len(self.df_banks), unpacker.NUM_BANKS)
         for (_, exp), (_, got) in zip(expected.iterrows(), self.df_banks.iterrows()):
             self.assertEqual(norm(got["Bank_Number"]), norm(exp["Bank_Number"]))
             self.assertEqual(
@@ -73,8 +74,9 @@ class RoundTripTest(unittest.TestCase):
             )
 
     def test_button_settings(self):
+        # The sample CSV covers the first banks; the rest pack as empty
         expected = self.sections["Button_Settings"]
-        self.assertEqual(len(expected), len(self.df_buttons))
+        self.assertEqual(len(self.df_buttons), unpacker.NUM_BANKS * 8)
         mismatches = []
         for (_, exp), (_, got) in zip(expected.iterrows(), self.df_buttons.iterrows()):
             key = f"bank {norm(exp['Bank_Number'])} button {exp['Button_Identifier']}"
@@ -146,6 +148,7 @@ class RoundTripTest(unittest.TestCase):
         df = sections["Button_Settings"].copy()
         # Force every LED mode onto buttons with different slot A types
         df["Light_Mode"] = ["Reverse", "AlwaysOn"] * (len(df) // 2)
+        covered = len(df)  # only the banks the sample CSV defines
         modified = {**sections, "Button_Settings": df}
         packed = pack_config(modified)
 
@@ -156,10 +159,11 @@ class RoundTripTest(unittest.TestCase):
         )
         # LED table carries the modes
         table = packed[unpacker.LED_MODES_OFFSET : unpacker.LABELS_OFFSET]
-        self.assertEqual(list(table), [1, 2] * (len(df) // 2))
+        self.assertEqual(list(table[:covered]), [1, 2] * (covered // 2))
+        self.assertEqual(set(table[covered:]), {0})  # padded banks are Normal
         # And they come back by name
         _, _, decoded, _, _ = unpacker.unpack_config(packed)
-        self.assertEqual(decoded["Light_Mode"].tolist(), df["Light_Mode"].tolist())
+        self.assertEqual(decoded["Light_Mode"].tolist()[:covered], df["Light_Mode"].tolist())
 
     def test_usb_midi_thru_flag(self):
         sections = read_config_csv(SAMPLE_CSV)
@@ -206,6 +210,7 @@ class RoundTripTest(unittest.TestCase):
         self.assertEqual(table[12:16], b"ca??")
         _, _, decoded, _, _ = unpacker.unpack_config(packed)
         self.assertEqual(decoded["Label"].tolist()[:3], ["REC", "TOOL", ""])
+        self.assertEqual(decoded["Label"].tolist()[len(df)], "")  # padded bank
         # A config without a Label column packs blank labels
         no_col = df.drop(columns=["Label"])
         packed2 = pack_config({**sections, "Button_Settings": no_col})
@@ -319,6 +324,38 @@ class RoundTripTest(unittest.TestCase):
         self.assertEqual((b["OnValue_(CC/PB)"], b["Duration_(Note/PB)"], b["Toggle_(CC/PB/Note)"]), ("vol_up", "5", "Y"))
         # The toggle bit of a media command lives in byte 3, never in the usage byte
         self.assertTrue(cbp.MEDIA_KEYS["play_pause"] & 0x80)
+
+    def test_bank_command(self):
+        row = pd.Series({
+            "A_CommandType": "Bank", "A_OnValue_(CC/PB)": "17", "A_KeyMode_(Key)": "GoTo",
+            "B_CommandType": "Bank", "B_OnValue_(CC/PB)": "4", "B_KeyMode_(Key)": "Up",
+            "C_CommandType": "Bank", "C_OnValue_(CC/PB)": "4", "C_KeyMode_(Key)": "Down",
+            "D_CommandType": "Bank", "D_OnValue_(CC/PB)": "99", "D_KeyMode_(Key)": "GoTo",
+        })
+        p = cbp.pack_row(row)
+        self.assertEqual(p[0:4], [0x40, 17, 0, 0])   # go to bank 17
+        self.assertEqual(p[4:8], [0x41, 4, 0, 0])    # up 4
+        self.assertEqual(p[8:12], [0x42, 4, 0, 0])   # down 4
+        self.assertEqual(p[12:16], [0x40, 31, 0, 0]) # clamped to the last bank
+        d = unpacker.unpack_command(bytes(p[0:4]))
+        self.assertEqual((d["CommandType"], d["KeyMode_(Key)"], d["OnValue_(CC/PB)"]), ("Bank", "GoTo", "17"))
+        d = unpacker.unpack_command(bytes(p[4:8]))
+        self.assertEqual((d["KeyMode_(Key)"], d["OnValue_(CC/PB)"]), ("Up", "4"))
+
+    def test_bank_jump_step(self):
+        sections = read_config_csv(SAMPLE_CSV)
+        g = sections["Global_Settings"].copy()
+        self.assertEqual(pack_config(sections)[11], 8)  # default
+        g.loc[g["Label"] == "Bank_Jump_Step", "Value"] = "4"
+        packed = pack_config({**sections, "Global_Settings": g})
+        self.assertEqual(packed[11], 4)
+        df = unpacker.unpack_config(packed)[0].set_index("Label")["Value"]
+        self.assertEqual(df["Bank_Jump_Step"], "4")
+
+    def test_fits_in_the_flash_pages(self):
+        from CSV_to_Flash import ALLOWED_NUM_FLASH_PAGES, FLASH_PAGE_SIZE
+
+        self.assertLessEqual(unpacker.CONFIG_SIZE, ALLOWED_NUM_FLASH_PAGES * FLASH_PAGE_SIZE)
 
     def test_cc_alwayson_keeps_off_value(self):
         """Regression: AlwaysOn used to set bit 7 of the CC off value."""

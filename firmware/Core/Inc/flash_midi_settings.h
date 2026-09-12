@@ -25,7 +25,7 @@ extern uint8_t *pExpSettings;	// Expression pedal calibration, EXP_SETTINGS_STRI
 #define EXP_CURVE_LOG			(1)
 #define EXP_CURVE_EXP			(2)
 
-#define MIDI_NUM_BANKS			(8)
+#define MIDI_NUM_BANKS			(32)
 #define MIDI_NUM_SWITCHES		(8)
 
 // Button labels shown on the display, BUTTON_LABEL_LEN ASCII chars per
@@ -42,12 +42,42 @@ extern uint8_t *pExpSettings;	// Expression pedal calibration, EXP_SETTINGS_STRI
 // Number of flash pages reserved for the settings. Pages are 2 kB on the
 // STM32F103RE (FLASH_PAGE_SIZE). Must stay in sync with ALLOWED_NUM_FLASH_PAGES
 // and FLASH_PAGE_SIZE in python/CSV_to_Flash.py.
-#define FLASH_SETTINGS_NO_PAGES	(3)
+#define FLASH_SETTINGS_NO_PAGES	(11)
 #define FLASH_SETTINGS_SIZE		(FLASH_SETTINGS_NO_PAGES * FLASH_PAGE_SIZE)
 
 #define MIDI_ROM_CMD_SIZE	(4)
 #define MIDI_NUM_COMMANDS_PER_SWITCH (10)
 #define MIDI_ROM_KEY_STRIDE	(MIDI_NUM_COMMANDS_PER_SWITCH*MIDI_ROM_CMD_SIZE)
+
+/*
+ * Configuration layout. Every offset is derived from these sizes, so changing
+ * the bank count moves everything consistently. Must match the offsets in
+ * python/lib/binaryUnpacker.py.
+ *
+ *   GLOBAL       global settings + config name
+ *   BANK_STRINGS 4 char large name + 8 char small name per bank
+ *   CMDS         banks x switches x commands x 4 bytes
+ *   LED_MODES    one byte per button
+ *   LABELS       BUTTON_LABEL_LEN chars per button
+ *   LONG_CMDS    second command set, same size as CMDS
+ *   EXP          two pedal calibration records
+ */
+#define CFG_BUTTONS			(MIDI_NUM_BANKS * MIDI_NUM_SWITCHES)
+#define CFG_GLOBAL_SIZE		(32)
+#define CFG_BANK_STRING_SIZE	(12)
+#define CFG_BANK_STRINGS_SIZE	(MIDI_NUM_BANKS * CFG_BANK_STRING_SIZE)
+#define CFG_CMDS_SIZE		(CFG_BUTTONS * MIDI_ROM_KEY_STRIDE)
+#define CFG_LED_MODES_SIZE	(CFG_BUTTONS)
+#define CFG_LABELS_SIZE		(CFG_BUTTONS * BUTTON_LABEL_LEN)
+#define CFG_EXP_SIZE		(2 * EXP_SETTINGS_STRIDE)
+
+#define CFG_BANK_STRINGS_OFF	(CFG_GLOBAL_SIZE)
+#define CFG_CMDS_OFF		(CFG_BANK_STRINGS_OFF + CFG_BANK_STRINGS_SIZE)
+#define CFG_LED_MODES_OFF	(CFG_CMDS_OFF + CFG_CMDS_SIZE)
+#define CFG_LABELS_OFF		(CFG_LED_MODES_OFF + CFG_LED_MODES_SIZE)
+#define CFG_LONG_CMDS_OFF	(CFG_LABELS_OFF + CFG_LABELS_SIZE)
+#define CFG_EXP_OFF			(CFG_LONG_CMDS_OFF + CFG_CMDS_SIZE)
+#define CFG_TOTAL_SIZE		(CFG_EXP_OFF + CFG_EXP_SIZE)
 
 void flash_settings_erase(void);
 void flash_settings_write(uint8_t* data, uint32_t offset);
