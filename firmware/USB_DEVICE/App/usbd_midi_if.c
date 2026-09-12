@@ -9,6 +9,7 @@
 #include "flash_midi_settings.h"
 #include "midi_cmds.h"
 #include "expression.h"
+#include "switch_router.h"
 #include <string.h>
 
 extern I2C_HandleTypeDef hi2c1;
@@ -268,6 +269,28 @@ static void thru_flush(void){
 	}
 }
 
+/*
+ * Optionally let an incoming Program Change or Control Change select a bank,
+ * so a DAW or another pedal can drive this one. The bank switch itself is
+ * deferred to the main loop; this runs in the USB interrupt.
+ */
+static void handle_bank_change_message(uint8_t cin, const uint8_t *data){
+	uint8_t mode = pGlobalSettings[GLOBAL_SETTINGS_BANK_CHANGE_MODE];
+	if(mode != BANK_CHANGE_PC && mode != BANK_CHANGE_CC) return;
+
+	uint8_t want_channel = pGlobalSettings[GLOBAL_SETTINGS_BANK_CHANGE_CHANNEL];
+	uint8_t channel = (data[0] & 0x0F) + 1;
+	if(want_channel >= 1 && want_channel <= 16 && channel != want_channel) return;
+
+	if(mode == BANK_CHANGE_PC && cin == CIN_PROGRAM_CHANGE){
+		sw_request_bank(data[1] & 0x7F);
+	} else if(mode == BANK_CHANGE_CC && cin == CIN_CONTROL_CHANGE){
+		if((data[1] & 0x7F) == (pGlobalSettings[GLOBAL_SETTINGS_BANK_CHANGE_CC] & 0x7F)){
+			sw_request_bank(data[2] & 0x7F);
+		}
+	}
+}
+
 static void handle_sysex_event(uint8_t cin, const uint8_t *data, uint8_t len){
 	uint8_t is_end = (cin != CIN_SYSEX_STARTS_OR_CONTINUES);
 
@@ -342,13 +365,18 @@ uint16_t MIDI_DataRx(uint8_t *msg, uint16_t length)
 			}
 			break;
 
+		case CIN_PROGRAM_CHANGE:
+		case CIN_CONTROL_CHANGE:
+			// May select a bank before being forwarded to the DIN output
+			handle_bank_change_message(cin, data);
+			thru_push(data, len);
+			break;
+
 		case CIN_TWO_BYTE_SYSTEM_COMMON:
 		case CIN_THREE_BYTE_SYSTEM_COMMON:
 		case CIN_NOTE_OFF:
 		case CIN_NOTE_ON:
 		case CIN_POLY_KEYPRESS:
-		case CIN_CONTROL_CHANGE:
-		case CIN_PROGRAM_CHANGE:
 		case CIN_CHANNEL_PRESSURE:
 		case CIN_PITCHBEND_CHANGE:
 			thru_push(data, len);

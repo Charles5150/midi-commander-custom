@@ -17,6 +17,7 @@ extern uint8_t *pButtonLedModes;
 extern uint8_t *pButtonLabels;
 extern uint8_t *pLongPressCmds;	// Second command set per button, same layout as pSwitchCmds
 extern uint8_t *pExpSettings;	// Expression pedal calibration, EXP_SETTINGS_STRIDE bytes per pedal
+extern uint8_t *pBankEnterCmds;	// Commands sent when a bank is entered, same shape as one button's list per bank
 
 // Per pedal: [0..1] min ADC (LE), [2..3] max ADC (LE), [4] curve, [5] invert,
 // [6] channel (0 = global, 1-16), rest reserved. Blank flash = defaults.
@@ -42,7 +43,7 @@ extern uint8_t *pExpSettings;	// Expression pedal calibration, EXP_SETTINGS_STRI
 // Number of flash pages reserved for the settings. Pages are 2 kB on the
 // STM32F103RE (FLASH_PAGE_SIZE). Must stay in sync with ALLOWED_NUM_FLASH_PAGES
 // and FLASH_PAGE_SIZE in python/CSV_to_Flash.py.
-#define FLASH_SETTINGS_NO_PAGES	(11)
+#define FLASH_SETTINGS_NO_PAGES	(12)
 #define FLASH_SETTINGS_SIZE		(FLASH_SETTINGS_NO_PAGES * FLASH_PAGE_SIZE)
 
 #define MIDI_ROM_CMD_SIZE	(4)
@@ -77,7 +78,9 @@ extern uint8_t *pExpSettings;	// Expression pedal calibration, EXP_SETTINGS_STRI
 #define CFG_LABELS_OFF		(CFG_LED_MODES_OFF + CFG_LED_MODES_SIZE)
 #define CFG_LONG_CMDS_OFF	(CFG_LABELS_OFF + CFG_LABELS_SIZE)
 #define CFG_EXP_OFF			(CFG_LONG_CMDS_OFF + CFG_CMDS_SIZE)
-#define CFG_TOTAL_SIZE		(CFG_EXP_OFF + CFG_EXP_SIZE)
+#define CFG_BANK_ENTER_SIZE	(MIDI_NUM_BANKS * MIDI_ROM_KEY_STRIDE)
+#define CFG_BANK_ENTER_OFF	(CFG_EXP_OFF + CFG_EXP_SIZE)
+#define CFG_TOTAL_SIZE		(CFG_BANK_ENTER_OFF + CFG_BANK_ENTER_SIZE)
 
 void flash_settings_erase(void);
 void flash_settings_write(uint8_t* data, uint32_t offset);

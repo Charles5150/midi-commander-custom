@@ -41,7 +41,8 @@ def main(args: argparse.Namespace) -> int:
         print(f"Device stopped responding: {e}")
         return 3
 
-    df_global, df_banks, df_buttons, df_long, df_exp = unpacker.unpack_config(data)
+    (df_global, df_banks, df_buttons, df_long, df_exp,
+     df_enter) = unpacker.unpack_config(data)
     write_config_csv(
         args.output,
         df_global,
@@ -50,6 +51,7 @@ def main(args: argparse.Namespace) -> int:
         note="Read from device",
         df_long_press=df_long,
         df_expression=df_exp,
+        df_bank_enter=df_enter,
     )
 
     name = df_global.loc[df_global["Label"] == "ConfigName", "Value"].iloc[0]

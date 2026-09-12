@@ -8,6 +8,11 @@ GLOBAL_SETTINGS_LONG_PRESS = 8
 GLOBAL_SETTINGS_LED_BRIGHTNESS = 9
 GLOBAL_SETTINGS_LED_REST_BRIGHTNESS = 10
 GLOBAL_SETTINGS_BANK_JUMP_STEP = 11
+GLOBAL_SETTINGS_BANK_CHANGE_MODE = 12
+GLOBAL_SETTINGS_BANK_CHANGE_CHANNEL = 13
+GLOBAL_SETTINGS_BANK_CHANGE_CC = 14
+
+BANK_CHANGE_MODES = {"OFF": 0, "PC": 1, "CC": 2}
 
 def pack_global_settings(df):
     # global settings will be 32 bytes long
@@ -85,6 +90,29 @@ def pack_global_settings(df):
         except ValueError:
             step = 8
     bin_list[GLOBAL_SETTINGS_BANK_JUMP_STEP] = max(1, min(31, step))
+
+    # Let an incoming Program Change or Control Change select a bank
+    mode_text = str(df.loc["Bank_Change_Mode", "Value"]).strip().upper() if "Bank_Change_Mode" in df.index else "OFF"
+    mode = BANK_CHANGE_MODES.get(mode_text[:2], 0) if mode_text[:2] in ("PC", "CC") else 0
+    bin_list[GLOBAL_SETTINGS_BANK_CHANGE_MODE] = mode
+
+    ch_text = str(df.loc["Bank_Change_Channel", "Value"]).strip() if "Bank_Change_Channel" in df.index else "Any"
+    if ch_text.upper().startswith("A") or ch_text == "":
+        channel = 0
+    else:
+        try:
+            channel = max(0, min(16, int(float(ch_text))))
+        except ValueError:
+            channel = 0
+    bin_list[GLOBAL_SETTINGS_BANK_CHANGE_CHANNEL] = channel
+
+    cc = 0
+    if "Bank_Change_CC" in df.index:
+        try:
+            cc = max(0, min(127, int(float(str(df.loc["Bank_Change_CC", "Value"])))))
+        except ValueError:
+            cc = 0
+    bin_list[GLOBAL_SETTINGS_BANK_CHANGE_CC] = cc
 
     # print('{:8.8}'.format(df.loc['ConfigName'].Value))
     bin_list += ("{:16.16}".format(df.loc["ConfigName"].Value)).encode("ASCII")

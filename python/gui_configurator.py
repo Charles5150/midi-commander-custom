@@ -20,6 +20,7 @@ sys.path.insert(0, HERE)
 from lib.cmdBinaryPacker import HID_SPECIAL_KEYS, MEDIA_KEYS  # noqa: E402
 from lib.configCsv import read_config_csv, write_config_csv  # noqa: E402
 from lib.configPacker import NUM_BANKS, BUTTON_IDS  # noqa: E402
+from lib.configPacker import BANK_ENTER_SECTION, empty_bank_enter_settings  # noqa: E402
 from lib.configPacker import (  # noqa: E402
     EXPRESSION_SECTION,
     LONG_PRESS_SECTION,
@@ -336,6 +337,8 @@ class MidiCommanderGUI(ctk.CTk):
         self.df_buttons = None
         self.df_long = None
         self.df_exp = None
+        self.df_enter = None
+        self.enter_editors = []
         self.current_csv_path = None
         self.live = None            # MidiCommander while the live pedal view is on
         self.calibrating = {}       # pedal index -> [min_seen, max_seen]
@@ -388,6 +391,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.tabview.add("Button Config")
         self.tabview.add("Bank Names")
         self.tabview.add("Expression")
+        self.tabview.add("Bank Enter")
 
         self.global_scroll = ctk.CTkScrollableFrame(self.tabview.tab("Global Settings"))
         self.global_scroll.pack(fill="both", expand=True)
@@ -397,6 +401,7 @@ class MidiCommanderGUI(ctk.CTk):
 
         self._setup_button_tab()
         self._setup_expression_tab()
+        self._setup_bank_enter_tab()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
         if os.path.exists(DEFAULT_CSV):
@@ -454,6 +459,9 @@ class MidiCommanderGUI(ctk.CTk):
                 ("LED_Brightness", "100"),
                 ("LED_Rest_Brightness", "100"),
                 ("Bank_Jump_Step", "8"),
+                ("Bank_Change_Mode", "Off"),
+                ("Bank_Change_Channel", "Any"),
+                ("Bank_Change_CC", "0"),
             ]
             missing = [{"Label": l, "Value": v} for l, v in defaults if l not in labels]
             if missing:
@@ -513,6 +521,24 @@ class MidiCommanderGUI(ctk.CTk):
                 else empty_expression_settings()
             )
             self.populate_expression()
+
+            self.df_enter = (
+                data[BANK_ENTER_SECTION].astype(object).reset_index(drop=True)
+                if BANK_ENTER_SECTION in data
+                else empty_bank_enter_settings()
+            )
+            missing = [
+                f"{slot}_{field}"
+                for slot in SLOTS
+                for field in CMD_FIELDS
+                if f"{slot}_{field}" not in self.df_enter.columns
+            ]
+            if missing:
+                self.df_enter = pd.concat(
+                    [self.df_enter,
+                     pd.DataFrame(float("nan"), index=self.df_enter.index, columns=missing)],
+                    axis=1,
+                ).copy()
 
             self.df_buttons = self._pad_buttons(self.df_buttons, with_extras=True)
             self.df_long = self._pad_buttons(self.df_long, with_extras=False)
@@ -594,6 +620,12 @@ class MidiCommanderGUI(ctk.CTk):
                 w = IntEntry(self.global_scroll, 1, 100, value, width=70)
             elif label == "Bank_Jump_Step":
                 w = IntEntry(self.global_scroll, 1, 31, value, width=70)
+            elif label == "Bank_Change_Mode":
+                w = Option(self.global_scroll, ["Off", "PC", "CC"], value, width=80)
+            elif label == "Bank_Change_Channel":
+                w = Option(self.global_scroll, ["Any"] + CHANNELS, value, width=80)
+            elif label == "Bank_Change_CC":
+                w = IntEntry(self.global_scroll, 0, 127, value, width=70)
             elif label == "ConfigName":
                 w = TextEntry(self.global_scroll, 16, value, width=180)
             else:
@@ -611,6 +643,9 @@ class MidiCommanderGUI(ctk.CTk):
             "LED_Brightness": "brightness of a lit LED, 1-100 %",
             "LED_Rest_Brightness": "brightness of LEDs lit at rest by Reverse/AlwaysOn, 1-100 %",
             "Bank_Jump_Step": "banks skipped by a long press on Bank Up/Down (1-31)",
+            "Bank_Change_Mode": "let an incoming PC or CC select a bank",
+            "Bank_Change_Channel": "channel the pedal listens on for bank changes",
+            "Bank_Change_CC": "CC number that selects a bank, when the mode is CC",
             "ConfigName": "shown on the display at boot (16 chars)",
             "Exp1_CC": "CC number sent by expression pedal 1 (0-127)",
             "Exp2_CC": "CC number sent by expression pedal 2 (0-127)",
@@ -930,10 +965,65 @@ class MidiCommanderGUI(ctk.CTk):
         self._live_disconnect()
         self.destroy()
 
+    # --- Bank Enter tab -----------------------------------------------------------
+    def _setup_bank_enter_tab(self):
+        tab = self.tabview.tab("Bank Enter")
+        top = ctk.CTkFrame(tab, fg_color="transparent")
+        top.pack(fill="x", padx=10, pady=(10, 4))
+        ctk.CTkLabel(
+            top,
+            text="Commands sent once when a bank is entered, from any source: bank buttons, "
+            "a Bank command or an incoming MIDI message. Typically a Program Change that "
+            "selects the patch for the bank. No release is sent, and Bank commands are ignored.",
+            text_color="gray",
+            wraplength=780,
+            justify="left",
+        ).pack(anchor="w")
+
+        sel = ctk.CTkFrame(tab, fg_color="transparent")
+        sel.pack(fill="x", padx=10)
+        ctk.CTkLabel(sel, text="Bank:").pack(side="left")
+        self.enter_bank_selector = ctk.CTkOptionMenu(
+            sel, values=[str(i) for i in range(NUM_BANKS)], width=80,
+            command=self._on_enter_bank_change,
+        )
+        self.enter_bank_selector.pack(side="left", padx=8)
+
+        self.enter_frame = ctk.CTkScrollableFrame(tab)
+        self.enter_frame.pack(fill="both", expand=True, padx=10, pady=8)
+
+    def _on_enter_bank_change(self, bank):
+        self.apply_bank_enter_changes()
+        for w in self.enter_frame.winfo_children():
+            w.destroy()
+        self.enter_editors = []
+        if self.df_enter is None:
+            return
+        match = self.df_enter[self.df_enter["Bank_Number"].map(clean) == clean(bank)]
+        if not len(match):
+            return
+        self.enter_row = match.index[0]
+        current = self.df_enter.loc[self.enter_row]
+        table = ctk.CTkFrame(self.enter_frame)
+        table.pack(fill="x")
+        for slot in SLOTS:
+            initial = {f: current.get(f"{slot}_{f}") for f in CMD_FIELDS}
+            self.enter_editors.append(SlotEditor(table, slot, initial))
+
+    def apply_bank_enter_changes(self):
+        if not self.enter_editors or self.df_enter is None:
+            return
+        for editor in self.enter_editors:
+            for field, val in editor.values().items():
+                self.df_enter.at[self.enter_row, f"{editor.slot}_{field}"] = (
+                    val if val != "" else float("nan")
+                )
+
     # --- Saving / device -----------------------------------------------------------
     def _collect(self):
         """Pull every tab's widgets into the DataFrames."""
         self.apply_button_changes(silent=True)
+        self.apply_bank_enter_changes()
         for idx, w in self.global_widgets.items():
             self.df_global.at[idx, "Value"] = w.value()
         for idx, (large, small) in self.bank_widgets.items():
@@ -962,6 +1052,7 @@ class MidiCommanderGUI(ctk.CTk):
                 self.df_buttons,
                 df_long_press=self.df_long,
                 df_expression=self.df_exp,
+                df_bank_enter=self.df_enter,
             )
             messagebox.showinfo("Success", "CSV Saved Successfully!")
         except Exception as e:  # noqa: BLE001
@@ -1017,6 +1108,7 @@ class MidiCommanderGUI(ctk.CTk):
                 self.df_buttons,
                 df_long_press=self.df_long,
                 df_expression=self.df_exp,
+                df_bank_enter=self.df_enter,
             )
         except Exception as e:  # noqa: BLE001
             messagebox.showerror("Error", f"Could not save CSV before flashing: {e}")

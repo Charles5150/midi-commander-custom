@@ -19,6 +19,7 @@ uint8_t *pButtonLedModes = (uint8_t*)(FLASH_SETTINGS_START + CFG_LED_MODES_OFF);
 uint8_t *pButtonLabels   = (uint8_t*)(FLASH_SETTINGS_START + CFG_LABELS_OFF);
 uint8_t *pLongPressCmds  = (uint8_t*)(FLASH_SETTINGS_START + CFG_LONG_CMDS_OFF);
 uint8_t *pExpSettings    = (uint8_t*)(FLASH_SETTINGS_START + CFG_EXP_OFF);
+uint8_t *pBankEnterCmds  = (uint8_t*)(FLASH_SETTINGS_START + CFG_BANK_ENTER_OFF);
 
 // The whole configuration must fit in the pages the tools erase and write.
 _Static_assert(CFG_TOTAL_SIZE <= FLASH_SETTINGS_SIZE,

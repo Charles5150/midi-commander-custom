@@ -10,6 +10,7 @@ Layout (must match firmware/Core/Src/flash_midi_settings.c):
     2752..   button labels, 4 ASCII chars per button, space padded
     3008..   long press commands, same layout as the main command area
     5568..   expression pedal calibration, 16 bytes per pedal
+    ....     commands sent when each bank is entered, one button's list per bank
 """
 
 import lib.cmdBinaryPacker as cbp
@@ -21,6 +22,7 @@ BUTTON_IDS = ["1", "2", "3", "4", "A", "B", "C", "D"]
 LABEL_LEN = 4
 LONG_PRESS_SECTION = "LongPress_Settings"
 EXPRESSION_SECTION = "Expression_Settings"
+BANK_ENTER_SECTION = "BankEnter_Settings"
 EXP_STRIDE = 16
 EXP_CURVES = {"LINEAR": 0, "LOG": 1, "EXP": 2}
 EXP_DEFAULTS = {"Min_ADC": "80", "Max_ADC": "3900", "Curve": "Linear", "Invert": "N", "Channel": "Global"}
@@ -48,6 +50,23 @@ def empty_long_press_settings(num_banks=NUM_BANKS):
                     row[f"{slot}_{f}"] = "N" if f.startswith("Toggle") else ""
                 row[f"{slot}_KeyMode_(Key)"] = ""
             rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def empty_bank_enter_settings(num_banks=NUM_BANKS):
+    """A BankEnter_Settings frame with one blank row per bank."""
+    import pandas as pd
+
+    from lib.binaryUnpacker import CMD_FIELDS, SLOT_NAMES
+
+    rows = []
+    for bank in range(num_banks):
+        row = {"Bank_Number": str(bank)}
+        for slot in SLOT_NAMES:
+            for f in CMD_FIELDS:
+                row[f"{slot}_{f}"] = "N" if f.startswith("Toggle") else ""
+            row[f"{slot}_KeyMode_(Key)"] = ""
+        rows.append(row)
     return pd.DataFrame(rows)
 
 
@@ -146,5 +165,20 @@ def pack_config(sections: dict) -> bytes:
                 out += cbp.pack_row(row)
 
     out += list(pack_expression_settings(sections.get(EXPRESSION_SECTION)))
+
+    # Commands sent when a bank is entered; rows are optional
+    enter_rows = {}
+    if BANK_ENTER_SECTION in sections:
+        for _, row in sections[BANK_ENTER_SECTION].iterrows():
+            key = str(row["Bank_Number"]).strip()
+            if key.endswith(".0"):
+                key = key[:-2]
+            enter_rows[key] = row
+    for bank in range(NUM_BANKS):
+        row = enter_rows.get(str(bank))
+        if row is None:
+            out += [0] * (cbp.MIDI_NUM_COMMANDS_PER_SWITCH * 4)
+        else:
+            out += cbp.pack_row(row)
 
     return bytes(out)

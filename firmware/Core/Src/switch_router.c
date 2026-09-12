@@ -14,6 +14,7 @@
 #include "leds.h"
 
 void update_leds_on_bank_change(void);
+static void fire_bank_enter_cmds(uint8_t bank);
 
 /*
  * Creating some constant arrays for the switches that can be scanned and handled
@@ -212,12 +213,25 @@ static uint8_t bank_jump_step(void){
 // belongs to.
 static uint8_t pending_bank = 0xFF;
 
+// Commands stored for "entering this bank"
+static uint8_t* get_bank_enter_pointer(uint8_t bank, uint8_t cmd){
+	return pBankEnterCmds + (MIDI_ROM_KEY_STRIDE * bank) + (MIDI_ROM_CMD_SIZE * cmd);
+}
+
 static void goto_bank(uint8_t bank){
 	if(bank >= MIDI_NUM_BANKS || bank == switch_current_page) return;
 	switch_current_page = bank;
 	update_leds_on_bank_change();
 	display_setBankName(switch_current_page);
 	state_store_mark_dirty();
+	fire_bank_enter_cmds(bank);
+}
+
+// Requested from interrupt context; applied at the top of handle_switches.
+static volatile uint8_t requested_bank = 0xFF;
+
+void sw_request_bank(uint8_t bank){
+	if(bank < MIDI_NUM_BANKS) requested_bank = bank;
 }
 
 // Step through the banks, wrapping around at both ends
@@ -554,6 +568,21 @@ void update_leds_on_bank_change(void){
 	}
 }
 
+/*
+ * Commands sent once when a bank is entered, typically a Program Change that
+ * selects the patch for that bank. They are one-shot: no release is sent, and
+ * Bank commands are ignored so entering a bank cannot chain into another one.
+ */
+static void fire_bank_enter_cmds(uint8_t bank){
+	if(bank >= MIDI_NUM_BANKS) return;
+	for(int j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
+		uint8_t *pRom = get_bank_enter_pointer(bank, j);
+		if((*pRom & 0xF0) == CMD_BANK_NIBBLE) continue;
+		handle_cmd_sw_down(pRom, MIDI_CONTROL_ON);
+	}
+	pending_bank = 0xFF; // nothing here may change the bank
+}
+
 static void apply_pending_bank(void){
 	if(pending_bank != 0xFF){
 		uint8_t target = pending_bank;
@@ -663,6 +692,13 @@ static void handle_bank_switch(bank_press_t *bp, GPIO_TypeDef *port, uint16_t pi
 
 void handle_switches(void){
 	if(is_app_suspended) return;
+
+	// A bank change asked for from interrupt context (incoming MIDI)
+	if(requested_bank != 0xFF){
+		uint8_t target = requested_bank;
+		requested_bank = 0xFF;
+		goto_bank(target);
+	}
 
 	// The Command switches
 	uint32_t now = HAL_GetTick();

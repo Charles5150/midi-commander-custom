@@ -44,7 +44,8 @@ LABELS_OFFSET = LED_MODES_OFFSET + NUM_BANKS * len(BUTTON_IDS)
 LONG_PRESS_OFFSET = LABELS_OFFSET + NUM_BANKS * len(BUTTON_IDS) * LABEL_LEN
 EXP_OFFSET = LONG_PRESS_OFFSET + NUM_BANKS * len(BUTTON_IDS) * BUTTON_STRIDE
 EXP_STRIDE = 16
-CONFIG_SIZE = EXP_OFFSET + 2 * EXP_STRIDE
+BANK_ENTER_OFFSET = EXP_OFFSET + 2 * EXP_STRIDE
+CONFIG_SIZE = BANK_ENTER_OFFSET + NUM_BANKS * BUTTON_STRIDE
 EXP_CURVE_NAMES = {0: "Linear", 1: "Log", 2: "Exp"}
 
 SLOT_NAMES = [chr(ord("A") + i) for i in range(MIDI_NUM_COMMANDS_PER_SWITCH)]
@@ -103,6 +104,9 @@ def unpack_global_settings(data: bytes) -> pd.DataFrame:
         ("LED_Brightness", str(g[9] if 0 < g[9] <= 100 else 100)),
         ("LED_Rest_Brightness", str(g[10] if 0 < g[10] <= 100 else 100)),
         ("Bank_Jump_Step", str(g[11] if 0 < g[11] < NUM_BANKS else 8)),
+        ("Bank_Change_Mode", {1: "PC", 2: "CC"}.get(g[12], "Off")),
+        ("Bank_Change_Channel", str(g[13]) if 1 <= g[13] <= 16 else "Any"),
+        ("Bank_Change_CC", str(g[14] if g[14] <= 127 else 0)),
     ]
     return pd.DataFrame(rows, columns=["Label", "Value"])
 
@@ -266,8 +270,28 @@ def unpack_expression_settings(data: bytes) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def unpack_bank_enter_settings(data: bytes) -> pd.DataFrame:
+    """Commands sent when each bank is entered, one row per bank."""
+    columns = ["Bank_Number"]
+    for slot in SLOT_NAMES:
+        columns += [f"{slot}_{f}" for f in CMD_FIELDS]
+    columns += [f"{slot}_KeyMode_(Key)" for slot in SLOT_NAMES]
+
+    rows = []
+    for bank in range(NUM_BANKS):
+        row = {"Bank_Number": str(bank)}
+        for slot_index, slot in enumerate(SLOT_NAMES):
+            offset = BANK_ENTER_OFFSET + bank * BUTTON_STRIDE + slot_index * CMD_SIZE
+            cmd = unpack_command(data[offset : offset + CMD_SIZE])
+            for f in CMD_FIELDS:
+                row[f"{slot}_{f}"] = cmd[f]
+            row[f"{slot}_KeyMode_(Key)"] = cmd["KeyMode_(Key)"]
+        rows.append(row)
+    return pd.DataFrame(rows, columns=columns)
+
+
 def unpack_config(data: bytes):
-    """Return ``(df_global, df_banks, df_buttons, df_long_press, df_expression)``."""
+    """Return ``(df_global, df_banks, df_buttons, df_long_press, df_expression, df_bank_enter)``."""
     if len(data) < CONFIG_SIZE:
         raise ValueError(
             f"Settings dump is {len(data)} bytes, expected at least {CONFIG_SIZE}"
@@ -278,4 +302,5 @@ def unpack_config(data: bytes):
         unpack_button_settings(data),
         unpack_long_press_settings(data),
         unpack_expression_settings(data),
+        unpack_bank_enter_settings(data),
     )

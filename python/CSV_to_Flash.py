@@ -24,7 +24,7 @@ FLASH_PAGE_SIZE = 2048
 
 # This needs to be in sync with FLASH_SETTINGS_NO_PAGES in
 # firmware/Core/Inc/flash_midi_settings.h
-ALLOWED_NUM_FLASH_PAGES = 11
+ALLOWED_NUM_FLASH_PAGES = 12
 
 
 def main(args: argparse.Namespace) -> int:
