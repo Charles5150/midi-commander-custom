@@ -12,7 +12,7 @@ for questions.
 | `firmware/` | STM32F103 firmware (HAL, USB MIDI + HID composite device) |
 | `python/` | Configuration tools: GUI, `CSV_to_Flash.py`, `Flash_to_CSV.py`, packers under `lib/` |
 | `python/tests/` | Round-trip tests for the CSV packers |
-| `artifacts/` | Built firmware images. `release-x.y.dfu` are the ones referenced by the README |
+| `artifacts/` | Built firmware images. Current ones are attached to GitHub releases |
 | `tools/`, `scripts/` | DFU packaging helpers used by the PlatformIO build |
 
 ## Building the firmware
@@ -58,7 +58,7 @@ On macOS with Homebrew Python you also need `brew install python-tk`.
   `python/lib/configPacker.py` and `python/lib/binaryUnpacker.py` in sync, and
   add a round-trip test for any new field.
 - Bump `FIRMWARE_VERSION` in `firmware/Core/Inc/main.h` when the SysEx
-  protocol or the configuration format changes, and add a
-  `artifacts/release-x.y.dfu`.
-- Describe user-visible changes in the README under "Changes in this fork".
+  protocol or the configuration format changes, and publish the image as a
+  GitHub release rather than committing another `artifacts/release-x.y.dfu`.
+- Describe user-visible changes in the README under "Changelog".
 - If you can, say in the pull request what you verified on hardware.

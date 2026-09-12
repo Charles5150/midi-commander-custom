@@ -12,7 +12,7 @@ body:
     attributes:
       label: Firmware version
       description: Shown on the display at boot, or printed by `python python/Flash_to_CSV.py x.csv`.
-      placeholder: "0.5"
+      placeholder: "0.17"
     validations:
       required: true
 

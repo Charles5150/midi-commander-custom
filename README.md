@@ -56,7 +56,7 @@ You need the pedal, a USB cable, Python 3 and, to update the firmware, `dfu-util
 
 The quickest way in is the [latest release](https://github.com/Charles5150/midi-commander-custom/releases/latest), which carries a ready built `.dfu` image. Build it yourself instead if you prefer; both routes end in the same place.
 
-The current release is **`artifacts/release-0.16.dfu`**. Earlier releases are kept in `artifacts/` for reference.
+Released images are attached to the [releases](https://github.com/Charles5150/midi-commander-custom/releases); older ones are also kept in `artifacts/` for reference.
 
 1. Install `dfu-util` (macOS: `brew install dfu-util`; Linux: your package manager; Windows: [dfu-util.sourceforge.net](https://dfu-util.sourceforge.net/)).
 2. With the pedal off, hold **Bank Down** and **D** (the two bottom-right buttons) and switch it on. The display stays dark and LED 3 lights up: the pedal is in DFU mode.
@@ -70,7 +70,7 @@ The current release is **`artifacts/release-0.16.dfu`**. Earlier releases are ke
 4. Flash, using `--alt 0` (the internal flash entry above):
 
    ```bash
-   dfu-util -d 0483:df11 --alt 0 --download artifacts/release-0.16.dfu
+   dfu-util -d 0483:df11 --alt 0 --download midi-commander-custom-0.17.dfu
    ```
 
 5. Power cycle the pedal. The firmware version shows on the display for a moment, then the first bank.
