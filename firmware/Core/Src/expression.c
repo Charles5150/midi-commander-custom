@@ -94,6 +94,7 @@ typedef struct {
   bool initialised;
   bool toe_armed;       // false while sitting past the threshold
   bool heel_armed;
+  bool switches_primed; // toe/heel armed from a real reading yet
 } exp_pedal_t;
 
 static exp_pedal_t pedals[EXP_PEDAL_COUNT];
@@ -229,8 +230,10 @@ void expression_init(void)
     pedals[i].last_stable_adc = 0;
     pedals[i].ema_adc_value = 0;
     pedals[i].initialised = false;
-    pedals[i].toe_armed = true;
-    pedals[i].heel_armed = false;        // starts at the heel: needs to leave first
+    // Armed from the first real reading, see process_pedal
+    pedals[i].toe_armed = false;
+    pedals[i].heel_armed = false;
+    pedals[i].switches_primed = false;
     set_pin_pulldown(kExpChannels[i]);   // never leave the pin floating
   }
   next_process_tick = 0U;
@@ -295,6 +298,21 @@ static void process_pedal(uint32_t i)
       if (midiCmd_send_cc(midi_channel(&p->cal), p->cal.cc_number, midi_value) != ERROR_BUFFERS_FULL) {
           p->last_sent_midi = midi_value;
       }
+  }
+
+  /*
+   * Arm the toe and heel switches from where the pedal actually is, and never
+   * fire on that first reading. They used to start armed as if the pedal sat
+   * at the heel, so a pedal resting past the toe threshold, typically an
+   * inverted pedal left at rest or unplugged, pressed its toe button the
+   * moment the pedals were initialised: at boot on batteries, and whenever a
+   * configuration was switched. A switch now only fires on a real crossing.
+   */
+  if (!p->switches_primed) {
+      p->toe_armed  = (midi_value + SWITCH_MARGIN < p->cal.toe_level);
+      p->heel_armed = (midi_value > p->cal.heel_level + SWITCH_MARGIN);
+      p->switches_primed = true;
+      return;
   }
 
   // Toe: fires on the way up, re-arms once the pedal backs off by the margin
