@@ -144,6 +144,20 @@ void display_request_refresh(void){
  * running) for a moment. Only that line is redrawn, so the bank name and the
  * button grid stay put.
  */
+/*
+ * Replace the bank's info line with a short message for OVERLAY_MS. Only that
+ * line is redrawn, so the bank name and the button grid stay put.
+ */
+static void show_overlay(const char *msg){
+	fill_rect(50, 6, SSD1306_WIDTH - 50, 10, Black);
+	ssd1306_SetCursor(50, 6);
+	ssd1306_WriteString((char *)msg, Font_7x10, White);
+	ssd1306_UpdateScreen();
+
+	overlay_until = HAL_GetTick() + OVERLAY_MS;
+	refresh_pending = 0;
+}
+
 void display_show_tempo(void){
 	char msg[13];
 	if(tempo_external_present()){
@@ -153,13 +167,21 @@ void display_show_tempo(void){
 		snprintf(msg, sizeof(msg), "%s%u BPM", tempo_clock_running() ? "*" : "", tempo_get_bpm());
 	}
 
-	fill_rect(50, 6, SSD1306_WIDTH - 50, 10, Black);
-	ssd1306_SetCursor(50, 6);
-	ssd1306_WriteString(msg, Font_7x10, White);
-	ssd1306_UpdateScreen();
+	show_overlay(msg);
+}
 
-	overlay_until = HAL_GetTick() + OVERLAY_MS;
-	refresh_pending = 0;
+/*
+ * A relative CC button changes a value nobody could see. Show it in the info
+ * line for a moment. Eight characters fit, so "CC120=127" loses one C.
+ */
+void display_show_cc(uint8_t cc, uint8_t value){
+	char msg[13];
+	if(cc < 100){
+		snprintf(msg, sizeof(msg), "CC%u=%u", cc, value);
+	} else {
+		snprintf(msg, sizeof(msg), "C%u=%u", cc, value);
+	}
+	show_overlay(msg);
 }
 
 void display_task(void){

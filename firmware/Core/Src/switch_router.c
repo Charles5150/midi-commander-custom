@@ -240,6 +240,7 @@ static void send_ccinc(uint8_t *pRom){
 
 	if(slot >= 0) ccinc_value[slot] = (uint8_t)next;
 	midiCmd_send_cc(channel, cc, (uint8_t)next);
+	display_show_cc(cc, (uint8_t)next);
 }
 
 // A stored SysEx payload, wrapped in F0 ... F7 and sent to USB and DIN
