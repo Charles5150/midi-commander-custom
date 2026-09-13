@@ -95,22 +95,28 @@ extern uint8_t *pSetlist;		// Bank numbers in setlist order, 0xFF ends the list
 /*
  * Extension area. The double press commands did not fit in the 12 pages of a
  * slot, and slot 0 cannot grow without moving the journal and every other
- * slot. Each slot therefore gets FLASH_DOUBLE_PAGES more pages above 256 kB,
- * which the stock firmware never used:
+ * slot. Each slot therefore gets FLASH_DOUBLE_PAGES more pages in the gap
+ * between the end of the firmware and slot 0. Nothing above 256 kB is used:
+ * pedals exist whose chip reports 256 kB.
  *
- *   0x08040000  slot 0 double press    5 pages
- *   0x08042800  slot 1 double press
- *   0x08045000  slot 2 double press
- *   0x08047800  slot 3 double press
- *   0x0804A000  end
+ *   0x08003000  firmware, at most 76 kB (the linker scripts enforce it)
+ *   0x08016000  slot 0 double press    5 pages
+ *   0x08018800  slot 1 double press
+ *   0x0801B000  slot 2 double press
+ *   0x0801D800  slot 3 double press
+ *   0x08020000  slot 0
+ *
+ * The stock firmware ended at 0x08015E8A, so the area starts out erased on a
+ * pedal that ran it. Older firmware or tools may still have left something
+ * there, so the firmware only reads a slot's area when its global setting
+ * GLOBAL_SETTINGS_DOUBLE_STORED says the tools wrote it.
  *
  * To the tools it is simply the continuation of the configuration: offsets
- * from CFG_DOUBLE_CMDS_OFF (the end of the slot's pages) map to it. It needs a
- * 512 kB chip; on a smaller one double press is unavailable.
+ * from CFG_DOUBLE_CMDS_OFF (the end of the slot's pages) map to it.
  */
 #define CFG_PAGE_SIZE			(2048)
 #define FLASH_DOUBLE_PAGES		(5)
-#define FLASH_EXT_OFFSET		(1024U * 256U)
+#define FLASH_EXT_OFFSET		(1024U * 88U)
 #define FLASH_EXT_ADDR(n)		(FLASH_BASE + FLASH_EXT_OFFSET + (n) * FLASH_DOUBLE_PAGES * FLASH_PAGE_SIZE)
 
 #define MIDI_ROM_CMD_SIZE	(4)
@@ -178,8 +184,8 @@ uint8_t flash_settings_target_slot(void);
 const uint8_t *flash_settings_target_base(void);
 // 16 bytes of the target slot's image at a tools offset, or NULL out of range
 const uint8_t *flash_settings_target_ptr(uint32_t offset);
-// Double press needs the extension area, which needs a 512 kB chip
-bool flash_settings_double_available(void);
+// True when the active slot's double press area was written by the tools
+bool flash_settings_double_stored(void);
 // True when a slot holds a configuration (see the .c file for the test)
 bool flash_settings_slot_valid(uint8_t slot);
 uint8_t flash_settings_valid_mask(void);

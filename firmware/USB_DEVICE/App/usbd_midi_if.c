@@ -159,6 +159,12 @@ void sysex_select_slot(uint8_t* data_packet_start){
 	*(p++) = flash_settings_target_slot();
 	*(p++) = flash_settings_active_slot();
 	*(p++) = flash_settings_valid_mask() & 0x7F;
+	// Since 0.26: flash size the chip reports (kB, two 7-bit bytes) and bit 0
+	// set: this firmware stores double press commands
+	uint16_t flash_kb = *(uint16_t*)FLASHSIZE_BASE;
+	*(p++) = (flash_kb >> 7) & 0x7F;
+	*(p++) = flash_kb & 0x7F;
+	*(p++) = 1;
 	*(p++) = SYSEX_END;
 	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
 }

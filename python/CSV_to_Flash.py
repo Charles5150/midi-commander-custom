@@ -83,7 +83,9 @@ def main(args: argparse.Namespace) -> int:
                 if not new_enough:
                     print("WARNING: double press needs firmware 0.26 or later; "
                           "writing everything else")
-                    flash_contents = config
+                    flash_contents = bytearray(config)
+                    flash_contents[37] = 0  # GLOBAL_SETTINGS_DOUBLE_STORED
+                    flash_contents = bytes(flash_contents)
                     content_size = len(flash_contents)
 
             print("Erasing Flash Settings")

@@ -55,8 +55,9 @@ def main(args: argparse.Namespace) -> int:
                     return 1
 
             data = dev.read_settings(unpacker.CONFIG_SIZE, progress)
-            # Double press commands live in the extension area (0.26)
-            if version_at_least(version, 0, 26):
+            # Double press commands live in the extension area (0.26), and only
+            # count when the configuration says the tools wrote them
+            if version_at_least(version, 0, 26) and data[37] == 1:
                 print("Reading double press commands")
                 extension = dev.read_settings(
                     unpacker.DOUBLE_PRESS_SIZE, progress, start=unpacker.DOUBLE_PRESS_OFFSET)

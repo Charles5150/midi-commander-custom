@@ -149,6 +149,15 @@ class MidiCommander:
         valid = [s for s in range(CONFIG_SLOTS) if mask & (1 << s)]
         return target, active, valid
 
+    def flash_report(self, timeout=1.0):
+        """(flash size in kB the chip reports, double press storable), from the
+        SELECT_SLOT answer of firmware 0.26 or later; None on older firmware."""
+        self.send([SYSEX_CMD_SELECT_SLOT, 0x7F])
+        data = self.wait_for_sysex(SYSEX_RSP_SELECT_SLOT, timeout)
+        if len(data) < 6:
+            return None
+        return (data[3] << 7) | data[4], bool(data[5] & 1)
+
     def read_chunk(self, chunk_index: int, timeout=1.0) -> bytes:
         hi = (chunk_index >> 7) & 0x7F
         lo = chunk_index & 0x7F

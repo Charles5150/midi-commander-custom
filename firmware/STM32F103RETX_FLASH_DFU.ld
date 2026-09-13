@@ -37,7 +37,7 @@ _Min_Stack_Size = 0x400 ;	/* required amount of stack */
 MEMORY
 {
   RAM    (xrw)    : ORIGIN = 0x20000000,   LENGTH = 64K
-  FLASH    (rx)    : ORIGIN = (0x8000000 + 0x3000),   LENGTH = (256K - 0x3000)
+  FLASH    (rx)    : ORIGIN = (0x8000000 + 0x3000),   LENGTH = (88K - 0x3000)	/* ends where the double press areas start, see flash_midi_settings.h */
 }
 
 

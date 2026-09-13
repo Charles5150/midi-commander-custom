@@ -887,7 +887,8 @@ class LedFeedbackTest(unittest.TestCase):
         packed = self.pack_with("Y")
         self.assertEqual(packed[34], 1)     # Clock_Follow in the demo
         self.assertEqual(packed[36], 30)    # Double_Press_ms in the demo
-        self.assertEqual(packed[37], 0)
+        self.assertEqual(packed[37], 1)     # the demo stores double press commands
+        self.assertEqual(packed[38], 0)
 
 
 class DoublePressTest(unittest.TestCase):
@@ -930,6 +931,14 @@ class DoublePressTest(unittest.TestCase):
         sections = {k: v for k, v in self.sections.items() if k != packer.DOUBLE_PRESS_SECTION}
         self.assertEqual(packer.pack_flash_image(sections), packer.pack_config(sections))
         self.assertIsNone(packer.pack_double_press(sections))
+
+    def test_stored_flag(self):
+        """Byte 37 tells the firmware the double press area belongs to this image."""
+        self.assertEqual(packer.pack_config(self.sections)[37], 1)
+        sections = {k: v for k, v in self.sections.items() if k != packer.DOUBLE_PRESS_SECTION}
+        self.assertEqual(packer.pack_config(sections)[37], 0)
+        empty = {**self.sections, packer.DOUBLE_PRESS_SECTION: packer.empty_double_press_settings()}
+        self.assertEqual(packer.pack_config(empty)[37], 0)
 
     def test_dump_from_older_firmware_has_none(self):
         df = unpacker.unpack_double_press_settings(packer.pack_config(self.sections))

@@ -436,10 +436,11 @@ void sw_led_init(void){
 				}
 			}
 
-			// And the double press set, which lives in the extension area
+			// And the double press set, which lives in the extension area and
+			// only counts when the tools wrote it for this configuration
 			a_sw_obj[sw].double_cmd_present &= ~(1UL<<page);
 			a_sw_obj[sw].double_cmd_toggle &= ~(1UL<<page);
-			if(flash_settings_double_available()){
+			if(flash_settings_double_stored()){
 				for(int cmd=0; cmd<MIDI_NUM_COMMANDS_PER_SWITCH; cmd++){
 					uint8_t *pCmd = get_double_rom_pointer(page, sw, cmd);
 					if(cmd_is_present(pCmd)){

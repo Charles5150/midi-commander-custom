@@ -295,6 +295,10 @@ def pack_config(sections: dict) -> bytes:
 
     out = []
     out += sbp.pack_global_settings(df_global)
+    # Tells the firmware this slot's double press area was written, so it never
+    # reads what older firmware or tools may have left there
+    if pack_double_press(sections) is not None:
+        out[sbp.GLOBAL_SETTINGS_DOUBLE_STORED] = 1
     out += sbp.pack_bank_strings(df_banks)
 
     # Rows may be missing (a configuration written for fewer banks) or in any
