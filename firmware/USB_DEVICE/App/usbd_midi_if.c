@@ -4,6 +4,7 @@
  */
 
 #include "usbd_midi_if.h"
+#include "tempo.h"
 #include "stm32f1xx_hal.h"
 #include "midi_defines.h"
 #include "flash_midi_settings.h"
@@ -356,6 +357,12 @@ uint16_t MIDI_DataRx(uint8_t *msg, uint16_t length)
 			break;
 
 		case CIN_SINGLE_BYTE:
+			// Measure the host's clock when following it (Clock_Follow)
+			if(data[0] == 0xF8){
+				tempo_external_clock();
+			} else if(data[0] == 0xFA || data[0] == 0xFB){
+				tempo_external_transport(data[0]);
+			}
 			// Realtime messages. Clock/Start/Continue/Stop pass when enabled.
 			if(pGlobalSettings[GLOBAL_SETTINGS_REALTIME_PASS]){
 				uint8_t b = data[0];

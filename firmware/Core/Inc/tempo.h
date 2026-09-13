@@ -44,4 +44,18 @@ void tempo_tick_1ms(void);
 // Called from the main loop: emits the clock bytes the tick asked for.
 void tempo_task(void);
 
+/*
+ * Following an external clock (Clock_Follow). The USB receive path reports
+ * every clock byte and Start/Continue; the tempo is measured over two beats.
+ * While that clock keeps arriving the pedal adopts its tempo and does not
+ * emit a clock of its own on top of it. If it stops, the internal clock, if
+ * running, carries on at the adopted tempo.
+ */
+void tempo_external_clock(void);			// interrupt context, 0xF8
+void tempo_external_transport(uint8_t b);	// interrupt context, 0xFA / 0xFB
+bool tempo_external_present(void);
+
+// True once each time the display should show a changed external tempo.
+bool tempo_take_display_update(void);
+
 #endif /* INC_TEMPO_H_ */

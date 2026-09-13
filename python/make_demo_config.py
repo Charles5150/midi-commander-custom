@@ -415,6 +415,7 @@ def global_settings() -> pd.DataFrame:
                 ("Bank_Switch_Mode", "Bank+MIDI"),
                 ("Sleep_After_Min", "15"),
                 ("Setlist_Mode", "Y"),
+                ("Clock_Follow", "Y"),
             )
         ]
     )

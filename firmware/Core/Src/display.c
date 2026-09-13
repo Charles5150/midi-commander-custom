@@ -146,7 +146,12 @@ void display_request_refresh(void){
  */
 void display_show_tempo(void){
 	char msg[13];
-	snprintf(msg, sizeof(msg), "%s%u BPM", tempo_clock_running() ? "*" : "", tempo_get_bpm());
+	if(tempo_external_present()){
+		// Following the host: fits the 8 character info line
+		snprintf(msg, sizeof(msg), "%sEXT %u", tempo_clock_running() ? "*" : "", tempo_get_bpm());
+	} else {
+		snprintf(msg, sizeof(msg), "%s%u BPM", tempo_clock_running() ? "*" : "", tempo_get_bpm());
+	}
 
 	fill_rect(50, 6, SSD1306_WIDTH - 50, 10, Black);
 	ssd1306_SetCursor(50, 6);
@@ -158,6 +163,11 @@ void display_show_tempo(void){
 }
 
 void display_task(void){
+	// An external clock appeared or changed tempo
+	if(tempo_take_display_update()){
+		display_show_tempo();
+		return;
+	}
 	// Let the tempo readout sit for its moment before the bank screen returns
 	if(overlay_until){
 		if(HAL_GetTick() < overlay_until) return;

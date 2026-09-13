@@ -818,3 +818,32 @@ class SetlistCompatibilityTest(unittest.TestCase):
         frames = unpacker.unpack_config(bytes(image))
         self.assertEqual(frames[0].set_index("Label")["Value"]["Setlist_Mode"], "N")
         self.assertEqual(len(frames[8]), 0)
+
+
+class ClockFollowTest(unittest.TestCase):
+    """Global byte 34: adopt the tempo of MIDI clock arriving over USB."""
+
+    def pack_with(self, value):
+        sections = read_config_csv(DEMO_CSV)
+        g = sections["Global_Settings"]
+        g.loc[g["Label"] == "Clock_Follow", "Value"] = value
+        return packer.pack_config(sections)
+
+    def test_round_trip(self):
+        for text, byte in (("Y", 1), ("N", 0)):
+            packed = self.pack_with(text)
+            self.assertEqual(packed[34], byte, text)
+            back = unpacker.unpack_config(packed)[0].set_index("Label")["Value"]
+            self.assertEqual(back["Clock_Follow"], text)
+
+    def test_missing_setting_means_off(self):
+        sections = read_config_csv(DEMO_CSV)
+        g = sections["Global_Settings"]
+        sections["Global_Settings"] = g[g["Label"] != "Clock_Follow"]
+        self.assertEqual(packer.pack_config(sections)[34], 0)
+
+    def test_neighbours_untouched(self):
+        """The new byte must not disturb the settings either side of it."""
+        packed = self.pack_with("Y")
+        self.assertEqual(packed[33], 1)     # Setlist_Mode in the demo
+        self.assertEqual(packed[32], 15)    # Sleep_After_Min in the demo
