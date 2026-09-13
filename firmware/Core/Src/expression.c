@@ -29,6 +29,7 @@
 #include "midi_defines.h"
 #include "main.h"
 #include "switch_router.h"
+#include "sleep.h"
 
 // --- Configuration ---
 #define ENABLE_EXP_PEDAL_1     (1U)
@@ -266,6 +267,7 @@ static void process_pedal(uint32_t i)
 
   uint8_t midi_value = adc_to_midi(&p->cal, filtered);
   if (p->last_sent_midi != midi_value) {
+      sleep_note_activity();
       if (midiCmd_send_cc(midi_channel(&p->cal), p->cal.cc_number, midi_value) != ERROR_BUFFERS_FULL) {
           p->last_sent_midi = midi_value;
       }

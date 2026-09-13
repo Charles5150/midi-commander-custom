@@ -20,6 +20,7 @@ Bank_Change_Mode,CC
 Bank_Change_Channel,Any
 Bank_Change_CC,32
 Bank_Switch_Mode,Bank+MIDI
+Sleep_After_Min,10
 ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 * Bank_Naming,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 Bank_Number,Bank_Name_Large,Bank_Info_Small

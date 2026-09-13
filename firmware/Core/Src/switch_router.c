@@ -15,6 +15,7 @@
 #include "display.h"
 #include "state_store.h"
 #include "leds.h"
+#include "sleep.h"
 
 void update_leds_on_bank_change(void);
 static void fire_bank_enter_cmds(uint8_t bank);
@@ -119,6 +120,7 @@ void sw_scan(void){
 	port_C_previous_state = current_port_C;
 
 	if(port_A_switches_changed | port_B_switches_changed | port_C_switches_changed){
+		sleep_note_activity();
 		debounce_counter = 10; // 10ms debounce delay
 		return;
 	}

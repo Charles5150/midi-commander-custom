@@ -36,6 +36,7 @@
 #include "state_store.h"
 #include "leds.h"
 #include "tempo.h"
+#include "sleep.h"
 
 /* USER CODE END Includes */
 
@@ -167,6 +168,7 @@ int main(void)
 
   expression_init();
   tempo_init();
+  sleep_init();
 
   /* USER CODE END 2 */
 
@@ -179,6 +181,15 @@ int main(void)
       state_store_task();
       tempo_task();
       display_task();
+      sleep_task();
+
+      /*
+       * Nothing here spins waiting for anything, so sleep until the next
+       * interrupt. SysTick alone wakes us every millisecond, which is far
+       * more often than any task needs, and the CPU spends the rest of the
+       * time stopped instead of looping for nothing.
+       */
+      __WFI();
 
     /* USER CODE END WHILE */
 

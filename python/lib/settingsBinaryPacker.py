@@ -12,6 +12,8 @@ GLOBAL_SETTINGS_BANK_CHANGE_MODE = 12
 GLOBAL_SETTINGS_BANK_CHANGE_CHANNEL = 13
 GLOBAL_SETTINGS_BANK_CHANGE_CC = 14
 GLOBAL_SETTINGS_BANK_SWITCH_MODE = 15
+# 16..31 hold ConfigName, so new settings start at 32
+GLOBAL_SETTINGS_SLEEP_AFTER_MIN = 32
 
 BANK_SWITCH_MODES = {"BANK": 0, "BANK+MIDI": 1, "MIDI": 2}
 
@@ -130,6 +132,18 @@ def pack_global_settings(df):
 
     # print('{:8.8}'.format(df.loc['ConfigName'].Value))
     bin_list += ("{:16.16}".format(df.loc["ConfigName"].Value)).encode("ASCII")
+
+    # Bytes 32..47: settings added after the name filled the original 32
+    bin_list += [0] * 16
+
+    # Minutes of inactivity before the display and LEDs go out; 0 = never
+    sleep_min = 0
+    if "Sleep_After_Min" in df.index:
+        try:
+            sleep_min = int(float(str(df.loc["Sleep_After_Min", "Value"]).strip() or 0))
+        except ValueError:
+            sleep_min = 0
+    bin_list[GLOBAL_SETTINGS_SLEEP_AFTER_MIN] = max(0, min(60, sleep_min))
 
     return bin_list
 

@@ -88,7 +88,12 @@ extern uint8_t *pBankSwitchCmds;	// Command lists for the Bank Down/Up switches
  *   EXP          two pedal calibration records
  */
 #define CFG_BUTTONS			(MIDI_NUM_BANKS * MIDI_NUM_SWITCHES)
-#define CFG_GLOBAL_SIZE		(32)
+/*
+ * 0..15   individual settings
+ * 16..31  ConfigName
+ * 32..47  room for new settings; the first is the idle sleep timeout
+ */
+#define CFG_GLOBAL_SIZE		(48)
 #define CFG_BANK_STRING_SIZE	(12)
 #define CFG_BANK_STRINGS_SIZE	(MIDI_NUM_BANKS * CFG_BANK_STRING_SIZE)
 #define CFG_CMDS_SIZE		(CFG_BUTTONS * MIDI_ROM_KEY_STRIDE)

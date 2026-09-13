@@ -83,6 +83,8 @@
 #define GLOBAL_SETTINGS_BANK_CHANGE_CHANNEL (13)	// 0 = any channel, 1-16 = that channel only
 #define GLOBAL_SETTINGS_BANK_CHANGE_CC (14)	// CC number when the mode is Control Change
 #define GLOBAL_SETTINGS_BANK_SWITCH_MODE (15)	// What the Bank Up/Down switches do
+// Bytes 16..31 hold ConfigName, so anything new starts at 32
+#define GLOBAL_SETTINGS_SLEEP_AFTER_MIN (32)	// Idle minutes before the display and LEDs go out (0 = never)
 
 #define BANK_SWITCH_BANK_ONLY	(0)	// change bank, send nothing (the original behaviour)
 #define BANK_SWITCH_BANK_MIDI	(1)	// change bank and send the switch's commands

@@ -34,7 +34,7 @@ from lib.cmdBinaryPacker import (
     MIDI_NUM_COMMANDS_PER_SWITCH,
 )
 
-GLOBAL_SIZE = 32
+GLOBAL_SIZE = 48
 NUM_BANKS = 32
 BANK_STRINGS_SIZE = NUM_BANKS * 12
 BUTTON_IDS = ["1", "2", "3", "4", "A", "B", "C", "D"]
@@ -119,6 +119,7 @@ def unpack_global_settings(data: bytes) -> pd.DataFrame:
         ("Bank_Change_Channel", str(g[13]) if 1 <= g[13] <= 16 else "Any"),
         ("Bank_Change_CC", str(g[14] if g[14] <= 127 else 0)),
         ("Bank_Switch_Mode", {1: "Bank+MIDI", 2: "MIDI only"}.get(g[15], "Bank")),
+        ("Sleep_After_Min", "0" if g[32] in (0, 0xFF) else str(min(g[32], 60))),
     ]
     return pd.DataFrame(rows, columns=["Label", "Value"])
 

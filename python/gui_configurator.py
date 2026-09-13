@@ -523,6 +523,7 @@ class MidiCommanderGUI(ctk.CTk):
                 ("Bank_Change_Channel", "Any"),
                 ("Bank_Change_CC", "0"),
                 ("Bank_Switch_Mode", "Bank"),
+                ("Sleep_After_Min", "0"),
             ]
             missing = [{"Label": l, "Value": v} for l, v in defaults if l not in labels]
             if missing:
@@ -697,6 +698,8 @@ class MidiCommanderGUI(ctk.CTk):
                 w = Option(self.global_scroll, ["Off", "PC", "CC"], value, width=80)
             elif label == "Bank_Switch_Mode":
                 w = Option(self.global_scroll, BANK_SWITCH_MODES, value, width=110)
+            elif label == "Sleep_After_Min":
+                w = IntEntry(self.global_scroll, 0, 60, value, width=70)
             elif label == "Bank_Change_Channel":
                 w = Option(self.global_scroll, ["Any"] + CHANNELS, value, width=80)
             elif label == "Bank_Change_CC":
@@ -722,6 +725,7 @@ class MidiCommanderGUI(ctk.CTk):
             "Bank_Change_Channel": "channel the pedal listens on for bank changes",
             "Bank_Change_CC": "CC number that selects a bank, when the mode is CC",
             "Bank_Switch_Mode": "what the Bank Up/Down switches do, see the Bank Switch tab",
+            "Sleep_After_Min": "idle minutes before the display and LEDs go out, 0 = never",
             "ConfigName": "shown on the display at boot (16 chars)",
             "Exp1_CC": "CC number sent by expression pedal 1 (0-127)",
             "Exp2_CC": "CC number sent by expression pedal 2 (0-127)",

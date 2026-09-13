@@ -711,3 +711,38 @@ class BankSelectTest(unittest.TestCase):
                             without_bs += 1
         self.assertGreater(without_bs, 0, "no plain Program Change in the demo")
         self.assertGreater(with_bs, 0, "no Program Change with Bank Select in the demo")
+
+
+class SleepTest(unittest.TestCase):
+    """Idle sleep timeout, the first setting in the widened global area."""
+
+    def pack_with(self, value):
+        sections = read_config_csv(DEMO_CSV)
+        g = sections["Global_Settings"]
+        g.loc[g["Label"] == "Sleep_After_Min", "Value"] = value
+        return packer.pack_config(sections)
+
+    def test_round_trip(self):
+        for text, expected in (("0", 0), ("1", 1), ("10", 10), ("60", 60)):
+            packed = self.pack_with(text)
+            self.assertEqual(packed[32], expected, text)
+            back = unpacker.unpack_config(packed)[0].set_index("Label")["Value"]
+            self.assertEqual(back["Sleep_After_Min"], text, text)
+
+    def test_out_of_range_is_clamped(self):
+        self.assertEqual(self.pack_with("250")[32], 60)
+        self.assertEqual(self.pack_with("-5")[32], 0)
+
+    def test_missing_setting_means_off(self):
+        """A configuration written before 0.18 has no such row."""
+        sections = read_config_csv(DEMO_CSV)
+        g = sections["Global_Settings"]
+        sections["Global_Settings"] = g[g["Label"] != "Sleep_After_Min"]
+        packed = packer.pack_config(sections)
+        self.assertEqual(packed[32], 0)
+        self.assertEqual(len(packed), unpacker.CONFIG_SIZE)
+
+    def test_name_still_fits_before_it(self):
+        """Widening the area must not disturb ConfigName at 16..31."""
+        packed = packer.pack_config(read_config_csv(DEMO_CSV))
+        self.assertEqual(packed[16:32].decode("ascii").strip(), "DEMO ALL")

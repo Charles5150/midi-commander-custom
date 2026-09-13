@@ -410,6 +410,7 @@ def global_settings() -> pd.DataFrame:
                 ("Bank_Change_Channel", "Any"),
                 ("Bank_Change_CC", "32"),
                 ("Bank_Switch_Mode", "Bank+MIDI"),
+                ("Sleep_After_Min", "10"),
             )
         ]
     )
