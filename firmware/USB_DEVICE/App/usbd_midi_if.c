@@ -12,6 +12,8 @@
 #include "expression.h"
 #include "switch_router.h"
 #include "leds.h"
+#include "sleep.h"
+#include "ssd1306.h"
 #include <string.h>
 
 extern I2C_HandleTypeDef hi2c1;
@@ -20,7 +22,7 @@ extern I2C_HandleTypeDef hi2c1;
 #define SYSEX_MAX_LENGTH 64
 uint8_t sysex_rx_buffer[SYSEX_MAX_LENGTH];
 uint8_t sysex_rx_counter = 0;
-uint8_t sysex_tx_assembly_buffer[SYSEX_MAX_LENGTH+32];
+uint8_t sysex_tx_assembly_buffer[160];	// room for an 80 byte GET_SCREEN answer as USB MIDI events
 
 uint8_t midi_msg_tx_buffer[SYSEX_MAX_LENGTH];
 
@@ -220,8 +222,48 @@ void sysex_get_state(void){
 	for(uint8_t led=0; led<LEDS_COUNT; led++){
 		*(p++) = leds_get(led) & 0x7F;
 	}
+	uint16_t frame = ssd1306_GetFrameCount();
+	*(p++) = frame & 0x7F;
+	*(p++) = (frame >> 7) & 0x7F;
+	*(p++) = sleep_is_asleep() ? 1 : 0;
 	*(p++) = SYSEX_END;
 	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
+}
+
+/*
+ * One sixteenth of the screen buffer, for the configurator's virtual pedal,
+ * which shows the display exactly as the pedal draws it. The buffer holds one
+ * byte per column for every 8 rows (SSD1306_WIDTH columns x 8 pages); part n
+ * is the left (even n) or right (odd n) half of page n/2. The bytes are packed
+ * 7 in 8: a byte carrying the high bits of up to 7 bytes, then their low 7 bits.
+ */
+#define SCREEN_PARTS		((SSD1306_HEIGHT / 8) * 2)
+#define SCREEN_PART_BYTES	(SSD1306_WIDTH / 2)
+
+void sysex_get_screen(uint8_t* data_packet_start){
+	uint8_t part = data_packet_start[0];
+	if(part >= SCREEN_PARTS){
+		return;
+	}
+	const uint8_t *src = ssd1306_GetBuffer() + (part / 2) * SSD1306_WIDTH + (part % 2) * SCREEN_PART_BYTES;
+
+	static uint8_t out[3 + 1 + (SCREEN_PART_BYTES * 8 + 6) / 7 + 1];
+	uint8_t *p = out;
+	*(p++) = SYSEX_START;
+	*(p++) = MIDI_MANUF_ID;
+	*(p++) = SYSEX_RSP_GET_SCREEN;
+	*(p++) = part;
+	for(uint8_t i=0; i<SCREEN_PART_BYTES; i+=7){
+		uint8_t n = (SCREEN_PART_BYTES - i < 7) ? (SCREEN_PART_BYTES - i) : 7;
+		uint8_t *high = p++;
+		*high = 0;
+		for(uint8_t k=0; k<n; k++){
+			if(src[i + k] & 0x80) *high |= (uint8_t)(1U << k);
+			*(p++) = src[i + k] & 0x7F;
+		}
+	}
+	*(p++) = SYSEX_END;
+	sysex_send_message(out, p - out);
 }
 
 void sysex_get_version(void){
@@ -298,6 +340,12 @@ void process_sysex_message(void){
 		break;
 	case SYSEX_CMD_GET_STATE:
 		sysex_get_state();
+		break;
+	case SYSEX_CMD_GET_SCREEN:
+		// F0 7D 70 part F7 = 5 bytes
+		if(sysex_rx_counter >= 5){
+			sysex_get_screen(&(pSysexHead->start_parameters));
+		}
 		break;
 	case SYSEX_CMD_GET_VERSION:
 		sysex_get_version();

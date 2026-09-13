@@ -11,6 +11,8 @@ import subprocess
 import sys
 from tkinter import filedialog, messagebox
 
+import tkinter as tk
+
 import customtkinter as ctk
 import pandas as pd
 
@@ -43,7 +45,8 @@ from lib.configPacker import (  # noqa: E402
     empty_double_press_settings,
 )
 from lib.midiDevice import (  # noqa: E402
-    LED_LEVELS, VIRTUAL_SWITCHES, DeviceNotFound, DeviceTimeout, MidiCommander, version_at_least,
+    LED_LEVELS, SCREEN_HEIGHT, SCREEN_VISIBLE_WIDTH, VIRTUAL_SWITCHES, DeviceNotFound, DeviceTimeout,
+    MidiCommander, screen_rows, version_at_least,
 )
 from lib import bankClipboard as bank_clipboard  # noqa: E402
 
@@ -97,25 +100,44 @@ CMD_FIELDS = [
 
 BOLD = ("Arial", 12, "bold")
 
-# Virtual pedal: the switches as they sit on the pedal, Bank Up and Down at the right
-PEDAL_LAYOUT = [["1", "2", "3", "4", "UP"], ["A", "B", "C", "D", "DOWN"]]
-PEDAL_BANK_CAPTIONS = {"UP": "BANK \u25b2", "DOWN": "BANK \u25bc"}
+# Virtual pedal, drawn like the pedal: five switches a row, 1-4 and Bank Up on
+# top with their LEDs below, A-D and Bank Down underneath with their LEDs above,
+# and the display between the rows, centred between switches 2 and 3.
+PEDAL_ROWS = [["1", "2", "3", "4", "UP"], ["A", "B", "C", "D", "DOWN"]]
+PEDAL_CAPTIONS = {"UP": "BANK \u25b2", "DOWN": "BANK \u25bc"}
+PEDAL_COL_X = [110, 270, 430, 590, 750]
+PEDAL_W, PEDAL_H = 860, 590
+PEDAL_TOP_SWITCH_Y, PEDAL_TOP_LED_Y = 95, 168
+PEDAL_BOT_LED_Y, PEDAL_BOT_SWITCH_Y = 422, 495
+PEDAL_SCREEN_ZOOM = 3
+PEDAL_SCREEN_CENTER = ((PEDAL_COL_X[1] + PEDAL_COL_X[2]) // 2, (PEDAL_TOP_LED_Y + PEDAL_BOT_LED_Y) // 2)
+PEDAL_BG = "#2b2b2b"            # the tab behind the pedal
 PEDAL_BODY = "#1c1c1e"
-PEDAL_SWITCH = "#48484a"
-PEDAL_SWITCH_DOWN = "#8e8e93"
-PEDAL_TOGGLE_RING = "#ff9f0a"
+PEDAL_BODY_EDGE = "#3a3a3c"
+PEDAL_RING = "#3a3a3c"
+PEDAL_NUT = "#7c7c80"
+PEDAL_CAP = "#d1d1d6"
+PEDAL_CAP_DOWN = "#8e8e93"
+PEDAL_NUT_DOWN = "#5a5a5e"
 PEDAL_LED_OFF = (0x2c, 0x2c, 0x2e)
 PEDAL_LED_ON = (0xff, 0x45, 0x3a)
-PEDAL_SCREEN = "#050608"
-PEDAL_SCREEN_TEXT = "#dff1ff"
+PEDAL_PIXEL_ON = "#eef6ff"
+PEDAL_PIXEL_OFF = "#040506"
 PEDAL_STATE_EVERY = 2   # poll the pedal state on every second live view tick (120 ms)
+
+
+def blend(a, b, t) -> str:
+    rgb = [round(x + (y - x) * max(0.0, min(1.0, t))) for x, y in zip(a, b)]
+    return "#%02x%02x%02x" % tuple(rgb)
 
 
 def led_color(level) -> str:
     """Screen colour for an LED at a PWM level 0..LED_LEVELS."""
-    t = max(0.0, min(1.0, level / LED_LEVELS))
-    rgb = [round(off + (on - off) * t) for off, on in zip(PEDAL_LED_OFF, PEDAL_LED_ON)]
-    return "#%02x%02x%02x" % tuple(rgb)
+    return blend(PEDAL_LED_OFF, PEDAL_LED_ON, level / LED_LEVELS)
+
+
+def hex_rgb(color: str):
+    return tuple(int(color[i:i + 2], 16) for i in (1, 3, 5))
 
 
 def clean(val) -> str:
@@ -1224,7 +1246,13 @@ class MidiCommanderGUI(ctk.CTk):
         self.pedal_tick += 1
         if self.pedal_supported and self.pedal_tick % PEDAL_STATE_EVERY == 0:
             try:
-                self._pedal_show(self.live.get_state(timeout=0.3))
+                state = self.live.get_state(timeout=0.3)
+                self._pedal_show(state)
+                # Fetch the screen only when the pedal has redrawn it
+                if state["frame"] is not None and (state["frame"], state["asleep"]) != self.pedal_frame:
+                    screen = None if state["asleep"] else self.live.get_screen(timeout=0.3)
+                    self._pedal_draw_screen(screen)
+                    self.pedal_frame = (state["frame"], state["asleep"])
             except (DeviceTimeout, ValueError):
                 pass
         self.after(60, self._live_poll)
@@ -1235,120 +1263,141 @@ class MidiCommanderGUI(ctk.CTk):
         frame = ctk.CTkFrame(tab, fg_color="transparent")
         frame.pack(fill="both", expand=True, padx=10, pady=10)
 
-        ctk.CTkLabel(
-            frame,
-            text="Try the configuration without a foot on the pedal. Click a switch to tap it, "
-            "hold the mouse button down for a long press, click twice quickly for a double press. "
-            "The display, labels and LEDs below are read back from the pedal itself.",
-            text_color="gray",
-            wraplength=760,
-            justify="left",
-        ).pack(anchor="w", pady=(0, 10))
-
         top = ctk.CTkFrame(frame, fg_color="transparent")
-        top.pack(anchor="w", pady=(0, 14))
+        top.pack(anchor="w", pady=(0, 6))
         self.btn_pedal_live = ctk.CTkButton(top, text="Connect", width=150, command=self._live_toggle)
         self.btn_pedal_live.pack(side="left")
         self.lbl_pedal_live = ctk.CTkLabel(top, text="not connected", text_color="gray")
         self.lbl_pedal_live.pack(side="left", padx=10)
 
-        body = ctk.CTkFrame(frame, fg_color=PEDAL_BODY, corner_radius=18)
-        body.pack(anchor="w", padx=4)
-
-        # The pedal's display
-        screen = ctk.CTkFrame(body, fg_color=PEDAL_SCREEN, corner_radius=6,
-                              border_width=2, border_color="#3a3a3c")
-        screen.grid(row=0, column=0, columnspan=5, pady=(22, 10))
-        self.pedal_bank = ctk.CTkLabel(screen, text="--", width=380, font=("Courier", 36, "bold"),
-                                       text_color=PEDAL_SCREEN_TEXT)
-        self.pedal_bank.pack(padx=16, pady=(12, 0))
-        self.pedal_info = ctk.CTkLabel(screen, text="not connected", font=("Courier", 13),
-                                       text_color="#7d8b96")
-        self.pedal_info.pack(padx=16, pady=(0, 12))
-
-        self.pedal_widgets = {}
-        self.pedal_shown = {}
-        for r, row in enumerate(PEDAL_LAYOUT):
-            for c, name in enumerate(row):
-                sid = VIRTUAL_SWITCHES.index(name)
-                cell = ctk.CTkFrame(body, fg_color="transparent")
-                # A gap sets the bank switches apart, as on the pedal
-                cell.grid(row=r + 1, column=c, padx=(34 if c == 4 else 14, 22 if c == 4 else 14),
-                          pady=(10, 22 if r == 1 else 4))
-                led = ctk.CTkLabel(cell, text="", width=16, height=16, corner_radius=8,
-                                   fg_color=led_color(0))
-                led.pack(pady=(0, 8))
-                switch = ctk.CTkLabel(cell, text=PEDAL_BANK_CAPTIONS.get(name, name), width=76, height=76,
-                                      corner_radius=38, fg_color=PEDAL_SWITCH, text_color="white",
-                                      font=("Arial", 13, "bold"))
-                switch.pack()
-                ctk.CTkLabel(cell, text=name if name not in PEDAL_BANK_CAPTIONS else "",
-                             text_color="gray", font=("Arial", 11)).pack(pady=(4, 0))
-                switch.bind("<ButtonPress-1>", lambda _e, i=sid: self._pedal_press(i, True))
-                switch.bind("<ButtonRelease-1>", lambda _e, i=sid: self._pedal_press(i, False))
-                self.pedal_widgets[sid] = {"led": led, "switch": switch}
-
         ctk.CTkLabel(
             frame,
-            text="An orange ring marks a toggle button that is on. The LEDs follow the pedal's "
-            "own, dimmed and blinking ones included. A switch held here lets go by itself "
-            "after 10 seconds.",
+            text="Click a switch to tap it, hold the mouse button down for a long press, click twice "
+            "quickly for a double press. The display and the LEDs are the pedal's own, read back as "
+            "they are.",
             text_color="gray",
             wraplength=760,
             justify="left",
-        ).pack(anchor="w", pady=(12, 0))
+        ).pack(anchor="w", pady=(0, 8))
+
+        c = tk.Canvas(frame, width=PEDAL_W, height=PEDAL_H, bg=PEDAL_BG, highlightthickness=0)
+        c.pack(anchor="w")
+        self.pedal_canvas = c
+        self._pedal_rounded_rect(8, 8, PEDAL_W - 8, PEDAL_H - 8, 26, fill=PEDAL_BODY, outline=PEDAL_BODY_EDGE, width=2)
+
+        # The display, in its window
+        cx, cy = PEDAL_SCREEN_CENTER
+        sw, sh = SCREEN_VISIBLE_WIDTH * PEDAL_SCREEN_ZOOM, SCREEN_HEIGHT * PEDAL_SCREEN_ZOOM
+        self._pedal_rounded_rect(cx - sw // 2 - 16, cy - sh // 2 - 16, cx + sw // 2 + 16, cy + sh // 2 + 16, 10,
+                                 fill="#0b0b0c", outline="#48484a", width=2)
+        self.pedal_screen_base = tk.PhotoImage(width=SCREEN_VISIBLE_WIDTH, height=SCREEN_HEIGHT)
+        self.pedal_screen_image = None
+        self.pedal_screen_item = c.create_image(cx, cy)
+        self.pedal_screen_note = c.create_text(cx, cy, text="not connected", fill="#636366",
+                                               font=("Arial", 15))
+        self._pedal_draw_screen(None)
+
+        self.pedal_widgets = {}
+        self.pedal_shown = {}
+        self.pedal_frame = None
+        for r, row in enumerate(PEDAL_ROWS):
+            switch_y = PEDAL_TOP_SWITCH_Y if r == 0 else PEDAL_BOT_SWITCH_Y
+            led_y = PEDAL_TOP_LED_Y if r == 0 else PEDAL_BOT_LED_Y
+            caption_y = switch_y - 62 if r == 0 else switch_y + 62
+            for col, name in enumerate(row):
+                sid = VIRTUAL_SWITCHES.index(name)
+                x = PEDAL_COL_X[col]
+                tag = f"sw{sid}"
+                c.create_oval(x - 46, switch_y - 46, x + 46, switch_y + 46, fill=PEDAL_RING, outline="#0f0f10",
+                              width=2, tags=tag)
+                nut = c.create_oval(x - 36, switch_y - 36, x + 36, switch_y + 36, fill=PEDAL_NUT,
+                                    outline="#48484a", tags=tag)
+                cap = c.create_oval(x - 25, switch_y - 25, x + 25, switch_y + 25, fill=PEDAL_CAP,
+                                    outline="#f2f2f7", tags=tag)
+                c.create_text(x, caption_y, text=PEDAL_CAPTIONS.get(name, name), fill="#aeaeb2",
+                              font=("Arial", 13, "bold"))
+                glow = c.create_oval(x - 17, led_y - 17, x + 17, led_y + 17, fill=PEDAL_BODY, outline="")
+                c.create_oval(x - 10, led_y - 10, x + 10, led_y + 10, fill="#0f0f10", outline="#48484a")
+                lens = c.create_oval(x - 7, led_y - 7, x + 7, led_y + 7, fill=led_color(0), outline="")
+                c.tag_bind(tag, "<ButtonPress-1>", lambda _e, i=sid: self._pedal_press(i, True))
+                c.tag_bind(tag, "<ButtonRelease-1>", lambda _e, i=sid: self._pedal_press(i, False))
+                c.tag_bind(tag, "<Enter>", lambda _e: self.pedal_canvas.configure(cursor="hand2"))
+                c.tag_bind(tag, "<Leave>", lambda _e: self.pedal_canvas.configure(cursor=""))
+                self.pedal_widgets[sid] = {"nut": nut, "cap": cap, "glow": glow, "lens": lens}
+
+    def _pedal_rounded_rect(self, x1, y1, x2, y2, r, **kw):
+        points = [x1 + r, y1, x2 - r, y1, x2, y1, x2, y1 + r, x2, y2 - r, x2, y2,
+                  x2 - r, y2, x1 + r, y2, x1, y2, x1, y2 - r, x1, y1 + r, x1, y1]
+        return self.pedal_canvas.create_polygon(points, smooth=True, **kw)
+
+    def _pedal_draw_screen(self, buffer):
+        """Show the pedal's screen buffer pixel for pixel; None shows it dark."""
+        if buffer is None:
+            rows = [[False] * SCREEN_VISIBLE_WIDTH for _ in range(SCREEN_HEIGHT)]
+        else:
+            rows = screen_rows(buffer)
+        data = " ".join(
+            "{" + " ".join(PEDAL_PIXEL_ON if lit else PEDAL_PIXEL_OFF for lit in row) + "}" for row in rows
+        )
+        self.pedal_screen_base.put(data, to=(0, 0))
+        self.pedal_screen_image = self.pedal_screen_base.zoom(PEDAL_SCREEN_ZOOM)
+        self.pedal_canvas.itemconfigure(self.pedal_screen_item, image=self.pedal_screen_image)
 
     def _pedal_connection_changed(self, version):
         """Reflect the shared live connection in the Virtual Pedal tab."""
         if not hasattr(self, "lbl_pedal_live") or not self.lbl_pedal_live.winfo_exists():
             return
+        self.pedal_frame = None
+        self.pedal_shown = {}
         if version is None:
             self.lbl_pedal_live.configure(text="not connected", text_color="gray")
             self.btn_pedal_live.configure(text="Connect")
-            self.pedal_bank.configure(text="--")
-            self.pedal_info.configure(text="not connected")
-            for sid, w in self.pedal_widgets.items():
-                w["led"].configure(fg_color=led_color(0))
-                w["switch"].configure(fg_color=PEDAL_SWITCH, border_width=0)
-            self.pedal_shown = {}
+            self._pedal_draw_screen(None)
+            self.pedal_canvas.itemconfigure(self.pedal_screen_note, text="not connected", state="normal")
+            for w in self.pedal_widgets.values():
+                self._pedal_led(w, 0)
+                self._pedal_cap(w, False)
             return
         self.btn_pedal_live.configure(text="Disconnect")
         if self.pedal_supported:
             self.lbl_pedal_live.configure(text=f"connected, firmware {version}", text_color="gray")
+            self.pedal_canvas.itemconfigure(self.pedal_screen_note, state="hidden")
         else:
             self.lbl_pedal_live.configure(
                 text=f"firmware {version} has no virtual pedal: update to 0.27 or later",
                 text_color="orange")
+            self.pedal_canvas.itemconfigure(self.pedal_screen_note, text="firmware 0.27 needed")
+
+    def _pedal_cap(self, w, down):
+        self.pedal_canvas.itemconfigure(w["cap"], fill=PEDAL_CAP_DOWN if down else PEDAL_CAP)
+        self.pedal_canvas.itemconfigure(w["nut"], fill=PEDAL_NUT_DOWN if down else PEDAL_NUT)
+
+    def _pedal_led(self, w, level):
+        t = level / LED_LEVELS
+        self.pedal_canvas.itemconfigure(w["lens"], fill=led_color(level))
+        self.pedal_canvas.itemconfigure(w["glow"], fill=blend(hex_rgb(PEDAL_BODY), PEDAL_LED_ON, 0.35 * t))
 
     def _pedal_press(self, sid, down):
         if self.live is None or not self.pedal_supported:
             return
-        self.pedal_widgets[sid]["switch"].configure(fg_color=PEDAL_SWITCH_DOWN if down else PEDAL_SWITCH)
+        self._pedal_cap(self.pedal_widgets[sid], down)
         try:
             self.live.press_button(sid, down, timeout=0.5)
         except DeviceTimeout:
             self.lbl_pedal_live.configure(text="the pedal did not answer", text_color="orange")
 
     def _pedal_show(self, state):
-        """Paint what the pedal reports, touching only what changed."""
-        def update(key, value, apply):
-            if self.pedal_shown.get(key) != value:
-                self.pedal_shown[key] = value
-                apply(value)
-
-        update("bank", f"{state['bank']:>2}  {state['bank_name']}",
-               lambda v: self.pedal_bank.configure(text=v))
-        update("slot", f"configuration {state['slot'] + 1}",
-               lambda v: self.pedal_info.configure(text=v))
+        """Paint the LEDs the pedal reports, touching only what changed."""
         for sid, w in self.pedal_widgets.items():
-            update(("led", sid), led_color(state["leds"][sid]),
-                   lambda v, w=w: w["led"].configure(fg_color=v))
-            if sid < len(state["labels"]):
-                label = state["labels"][sid] or VIRTUAL_SWITCHES[sid]
-                update(("label", sid), label, lambda v, w=w: w["switch"].configure(text=v))
-                ring = 3 if state["toggles"][sid] else 0
-                update(("ring", sid), ring,
-                       lambda v, w=w: w["switch"].configure(border_width=v, border_color=PEDAL_TOGGLE_RING))
+            level = 0 if state.get("asleep") else state["leds"][sid]
+            if self.pedal_shown.get(sid) != level:
+                self.pedal_shown[sid] = level
+                self._pedal_led(w, level)
+        note = "asleep: the display and LEDs are off" if state.get("asleep") else ""
+        if self.pedal_shown.get("note") != note:
+            self.pedal_shown["note"] = note
+            text = self.lbl_pedal_live.cget("text").split("  \u2014  ")[0]
+            self.lbl_pedal_live.configure(text=f"{text}  \u2014  {note}" if note else text)
 
     def _calibrate_toggle(self, i):
         w = self.exp_widgets[i]

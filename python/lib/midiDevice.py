@@ -23,6 +23,15 @@ SYSEX_CMD_PRESS_BUTTON = 66
 SYSEX_RSP_PRESS_BUTTON = 67
 SYSEX_CMD_GET_STATE = 68
 SYSEX_RSP_GET_STATE = 69
+SYSEX_CMD_GET_SCREEN = 70
+SYSEX_RSP_GET_SCREEN = 71
+
+# The pedal's screen buffer: one byte per column for every 8 rows
+SCREEN_WIDTH = 130      # columns in the buffer; the firmware draws in 0..127
+SCREEN_VISIBLE_WIDTH = 128
+SCREEN_HEIGHT = 64
+SCREEN_PARTS = (SCREEN_HEIGHT // 8) * 2
+SCREEN_PART_BYTES = SCREEN_WIDTH // 2
 
 # Virtual pedal switch ids, in the firmware's order
 VIRTUAL_SWITCHES = ["1", "2", "3", "4", "A", "B", "C", "D", "DOWN", "UP"]
@@ -50,6 +59,25 @@ def switch_id(button) -> int:
     return VIRTUAL_SWITCHES.index(name)
 
 
+def unpack7(data) -> bytes:
+    """Undo the firmware's 7 in 8 packing: a byte of high bits, then up to 7 low parts."""
+    data = list(data)
+    out = bytearray()
+    for i in range(0, len(data), 8):
+        high = data[i]
+        for k, low in enumerate(data[i + 1 : i + 8]):
+            out.append((low & 0x7F) | (0x80 if (high >> k) & 1 else 0))
+    return bytes(out)
+
+
+def screen_rows(buffer: bytes):
+    """The visible screen as SCREEN_HEIGHT rows of booleans, lit pixels True."""
+    return [
+        [bool(buffer[x + (y // 8) * SCREEN_WIDTH] >> (y % 8) & 1) for x in range(SCREEN_VISIBLE_WIDTH)]
+        for y in range(SCREEN_HEIGHT)
+    ]
+
+
 def parse_state(data) -> dict:
     """Decode a GET_STATE answer (the bytes after the response code)."""
     data = list(data)
@@ -67,6 +95,9 @@ def parse_state(data) -> dict:
         "bank_name": text(data[4:8]),
         "labels": [text(data[8 + 4 * i : 12 + 4 * i]) for i in range(8)],
         "leds": [min(v, LED_LEVELS) for v in data[40:50]],
+        # Changes whenever the pedal redraws its screen; None before firmware 0.27's final form
+        "frame": (data[50] | (data[51] << 7)) if len(data) >= 53 else None,
+        "asleep": bool(data[52]) if len(data) >= 53 else False,
     }
 
 
@@ -199,6 +230,21 @@ class MidiCommander:
         """Bank, slot, toggles, bank name, labels and LED levels (firmware 0.27)."""
         self.send([SYSEX_CMD_GET_STATE])
         return parse_state(self.wait_for_sysex(SYSEX_RSP_GET_STATE, timeout))
+
+    def get_screen(self, timeout=1.0) -> bytes:
+        """The pedal's whole screen buffer, SCREEN_WIDTH x SCREEN_HEIGHT / 8 bytes."""
+        buffer = bytearray()
+        for part in range(SCREEN_PARTS):
+            self.send([SYSEX_CMD_GET_SCREEN, part])
+            while True:
+                data = self.wait_for_sysex(SYSEX_RSP_GET_SCREEN, timeout)
+                if data and data[0] == part:
+                    break
+            chunk = unpack7(data[1:])
+            if len(chunk) != SCREEN_PART_BYTES:
+                raise ValueError(f"screen part {part} has {len(chunk)} bytes")
+            buffer += chunk
+        return bytes(buffer)
 
     def flash_report(self, timeout=1.0):
         """(flash size in kB the chip reports, double press storable), from the

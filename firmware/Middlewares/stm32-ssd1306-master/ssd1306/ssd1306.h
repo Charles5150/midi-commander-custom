@@ -165,6 +165,9 @@ void ssd1306_Reset(void);
 void ssd1306_WriteCommand(uint8_t byte);
 void ssd1306_WriteData(uint8_t* buffer, size_t buff_size);
 SSD1306_Error_t ssd1306_FillBuffer(uint8_t* buf, uint32_t len);
+// The screen buffer (SSD1306_BUFFER_SIZE bytes, one byte per column per 8 rows)
+const uint8_t *ssd1306_GetBuffer(void);
+uint16_t ssd1306_GetFrameCount(void);
 
 _END_STD_C
 

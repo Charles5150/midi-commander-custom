@@ -73,6 +73,17 @@ static uint8_t SSD1306_Buffer[SSD1306_BUFFER_SIZE];
 // Screen object
 static SSD1306_t SSD1306;
 
+// Bumped on every screen update, so a remote view knows when to fetch the buffer
+static uint16_t SSD1306_FrameCount = 0;
+
+const uint8_t *ssd1306_GetBuffer(void) {
+    return SSD1306_Buffer;
+}
+
+uint16_t ssd1306_GetFrameCount(void) {
+    return SSD1306_FrameCount;
+}
+
 /* Fills the Screenbuffer with values from a given buffer of a fixed length */
 SSD1306_Error_t ssd1306_FillBuffer(uint8_t* buf, uint32_t len) {
     SSD1306_Error_t ret = SSD1306_ERR;
@@ -199,6 +210,8 @@ void ssd1306_UpdateScreen(void) {
 	// Delay until the previous update has finished
 	while (display_transmit_line != 0)
 		__NOP();
+
+	SSD1306_FrameCount++;
 
 	ssd1306_DMATxLine(0);
 	display_transmit_line = 1;

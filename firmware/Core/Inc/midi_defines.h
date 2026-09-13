@@ -54,7 +54,10 @@
 #define SYSEX_CMD_PRESS_BUTTON	(66) // switch 0-7 (1..4, A..D), 8 Bank Down, 9 Bank Up; then 1 down / 0 up
 #define SYSEX_RSP_PRESS_BUTTON	(67) // echoes the switch and the action
 #define SYSEX_CMD_GET_STATE	(68) // no parameters
-#define SYSEX_RSP_GET_STATE	(69) // bank, slot, toggles (low 7 bits, bit 7), bank name x4, labels 8x4, LED levels x10
+#define SYSEX_RSP_GET_STATE	(69) // bank, slot, toggles (low 7 bits, bit 7), bank name x4, labels 8x4, LED levels x10,
+                                  // screen frame count (low 7, high 7), asleep
+#define SYSEX_CMD_GET_SCREEN	(70) // part 0-15: half (0 left, 1 right) of screen page part/2
+#define SYSEX_RSP_GET_SCREEN	(71) // part, then its 65 bytes packed 7 in 8 (a byte of high bits, then 7 low parts)
 
 #define SYSEX_START (0xF0)
 #define SYSEX_END	(0xF7)

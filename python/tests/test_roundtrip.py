@@ -989,7 +989,8 @@ class VirtualPedalTest(unittest.TestCase):
         with open(path) as f:
             text = f.read()
         for name in ("SYSEX_CMD_PRESS_BUTTON", "SYSEX_RSP_PRESS_BUTTON",
-                     "SYSEX_CMD_GET_STATE", "SYSEX_RSP_GET_STATE"):
+                     "SYSEX_CMD_GET_STATE", "SYSEX_RSP_GET_STATE",
+                     "SYSEX_CMD_GET_SCREEN", "SYSEX_RSP_GET_SCREEN"):
             m = re.search(r"#define\s+" + name + r"\s+\((\d+)\)", text)
             self.assertIsNotNone(m, name)
             self.assertEqual(int(m.group(1)), getattr(md, name), name)
@@ -1022,8 +1023,52 @@ class VirtualPedalTest(unittest.TestCase):
             parse_state(data[:20])
 
     def test_state_fits_the_sysex_buffer(self):
-        """Firmware answer: F0 7D code + 50 data bytes + F7 must fit its 64 byte buffer."""
-        self.assertLessEqual(3 + 4 + 4 + 8 * 4 + 10 + 1, 64)
+        """Firmware answer: F0 7D code + 53 data bytes + F7 must fit its 64 byte buffer."""
+        self.assertLessEqual(3 + 4 + 4 + 8 * 4 + 10 + 3 + 1, 64)
+
+    def test_state_frame_and_sleep(self):
+        from lib.midiDevice import parse_state
+
+        data = [0] * 50 + [0x7F, 0x03, 1]
+        state = parse_state(data)
+        self.assertEqual(state["frame"], 0x7F | (3 << 7))
+        self.assertTrue(state["asleep"])
+        self.assertIsNone(parse_state([0] * 50)["frame"])
+
+    @staticmethod
+    def pack7(raw):
+        """The firmware's packing, sysex_get_screen in usbd_midi_if.c."""
+        out = []
+        for i in range(0, len(raw), 7):
+            chunk = raw[i:i + 7]
+            out.append(sum(1 << k for k, b in enumerate(chunk) if b & 0x80))
+            out += [b & 0x7F for b in chunk]
+        return out
+
+    def test_unpack7_round_trip(self):
+        import random
+        from lib.midiDevice import SCREEN_PART_BYTES, unpack7
+
+        rng = random.Random(7)
+        for raw in (bytes(range(256))[:SCREEN_PART_BYTES], bytes([0xFF] * SCREEN_PART_BYTES),
+                    bytes(rng.randrange(256) for _ in range(SCREEN_PART_BYTES))):
+            packed = self.pack7(raw)
+            self.assertTrue(all(b < 0x80 for b in packed))
+            self.assertEqual(unpack7(packed), raw)
+        # 65 bytes: 9 groups of 7 and one of 2 -> 75 bytes, an 80 byte answer
+        self.assertEqual(len(self.pack7(bytes(SCREEN_PART_BYTES))), 75)
+
+    def test_screen_rows(self):
+        from lib.midiDevice import SCREEN_HEIGHT, SCREEN_VISIBLE_WIDTH, SCREEN_WIDTH, screen_rows
+
+        buffer = bytearray(SCREEN_WIDTH * SCREEN_HEIGHT // 8)
+        buffer[0] = 0x01                       # x 0, y 0
+        buffer[127 + 7 * SCREEN_WIDTH] = 0x80  # x 127, y 63
+        buffer[129] = 0xFF                     # column 129: outside the drawn area
+        rows = screen_rows(bytes(buffer))
+        self.assertEqual((len(rows), len(rows[0])), (SCREEN_HEIGHT, SCREEN_VISIBLE_WIDTH))
+        self.assertTrue(rows[0][0] and rows[63][127])
+        self.assertEqual(sum(sum(r) for r in rows), 2)
 
 
 class PanicTest(unittest.TestCase):
