@@ -59,6 +59,14 @@ static const uint32_t kExpChannels[EXP_PEDAL_COUNT] = {ADC_CHANNEL_7, ADC_CHANNE
 static const uint8_t kEnabled[EXP_PEDAL_COUNT] = {ENABLE_EXP_PEDAL_1, ENABLE_EXP_PEDAL_2};
 
 #define SWITCH_MARGIN     (8U)    // 7-bit units the pedal must back off to re-arm
+/*
+ * How far the pedal must move, in 7-bit units, before it counts as somebody
+ * playing rather than ADC noise. A connected pedal sitting still was measured
+ * drifting one unit either side of its resting value, several times a minute,
+ * which was enough to hold off idle sleep for ever. The CC itself is still
+ * sent on every change; only the activity marker is filtered.
+ */
+#define EXP_ACTIVITY_MOVE (4U)
 #define TOE_DEFAULT       (120U)
 #define HEEL_DEFAULT      (7U)
 #define NO_BUTTON         (0xFFU)
@@ -79,6 +87,8 @@ typedef struct {
 typedef struct {
   exp_cal_t cal;
   uint8_t last_sent_midi;
+  uint8_t activity_ref;      // value the last real movement settled on
+  bool activity_ref_set;
   uint32_t last_stable_adc;
   uint32_t ema_adc_value;
   bool initialised;
@@ -214,6 +224,8 @@ void expression_init(void)
   for (uint32_t i = 0; i < EXP_PEDAL_COUNT; i++) {
     load_calibration(i);
     pedals[i].last_sent_midi = 0xFFU;
+    pedals[i].activity_ref = 0;
+    pedals[i].activity_ref_set = false;
     pedals[i].last_stable_adc = 0;
     pedals[i].ema_adc_value = 0;
     pedals[i].initialised = false;
@@ -267,7 +279,19 @@ static void process_pedal(uint32_t i)
 
   uint8_t midi_value = adc_to_midi(&p->cal, filtered);
   if (p->last_sent_midi != midi_value) {
-      sleep_note_activity();
+      // Only a real move counts as activity; noise must not hold off sleep
+      if (!p->activity_ref_set) {
+          p->activity_ref = midi_value;
+          p->activity_ref_set = true;
+      } else {
+          uint8_t moved = (midi_value > p->activity_ref)
+                        ? (uint8_t)(midi_value - p->activity_ref)
+                        : (uint8_t)(p->activity_ref - midi_value);
+          if (moved >= EXP_ACTIVITY_MOVE) {
+              p->activity_ref = midi_value;
+              sleep_note_activity();
+          }
+      }
       if (midiCmd_send_cc(midi_channel(&p->cal), p->cal.cc_number, midi_value) != ERROR_BUFFERS_FULL) {
           p->last_sent_midi = midi_value;
       }
