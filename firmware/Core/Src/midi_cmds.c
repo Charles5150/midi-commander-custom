@@ -179,6 +179,31 @@ int8_t midiCmd_send_clock_command(void){
 	return 0;
 }
 
+/*
+ * Panic: All Sound Off (CC 120) and All Notes Off (CC 123) on all sixteen
+ * channels, to USB and the DIN output. The 32 messages go out as two full USB
+ * packets and two full serial buffers rather than 32 separate sends, so one
+ * press cannot use up the transmit buffers it is meant to rescue.
+ */
+int8_t midiCmd_send_panic(void){
+	static const uint8_t ccs[2] = { 120, 123 };
+	for(uint8_t half = 0; half < 2; half++){
+		uint8_t usb[64];
+		uint8_t ser[48];
+		for(uint8_t ch = 0; ch < 16; ch++){
+			uint8_t *u = &usb[ch * 4];
+			u[0] = CIN_CONTROL_CHANGE;
+			u[1] = 0xB0 | ch;
+			u[2] = ccs[half];
+			u[3] = 0;
+			memcpy(&ser[ch * 3], &u[1], 3);
+		}
+		MIDI_DataTx(usb, sizeof(usb));
+		midiCmd_send_bytes_serial(ser, sizeof(ser));
+	}
+	return 0;
+}
+
 int8_t midiCmd_send_start_command(void){
 	__disable_irq();
 	int8_t buffer_no = get_next_available_tx_buffer();

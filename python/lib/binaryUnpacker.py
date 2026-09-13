@@ -29,6 +29,7 @@ from lib.cmdBinaryPacker import (
     CMD_SYSEX_NIBBLE,
     CMD_TAP_NIBBLE,
     CMD_STOP_NIBBLE,
+    CMD_PANIC_NIBBLE,
     HID_SPECIAL_KEYS,
     MEDIA_KEYS,
     MIDI_NUM_COMMANDS_PER_SWITCH,
@@ -228,6 +229,8 @@ def unpack_command(raw: bytes) -> dict:
         cmd["CommandType"] = "Start"
     elif cmd_type == CMD_STOP_NIBBLE:
         cmd["CommandType"] = "Stop"
+    elif cmd_type == CMD_PANIC_NIBBLE:
+        cmd["CommandType"] = "Panic"
     # 0x00 (no command) and 0xF0 (erased flash) leave the empty template
 
     return cmd

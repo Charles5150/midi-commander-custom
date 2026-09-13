@@ -583,6 +583,9 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 	case CMD_STOP_NIBBLE:
 		status = midiCmd_send_stop_command();
 		break;
+	case CMD_PANIC_NIBBLE:
+		status = midiCmd_send_panic();
+		break;
 	default:
 		break;
 	}

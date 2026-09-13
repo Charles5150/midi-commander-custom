@@ -22,6 +22,7 @@ int8_t midiCmd_send_pb_command_from_rom(uint8_t *pRom, uint8_t on_off);
 int8_t midiCmd_send_stop_command(void);
 int8_t midiCmd_send_start_command(void);
 int8_t midiCmd_send_clock_command(void);
+int8_t midiCmd_send_panic(void);
 void midiCmd_send_byte_serial(uint8_t byteMessage);
 void midiCmd_send_bytes_serial(const uint8_t *data, uint8_t len);
 

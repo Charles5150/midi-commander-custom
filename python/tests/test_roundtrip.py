@@ -847,3 +847,22 @@ class ClockFollowTest(unittest.TestCase):
         packed = self.pack_with("Y")
         self.assertEqual(packed[33], 1)     # Setlist_Mode in the demo
         self.assertEqual(packed[32], 15)    # Sleep_After_Min in the demo
+
+
+class PanicTest(unittest.TestCase):
+    """Panic command: no parameters, code 0x80."""
+
+    def test_packs_and_unpacks(self):
+        row = {f"A_{f}": "" for f in unpacker.CMD_FIELDS}
+        row["A_CommandType"] = "Panic"
+        row["A_KeyMode_(Key)"] = ""
+        packed = bytes(cbp.pack_row(pd.Series(row)))[:4]
+        self.assertEqual(list(packed), [0x80, 0, 0, 0])
+        self.assertEqual(unpacker.unpack_command(packed)["CommandType"], "Panic")
+
+    def test_demo_has_panic_on_long_stop(self):
+        packed = packer.pack_config(read_config_csv(DEMO_CSV))
+        long_frame = unpacker.unpack_config(packed)[3]
+        row = long_frame[(long_frame["Bank_Number"].astype(str) == "6")
+                         & (long_frame["Button_Identifier"].astype(str) == "4")].iloc[0]
+        self.assertEqual(row["A_CommandType"], "Panic")

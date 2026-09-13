@@ -15,6 +15,7 @@ CMD_BANK_NIBBLE = 0x40
 CMD_CCINC_NIBBLE = 0x50
 CMD_TAP_NIBBLE = 0x70
 CMD_SYSEX_NIBBLE = 0x60
+CMD_PANIC_NIBBLE = 0x80
 
 # Bank command modes, packed in the low nibble of byte 0
 BANK_MODES = {"GOTO": 0, "UP": 1, "DOWN": 2}
@@ -337,6 +338,11 @@ def cmd_stop(cmd):
     return [CMD_STOP_NIBBLE, 0, 0, 0]
 
 
+def cmd_panic(cmd):
+    """All Sound Off and All Notes Off on every channel; no parameters."""
+    return [CMD_PANIC_NIBBLE, 0, 0, 0]
+
+
 def cmd_none(cmd):
     return [0, 0, 0, 0]
 
@@ -348,6 +354,7 @@ cmd_route_table = {
     "PB": cmd_pb,
     "Start": cmd_start,
     "Stop": cmd_stop,
+    "Panic": cmd_panic,
     "Key": cmd_key,
     "Media": cmd_media,
     "Bank": cmd_bank,

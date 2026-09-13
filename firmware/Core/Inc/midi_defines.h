@@ -66,6 +66,7 @@
 #define CMD_MEDIA_NIBBLE	(0x30)	// Consumer control (media) key: bytes 1-2 = usage (10 bits), byte 3 = duration | toggle
 #define CMD_START_NIBBLE	(0x10)
 #define CMD_STOP_NIBBLE		(0x20)
+#define CMD_PANIC_NIBBLE	(0x80)	// All Sound Off and All Notes Off on every channel
 
 #define GLOBAL_SETTINGS_CHANNEL (0)
 #define GLOBAL_SETTINGS_REALTIME_PASS (1)	// Forward Clock/Start/Continue/Stop from USB to DIN

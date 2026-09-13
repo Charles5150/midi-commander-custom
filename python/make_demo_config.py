@@ -266,6 +266,8 @@ def build() -> Demo:
     d.cc(6, "B", "SYNC", "20", toggle="Y")
     d.transport(6, "C", "STRT", "Start")
     d.transport(6, "D", "STOP", "Stop")
+    # Hold STOP for panic: every sound and note off, on every channel
+    d.long_press(6, "4", CommandType="Panic")
 
     # --- bank 7: relative CC ------------------------------------------------
     d.ccinc(7, "1", "VOL+", "7", "Up", 5, 64)
