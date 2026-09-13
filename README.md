@@ -71,7 +71,7 @@ Released images are attached to the [releases](https://github.com/Charles5150/mi
 4. Flash, using `--alt 0` (the internal flash entry above):
 
    ```bash
-   dfu-util -d 0483:df11 --alt 0 --download midi-commander-custom-0.17.dfu
+   dfu-util -d 0483:df11 --alt 0 --download midi-commander-custom-<version>.dfu
    ```
 
 5. Power cycle the pedal. The firmware version shows on the display for a moment, then the first bank.
