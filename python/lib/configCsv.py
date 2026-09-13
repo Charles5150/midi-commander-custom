@@ -52,6 +52,7 @@ def write_config_csv(
     df_sysex: pd.DataFrame = None,
     df_bank_switch: pd.DataFrame = None,
     df_setlist: pd.DataFrame = None,
+    df_bank_expression: pd.DataFrame = None,
 ) -> None:
     with open(path, "w", newline="", encoding="utf-8") as f:
         f.write("# Notes" + PAD + "\n")
@@ -103,3 +104,8 @@ def write_config_csv(
             f.write(PAD + "\n")
             f.write("* Setlist" + PAD + "\n")
             df_setlist.to_csv(f, index=False)
+
+        if df_bank_expression is not None:
+            f.write(PAD + "\n")
+            f.write("* BankExpression_Settings" + PAD + "\n")
+            df_bank_expression.to_csv(f, index=False)

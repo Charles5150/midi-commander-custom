@@ -13,7 +13,8 @@
  *   invert        swap heel and toe
  *   channel       0 = global MIDI channel, 1-16 = fixed channel
  *
- * The CC numbers come from the global settings (Exp1_CC / Exp2_CC).
+ * The CC numbers come from the global settings (Exp1_CC / Exp2_CC). A bank can
+ * give a pedal another CC and channel, or silence it (see pedal_target).
  *
  * A pedal can also act as a switch: crossing up through the toe threshold, or
  * back down through the heel threshold, taps a button of the current bank. Each
@@ -95,6 +96,8 @@ typedef struct {
   bool toe_armed;       // false while sitting past the threshold
   bool heel_armed;
   bool switches_primed; // toe/heel armed from a real reading yet
+  uint8_t target_cc;      // CC in use (BANK_EXP_CC_OFF when silent), 0xFF before the first reading
+  uint8_t target_channel;
 } exp_pedal_t;
 
 static exp_pedal_t pedals[EXP_PEDAL_COUNT];
@@ -219,6 +222,24 @@ static uint8_t midi_channel(const exp_cal_t *c)
   return pGlobalSettings[GLOBAL_SETTINGS_CHANNEL] & 0x0FU;
 }
 
+/*
+ * Where a pedal sends in the current bank. A bank can give each pedal its own CC
+ * and channel, or turn it off; erased flash keeps the pedal's own settings.
+ * Returns false when the pedal is silent in this bank. Its toe and heel switches
+ * are not affected.
+ */
+static bool pedal_target(uint32_t i, uint8_t *cc, uint8_t *channel)
+{
+  const exp_cal_t *c = &pedals[i].cal;
+  const uint8_t *b = pBankExpSettings + sw_get_current_page() * CFG_BANK_EXP_STRIDE + i * 2U;
+  *cc = c->cc_number;
+  *channel = midi_channel(c);
+  if (b[0] == BANK_EXP_CC_OFF) return false;
+  if (b[0] <= 127U) *cc = b[0];
+  if (b[1] >= 1U && b[1] <= 16U) *channel = b[1] - 1U;
+  return true;
+}
+
 // --- Public API --------------------------------------------------------------
 void expression_init(void)
 {
@@ -234,6 +255,8 @@ void expression_init(void)
     pedals[i].toe_armed = false;
     pedals[i].heel_armed = false;
     pedals[i].switches_primed = false;
+    pedals[i].target_cc = 0xFFU;
+    pedals[i].target_channel = 0xFFU;
     set_pin_pulldown(kExpChannels[i]);   // never leave the pin floating
   }
   next_process_tick = 0U;
@@ -281,6 +304,20 @@ static void process_pedal(uint32_t i)
   }
 
   uint8_t midi_value = adc_to_midi(&p->cal, filtered);
+
+  // A bank change can move the pedal to another CC or channel, or silence it.
+  // The new target is not sent the old position: it follows the next movement.
+  uint8_t cc, channel;
+  bool enabled = pedal_target(i, &cc, &channel);
+  uint8_t target = enabled ? cc : BANK_EXP_CC_OFF;
+  if (target != p->target_cc || channel != p->target_channel) {
+      if (p->target_cc != 0xFFU) {
+          p->last_sent_midi = midi_value;
+      }
+      p->target_cc = target;
+      p->target_channel = channel;
+  }
+
   if (p->last_sent_midi != midi_value) {
       // Only a real move counts as activity; noise must not hold off sleep
       if (!p->activity_ref_set) {
@@ -295,7 +332,9 @@ static void process_pedal(uint32_t i)
               sleep_note_activity();
           }
       }
-      if (midiCmd_send_cc(midi_channel(&p->cal), p->cal.cc_number, midi_value) != ERROR_BUFFERS_FULL) {
+      if (!enabled) {
+          p->last_sent_midi = midi_value;    // silent in this bank
+      } else if (midiCmd_send_cc(channel, cc, midi_value) != ERROR_BUFFERS_FULL) {
           p->last_sent_midi = midi_value;
       }
   }

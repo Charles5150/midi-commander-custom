@@ -86,6 +86,7 @@ def main(args: argparse.Namespace) -> int:
         df_sysex=df_sysex,
         df_bank_switch=df_bank_switch,
         df_setlist=df_setlist,
+        df_bank_expression=unpacker.unpack_bank_expression_settings(data),
     )
 
     name = df_global.loc[df_global["Label"] == "ConfigName", "Value"].iloc[0]

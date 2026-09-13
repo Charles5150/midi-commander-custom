@@ -30,6 +30,9 @@ BANK_ENTER_SECTION = "BankEnter_Settings"
 SYSEX_SECTION = "SysEx_Strings"
 BANK_SWITCH_SECTION = "BankSwitch_Settings"
 SETLIST_SECTION = "Setlist"
+BANK_EXPRESSION_SECTION = "BankExpression_Settings"
+BANK_EXP_COLUMNS = ["Bank_Number", "Exp1_CC", "Exp1_Channel", "Exp2_CC", "Exp2_Channel"]
+BANK_EXP_CC_OFF = 0x80
 SETLIST_MAX = 32
 BANK_SWITCH_LISTS = [("Down", "Short"), ("Down", "Long"), ("Up", "Short"), ("Up", "Long")]
 SYSEX_STRING_COUNT = 16
@@ -249,6 +252,64 @@ def pack_label(value) -> bytes:
     return text.encode("ascii", errors="replace").ljust(LABEL_LEN, b" ")
 
 
+def empty_bank_expression_settings(num_banks=NUM_BANKS):
+    """A BankExpression_Settings frame: every bank keeps the pedals' own settings."""
+    import pandas as pd
+
+    rows = [{"Bank_Number": str(b), "Exp1_CC": "", "Exp1_Channel": "", "Exp2_CC": "", "Exp2_Channel": ""}
+            for b in range(num_banks)]
+    return pd.DataFrame(rows, columns=BANK_EXP_COLUMNS)
+
+
+def _cell(value) -> str:
+    text = "" if value is None else str(value).strip()
+    return "" if text.lower() in ("nan", "none", "default") else text
+
+
+def bank_exp_cc_byte(value) -> int:
+    """CSV cell -> stored byte: empty/Default 0xFF, Off 0x80, otherwise a CC 0-127."""
+    text = _cell(value)
+    if text == "":
+        return 0xFF
+    if text.lower() == "off":
+        return BANK_EXP_CC_OFF
+    try:
+        return max(0, min(127, int(float(text))))
+    except ValueError:
+        return 0xFF
+
+
+def bank_exp_channel_byte(value) -> int:
+    """CSV cell -> stored byte: empty/Default 0xFF, otherwise a channel 1-16."""
+    text = _cell(value)
+    try:
+        channel = int(float(text))
+    except ValueError:
+        return 0xFF
+    return channel if 1 <= channel <= 16 else 0xFF
+
+
+def pack_bank_expression(df) -> bytes:
+    """Four bytes per bank: pedal 1 CC, channel, pedal 2 CC, channel (0xFF = default)."""
+    out = bytearray(b"\xff" * (NUM_BANKS * 4))
+    if df is None:
+        return bytes(out)
+    for _, row in df.iterrows():
+        key = _cell(row.get("Bank_Number"))
+        try:
+            bank = int(float(key))
+        except ValueError:
+            continue
+        if not 0 <= bank < NUM_BANKS:
+            continue
+        base = bank * 4
+        out[base] = bank_exp_cc_byte(row.get("Exp1_CC"))
+        out[base + 1] = bank_exp_channel_byte(row.get("Exp1_Channel"))
+        out[base + 2] = bank_exp_cc_byte(row.get("Exp2_CC"))
+        out[base + 3] = bank_exp_channel_byte(row.get("Exp2_Channel"))
+    return bytes(out)
+
+
 def empty_double_press_settings(num_banks=NUM_BANKS):
     """A DoublePress_Settings frame with one blank row per bank/button."""
     return empty_long_press_settings(num_banks)
@@ -371,5 +432,6 @@ def pack_config(sections: dict) -> bytes:
             out += cbp.pack_row(row)
 
     out += list(pack_setlist(sections.get(SETLIST_SECTION)))
+    out += list(pack_bank_expression(sections.get(BANK_EXPRESSION_SECTION)))
 
     return bytes(out)

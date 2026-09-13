@@ -41,7 +41,7 @@ def _snapshot(df, bank, keyed_by_button):
     return rows
 
 
-def copy_bank(df_buttons, df_long, df_enter, bank, df_double=None):
+def copy_bank(df_buttons, df_long, df_enter, bank, df_double=None, df_bank_exp=None):
     """Snapshot of one bank, independent of later edits to the frames."""
     b = _bank(bank)
     return {
@@ -50,6 +50,7 @@ def copy_bank(df_buttons, df_long, df_enter, bank, df_double=None):
         "long": _snapshot(df_long, b, True),
         "enter": _snapshot(df_enter, b, False),
         "double": _snapshot(df_double, b, True),
+        "bank_exp": _snapshot(df_bank_exp, b, False),
     }
 
 
@@ -94,3 +95,11 @@ def paste_double(df_double, clip, bank):
     if clip is None or clip.get("bank") == b:
         return df_double
     return _replace(df_double, clip.get("double", []), b)
+
+
+def paste_bank_expression(df_bank_exp, clip, bank):
+    """df_bank_exp with `bank` taking the clip's expression pedal settings."""
+    b = _bank(bank)
+    if clip is None or clip.get("bank") == b or not clip.get("bank_exp"):
+        return df_bank_exp
+    return _replace(df_bank_exp, clip["bank_exp"], b)

@@ -32,6 +32,8 @@ from lib.configPacker import (  # noqa: E402
     empty_bank_switch_settings,
     SETLIST_SECTION,
     SETLIST_MAX,
+    BANK_EXPRESSION_SECTION,
+    empty_bank_expression_settings,
     empty_setlist,
     empty_sysex_strings,
     parse_sysex_bytes,
@@ -593,6 +595,8 @@ class MidiCommanderGUI(ctk.CTk):
         self.df_sysex = None
         self.df_bank_switch = None
         self.df_setlist = None
+        self.df_bank_exp = None
+        self.bank_exp_widgets = {}  # df index -> (cc1, channel1, cc2, channel2)
         self.setlist_widgets = []
         self.bank_switch_editors = []
         self.bank_switch_row = None
@@ -672,6 +676,14 @@ class MidiCommanderGUI(ctk.CTk):
         self.global_scroll = ctk.CTkScrollableFrame(self.tabview.tab("Global"))
         self.global_scroll.pack(fill="both", expand=True)
 
+        Help(
+            self.tabview.tab("Banks"),
+            "Each bank's name, and where the expression pedals send while it is selected.",
+            "Pedal CC and channel: Default keeps the pedal's own (Expression and Global tabs), "
+            "a number replaces it in this bank, and Off silences the pedal here while its toe and "
+            "heel switches keep working. After a bank change the pedal sends to the new target "
+            "as soon as it moves.",
+        ).pack(anchor="w", padx=10, pady=(10, 6))
         self.bank_scroll = ctk.CTkScrollableFrame(self.tabview.tab("Banks"))
         self.bank_scroll.pack(fill="both", expand=True)
 
@@ -765,6 +777,11 @@ class MidiCommanderGUI(ctk.CTk):
                     [self.df_global, pd.DataFrame(missing)], ignore_index=True
                 )
             self.populate_global()
+
+        self.df_bank_exp = self._pad_bank_exp(
+            data[BANK_EXPRESSION_SECTION].astype(object).reset_index(drop=True)
+            if BANK_EXPRESSION_SECTION in data else empty_bank_expression_settings()
+        )
 
         if "Bank_Naming" in data:
             self.df_banks = self._pad_banks(
@@ -895,6 +912,18 @@ class MidiCommanderGUI(ctk.CTk):
             name = os.path.basename(self.current_csv_path) if self.current_csv_path else "no file loaded"
             self.lbl_file.configure(text=name)
 
+    def _pad_bank_exp(self, df):
+        """One BankExpression_Settings row per bank, in order, blanks as ''."""
+        rows = {clean(r.get("Bank_Number")): r for _, r in df.iterrows()}
+        out = []
+        for b in range(NUM_BANKS):
+            r = rows.get(str(b))
+            row = {"Bank_Number": str(b)}
+            for col in ("Exp1_CC", "Exp1_Channel", "Exp2_CC", "Exp2_Channel"):
+                row[col] = clean(r.get(col)) if r is not None else ""
+            out.append(row)
+        return pd.DataFrame(out, columns=["Bank_Number", "Exp1_CC", "Exp1_Channel", "Exp2_CC", "Exp2_Channel"])
+
     def _pad_banks(self, df):
         """Ensure one Bank_Naming row per bank, in order."""
         rows = {clean(r["Bank_Number"]): r for _, r in df.iterrows()}
@@ -1010,8 +1039,10 @@ class MidiCommanderGUI(ctk.CTk):
         for w in self.bank_scroll.winfo_children():
             w.destroy()
         self.bank_widgets = {}
+        self.bank_exp_widgets = {}
 
-        for col, text in enumerate(("BANK", "NAME \u00b7 4 LARGE CHARACTERS", "INFO \u00b7 8 SMALL CHARACTERS")):
+        for col, text in enumerate(("BANK", "NAME \u00b7 4 LARGE", "INFO \u00b7 8 SMALL",
+                                    "PEDAL 1 CC", "CHANNEL", "PEDAL 2 CC", "CHANNEL")):
             ctk.CTkLabel(self.bank_scroll, text=text, font=FONT_SECTION, text_color=MUTED).grid(
                 row=0, column=col, padx=(10, 16), pady=(8, 6), sticky="w")
 
@@ -1024,6 +1055,22 @@ class MidiCommanderGUI(ctk.CTk):
             small = TextEntry(self.bank_scroll, 8, r["Bank_Info_Small"], width=150)
             small.grid(row=row, column=2, padx=5, pady=2)
             self.bank_widgets[idx] = (large, small)
+
+            # Where the expression pedals send in this bank
+            if self.df_bank_exp is not None and row - 1 < len(self.df_bank_exp):
+                e = self.df_bank_exp.iloc[row - 1]
+                widgets = []
+                for col, (field, is_cc) in enumerate(
+                        (("Exp1_CC", True), ("Exp1_Channel", False), ("Exp2_CC", True), ("Exp2_Channel", False)),
+                        start=3):
+                    value = clean(e.get(field)) or "Default"
+                    if is_cc:
+                        w = Combo(self.bank_scroll, ["Default", "Off"], value, width=100)
+                    else:
+                        w = Option(self.bank_scroll, ["Default"] + CHANNELS, value, width=100)
+                    w.grid(row=row, column=col, padx=(16 if col in (3, 5) else 5, 5), pady=2)
+                    widgets.append(w)
+                self.bank_exp_widgets[self.df_bank_exp.index[row - 1]] = tuple(widgets)
 
     # --- Button tab -------------------------------------------------------------
     def on_bank_change(self, bank_val):
@@ -1074,9 +1121,11 @@ class MidiCommanderGUI(ctk.CTk):
         # Take whatever is still in the editors along with it
         self.apply_button_changes(silent=True)
         self.apply_bank_enter_changes()
+        self.apply_bank_changes()
         bank = self.bank_selector.get()
         self.bank_clipboard = bank_clipboard.copy_bank(
-            self.df_buttons, self.df_long, self.df_enter, bank, df_double=self.df_double)
+            self.df_buttons, self.df_long, self.df_enter, bank, df_double=self.df_double,
+            df_bank_exp=self.df_bank_exp)
         self.paste_bank_button.configure(state="normal", text=f"Paste bank {clean(bank)} here",
                                          fg_color=ACCENT, hover_color=ACCENT_HOVER)
 
@@ -1090,8 +1139,8 @@ class MidiCommanderGUI(ctk.CTk):
         if not messagebox.askyesno(
             "Paste bank",
             f"Replace everything in bank {target} with bank {source}?\n\n"
-            "Labels, LED modes, short, long and double press commands and the commands sent on "
-            "entering the bank are all replaced. The bank name is kept.",
+            "Labels, LED modes, short, long and double press commands, the commands sent on "
+            "entering the bank and its expression pedal settings are all replaced. The bank name is kept.",
         ):
             return
         self.apply_button_changes(silent=True)
@@ -1100,6 +1149,9 @@ class MidiCommanderGUI(ctk.CTk):
             self.df_buttons, self.df_long, self.df_enter, self.bank_clipboard, target
         )
         self.df_double = bank_clipboard.paste_double(self.df_double, self.bank_clipboard, target)
+        self.apply_bank_changes()
+        self.df_bank_exp = bank_clipboard.paste_bank_expression(self.df_bank_exp, self.bank_clipboard, target)
+        self.populate_banks()
         # The open editors point at rows that were just replaced: drop them
         # before refreshing, or they would write the old values back.
         self.editing_row = None
@@ -1795,9 +1847,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.apply_sysex_changes()
         for idx, w in self.global_widgets.items():
             self.df_global.at[idx, "Value"] = w.value()
-        for idx, (large, small) in self.bank_widgets.items():
-            self.df_banks.at[idx, "Bank_Name_Large"] = large.value()
-            self.df_banks.at[idx, "Bank_Info_Small"] = small.value()
+        self.apply_bank_changes()
         for i, w in self.exp_widgets.items():
             self.df_exp.at[i, "Min_ADC"] = w["min"].value() or "80"
             self.df_exp.at[i, "Max_ADC"] = w["max"].value() or "3900"
@@ -1808,6 +1858,32 @@ class MidiCommanderGUI(ctk.CTk):
             self.df_exp.at[i, "Heel_Button"] = w["heel_button"].value()
             self.df_exp.at[i, "Toe_Level"] = w["toe_level"].value() or "120"
             self.df_exp.at[i, "Heel_Level"] = w["heel_level"].value() or "7"
+
+    def apply_bank_changes(self):
+        """Bank names and per bank expression settings back into their frames."""
+        for idx, (large, small) in self.bank_widgets.items():
+            self.df_banks.at[idx, "Bank_Name_Large"] = large.value()
+            self.df_banks.at[idx, "Bank_Info_Small"] = small.value()
+
+        def cc(text):
+            text = text.strip()
+            if text.lower() in ("", "default"):
+                return ""
+            if text.lower() == "off":
+                return "Off"
+            try:
+                return str(max(0, min(127, int(float(text)))))
+            except ValueError:
+                return ""
+
+        def channel(text):
+            return "" if text in ("", "Default") else text
+
+        for idx, (cc1, ch1, cc2, ch2) in self.bank_exp_widgets.items():
+            self.df_bank_exp.at[idx, "Exp1_CC"] = cc(cc1.value())
+            self.df_bank_exp.at[idx, "Exp1_Channel"] = channel(ch1.value())
+            self.df_bank_exp.at[idx, "Exp2_CC"] = cc(cc2.value())
+            self.df_bank_exp.at[idx, "Exp2_Channel"] = channel(ch2.value())
 
     def save_csv(self):
         if not self.current_csv_path:
@@ -1831,6 +1907,7 @@ class MidiCommanderGUI(ctk.CTk):
                 df_sysex=self.df_sysex,
                 df_bank_switch=self.df_bank_switch,
                 df_setlist=self.df_setlist,
+                df_bank_expression=self.df_bank_exp,
             )
             messagebox.showinfo("Success", "CSV Saved Successfully!")
         except Exception as e:  # noqa: BLE001
@@ -1896,6 +1973,7 @@ class MidiCommanderGUI(ctk.CTk):
                 df_sysex=self.df_sysex,
                 df_bank_switch=self.df_bank_switch,
                 df_setlist=self.df_setlist,
+                df_bank_expression=self.df_bank_exp,
             )
         except Exception as e:  # noqa: BLE001
             messagebox.showerror("Error", f"Could not save CSV before flashing: {e}")

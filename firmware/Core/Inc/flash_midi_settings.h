@@ -23,6 +23,7 @@ extern uint8_t *pBankEnterCmds;	// Commands sent when a bank is entered, same sh
 extern uint8_t *pSysExStrings;	// Table of stored SysEx payloads: [length][up to SYSEX_STRING_MAX data bytes]
 extern uint8_t *pBankSwitchCmds;	// Command lists for the Bank Down/Up switches
 extern uint8_t *pSetlist;		// Bank numbers in setlist order, 0xFF ends the list
+extern uint8_t *pBankExpSettings;	// Expression pedal CC and channel per bank, CFG_BANK_EXP_STRIDE bytes per bank
 
 /*
  * Four command lists, one per switch and press length, in this order:
@@ -165,7 +166,18 @@ extern uint8_t *pSetlist;		// Bank numbers in setlist order, 0xFF ends the list
 #define SETLIST_MAX		(32)
 #define CFG_SETLIST_SIZE	(SETLIST_MAX)
 #define CFG_SETLIST_OFF		(CFG_BANK_SWITCH_OFF + CFG_BANK_SWITCH_SIZE)
-#define CFG_TOTAL_SIZE		(CFG_SETLIST_OFF + CFG_SETLIST_SIZE)
+/*
+ * Expression pedals per bank: [pedal 1 CC, pedal 1 channel, pedal 2 CC, pedal 2
+ * channel]. CC 0-127 replaces the pedal's CC in that bank and BANK_EXP_CC_OFF
+ * silences it there; channel 1-16 replaces its channel. Erased flash (0xFF),
+ * which is all a configuration written before 0.28 holds here, keeps the
+ * pedal's own settings.
+ */
+#define CFG_BANK_EXP_STRIDE	(4)
+#define CFG_BANK_EXP_SIZE	(MIDI_NUM_BANKS * CFG_BANK_EXP_STRIDE)
+#define CFG_BANK_EXP_OFF	(CFG_SETLIST_OFF + CFG_SETLIST_SIZE)
+#define BANK_EXP_CC_OFF		(128)	// 0x80, above any CC number
+#define CFG_TOTAL_SIZE		(CFG_BANK_EXP_OFF + CFG_BANK_EXP_SIZE)
 // Double press commands, same size as CMDS, stored in the extension area
 #define CFG_DOUBLE_CMDS_OFF	(FLASH_SETTINGS_NO_PAGES * CFG_PAGE_SIZE)
 #define CFG_DOUBLE_CMDS_SIZE	(CFG_CMDS_SIZE)

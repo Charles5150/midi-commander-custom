@@ -608,6 +608,9 @@ class FirmwareLayoutTest(unittest.TestCase):
             ("CFG_SYSEX_OFF", "SYSEX_OFFSET"),
             ("CFG_BANK_SWITCH_OFF", "BANK_SWITCH_OFFSET"),
             ("CFG_SETLIST_OFF", "SETLIST_OFFSET"),
+            ("CFG_BANK_EXP_OFF", "BANK_EXP_OFFSET"),
+            ("CFG_BANK_EXP_STRIDE", "BANK_EXP_STRIDE"),
+            ("BANK_EXP_CC_OFF", "BANK_EXP_CC_OFF"),
             ("SETLIST_MAX", "SETLIST_MAX"),
             ("CFG_TOTAL_SIZE", "CONFIG_SIZE"),
             ("CFG_DOUBLE_CMDS_OFF", "DOUBLE_PRESS_OFFSET"),
@@ -1069,6 +1072,67 @@ class VirtualPedalTest(unittest.TestCase):
         self.assertEqual((len(rows), len(rows[0])), (SCREEN_HEIGHT, SCREEN_VISIBLE_WIDTH))
         self.assertTrue(rows[0][0] and rows[63][127])
         self.assertEqual(sum(sum(r) for r in rows), 2)
+
+
+class BankExpressionTest(unittest.TestCase):
+    """Expression pedal CC and channel per bank (firmware 0.28)."""
+
+    def setUp(self):
+        self.sections = read_config_csv(DEMO_CSV)
+
+    def region(self, packed, bank):
+        base = unpacker.BANK_EXP_OFFSET + bank * unpacker.BANK_EXP_STRIDE
+        return list(packed[base : base + unpacker.BANK_EXP_STRIDE])
+
+    def test_demo_bytes(self):
+        packed = packer.pack_config(self.sections)
+        self.assertEqual(len(packed), unpacker.CONFIG_SIZE)
+        self.assertEqual(self.region(packed, 2), [1, 0xFF, 0xFF, 0xFF])      # FX: pedal 1 on CC 1
+        self.assertEqual(self.region(packed, 7), [0x80, 0xFF, 7, 2])        # KNOB: off, CC 7 ch 2
+        self.assertEqual(self.region(packed, 0), [0xFF] * 4)                # HOME: defaults
+
+    def test_round_trip(self):
+        packed = packer.pack_config(self.sections)
+        df = unpacker.unpack_bank_expression_settings(packed).set_index("Bank_Number")
+        self.assertEqual(list(df.loc["7"]), ["Off", "", "7", "2"])
+        self.assertEqual(list(df.loc["2"]), ["1", "", "", ""])
+        self.assertEqual(list(df.loc["0"]), ["", "", "", ""])
+        again = packer.pack_config({**self.sections, packer.BANK_EXPRESSION_SECTION: df.reset_index()})
+        self.assertEqual(again, packed)
+
+    def test_missing_section_keeps_pedals_as_they_are(self):
+        sections = {k: v for k, v in self.sections.items() if k != packer.BANK_EXPRESSION_SECTION}
+        packed = packer.pack_config(sections)
+        self.assertEqual(set(packed[unpacker.BANK_EXP_OFFSET : unpacker.CONFIG_SIZE]), {0xFF})
+
+    def test_cell_values(self):
+        cc, ch = packer.bank_exp_cc_byte, packer.bank_exp_channel_byte
+        self.assertEqual([cc(v) for v in ("", "Default", "off", "0", "127", "200", "x", None)],
+                         [0xFF, 0xFF, 0x80, 0, 127, 127, 0xFF, 0xFF])
+        self.assertEqual([ch(v) for v in ("", "Default", "1", "16", "0", "17", "x")],
+                         [0xFF, 0xFF, 1, 16, 0xFF, 0xFF, 0xFF])
+
+    def test_older_image_reads_defaults(self):
+        """An image written before 0.28 has erased flash where these bytes go."""
+        image = bytearray(packer.pack_config(self.sections))
+        image[unpacker.BANK_EXP_OFFSET :] = b"\xff" * (len(image) - unpacker.BANK_EXP_OFFSET)
+        df = unpacker.unpack_bank_expression_settings(bytes(image))
+        self.assertTrue((df[["Exp1_CC", "Exp1_Channel", "Exp2_CC", "Exp2_Channel"]] == "").all().all())
+
+    def test_fits_the_slot(self):
+        self.assertLessEqual(unpacker.CONFIG_SIZE, 12 * 2048)
+
+    def test_copy_paste_bank_takes_it(self):
+        from lib import bankClipboard
+
+        s = self.sections
+        exp = s[packer.BANK_EXPRESSION_SECTION]
+        clip = bankClipboard.copy_bank(s["Button_Settings"], s.get(packer.LONG_PRESS_SECTION),
+                                       s.get(packer.BANK_ENTER_SECTION), 7, df_bank_exp=exp)
+        pasted = bankClipboard.paste_bank_expression(exp, clip, 9)
+        packed = packer.pack_config({**s, packer.BANK_EXPRESSION_SECTION: pasted})
+        self.assertEqual(self.region(packed, 9), [0x80, 0xFF, 7, 2])
+        self.assertEqual(self.region(packed, 7), [0x80, 0xFF, 7, 2])
 
 
 class PanicTest(unittest.TestCase):

@@ -60,7 +60,11 @@ BANK_SWITCH_OFFSET = SYSEX_OFFSET + SYSEX_STRING_COUNT * SYSEX_STRING_STRIDE
 BANK_SWITCH_LISTS = [("Down", "Short"), ("Down", "Long"), ("Up", "Short"), ("Up", "Long")]
 SETLIST_OFFSET = BANK_SWITCH_OFFSET + len(BANK_SWITCH_LISTS) * BUTTON_STRIDE
 SETLIST_MAX = 32
-CONFIG_SIZE = SETLIST_OFFSET + SETLIST_MAX
+# Expression pedal CC and channel per bank (firmware 0.28), 4 bytes per bank
+BANK_EXP_OFFSET = SETLIST_OFFSET + SETLIST_MAX
+BANK_EXP_STRIDE = 4
+BANK_EXP_CC_OFF = 0x80
+CONFIG_SIZE = BANK_EXP_OFFSET + NUM_BANKS * BANK_EXP_STRIDE
 # Double press commands follow the slot's 12 pages, in the extension area the
 # firmware maps there (firmware 0.26). Same shape as the long press commands.
 FLASH_PAGE_SIZE = 2048
@@ -324,6 +328,31 @@ def _unpack_button_lists(data: bytes, base: int) -> pd.DataFrame:
                 row[f"{slot}_KeyMode_(Key)"] = cmd["KeyMode_(Key)"]
             rows.append(row)
     return pd.DataFrame(rows, columns=columns)
+
+
+def unpack_bank_expression_settings(data: bytes) -> pd.DataFrame:
+    """Per bank CC and channel of each expression pedal; empty cells keep the pedal's own."""
+    def cc_text(b):
+        if b == BANK_EXP_CC_OFF:
+            return "Off"
+        return str(b) if b <= 127 else ""
+
+    def channel_text(b):
+        return str(b) if 1 <= b <= 16 else ""
+
+    rows = []
+    for bank in range(NUM_BANKS):
+        base = BANK_EXP_OFFSET + bank * BANK_EXP_STRIDE
+        chunk = data[base : base + BANK_EXP_STRIDE]
+        chunk = bytes(chunk) + b"\xff" * (BANK_EXP_STRIDE - len(chunk))
+        rows.append({
+            "Bank_Number": str(bank),
+            "Exp1_CC": cc_text(chunk[0]),
+            "Exp1_Channel": channel_text(chunk[1]),
+            "Exp2_CC": cc_text(chunk[2]),
+            "Exp2_Channel": channel_text(chunk[3]),
+        })
+    return pd.DataFrame(rows, columns=["Bank_Number", "Exp1_CC", "Exp1_Channel", "Exp2_CC", "Exp2_Channel"])
 
 
 def unpack_expression_settings(data: bytes) -> pd.DataFrame:
