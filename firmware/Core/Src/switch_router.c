@@ -39,14 +39,21 @@ typedef struct {
 	uint32_t long_toggle_state;   // Toggle state of the long press commands, bit per bank
 	uint32_t long_cmd_present;    // Bit per bank: this button has long press commands
 	uint32_t long_cmd_toggle;     // Bit per bank: any long press command is a toggle
+	// Double press: a third command set fired by two presses in quick succession
+	uint32_t double_toggle_state; // Toggle state of the double press commands, bit per bank
+	uint32_t double_cmd_present;  // Bit per bank: this button has double press commands
+	uint32_t double_cmd_toggle;   // Bit per bank: any double press command is a toggle
 	uint32_t press_tick;         // HAL tick when the button went down
+	uint32_t release_tick;       // HAL tick when a possible first press of a double ended
 	uint8_t press_state;         // PRESS_IDLE / PRESS_PENDING / PRESS_SHORT / PRESS_LONG
 } sw_t;
 
 #define PRESS_IDLE		(0)  // Released
-#define PRESS_PENDING	(1)  // Down, waiting to see if it becomes a long press
+#define PRESS_PENDING	(1)  // Down, waiting to see if it becomes a long press or half a double
 #define PRESS_SHORT		(2)  // Short press commands fired, waiting for release
 #define PRESS_LONG		(3)  // Long press commands fired, waiting for release
+#define PRESS_WAIT_SECOND	(4)  // Released after a tap, waiting to see if a second press follows
+#define PRESS_DOUBLE	(5)  // Double press commands fired, waiting for release
 
 typedef struct {
 	uint32_t systick_timout;
@@ -271,6 +278,10 @@ static uint8_t* get_long_rom_pointer(uint8_t page, uint8_t sw, uint8_t cmd){
 	return pLongPressCmds + (MIDI_ROM_KEY_STRIDE * sw) + (MIDI_ROM_CMD_SIZE * cmd) + (MIDI_ROM_KEY_STRIDE * 8 * page);
 }
 
+static uint8_t* get_double_rom_pointer(uint8_t page, uint8_t sw, uint8_t cmd){
+	return pDoublePressCmds + (MIDI_ROM_KEY_STRIDE * sw) + (MIDI_ROM_CMD_SIZE * cmd) + (MIDI_ROM_KEY_STRIDE * 8 * page);
+}
+
 static inline uint8_t cmd_is_present(const uint8_t *pRom){
 	uint8_t t = *pRom & 0xF0;
 	return t != CMD_NO_CMD_NIBBLE && t != 0xF0; // 0xF0 = erased flash
@@ -354,6 +365,13 @@ static uint32_t long_press_threshold_ms(void){
 	return (uint32_t)v * 10;
 }
 
+// How long after a tap a second press still makes it a double press
+static uint32_t double_press_window_ms(void){
+	uint8_t v = pGlobalSettings[GLOBAL_SETTINGS_DOUBLE_PRESS];
+	if(v == 0 || v == 0xFF) return 300;
+	return (uint32_t)v * 10;
+}
+
 static inline uint8_t sanitize_led_mode(uint8_t mode){
 	// Erased flash (0xFF) or any unknown value falls back to Normal
 	return (mode <= LED_MODE_ALWAYS_ON) ? mode : LED_MODE_NORMAL;
@@ -414,6 +432,21 @@ void sw_led_init(void){
 					a_sw_obj[sw].long_cmd_present |= (1UL<<page);
 					if(midiCmd_get_cmd_toggle(pCmd)){
 						a_sw_obj[sw].long_cmd_toggle |= (1UL<<page);
+					}
+				}
+			}
+
+			// And the double press set, which lives in the extension area
+			a_sw_obj[sw].double_cmd_present &= ~(1UL<<page);
+			a_sw_obj[sw].double_cmd_toggle &= ~(1UL<<page);
+			if(flash_settings_double_available()){
+				for(int cmd=0; cmd<MIDI_NUM_COMMANDS_PER_SWITCH; cmd++){
+					uint8_t *pCmd = get_double_rom_pointer(page, sw, cmd);
+					if(cmd_is_present(pCmd)){
+						a_sw_obj[sw].double_cmd_present |= (1UL<<page);
+						if(midiCmd_get_cmd_toggle(pCmd)){
+							a_sw_obj[sw].double_cmd_toggle |= (1UL<<page);
+						}
 					}
 				}
 			}
@@ -926,6 +959,7 @@ static void switch_config(uint8_t target){
 	for(int i=0; i<MIDI_NUM_SWITCHES; i++){
 		a_sw_obj[i].switch_toggle_state = 0;
 		a_sw_obj[i].long_toggle_state = 0;
+		a_sw_obj[i].double_toggle_state = 0;
 	}
 	pending_bank = 0xFF;
 
@@ -1082,10 +1116,40 @@ static void feedback_apply(const uint8_t *msg){
 					changed = true;
 				}
 			}
+
+			if(sw->double_cmd_toggle & bit){
+				int8_t want = feedback_list_state(get_double_rom_pointer, b, i, msg);
+				if(want >= 0 && ((sw->double_toggle_state & bit) != 0) != (want == 1)){
+					sw->double_toggle_state ^= bit;
+					changed = true;
+				}
+			}
 		}
 	}
 	if(changed){
 		state_store_mark_dirty();
+	}
+}
+
+/*
+ * Double press: the button's third command list, with its own toggle state.
+ * Like the long press list it has no LED of its own.
+ */
+static void fire_double_down(uint8_t i){
+	sw_t *sw = &a_sw_obj[i];
+	sw->double_toggle_state ^= (1UL << switch_current_page);
+	uint8_t toggleState = (sw->double_toggle_state >> switch_current_page) & 1;
+	for(int j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
+		handle_cmd_sw_down(get_double_rom_pointer(switch_current_page, i, j), toggleState);
+	}
+	apply_pending_bank();
+}
+
+static void fire_double_up(uint8_t i){
+	sw_t *sw = &a_sw_obj[i];
+	uint8_t toggleState = (sw->double_toggle_state >> switch_current_page) & 1;
+	for(int j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
+		handle_cmd_sw_up(get_double_rom_pointer(switch_current_page, i, j), toggleState);
 	}
 }
 
@@ -1121,10 +1185,28 @@ void handle_switches(void){
 	for(int i=0; i<8; i++){
 		sw_t *sw = &a_sw_obj[i];
 
-		// A pending press becomes a long press once held past the threshold
+		uint32_t bit = 1UL << switch_current_page;
+		bool has_long = (sw->long_cmd_present & bit) != 0;
+		bool has_double = (sw->double_cmd_present & bit) != 0;
+
+		// A pending press becomes a long press once held past the threshold.
+		// A button with no long press commands, pending only because of its
+		// double press, is simply a short press being held.
 		if(sw->press_state == PRESS_PENDING && (now - sw->press_tick) >= long_press_threshold_ms()){
-			fire_long_down(i);
-			sw->press_state = PRESS_LONG;
+			if(has_long){
+				fire_long_down(i);
+				sw->press_state = PRESS_LONG;
+			} else {
+				fire_short_down(i);
+				sw->press_state = PRESS_SHORT;
+			}
+		}
+
+		// No second press in time: the tap was a single short press
+		if(sw->press_state == PRESS_WAIT_SECOND && (now - sw->release_tick) >= double_press_window_ms()){
+			sw->press_state = PRESS_IDLE;
+			fire_short_down(i);
+			fire_short_up(i);
 		}
 
 		if(*sw->pSwChangeState & sw->sw_gpio_pin){
@@ -1132,8 +1214,13 @@ void handle_switches(void){
 
 			if(!HAL_GPIO_ReadPin(sw->sw_gpio_port, sw->sw_gpio_pin)){
 				// Switch Down
-				if(sw->long_cmd_present & (1UL<<switch_current_page)){
-					// Can't tell yet whether this is a short or a long press
+				if(sw->press_state == PRESS_WAIT_SECOND){
+					// The second press of a double press
+					set_momentary_led(i, 1);
+					fire_double_down(i);
+					sw->press_state = PRESS_DOUBLE;
+				} else if(has_long || has_double){
+					// Can't tell yet whether this is a short, long or double press
 					sw->press_tick = now;
 					sw->press_state = PRESS_PENDING;
 					set_momentary_led(i, 1);
@@ -1143,11 +1230,19 @@ void handle_switches(void){
 				}
 			} else {
 				// Switch up
+				uint8_t next = PRESS_IDLE;
 				switch(sw->press_state){
 				case PRESS_PENDING:
-					// Released before the threshold: it was a short press
-					fire_short_down(i);
-					fire_short_up(i);
+					if(has_double){
+						// Maybe the first half of a double press: wait for a second one
+						set_momentary_led(i, 0);
+						sw->release_tick = now;
+						next = PRESS_WAIT_SECOND;
+					} else {
+						// Released before the threshold: it was a short press
+						fire_short_down(i);
+						fire_short_up(i);
+					}
 					break;
 				case PRESS_SHORT:
 					fire_short_up(i);
@@ -1155,10 +1250,14 @@ void handle_switches(void){
 				case PRESS_LONG:
 					fire_long_up(i);
 					break;
+				case PRESS_DOUBLE:
+					set_momentary_led(i, 0);
+					fire_double_up(i);
+					break;
 				default:
 					break;
 				}
-				sw->press_state = PRESS_IDLE;
+				sw->press_state = next;
 			}
 		}
 	}

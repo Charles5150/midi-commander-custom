@@ -30,6 +30,17 @@ class DeviceTimeout(Exception):
     pass
 
 
+def version_at_least(version: str, major: int, minor: int) -> bool:
+    """Compare a "0.26" style version string; anything unparsable is old."""
+    try:
+        parts = [int(p) for p in str(version).strip().split(".")[:2]]
+    except ValueError:
+        return False
+    while len(parts) < 2:
+        parts.append(0)
+    return tuple(parts) >= (major, minor)
+
+
 def _matches(name: str) -> bool:
     return "STM" in name or "MIDI Commander" in name
 
@@ -106,6 +117,10 @@ class MidiCommander:
                 return data[2:]
         raise DeviceTimeout(f"No response {expected_rsp} from device")
 
+    def firmware_at_least(self, major: int, minor: int, timeout=1.0) -> bool:
+        """True when the firmware reports a version of at least major.minor."""
+        return version_at_least(self.get_version(timeout), major, minor)
+
     def get_version(self, timeout=1.0) -> str:
         self.send([SYSEX_CMD_GET_VERSION])
         data = self.wait_for_sysex(SYSEX_RSP_GET_VERSION, timeout)
@@ -148,11 +163,13 @@ class MidiCommander:
                 )
             # A stale response for another chunk, keep waiting
 
-    def read_settings(self, num_bytes: int, progress=None) -> bytes:
+    def read_settings(self, num_bytes: int, progress=None, start: int = 0) -> bytes:
+        """num_bytes of the target slot's image from byte `start` (a multiple of 16)."""
+        first = start // 16
         chunks = (num_bytes + 15) // 16
         out = bytearray()
         for i in range(chunks):
-            out += self.read_chunk(i)
+            out += self.read_chunk(first + i)
             if progress:
                 progress(i + 1, chunks)
         return bytes(out[:num_bytes])

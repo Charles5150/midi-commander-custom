@@ -19,6 +19,7 @@ uint8_t *pSwitchCmds     = (uint8_t*)(FLASH_SLOT0_ADDR + CFG_CMDS_OFF);
 uint8_t *pButtonLedModes = (uint8_t*)(FLASH_SLOT0_ADDR + CFG_LED_MODES_OFF);
 uint8_t *pButtonLabels   = (uint8_t*)(FLASH_SLOT0_ADDR + CFG_LABELS_OFF);
 uint8_t *pLongPressCmds  = (uint8_t*)(FLASH_SLOT0_ADDR + CFG_LONG_CMDS_OFF);
+uint8_t *pDoublePressCmds = (uint8_t*)(FLASH_EXT_ADDR(0));
 uint8_t *pExpSettings    = (uint8_t*)(FLASH_SLOT0_ADDR + CFG_EXP_OFF);
 uint8_t *pBankEnterCmds  = (uint8_t*)(FLASH_SLOT0_ADDR + CFG_BANK_ENTER_OFF);
 uint8_t *pSysExStrings   = (uint8_t*)(FLASH_SLOT0_ADDR + CFG_SYSEX_OFF);
@@ -31,6 +32,11 @@ _Static_assert(CFG_TOTAL_SIZE <= FLASH_SETTINGS_SIZE,
 // All four slots must fit below 256 kB, the smallest chip the firmware accepts.
 _Static_assert(FLASH_SLOTN_ADDR(CONFIG_SLOTS) <= FLASH_BASE + 256U * 1024U,
 		"configuration slots do not fit in 256 kB");
+_Static_assert(CFG_PAGE_SIZE == FLASH_PAGE_SIZE, "CFG_PAGE_SIZE must be the flash page size");
+_Static_assert(CFG_DOUBLE_CMDS_SIZE <= FLASH_DOUBLE_PAGES * FLASH_PAGE_SIZE,
+		"double press commands do not fit in the extension pages");
+_Static_assert(FLASH_EXT_ADDR(CONFIG_SLOTS) <= FLASH_BASE + 512U * 1024U,
+		"extension areas do not fit in 512 kB");
 
 static uint8_t active_slot = 0;
 static uint8_t target_slot = 0;
@@ -48,6 +54,30 @@ void flash_settings_set_target(uint8_t slot){
 
 const uint8_t *flash_settings_target_base(void){
 	return (const uint8_t*)slot_base(target_slot);
+}
+
+bool flash_settings_double_available(void){
+	return *(uint16_t*)FLASHSIZE_BASE >= 512;
+}
+
+/*
+ * Where 16 bytes at a tools offset live: the slot's own pages, or past them the
+ * slot's extension area. 0 when the chunk is outside both.
+ */
+static uint32_t image_address(uint8_t slot, uint32_t offset){
+	if(offset + 16 <= FLASH_SETTINGS_SIZE){
+		return slot_base(slot) + offset;
+	}
+	if(flash_settings_double_available()
+			&& offset >= CFG_DOUBLE_CMDS_OFF && offset + 16 <= FLASH_IMAGE_SIZE){
+		return FLASH_EXT_ADDR(slot) + (offset - CFG_DOUBLE_CMDS_OFF);
+	}
+	return 0;
+}
+
+const uint8_t *flash_settings_target_ptr(uint32_t offset){
+	uint32_t address = image_address(target_slot, offset);
+	return address ? (const uint8_t*)address : NULL;
 }
 
 /*
@@ -81,6 +111,7 @@ bool flash_settings_select(uint8_t slot){
 	pButtonLedModes = (uint8_t*)(b + CFG_LED_MODES_OFF);
 	pButtonLabels   = (uint8_t*)(b + CFG_LABELS_OFF);
 	pLongPressCmds  = (uint8_t*)(b + CFG_LONG_CMDS_OFF);
+	pDoublePressCmds = (uint8_t*)(FLASH_EXT_ADDR(slot));
 	pExpSettings    = (uint8_t*)(b + CFG_EXP_OFF);
 	pBankEnterCmds  = (uint8_t*)(b + CFG_BANK_ENTER_OFF);
 	pSysExStrings   = (uint8_t*)(b + CFG_SYSEX_OFF);
@@ -104,6 +135,13 @@ void flash_settings_erase(void){
 
 	HAL_FLASH_Unlock();
 	HAL_StatusTypeDef status = HAL_FLASHEx_Erase(&eraseInit, &pageError);
+	// The extension area belongs to the slot too: a tool that writes no double
+	// press commands must not leave the previous ones behind
+	if(status == HAL_OK && flash_settings_double_available()){
+		eraseInit.PageAddress = FLASH_EXT_ADDR(target_slot);
+		eraseInit.NbPages = FLASH_DOUBLE_PAGES;
+		status = HAL_FLASHEx_Erase(&eraseInit, &pageError);
+	}
 	HAL_FLASH_Lock();
 
 	if(status != HAL_OK){
@@ -113,10 +151,10 @@ void flash_settings_erase(void){
 
 void flash_settings_write(uint8_t* data, uint32_t offset){
 	// Never write outside the slot: the offset comes straight from a SysEx message
-	if(offset + 16 > FLASH_SETTINGS_SIZE){
+	uint32_t flash_address = image_address(target_slot, offset);
+	if(flash_address == 0){
 		return;
 	}
-	uint32_t flash_address = offset + slot_base(target_slot);
 
 	HAL_FLASH_Unlock();
 

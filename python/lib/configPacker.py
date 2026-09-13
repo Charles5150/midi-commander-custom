@@ -21,6 +21,10 @@ NUM_BUTTONS = 8
 BUTTON_IDS = ["1", "2", "3", "4", "A", "B", "C", "D"]
 LABEL_LEN = 4
 LONG_PRESS_SECTION = "LongPress_Settings"
+DOUBLE_PRESS_SECTION = "DoublePress_Settings"
+FLASH_PAGE_SIZE = 2048
+SLOT_PAGES = 12
+DOUBLE_PRESS_OFFSET = SLOT_PAGES * FLASH_PAGE_SIZE
 EXPRESSION_SECTION = "Expression_Settings"
 BANK_ENTER_SECTION = "BankEnter_Settings"
 SYSEX_SECTION = "SysEx_Strings"
@@ -243,6 +247,44 @@ def pack_label(value) -> bytes:
         text = ""
     text = text.strip()[:LABEL_LEN]
     return text.encode("ascii", errors="replace").ljust(LABEL_LEN, b" ")
+
+
+def empty_double_press_settings(num_banks=NUM_BANKS):
+    """A DoublePress_Settings frame with one blank row per bank/button."""
+    return empty_long_press_settings(num_banks)
+
+
+def pack_double_press(sections: dict):
+    """The double press commands, or None when no button has any.
+
+    Empty command slots are packed as erased flash (0xFF), which the firmware
+    reads as "no command", so the tools can skip those chunks entirely.
+    """
+    rows = {}
+    if DOUBLE_PRESS_SECTION in sections:
+        for _, row in sections[DOUBLE_PRESS_SECTION].iterrows():
+            rows[_key(row["Bank_Number"], row["Button_Identifier"])] = row
+    out = bytearray()
+    for bank in range(NUM_BANKS):
+        for btn in BUTTON_IDS:
+            row = rows.get((str(bank), btn))
+            packed = cbp.pack_row(row) if row is not None else [0] * (cbp.MIDI_NUM_COMMANDS_PER_SWITCH * 4)
+            for i in range(0, len(packed), 4):
+                cmd = packed[i:i + 4]
+                out += bytes(cmd) if (cmd[0] & 0xF0) != 0 else b"\xff" * 4
+    if out.count(0xFF) == len(out):
+        return None
+    return bytes(out)
+
+
+def pack_flash_image(sections: dict) -> bytes:
+    """Everything the tools write: the configuration and, when any button has
+    one, the double press commands after the slot's pages (firmware 0.26)."""
+    image = pack_config(sections)
+    double = pack_double_press(sections)
+    if double is None:
+        return image
+    return image.ljust(DOUBLE_PRESS_OFFSET, b"\xff") + double
 
 
 def pack_config(sections: dict) -> bytes:

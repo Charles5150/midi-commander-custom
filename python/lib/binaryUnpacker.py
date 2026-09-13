@@ -61,6 +61,14 @@ BANK_SWITCH_LISTS = [("Down", "Short"), ("Down", "Long"), ("Up", "Short"), ("Up"
 SETLIST_OFFSET = BANK_SWITCH_OFFSET + len(BANK_SWITCH_LISTS) * BUTTON_STRIDE
 SETLIST_MAX = 32
 CONFIG_SIZE = SETLIST_OFFSET + SETLIST_MAX
+# Double press commands follow the slot's 12 pages, in the extension area the
+# firmware maps there (firmware 0.26). Same shape as the long press commands.
+FLASH_PAGE_SIZE = 2048
+SLOT_PAGES = 12
+DOUBLE_PRESS_OFFSET = SLOT_PAGES * FLASH_PAGE_SIZE
+DOUBLE_PRESS_SIZE = NUM_BANKS * len(BUTTON_IDS) * BUTTON_STRIDE
+DOUBLE_PRESS_PAGES = 5
+IMAGE_SIZE = DOUBLE_PRESS_OFFSET + DOUBLE_PRESS_PAGES * FLASH_PAGE_SIZE
 EXP_CURVE_NAMES = {0: "Linear", 1: "Log", 2: "Exp"}
 EXP_BUTTON_IDS = ["1", "2", "3", "4", "A", "B", "C", "D"]
 
@@ -128,6 +136,7 @@ def unpack_global_settings(data: bytes) -> pd.DataFrame:
         ("Setlist_Mode", "Y" if g[33] == 1 else "N"),
         ("Clock_Follow", "Y" if g[34] == 1 else "N"),
         ("LED_Feedback", "Y" if g[35] == 1 else "N"),
+        ("Double_Press_ms", str((g[36] if 0 < g[36] < 0xFF else 30) * 10)),
     ]
     return pd.DataFrame(rows, columns=["Label", "Value"])
 
@@ -282,6 +291,21 @@ def unpack_button_settings(data: bytes) -> pd.DataFrame:
 
 
 def unpack_long_press_settings(data: bytes) -> pd.DataFrame:
+    return _unpack_button_lists(data, LONG_PRESS_OFFSET)
+
+
+def unpack_double_press_settings(data: bytes) -> pd.DataFrame:
+    """Double press commands from a full image (IMAGE_SIZE bytes).
+
+    A dump that stops at CONFIG_SIZE, read from firmware older than 0.26, has
+    none: every button then decodes as empty, exactly like erased flash.
+    """
+    if len(data) < DOUBLE_PRESS_OFFSET + DOUBLE_PRESS_SIZE:
+        data = bytes(DOUBLE_PRESS_OFFSET + DOUBLE_PRESS_SIZE)
+    return _unpack_button_lists(data, DOUBLE_PRESS_OFFSET)
+
+
+def _unpack_button_lists(data: bytes, base: int) -> pd.DataFrame:
     columns = ["Bank_Number", "Button_Identifier"]
     for slot in SLOT_NAMES:
         columns += [f"{slot}_{f}" for f in CMD_FIELDS]
@@ -293,7 +317,7 @@ def unpack_long_press_settings(data: bytes) -> pd.DataFrame:
             button_number = bank * len(BUTTON_IDS) + btn_index
             row = {"Bank_Number": str(bank), "Button_Identifier": btn_id}
             for slot_index, slot in enumerate(SLOT_NAMES):
-                offset = LONG_PRESS_OFFSET + button_number * BUTTON_STRIDE + slot_index * CMD_SIZE
+                offset = base + button_number * BUTTON_STRIDE + slot_index * CMD_SIZE
                 cmd = unpack_command(data[offset : offset + CMD_SIZE])
                 for f in CMD_FIELDS:
                     row[f"{slot}_{f}"] = cmd[f]

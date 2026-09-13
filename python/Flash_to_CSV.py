@@ -12,7 +12,9 @@ import sys
 
 import lib.binaryUnpacker as unpacker
 from lib.configCsv import write_config_csv
-from lib.midiDevice import CONFIG_SLOTS, DeviceNotFound, DeviceTimeout, MidiCommander
+from lib.midiDevice import (
+    CONFIG_SLOTS, DeviceNotFound, DeviceTimeout, MidiCommander, version_at_least,
+)
 
 
 def main(args: argparse.Namespace) -> int:
@@ -53,6 +55,14 @@ def main(args: argparse.Namespace) -> int:
                     return 1
 
             data = dev.read_settings(unpacker.CONFIG_SIZE, progress)
+            # Double press commands live in the extension area (0.26)
+            if version_at_least(version, 0, 26):
+                print("Reading double press commands")
+                extension = dev.read_settings(
+                    unpacker.DOUBLE_PRESS_SIZE, progress, start=unpacker.DOUBLE_PRESS_OFFSET)
+                image = data.ljust(unpacker.DOUBLE_PRESS_OFFSET, b"\xff") + extension
+            else:
+                image = data
     except DeviceNotFound as e:
         print(f"No matching MIDI device found: {e}")
         return 1
@@ -69,6 +79,7 @@ def main(args: argparse.Namespace) -> int:
         df_buttons,
         note="Read from device",
         df_long_press=df_long,
+        df_double_press=unpacker.unpack_double_press_settings(image),
         df_expression=df_exp,
         df_bank_enter=df_enter,
         df_sysex=df_sysex,

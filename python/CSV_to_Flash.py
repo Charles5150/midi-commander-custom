@@ -7,7 +7,7 @@ import time
 from math import ceil
 
 from lib.configCsv import read_config_csv
-from lib.configPacker import pack_config
+from lib.configPacker import pack_config, pack_flash_image
 from lib.midiDevice import (
     SYSEX_CMD_ERASE_FLASH,
     SYSEX_CMD_RESET,
@@ -31,7 +31,8 @@ ALLOWED_NUM_FLASH_PAGES = 12
 def main(args: argparse.Namespace) -> int:
     try:
         sections = read_config_csv(args.csv_file)
-        flash_contents = pack_config(sections)
+        config = pack_config(sections)
+        flash_contents = pack_flash_image(sections)
     except Exception as e:  # noqa: BLE001
         print(f"Error parsing {args.csv_file}: {e}")
         return 1
@@ -39,7 +40,9 @@ def main(args: argparse.Namespace) -> int:
     content_size = len(flash_contents)
     print(f"Flash content is {content_size} bytes = {content_size / 1024} kB")
 
-    actual_num_flash_pages = ceil(content_size / FLASH_PAGE_SIZE)
+    # The double press commands go to their own extension area; the rest must
+    # fit the slot's pages
+    actual_num_flash_pages = ceil(len(config) / FLASH_PAGE_SIZE)
     if actual_num_flash_pages > ALLOWED_NUM_FLASH_PAGES:
         print(
             f"ERROR: Your configuration requires {actual_num_flash_pages} "
@@ -72,6 +75,17 @@ def main(args: argparse.Namespace) -> int:
                     print("ERROR: this firmware has a single configuration; "
                           "slots need 0.24 or later")
                     return 1
+            if len(flash_contents) > len(config):
+                try:
+                    new_enough = dev.firmware_at_least(0, 26)
+                except DeviceTimeout:
+                    new_enough = False
+                if not new_enough:
+                    print("WARNING: double press needs firmware 0.26 or later; "
+                          "writing everything else")
+                    flash_contents = config
+                    content_size = len(flash_contents)
+
             print("Erasing Flash Settings")
             dev.send([SYSEX_CMD_ERASE_FLASH, 0x42, 0x24])
             dev.wait_for_sysex(SYSEX_RSP_ERASE_FLASH, timeout=5.0)
@@ -81,6 +95,8 @@ def main(args: argparse.Namespace) -> int:
             for x in range(no_chunks):
                 print(f"Writing Flash Chunk: {x + 1}/{no_chunks}")
                 chunk = flash_contents[x * 16 : (x + 1) * 16].ljust(16, b"\xff")
+                if chunk == b"\xff" * 16:
+                    continue  # already erased
                 data = [SYSEX_CMD_WRITE_FLASH, (x >> 7) & 0x7F, x & 0x7F]
                 for byte in chunk:
                     data += [byte >> 4, byte & 0x0F]

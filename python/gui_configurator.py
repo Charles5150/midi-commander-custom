@@ -37,8 +37,10 @@ from lib.configPacker import (  # noqa: E402
 from lib.configPacker import (  # noqa: E402
     EXPRESSION_SECTION,
     LONG_PRESS_SECTION,
+    DOUBLE_PRESS_SECTION,
     empty_expression_settings,
     empty_long_press_settings,
+    empty_double_press_settings,
 )
 from lib.midiDevice import DeviceNotFound, DeviceTimeout, MidiCommander  # noqa: E402
 from lib import bankClipboard as bank_clipboard  # noqa: E402
@@ -417,6 +419,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.df_banks = None
         self.df_buttons = None
         self.df_long = None
+        self.df_double = None
         self.df_exp = None
         self.df_enter = None
         self.enter_editors = []
@@ -575,6 +578,7 @@ class MidiCommanderGUI(ctk.CTk):
                 ("Setlist_Mode", "N"),
                 ("Clock_Follow", "N"),
                 ("LED_Feedback", "N"),
+                ("Double_Press_ms", "300"),
             ]
             missing = [{"Label": l, "Value": v} for l, v in defaults if l not in labels]
             if missing:
@@ -628,6 +632,23 @@ class MidiCommanderGUI(ctk.CTk):
                     axis=1,
                 ).copy()
 
+            # Double press command sets: optional section, same shape
+            if DOUBLE_PRESS_SECTION in data:
+                self.df_double = data[DOUBLE_PRESS_SECTION].astype(object).reset_index(drop=True)
+            else:
+                self.df_double = empty_double_press_settings()
+            missing = [
+                f"{slot}_{field}"
+                for slot in SLOTS
+                for field in CMD_FIELDS
+                if f"{slot}_{field}" not in self.df_double.columns
+            ]
+            if missing:
+                self.df_double = pd.concat(
+                    [self.df_double, pd.DataFrame(float("nan"), index=self.df_double.index, columns=missing)],
+                    axis=1,
+                ).copy()
+
             self.df_exp = (
                 data[EXPRESSION_SECTION].astype(object).reset_index(drop=True)
                 if EXPRESSION_SECTION in data
@@ -673,6 +694,7 @@ class MidiCommanderGUI(ctk.CTk):
 
             self.df_buttons = self._pad_buttons(self.df_buttons, with_extras=True)
             self.df_long = self._pad_buttons(self.df_long, with_extras=False)
+            self.df_double = self._pad_buttons(self.df_double, with_extras=False)
 
             banks = [str(b) for b in range(NUM_BANKS)]
             self.bank_selector.configure(values=banks)
@@ -747,6 +769,8 @@ class MidiCommanderGUI(ctk.CTk):
                 w = IntEntry(self.global_scroll, 0, 127, value, width=70)
             elif label == "Long_Press_ms":
                 w = IntEntry(self.global_scroll, 100, 2500, value, width=70)
+            elif label == "Double_Press_ms":
+                w = IntEntry(self.global_scroll, 100, 1000, value, width=70)
             elif label in ("LED_Brightness", "LED_Rest_Brightness"):
                 w = IntEntry(self.global_scroll, 1, 100, value, width=70)
             elif label == "Bank_Jump_Step":
@@ -786,6 +810,7 @@ class MidiCommanderGUI(ctk.CTk):
             "Setlist_Mode": "Bank Up/Down follow the order in the Setlist tab",
             "Clock_Follow": "follow the tempo of MIDI clock from USB instead of sending our own",
             "LED_Feedback": "CC and notes from USB light the toggle buttons that send them",
+            "Double_Press_ms": "time for the second press of a double press (100-1000 ms)",
             "ConfigName": "shown on the display at boot (16 chars)",
             "Exp1_CC": "CC number sent by expression pedal 1 (0-127)",
             "Exp2_CC": "CC number sent by expression pedal 2 (0-127)",
@@ -846,7 +871,8 @@ class MidiCommanderGUI(ctk.CTk):
         self.apply_button_changes(silent=True)
         self.apply_bank_enter_changes()
         bank = self.bank_selector.get()
-        self.bank_clipboard = bank_clipboard.copy_bank(self.df_buttons, self.df_long, self.df_enter, bank)
+        self.bank_clipboard = bank_clipboard.copy_bank(
+            self.df_buttons, self.df_long, self.df_enter, bank, df_double=self.df_double)
         self.paste_bank_button.configure(state="normal", text=f"Paste bank {clean(bank)} here")
 
     def paste_bank(self):
@@ -859,7 +885,7 @@ class MidiCommanderGUI(ctk.CTk):
         if not messagebox.askyesno(
             "Paste bank",
             f"Replace everything in bank {target} with bank {source}?\n\n"
-            "Labels, LED modes, short and long press commands and the commands sent on "
+            "Labels, LED modes, short, long and double press commands and the commands sent on "
             "entering the bank are all replaced. The bank name is kept.",
         ):
             return
@@ -868,6 +894,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.df_buttons, self.df_long, self.df_enter = bank_clipboard.paste_bank(
             self.df_buttons, self.df_long, self.df_enter, self.bank_clipboard, target
         )
+        self.df_double = bank_clipboard.paste_double(self.df_double, self.bank_clipboard, target)
         # The open editors point at rows that were just replaced: drop them
         # before refreshing, or they would write the old values back.
         self.editing_row = None
@@ -883,18 +910,27 @@ class MidiCommanderGUI(ctk.CTk):
 
     def _long_row_index(self, row_index):
         """Index in df_long of the button at df_buttons row_index (created if missing)."""
+        return self._press_row_index("df_long", row_index)
+
+    def _double_row_index(self, row_index):
+        """Index in df_double of the button at df_buttons row_index (created if missing)."""
+        return self._press_row_index("df_double", row_index)
+
+    def _press_row_index(self, attr, row_index):
+        frame = getattr(self, attr)
         short = self.df_buttons.loc[row_index]
         bank, btn = clean(short["Bank_Number"]), clean(short["Button_Identifier"]).upper()
-        match = self.df_long[
-            (self.df_long["Bank_Number"].map(clean) == bank)
-            & (self.df_long["Button_Identifier"].map(clean).str.upper() == btn)
+        match = frame[
+            (frame["Bank_Number"].map(clean) == bank)
+            & (frame["Button_Identifier"].map(clean).str.upper() == btn)
         ]
         if len(match):
             return match.index[0]
-        new_row = {c: float("nan") for c in self.df_long.columns}
+        new_row = {c: float("nan") for c in frame.columns}
         new_row["Bank_Number"], new_row["Button_Identifier"] = bank, btn
-        self.df_long = pd.concat([self.df_long, pd.DataFrame([new_row])], ignore_index=True)
-        return self.df_long.index[-1]
+        frame = pd.concat([frame, pd.DataFrame([new_row])], ignore_index=True)
+        setattr(self, attr, frame)
+        return frame.index[-1]
 
     def _set_press_mode(self, mode):
         if self.editing_button is None:
@@ -915,6 +951,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.label_entry = None
         self.light_mode = None
         long_mode = self.press_mode == "Long press"
+        double_mode = self.press_mode == "Double press"
 
         ctk.CTkLabel(
             self.cmd_editor,
@@ -924,7 +961,7 @@ class MidiCommanderGUI(ctk.CTk):
 
         current = self.df_buttons.loc[row_index]
 
-        if not long_mode:
+        if not (long_mode or double_mode):
             light_frame = ctk.CTkFrame(self.cmd_editor, fg_color="transparent")
             light_frame.pack(anchor="w", padx=10, pady=(0, 8))
             ctk.CTkLabel(light_frame, text="Display label:", font=BOLD).pack(side="left")
@@ -937,7 +974,7 @@ class MidiCommanderGUI(ctk.CTk):
         mode_frame = ctk.CTkFrame(self.cmd_editor, fg_color="transparent")
         mode_frame.pack(anchor="w", padx=10, pady=(0, 4))
         self.mode_switch = ctk.CTkSegmentedButton(
-            mode_frame, values=["Short press", "Long press"], command=self._set_press_mode
+            mode_frame, values=["Short press", "Long press", "Double press"], command=self._set_press_mode
         )
         self.mode_switch.set(self.press_mode)
         self.mode_switch.pack(side="left")
@@ -946,6 +983,9 @@ class MidiCommanderGUI(ctk.CTk):
             text=(
                 "commands sent in order A to J when the button is held past Long_Press_ms"
                 if long_mode
+                else "commands sent in order A to J on two presses within Double_Press_ms; "
+                "a single press then waits that long"
+                if double_mode
                 else "commands sent in order A to J when the button is pressed"
             ),
             text_color="gray",
@@ -953,6 +993,8 @@ class MidiCommanderGUI(ctk.CTk):
 
         if long_mode:
             current = self.df_long.loc[self._long_row_index(row_index)]
+        elif double_mode:
+            current = self.df_double.loc[self._double_row_index(row_index)]
 
         table = ctk.CTkFrame(self.cmd_editor)
         table.pack(fill="x", padx=10, pady=(0, 5))
@@ -986,6 +1028,8 @@ class MidiCommanderGUI(ctk.CTk):
             return
         if self.press_mode == "Long press":
             df, idx = self.df_long, self._long_row_index(self.editing_row)
+        elif self.press_mode == "Double press":
+            df, idx = self.df_double, self._double_row_index(self.editing_row)
         else:
             df, idx = self.df_buttons, self.editing_row
         for editor in self.slot_editors:
@@ -1440,6 +1484,7 @@ class MidiCommanderGUI(ctk.CTk):
                 self.df_banks,
                 self.df_buttons,
                 df_long_press=self.df_long,
+                df_double_press=self.df_double,
                 df_expression=self.df_exp,
                 df_bank_enter=self.df_enter,
                 df_sysex=self.df_sysex,
@@ -1504,6 +1549,7 @@ class MidiCommanderGUI(ctk.CTk):
                 self.df_banks,
                 self.df_buttons,
                 df_long_press=self.df_long,
+                df_double_press=self.df_double,
                 df_expression=self.df_exp,
                 df_bank_enter=self.df_enter,
                 df_sysex=self.df_sysex,

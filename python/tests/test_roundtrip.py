@@ -610,6 +610,10 @@ class FirmwareLayoutTest(unittest.TestCase):
             ("CFG_SETLIST_OFF", "SETLIST_OFFSET"),
             ("SETLIST_MAX", "SETLIST_MAX"),
             ("CFG_TOTAL_SIZE", "CONFIG_SIZE"),
+            ("CFG_DOUBLE_CMDS_OFF", "DOUBLE_PRESS_OFFSET"),
+            ("CFG_DOUBLE_CMDS_SIZE", "DOUBLE_PRESS_SIZE"),
+            ("FLASH_DOUBLE_PAGES", "DOUBLE_PRESS_PAGES"),
+            ("FLASH_IMAGE_SIZE", "IMAGE_SIZE"),
             ("MIDI_NUM_BANKS", "NUM_BANKS"),
             ("MIDI_ROM_KEY_STRIDE", "BUTTON_STRIDE"),
             ("MIDI_ROM_CMD_SIZE", "CMD_SIZE"),
@@ -882,7 +886,87 @@ class LedFeedbackTest(unittest.TestCase):
     def test_neighbours_untouched(self):
         packed = self.pack_with("Y")
         self.assertEqual(packed[34], 1)     # Clock_Follow in the demo
-        self.assertEqual(packed[36], 0)
+        self.assertEqual(packed[36], 30)    # Double_Press_ms in the demo
+        self.assertEqual(packed[37], 0)
+
+
+class DoublePressTest(unittest.TestCase):
+    """Double press commands, written after the slot's pages (firmware 0.26)."""
+
+    def setUp(self):
+        self.sections = read_config_csv(DEMO_CSV)
+
+    def test_extension_fits_its_pages(self):
+        U = unpacker
+        self.assertLessEqual(U.DOUBLE_PRESS_SIZE, U.DOUBLE_PRESS_PAGES * U.FLASH_PAGE_SIZE)
+        self.assertGreaterEqual(U.DOUBLE_PRESS_OFFSET, U.CONFIG_SIZE)
+
+    def test_demo_image(self):
+        image = packer.pack_flash_image(self.sections)
+        config = packer.pack_config(self.sections)
+        U = unpacker
+        self.assertEqual(len(image), U.DOUBLE_PRESS_OFFSET + U.DOUBLE_PRESS_SIZE)
+        # The configuration itself is untouched, the gap is erased flash
+        self.assertEqual(image[: len(config)], config)
+        self.assertEqual(set(image[len(config) : U.DOUBLE_PRESS_OFFSET]), {0xFF})
+        # One command in the demo, everything else erased
+        extension = image[U.DOUBLE_PRESS_OFFSET :]
+        self.assertEqual(sum(1 for b in extension if b != 0xFF), 4)
+        button = 2 * 8 + 3                     # bank 2, button 4
+        off = U.DOUBLE_PRESS_OFFSET + button * U.BUTTON_STRIDE
+        self.assertEqual(list(image[off : off + 4]), [0xB0, 18 | 0x80, 127, 0])
+
+    def test_demo_round_trip(self):
+        image = packer.pack_flash_image(self.sections)
+        df = unpacker.unpack_double_press_settings(image)
+        row = df[(df["Bank_Number"] == "2") & (df["Button_Identifier"] == "4")].iloc[0]
+        self.assertEqual(row["A_CommandType"], "CC")
+        self.assertEqual(row["A_Number_(PC/CC/Note)"], "18")
+        self.assertEqual(row["A_Toggle_(CC/PB/Note)"], "Y")
+        self.assertEqual(row["B_CommandType"], "")
+        self.assertEqual((df["A_CommandType"] != "").sum(), 1)
+
+    def test_without_double_press_image_is_the_config(self):
+        sections = {k: v for k, v in self.sections.items() if k != packer.DOUBLE_PRESS_SECTION}
+        self.assertEqual(packer.pack_flash_image(sections), packer.pack_config(sections))
+        self.assertIsNone(packer.pack_double_press(sections))
+
+    def test_dump_from_older_firmware_has_none(self):
+        df = unpacker.unpack_double_press_settings(packer.pack_config(self.sections))
+        self.assertEqual((df["A_CommandType"] != "").sum(), 0)
+        self.assertEqual(len(df), 32 * 8)
+
+    def test_window(self):
+        g = self.sections["Global_Settings"]
+        for text, byte, back in (("450", 45, "450"), ("50", 10, "100"), ("5000", 100, "1000")):
+            g.loc[g["Label"] == "Double_Press_ms", "Value"] = text
+            packed = packer.pack_config(self.sections)
+            self.assertEqual(packed[36], byte, text)
+            decoded = unpacker.unpack_config(packed)[0].set_index("Label")["Value"]
+            self.assertEqual(decoded["Double_Press_ms"], back)
+        self.sections["Global_Settings"] = g[g["Label"] != "Double_Press_ms"]
+        self.assertEqual(packer.pack_config(self.sections)[36], 30)
+
+    def test_erased_window_reads_default(self):
+        image = bytearray(packer.pack_config(self.sections))
+        for old in (0x00, 0xFF):
+            image[36] = old
+            decoded = unpacker.unpack_config(bytes(image))[0].set_index("Label")["Value"]
+            self.assertEqual(decoded["Double_Press_ms"], "300")
+
+    def test_copy_paste_bank_takes_double_press(self):
+        from lib import bankClipboard
+
+        s = self.sections
+        double = s[packer.DOUBLE_PRESS_SECTION]
+        clip = bankClipboard.copy_bank(s["Button_Settings"], s.get(packer.LONG_PRESS_SECTION),
+                                       s.get(packer.BANK_ENTER_SECTION), 2, df_double=double)
+        pasted = bankClipboard.paste_double(double, clip, 9)
+        image = packer.pack_flash_image({**s, packer.DOUBLE_PRESS_SECTION: pasted})
+        df = unpacker.unpack_double_press_settings(image)
+        row = df[(df["Bank_Number"] == "9") & (df["Button_Identifier"] == "4")].iloc[0]
+        self.assertEqual(row["A_Number_(PC/CC/Note)"], "18")
+        self.assertEqual((df["A_CommandType"] != "").sum(), 2)
 
 
 class PanicTest(unittest.TestCase):

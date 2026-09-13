@@ -17,6 +17,7 @@ extern uint8_t *pBankStrings;
 extern uint8_t *pButtonLedModes;
 extern uint8_t *pButtonLabels;
 extern uint8_t *pLongPressCmds;	// Second command set per button, same layout as pSwitchCmds
+extern uint8_t *pDoublePressCmds;	// Third command set per button, in the slot's extension area
 extern uint8_t *pExpSettings;	// Expression pedal calibration, EXP_SETTINGS_STRIDE bytes per pedal
 extern uint8_t *pBankEnterCmds;	// Commands sent when a bank is entered, same shape as one button's list per bank
 extern uint8_t *pSysExStrings;	// Table of stored SysEx payloads: [length][up to SYSEX_STRING_MAX data bytes]
@@ -91,6 +92,27 @@ extern uint8_t *pSetlist;		// Bank numbers in setlist order, 0xFF ends the list
 #define FLASH_STATE_ADDR		(FLASH_SLOT0_ADDR + FLASH_SETTINGS_SIZE)
 #define FLASH_SLOTN_ADDR(n)		(FLASH_STATE_ADDR + FLASH_STATE_PAGES * FLASH_PAGE_SIZE + ((n) - 1U) * FLASH_SETTINGS_SIZE)
 
+/*
+ * Extension area. The double press commands did not fit in the 12 pages of a
+ * slot, and slot 0 cannot grow without moving the journal and every other
+ * slot. Each slot therefore gets FLASH_DOUBLE_PAGES more pages above 256 kB,
+ * which the stock firmware never used:
+ *
+ *   0x08040000  slot 0 double press    5 pages
+ *   0x08042800  slot 1 double press
+ *   0x08045000  slot 2 double press
+ *   0x08047800  slot 3 double press
+ *   0x0804A000  end
+ *
+ * To the tools it is simply the continuation of the configuration: offsets
+ * from CFG_DOUBLE_CMDS_OFF (the end of the slot's pages) map to it. It needs a
+ * 512 kB chip; on a smaller one double press is unavailable.
+ */
+#define CFG_PAGE_SIZE			(2048)
+#define FLASH_DOUBLE_PAGES		(5)
+#define FLASH_EXT_OFFSET		(1024U * 256U)
+#define FLASH_EXT_ADDR(n)		(FLASH_BASE + FLASH_EXT_OFFSET + (n) * FLASH_DOUBLE_PAGES * FLASH_PAGE_SIZE)
+
 #define MIDI_ROM_CMD_SIZE	(4)
 #define MIDI_NUM_COMMANDS_PER_SWITCH (10)
 #define MIDI_ROM_KEY_STRIDE	(MIDI_NUM_COMMANDS_PER_SWITCH*MIDI_ROM_CMD_SIZE)
@@ -138,6 +160,10 @@ extern uint8_t *pSetlist;		// Bank numbers in setlist order, 0xFF ends the list
 #define CFG_SETLIST_SIZE	(SETLIST_MAX)
 #define CFG_SETLIST_OFF		(CFG_BANK_SWITCH_OFF + CFG_BANK_SWITCH_SIZE)
 #define CFG_TOTAL_SIZE		(CFG_SETLIST_OFF + CFG_SETLIST_SIZE)
+// Double press commands, same size as CMDS, stored in the extension area
+#define CFG_DOUBLE_CMDS_OFF	(FLASH_SETTINGS_NO_PAGES * CFG_PAGE_SIZE)
+#define CFG_DOUBLE_CMDS_SIZE	(CFG_CMDS_SIZE)
+#define FLASH_IMAGE_SIZE		(CFG_DOUBLE_CMDS_OFF + FLASH_DOUBLE_PAGES * CFG_PAGE_SIZE)
 
 // Erase and write act on the target slot, see flash_settings_set_target()
 void flash_settings_erase(void);
@@ -150,6 +176,10 @@ uint8_t flash_settings_active_slot(void);
 void flash_settings_set_target(uint8_t slot);
 uint8_t flash_settings_target_slot(void);
 const uint8_t *flash_settings_target_base(void);
+// 16 bytes of the target slot's image at a tools offset, or NULL out of range
+const uint8_t *flash_settings_target_ptr(uint32_t offset);
+// Double press needs the extension area, which needs a 512 kB chip
+bool flash_settings_double_available(void);
 // True when a slot holds a configuration (see the .c file for the test)
 bool flash_settings_slot_valid(uint8_t slot);
 uint8_t flash_settings_valid_mask(void);

@@ -17,6 +17,7 @@ GLOBAL_SETTINGS_SLEEP_AFTER_MIN = 32
 GLOBAL_SETTINGS_SETLIST_MODE = 33
 GLOBAL_SETTINGS_CLOCK_FOLLOW = 34
 GLOBAL_SETTINGS_LED_FEEDBACK = 35
+GLOBAL_SETTINGS_DOUBLE_PRESS = 36
 
 BANK_SWITCH_MODES = {"BANK": 0, "BANK+MIDI": 1, "MIDI": 2}
 
@@ -159,6 +160,15 @@ def pack_global_settings(df):
     # Incoming CC and notes over USB set the toggle buttons that send them
     if "LED_Feedback" in df.index and "Y" in str(df.loc["LED_Feedback", "Value"]).upper():
         bin_list[GLOBAL_SETTINGS_LED_FEEDBACK] = 1
+
+    # Double press window in ms, stored in 10 ms units (100..1000 ms)
+    double_ms = 300
+    if "Double_Press_ms" in df.index:
+        try:
+            double_ms = int(float(str(df.loc["Double_Press_ms", "Value"]).strip() or 300))
+        except ValueError:
+            double_ms = 300
+    bin_list[GLOBAL_SETTINGS_DOUBLE_PRESS] = max(10, min(100, round(double_ms / 10)))
 
     return bin_list
 

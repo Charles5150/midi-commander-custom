@@ -120,11 +120,11 @@ void sysex_write_flash(uint8_t* data_packet_start){
 void sysex_read_flash(uint8_t* data_packet_start){
 	uint32_t flash_byte_offset = ( (data_packet_start[0] << 7) | data_packet_start[1]) * 16;
 
-	if(flash_byte_offset + 16 > FLASH_SETTINGS_SIZE){
+	// The slot's pages, then its extension area (double press commands)
+	const uint8_t *src = flash_settings_target_ptr(flash_byte_offset);
+	if(src == NULL){
 		return; // Out of range, ignore silently
 	}
-
-	const uint8_t *src = flash_settings_target_base() + flash_byte_offset;
 	uint8_t *p = midi_msg_tx_buffer;
 
 	*(p++) = SYSEX_START;
