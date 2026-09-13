@@ -30,6 +30,8 @@ from lib.cmdBinaryPacker import (
     CMD_TAP_NIBBLE,
     CMD_STOP_NIBBLE,
     CMD_PANIC_NIBBLE,
+    CMD_SCENE_NIBBLE,
+    SCENE_BUTTONS,
     HID_SPECIAL_KEYS,
     MEDIA_KEYS,
     MIDI_NUM_COMMANDS_PER_SWITCH,
@@ -231,6 +233,12 @@ def unpack_command(raw: bytes) -> dict:
         cmd["CommandType"] = "Stop"
     elif cmd_type == CMD_PANIC_NIBBLE:
         cmd["CommandType"] = "Panic"
+    elif cmd_type == CMD_SCENE_NIBBLE:
+        cmd["CommandType"] = "Scene"
+        cmd["OnValue_(CC/PB)"] = "".join(
+            ("+" if (b2 >> i) & 1 else "-") if (b1 >> i) & 1 else "."
+            for i in range(len(SCENE_BUTTONS))
+        )
     # 0x00 (no command) and 0xF0 (erased flash) leave the empty template
 
     return cmd

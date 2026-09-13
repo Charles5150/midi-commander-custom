@@ -16,6 +16,9 @@ CMD_CCINC_NIBBLE = 0x50
 CMD_TAP_NIBBLE = 0x70
 CMD_SYSEX_NIBBLE = 0x60
 CMD_PANIC_NIBBLE = 0x80
+CMD_SCENE_NIBBLE = 0xA0
+# Button order of a scene string, one character each: + on, - off, . leave
+SCENE_BUTTONS = "1234ABCD"
 
 # Bank command modes, packed in the low nibble of byte 0
 BANK_MODES = {"GOTO": 0, "UP": 1, "DOWN": 2}
@@ -343,6 +346,23 @@ def cmd_panic(cmd):
     return [CMD_PANIC_NIBBLE, 0, 0, 0]
 
 
+def cmd_scene(cmd):
+    """A scene string such as "+-+..-.." in OnValue: one character per button
+    in SCENE_BUTTONS order, + to switch it on, - off, anything else to leave
+    it. Byte 1 holds the buttons affected, byte 2 the states wanted."""
+    text = str(cmd.get("OnValue_(CC/PB)", "")).strip()
+    if text.lower() == "nan":
+        text = ""
+    mask = states = 0
+    for i, ch in enumerate(text[:len(SCENE_BUTTONS)]):
+        if ch == "+":
+            mask |= 1 << i
+            states |= 1 << i
+        elif ch == "-":
+            mask |= 1 << i
+    return [CMD_SCENE_NIBBLE, mask, states, 0]
+
+
 def cmd_none(cmd):
     return [0, 0, 0, 0]
 
@@ -355,6 +375,7 @@ cmd_route_table = {
     "Start": cmd_start,
     "Stop": cmd_stop,
     "Panic": cmd_panic,
+    "Scene": cmd_scene,
     "Key": cmd_key,
     "Media": cmd_media,
     "Bank": cmd_bank,

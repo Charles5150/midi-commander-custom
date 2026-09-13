@@ -950,3 +950,44 @@ class BankClipboardTest(unittest.TestCase):
     def test_paste_onto_itself_is_a_no_op(self):
         _, after = self.paste(self.SRC, self.SRC)
         self.assertEqual(after, self.before)
+
+
+class SceneTest(unittest.TestCase):
+    """Scene command: which toggle buttons to set, and to what."""
+
+    @staticmethod
+    def pack(text):
+        row = {f"A_{f}": "" for f in unpacker.CMD_FIELDS}
+        row["A_CommandType"] = "Scene"
+        row["A_OnValue_(CC/PB)"] = text
+        row["A_KeyMode_(Key)"] = ""
+        return bytes(cbp.pack_row(pd.Series(row)))[:4]
+
+    def test_encoding(self):
+        # 1 on, 2 off, 3 on, B off: mask bits 0,1,2,5, states bits 0,2
+        self.assertEqual(list(self.pack("+-+..-..")), [0xA0, 0x27, 0x05, 0])
+        self.assertEqual(list(self.pack("++++++++")), [0xA0, 0xFF, 0xFF, 0])
+        self.assertEqual(list(self.pack("--------")), [0xA0, 0xFF, 0x00, 0])
+        self.assertEqual(list(self.pack("")), [0xA0, 0, 0, 0])
+
+    def test_round_trip(self):
+        for text in ("+-+..-..", "++++++++", "--------", "........", "+......-"):
+            decoded = unpacker.unpack_command(self.pack(text))
+            self.assertEqual(decoded["CommandType"], "Scene")
+            self.assertEqual(decoded["OnValue_(CC/PB)"], text, text)
+
+    def test_short_or_odd_strings(self):
+        """Missing characters and anything but + and - mean leave it."""
+        self.assertEqual(unpacker.unpack_command(self.pack("+-"))["OnValue_(CC/PB)"], "+-......")
+        self.assertEqual(unpacker.unpack_command(self.pack("+x?-"))["OnValue_(CC/PB)"], "+..-....")
+
+    def test_demo_scenes(self):
+        packed = packer.pack_config(read_config_csv(DEMO_CSV))
+        long_frame = unpacker.unpack_config(packed)[3]
+        def scene(btn):
+            r = long_frame[(long_frame["Bank_Number"].astype(str) == "2")
+                           & (long_frame["Button_Identifier"].astype(str) == btn)].iloc[0]
+            return r["A_CommandType"], r["A_OnValue_(CC/PB)"]
+        self.assertEqual(scene("1"), ("Scene", "+++.++.."))
+        self.assertEqual(scene("4"), ("Scene", "---.--.."))
+        self.assertEqual(scene("A"), ("Scene", "+-+..-.."))

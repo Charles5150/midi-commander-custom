@@ -19,6 +19,8 @@
 
 void update_leds_on_bank_change(void);
 static void fire_bank_enter_cmds(uint8_t bank);
+static void apply_scene(uint8_t mask, uint8_t states);
+uint8_t sw_button_is_toggle(uint8_t bank, uint8_t sw);
 
 /*
  * Creating some constant arrays for the switches that can be scanned and handled
@@ -587,6 +589,9 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 	case CMD_PANIC_NIBBLE:
 		status = midiCmd_send_panic();
 		break;
+	case CMD_SCENE_NIBBLE:
+		apply_scene(pRom[1], pRom[2]);
+		break;
 	default:
 		break;
 	}
@@ -864,6 +869,39 @@ void sw_trigger_button(uint8_t sw){
 	// A quick tap: the down list, then the up list, exactly like a foot press
 	fire_short_down(sw);
 	fire_short_up(sw);
+}
+
+/*
+ * Scene: put the toggle buttons of the current bank into a chosen state in one
+ * press. Every affected button that is not already where it should be is
+ * pressed, exactly as if by foot, so its own commands, LED and display cell
+ * follow. Buttons already in the wanted state are left alone, so recalling the
+ * same scene twice sends nothing the second time. Non-toggle buttons have no
+ * state to set and are skipped.
+ *
+ * A scene pressing a button whose own list holds a scene is ignored rather
+ * than recursing, and a bank change the scene's own button had queued is kept
+ * aside so a pressed button cannot apply it halfway through.
+ */
+static void apply_scene(uint8_t mask, uint8_t states){
+	static bool applying = false;
+	if(applying) return;
+	applying = true;
+
+	uint8_t saved_pending = pending_bank;
+	pending_bank = 0xFF;
+
+	for(uint8_t i=0; i<MIDI_NUM_SWITCHES; i++){
+		if(!(mask & (1U << i))) continue;
+		if(!sw_button_is_toggle(switch_current_page, i)) continue;
+		uint8_t want = (states >> i) & 1U;
+		if(get_sw_toggle_state(&a_sw_obj[i]) != want){
+			sw_trigger_button(i);
+		}
+	}
+
+	if(pending_bank == 0xFF) pending_bank = saved_pending;
+	applying = false;
 }
 
 void handle_switches(void){

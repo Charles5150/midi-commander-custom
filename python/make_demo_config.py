@@ -223,6 +223,11 @@ def build() -> Demo:
     d.cc(2, "B", "BLNK", "15", toggle="Y", light="AlwaysOn")
     d.cc(2, "C", "HALF", "16", on="64")              # a mid value
     d.cc(2, "D", "NOFF", "17", off="128")            # off value suppressed
+    # Scenes on the long presses: 1, 2, 3, A and B are the toggles here, so
+    # the scene strings leave 4, C and D alone
+    d.long_press(2, "1", CommandType="Scene", **{"OnValue_(CC/PB)": "+++.++.."})   # all on
+    d.long_press(2, "4", CommandType="Scene", **{"OnValue_(CC/PB)": "---.--.."})   # all off
+    d.long_press(2, "A", CommandType="Scene", **{"OnValue_(CC/PB)": "+-+..-.."})   # a mix
 
     # --- bank 3: program changes, with and without bank select -----------
     d.pc(3, "1", "P 0", "0")

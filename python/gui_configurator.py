@@ -54,8 +54,10 @@ DEFAULT_CSV = os.path.join(HERE, "demo-all-features.csv")
 LED_MODES = ["Normal", "Reverse", "AlwaysOn"]
 CHANNELS = [str(i) for i in range(1, 17)]
 NO_COMMAND = "(none)"
-COMMAND_TYPES = [NO_COMMAND, "PC", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "Panic"]
+COMMAND_TYPES = [NO_COMMAND, "PC", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "Panic", "Scene"]
 TAP_MODES = ["Tap", "Clock"]
+# A scene leaves a button alone, or switches it on or off
+SCENE_STATES = ["-", "On", "Off"]
 BANK_SWITCH_MODES = ["Bank", "Bank+MIDI", "MIDI only"]
 BANK_SWITCH_CHOICES = [f"{sw} / {pr}" for sw, pr in BANK_SWITCH_LISTS]
 CCINC_DIRECTIONS = ["Up", "Down"]
@@ -330,7 +332,16 @@ class SlotEditor:
             self.widgets["media"] = w
             self._int("duration", "Dur", "Duration_(Note/PB)", 0, 127, width=50)
             self._check("toggle", "Hold", "Toggle_(CC/PB/Note)")
-        # Start, Stop and (none) have no parameters
+        elif cmd_type == "Scene":
+            text = clean(self.initial.get("OnValue_(CC/PB)"))
+            names = {"+": "On", "-": "Off"}
+            for i, button in enumerate("1234ABCD"):
+                ch = text[i] if i < len(text) else "."
+                self._label(button)
+                w = Option(self.params, SCENE_STATES, names.get(ch, SCENE_STATES[0]), width=62)
+                w.pack(side="left")
+                self.widgets[f"scene_{i}"] = w
+        # Start, Stop, Panic and (none) have no parameters
 
     # Read back ------------------------------------------------------------
     def values(self) -> dict:
@@ -376,6 +387,9 @@ class SlotEditor:
             out["Number_(PC/CC/Note)"] = w["sysexindex"].value()
         if cmd_type == "Tap":
             out["KeyMode_(Key)"] = w["tapmode"].value()
+        if cmd_type == "Scene":
+            code = {"On": "+", "Off": "-"}
+            out["OnValue_(CC/PB)"] = "".join(code.get(w[f"scene_{i}"].value(), ".") for i in range(8))
         return out
 
 

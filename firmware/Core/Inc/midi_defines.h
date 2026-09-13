@@ -67,6 +67,7 @@
 #define CMD_START_NIBBLE	(0x10)
 #define CMD_STOP_NIBBLE		(0x20)
 #define CMD_PANIC_NIBBLE	(0x80)	// All Sound Off and All Notes Off on every channel
+#define CMD_SCENE_NIBBLE	(0xA0)	// Scene: byte1 = buttons affected (bit 0 = button 1 .. bit 7 = D), byte2 = wanted states
 
 #define GLOBAL_SETTINGS_CHANNEL (0)
 #define GLOBAL_SETTINGS_REALTIME_PASS (1)	// Forward Clock/Start/Continue/Stop from USB to DIN
