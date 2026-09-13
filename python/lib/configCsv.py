@@ -50,6 +50,7 @@ def write_config_csv(
     df_bank_enter: pd.DataFrame = None,
     df_sysex: pd.DataFrame = None,
     df_bank_switch: pd.DataFrame = None,
+    df_setlist: pd.DataFrame = None,
 ) -> None:
     with open(path, "w", newline="", encoding="utf-8") as f:
         f.write("# Notes" + PAD + "\n")
@@ -91,3 +92,8 @@ def write_config_csv(
             f.write(PAD + "\n")
             f.write("* BankSwitch_Settings" + PAD + "\n")
             df_bank_switch.to_csv(f, index=False)
+
+        if df_setlist is not None:
+            f.write(PAD + "\n")
+            f.write("* Setlist" + PAD + "\n")
+            df_setlist.to_csv(f, index=False)

@@ -304,8 +304,37 @@ void sw_request_bank(uint8_t bank){
 	if(bank < MIDI_NUM_BANKS) requested_bank = bank;
 }
 
+/*
+ * Setlist: when enabled, relative bank moves follow a stored order instead of
+ * the bank numbers. The list ends at the first entry that is not a valid bank,
+ * so erased flash (0xFF) is simply an empty list. Absolute jumps (GoTo, bank
+ * change from MIDI) are unaffected.
+ */
+static uint8_t setlist_len(void){
+	if(pGlobalSettings[GLOBAL_SETTINGS_SETLIST_MODE] != 1) return 0;
+	uint8_t n = 0;
+	while(n < SETLIST_MAX && pSetlist[n] < MIDI_NUM_BANKS) n++;
+	return n;
+}
+
+static uint8_t setlist_step(uint8_t n, int16_t delta){
+	int16_t idx = -1;
+	for(uint8_t i=0; i<n; i++){
+		if(pSetlist[i] == switch_current_page){ idx = i; break; }
+	}
+	// Off the list: Up enters at the start, Down at the end
+	if(idx < 0) return pSetlist[(delta >= 0) ? 0 : n - 1];
+	int16_t j = idx + delta;
+	while(j < 0) j += n;
+	while(j >= n) j -= n;
+	return pSetlist[j];
+}
+
 // Step through the banks, wrapping around at both ends
 static uint8_t bank_step(int16_t delta){
+	uint8_t n = setlist_len();
+	if(n) return setlist_step(n, delta);
+
 	int16_t b = (int16_t)switch_current_page + delta;
 	while(b < 0) b += MIDI_NUM_BANKS;
 	while(b >= MIDI_NUM_BANKS) b -= MIDI_NUM_BANKS;

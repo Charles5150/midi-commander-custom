@@ -20,6 +20,7 @@ extern uint8_t *pExpSettings;	// Expression pedal calibration, EXP_SETTINGS_STRI
 extern uint8_t *pBankEnterCmds;	// Commands sent when a bank is entered, same shape as one button's list per bank
 extern uint8_t *pSysExStrings;	// Table of stored SysEx payloads: [length][up to SYSEX_STRING_MAX data bytes]
 extern uint8_t *pBankSwitchCmds;	// Command lists for the Bank Down/Up switches
+extern uint8_t *pSetlist;		// Bank numbers in setlist order, 0xFF ends the list
 
 /*
  * Four command lists, one per switch and press length, in this order:
@@ -113,7 +114,10 @@ extern uint8_t *pBankSwitchCmds;	// Command lists for the Bank Down/Up switches
 #define CFG_SYSEX_OFF		(CFG_BANK_ENTER_OFF + CFG_BANK_ENTER_SIZE)
 #define CFG_BANK_SWITCH_SIZE	(BANK_SWITCH_LISTS * MIDI_ROM_KEY_STRIDE)
 #define CFG_BANK_SWITCH_OFF	(CFG_SYSEX_OFF + CFG_SYSEX_SIZE)
-#define CFG_TOTAL_SIZE		(CFG_BANK_SWITCH_OFF + CFG_BANK_SWITCH_SIZE)
+#define SETLIST_MAX		(32)
+#define CFG_SETLIST_SIZE	(SETLIST_MAX)
+#define CFG_SETLIST_OFF		(CFG_BANK_SWITCH_OFF + CFG_BANK_SWITCH_SIZE)
+#define CFG_TOTAL_SIZE		(CFG_SETLIST_OFF + CFG_SETLIST_SIZE)
 
 void flash_settings_erase(void);
 void flash_settings_write(uint8_t* data, uint32_t offset);

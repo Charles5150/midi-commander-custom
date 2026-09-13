@@ -14,6 +14,7 @@ GLOBAL_SETTINGS_BANK_CHANGE_CC = 14
 GLOBAL_SETTINGS_BANK_SWITCH_MODE = 15
 # 16..31 hold ConfigName, so new settings start at 32
 GLOBAL_SETTINGS_SLEEP_AFTER_MIN = 32
+GLOBAL_SETTINGS_SETLIST_MODE = 33
 
 BANK_SWITCH_MODES = {"BANK": 0, "BANK+MIDI": 1, "MIDI": 2}
 
@@ -144,6 +145,10 @@ def pack_global_settings(df):
         except ValueError:
             sleep_min = 0
     bin_list[GLOBAL_SETTINGS_SLEEP_AFTER_MIN] = max(0, min(60, sleep_min))
+
+    # Bank Up/Down follow the Setlist section instead of bank numbers
+    if "Setlist_Mode" in df.index and "Y" in str(df.loc["Setlist_Mode", "Value"]).upper():
+        bin_list[GLOBAL_SETTINGS_SETLIST_MODE] = 1
 
     return bin_list
 

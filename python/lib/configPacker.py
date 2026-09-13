@@ -25,6 +25,8 @@ EXPRESSION_SECTION = "Expression_Settings"
 BANK_ENTER_SECTION = "BankEnter_Settings"
 SYSEX_SECTION = "SysEx_Strings"
 BANK_SWITCH_SECTION = "BankSwitch_Settings"
+SETLIST_SECTION = "Setlist"
+SETLIST_MAX = 32
 BANK_SWITCH_LISTS = [("Down", "Short"), ("Down", "Long"), ("Up", "Short"), ("Up", "Long")]
 SYSEX_STRING_COUNT = 16
 SYSEX_STRING_MAX = 23
@@ -113,6 +115,33 @@ def empty_bank_switch_settings():
             row[f"{slot}_KeyMode_(Key)"] = ""
         rows.append(row)
     return pd.DataFrame(rows)
+
+
+def empty_setlist():
+    """A Setlist frame with no entries."""
+    import pandas as pd
+
+    return pd.DataFrame(columns=["Position", "Bank_Number"])
+
+
+def pack_setlist(df):
+    """Up to SETLIST_MAX bank numbers ordered by Position, padded with 0xFF.
+
+    Rows may be in any order and may skip positions; invalid bank numbers are
+    dropped rather than stored, since the firmware stops at the first one.
+    """
+    entries = []
+    if df is not None:
+        for _, row in df.iterrows():
+            try:
+                pos = float(str(row.get("Position", "")).strip())
+                bank = int(float(str(row.get("Bank_Number", "")).strip()))
+            except ValueError:
+                continue
+            if 0 <= bank < NUM_BANKS:
+                entries.append((pos, bank))
+    banks = [b for _, b in sorted(entries, key=lambda e: e[0])][:SETLIST_MAX]
+    return bytes(banks + [0xFF] * (SETLIST_MAX - len(banks)))
 
 
 def empty_sysex_strings():
@@ -294,5 +323,7 @@ def pack_config(sections: dict) -> bytes:
             out += [0] * (cbp.MIDI_NUM_COMMANDS_PER_SWITCH * 4)
         else:
             out += cbp.pack_row(row)
+
+    out += list(pack_setlist(sections.get(SETLIST_SECTION)))
 
     return bytes(out)

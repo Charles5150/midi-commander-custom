@@ -51,7 +51,7 @@ class RoundTripTest(unittest.TestCase):
         cls.sections = read_config_csv(SAMPLE_CSV)
         cls.packed = pack_csv(SAMPLE_CSV)
         (cls.df_global, cls.df_banks, cls.df_buttons, cls.df_long, cls.df_exp,
-         cls.df_enter, cls.df_sysex, cls.df_bank_switch) = unpacker.unpack_config(
+         cls.df_enter, cls.df_sysex, cls.df_bank_switch, cls.df_setlist) = unpacker.unpack_config(
             cls.packed
         )
 
@@ -387,7 +387,9 @@ class RoundTripTest(unittest.TestCase):
         # Without the section every bank's enter list is empty
         base = pack_config({k: v for k, v in sections.items() if k != "BankEnter_Settings"})
         self.assertEqual(len(base), unpacker.CONFIG_SIZE)
-        self.assertEqual(set(base[unpacker.BANK_ENTER_OFFSET :]), {0})
+        self.assertEqual(set(base[unpacker.BANK_ENTER_OFFSET : unpacker.SETLIST_OFFSET]), {0})
+        # The setlist is the one section whose empty value is 0xFF: 0 is a valid bank
+        self.assertEqual(set(base[unpacker.SETLIST_OFFSET :]), {0xFF})
 
         df = empty_bank_enter_settings()
         df.loc[3, ["A_CommandType", "A_Channel_(PC/CC/Note/PB)", "A_Number_(PC/CC/Note)"]] = ["PC", "2", "7"]
@@ -605,6 +607,8 @@ class FirmwareLayoutTest(unittest.TestCase):
             ("CFG_BANK_ENTER_OFF", "BANK_ENTER_OFFSET"),
             ("CFG_SYSEX_OFF", "SYSEX_OFFSET"),
             ("CFG_BANK_SWITCH_OFF", "BANK_SWITCH_OFFSET"),
+            ("CFG_SETLIST_OFF", "SETLIST_OFFSET"),
+            ("SETLIST_MAX", "SETLIST_MAX"),
             ("CFG_TOTAL_SIZE", "CONFIG_SIZE"),
             ("MIDI_NUM_BANKS", "NUM_BANKS"),
             ("MIDI_ROM_KEY_STRIDE", "BUTTON_STRIDE"),
@@ -746,3 +750,71 @@ class SleepTest(unittest.TestCase):
         """Widening the area must not disturb ConfigName at 16..31."""
         packed = packer.pack_config(read_config_csv(DEMO_CSV))
         self.assertEqual(packed[16:32].decode("ascii").strip(), "DEMO ALL")
+
+
+class SetlistTest(unittest.TestCase):
+    """Bank Up/Down order when Setlist_Mode is on."""
+
+    def packed_setlist(self, sections):
+        packed = packer.pack_config(sections)
+        start = unpacker.SETLIST_OFFSET
+        return packed, list(packed[start:start + unpacker.SETLIST_MAX])
+
+    def test_demo_order_round_trips(self):
+        packed, raw = self.packed_setlist(read_config_csv(DEMO_CSV))
+        expected = [0, 12, 15, 13, 14, 18, 16, 17, 19, 20]
+        self.assertEqual(raw[:len(expected)], expected)
+        self.assertEqual(raw[len(expected):], [0xFF] * (32 - len(expected)))
+        self.assertEqual(packed[33], 1)
+        back = unpacker.unpack_config(packed)
+        self.assertEqual([int(b) for b in back[8]["Bank_Number"]], expected)
+        self.assertEqual(back[0].set_index("Label")["Value"]["Setlist_Mode"], "Y")
+
+    def test_missing_section_is_empty(self):
+        sections = read_config_csv(DEMO_CSV)
+        del sections[packer.SETLIST_SECTION]
+        packed, raw = self.packed_setlist(sections)
+        self.assertEqual(raw, [0xFF] * 32)
+        self.assertEqual(len(unpacker.unpack_config(packed)[8]), 0)
+
+    def test_order_follows_position_not_row_order(self):
+        sections = read_config_csv(DEMO_CSV)
+        sections[packer.SETLIST_SECTION] = pd.DataFrame(
+            [{"Position": "3", "Bank_Number": "7"},
+             {"Position": "1", "Bank_Number": "5"},
+             {"Position": "2", "Bank_Number": "6"}])
+        _, raw = self.packed_setlist(sections)
+        self.assertEqual(raw[:4], [5, 6, 7, 0xFF])
+
+    def test_invalid_banks_dropped_and_length_capped(self):
+        sections = read_config_csv(DEMO_CSV)
+        rows = [{"Position": str(i), "Bank_Number": str(i % 40)} for i in range(1, 60)]
+        rows.append({"Position": "0", "Bank_Number": "nonsense"})
+        sections[packer.SETLIST_SECTION] = pd.DataFrame(rows)
+        _, raw = self.packed_setlist(sections)
+        self.assertTrue(all(b < 32 for b in raw))
+        self.assertEqual(len(raw), 32)
+
+    def test_mode_off_byte(self):
+        sections = read_config_csv(DEMO_CSV)
+        g = sections["Global_Settings"]
+        g.loc[g["Label"] == "Setlist_Mode", "Value"] = "N"
+        self.assertEqual(packer.pack_config(sections)[33], 0)
+
+
+class SetlistCompatibilityTest(unittest.TestCase):
+    """A configuration flashed by 0.18 tools must read as setlist off and empty.
+
+    Flashing erases every configuration page and writes only what the tool
+    packed, so the bytes past a 0.18 configuration are left at 0xFF, and byte
+    33 was packed as 0.
+    """
+
+    def test_018_image_reads_setlist_off(self):
+        image = bytearray(packer.pack_config(read_config_csv(DEMO_CSV)))
+        old_size = unpacker.SETLIST_OFFSET          # 0.18 ended where the setlist starts
+        image[33] = 0                               # 0.18 always packed zero here
+        image[old_size:] = b"\xff" * (len(image) - old_size)
+        frames = unpacker.unpack_config(bytes(image))
+        self.assertEqual(frames[0].set_index("Label")["Value"]["Setlist_Mode"], "N")
+        self.assertEqual(len(frames[8]), 0)

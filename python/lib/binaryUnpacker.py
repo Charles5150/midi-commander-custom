@@ -55,7 +55,9 @@ SYSEX_STRING_STRIDE = SYSEX_STRING_MAX + 1
 BANK_SWITCH_OFFSET = SYSEX_OFFSET + SYSEX_STRING_COUNT * SYSEX_STRING_STRIDE
 # 0 Down short, 1 Down long, 2 Up short, 3 Up long
 BANK_SWITCH_LISTS = [("Down", "Short"), ("Down", "Long"), ("Up", "Short"), ("Up", "Long")]
-CONFIG_SIZE = BANK_SWITCH_OFFSET + len(BANK_SWITCH_LISTS) * BUTTON_STRIDE
+SETLIST_OFFSET = BANK_SWITCH_OFFSET + len(BANK_SWITCH_LISTS) * BUTTON_STRIDE
+SETLIST_MAX = 32
+CONFIG_SIZE = SETLIST_OFFSET + SETLIST_MAX
 EXP_CURVE_NAMES = {0: "Linear", 1: "Log", 2: "Exp"}
 EXP_BUTTON_IDS = ["1", "2", "3", "4", "A", "B", "C", "D"]
 
@@ -120,6 +122,7 @@ def unpack_global_settings(data: bytes) -> pd.DataFrame:
         ("Bank_Change_CC", str(g[14] if g[14] <= 127 else 0)),
         ("Bank_Switch_Mode", {1: "Bank+MIDI", 2: "MIDI only"}.get(g[15], "Bank")),
         ("Sleep_After_Min", "0" if g[32] in (0, 0xFF) else str(min(g[32], 60))),
+        ("Setlist_Mode", "Y" if g[33] == 1 else "N"),
     ]
     return pd.DataFrame(rows, columns=["Label", "Value"])
 
@@ -346,6 +349,17 @@ def unpack_bank_switch_settings(data: bytes) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=columns)
 
 
+def unpack_setlist(data: bytes) -> pd.DataFrame:
+    """Bank numbers in setlist order; the list ends at the first invalid entry."""
+    rows = []
+    for i in range(SETLIST_MAX):
+        bank = data[SETLIST_OFFSET + i]
+        if bank >= NUM_BANKS:
+            break
+        rows.append({"Position": str(i + 1), "Bank_Number": str(bank)})
+    return pd.DataFrame(rows, columns=["Position", "Bank_Number"])
+
+
 def unpack_sysex_strings(data: bytes) -> pd.DataFrame:
     """The stored SysEx payloads, as space separated hex bytes."""
     rows = []
@@ -374,4 +388,5 @@ def unpack_config(data: bytes):
         unpack_bank_enter_settings(data),
         unpack_sysex_strings(data),
         unpack_bank_switch_settings(data),
+        unpack_setlist(data),
     )

@@ -42,7 +42,7 @@ def main(args: argparse.Namespace) -> int:
         return 3
 
     (df_global, df_banks, df_buttons, df_long, df_exp,
-     df_enter, df_sysex, df_bank_switch) = unpacker.unpack_config(data)
+     df_enter, df_sysex, df_bank_switch, df_setlist) = unpacker.unpack_config(data)
     write_config_csv(
         args.output,
         df_global,
@@ -54,6 +54,7 @@ def main(args: argparse.Namespace) -> int:
         df_bank_enter=df_enter,
         df_sysex=df_sysex,
         df_bank_switch=df_bank_switch,
+        df_setlist=df_setlist,
     )
 
     name = df_global.loc[df_global["Label"] == "ConfigName", "Value"].iloc[0]

@@ -28,6 +28,9 @@ from lib.configPacker import (  # noqa: E402
     SYSEX_STRING_COUNT,
     empty_bank_enter_settings,
     empty_bank_switch_settings,
+    SETLIST_SECTION,
+    SETLIST_MAX,
+    empty_setlist,
     empty_sysex_strings,
     parse_sysex_bytes,
 )
@@ -392,6 +395,8 @@ class MidiCommanderGUI(ctk.CTk):
         self.enter_editors = []
         self.df_sysex = None
         self.df_bank_switch = None
+        self.df_setlist = None
+        self.setlist_widgets = []
         self.bank_switch_editors = []
         self.bank_switch_row = None
         self.sysex_widgets = {}
@@ -450,6 +455,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.tabview.add("Bank Enter")
         self.tabview.add("SysEx")
         self.tabview.add("Bank Switch")
+        self.tabview.add("Setlist")
 
         self.global_scroll = ctk.CTkScrollableFrame(self.tabview.tab("Global Settings"))
         self.global_scroll.pack(fill="both", expand=True)
@@ -462,6 +468,7 @@ class MidiCommanderGUI(ctk.CTk):
         self._setup_bank_enter_tab()
         self._setup_sysex_tab()
         self._setup_bank_switch_tab()
+        self._setup_setlist_tab()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
         if os.path.exists(DEFAULT_CSV):
@@ -524,6 +531,7 @@ class MidiCommanderGUI(ctk.CTk):
                 ("Bank_Change_CC", "0"),
                 ("Bank_Switch_Mode", "Bank"),
                 ("Sleep_After_Min", "0"),
+                ("Setlist_Mode", "N"),
             ]
             missing = [{"Label": l, "Value": v} for l, v in defaults if l not in labels]
             if missing:
@@ -594,6 +602,12 @@ class MidiCommanderGUI(ctk.CTk):
                 if BANK_SWITCH_SECTION in data
                 else empty_bank_switch_settings()
             )
+            self.df_setlist = (
+                data[SETLIST_SECTION].astype(object).reset_index(drop=True)
+                if SETLIST_SECTION in data
+                else empty_setlist()
+            )
+            self.populate_setlist()
             self.df_sysex = (
                 data[SYSEX_SECTION].astype(object).reset_index(drop=True)
                 if SYSEX_SECTION in data
@@ -682,7 +696,7 @@ class MidiCommanderGUI(ctk.CTk):
 
             if label == "MIDI_Channel":
                 w = Option(self.global_scroll, CHANNELS, value, width=80)
-            elif label in ("RealTime_Passthrough", "USB_MIDI_Thru", "Remember_State"):
+            elif label in ("RealTime_Passthrough", "USB_MIDI_Thru", "Remember_State", "Setlist_Mode"):
                 w = Check(self.global_scroll, text="", checked=is_yes(value))
             elif label in ("Bank_Up_LED_Mode", "Bank_Down_LED_Mode"):
                 w = Option(self.global_scroll, LED_MODES, value, width=110)
@@ -726,6 +740,7 @@ class MidiCommanderGUI(ctk.CTk):
             "Bank_Change_CC": "CC number that selects a bank, when the mode is CC",
             "Bank_Switch_Mode": "what the Bank Up/Down switches do, see the Bank Switch tab",
             "Sleep_After_Min": "idle minutes before the display and LEDs go out, 0 = never",
+            "Setlist_Mode": "Bank Up/Down follow the order in the Setlist tab",
             "ConfigName": "shown on the display at boot (16 chars)",
             "Exp1_CC": "CC number sent by expression pedal 1 (0-127)",
             "Exp2_CC": "CC number sent by expression pedal 2 (0-127)",
@@ -1180,6 +1195,70 @@ class MidiCommanderGUI(ctk.CTk):
                     val if val != "" else float("nan")
                 )
 
+    # --- Setlist tab ---------------------------------------------------------------
+    def _setup_setlist_tab(self):
+        tab = self.tabview.tab("Setlist")
+        ctk.CTkLabel(
+            tab,
+            text="The order Bank Up and Bank Down follow when Setlist_Mode is on in Global "
+            "Settings, instead of stepping through the bank numbers. Relative Bank commands "
+            "follow it too; GoTo still jumps to an exact bank. From a bank that is not in the "
+            "list, Up enters at the first entry and Down at the last. Up to 32 entries; the "
+            "list ends at the first empty row.",
+            text_color="gray",
+            wraplength=780,
+            justify="left",
+        ).pack(anchor="w", padx=10, pady=(10, 6))
+        self.setlist_frame = ctk.CTkScrollableFrame(tab)
+        self.setlist_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+
+    def _bank_choices(self):
+        names = {}
+        if self.df_banks is not None:
+            for _, r in self.df_banks.iterrows():
+                names[clean(r.get("Bank_Number"))] = clean(r.get("Bank_Name_Large"))
+        return [NO_COMMAND] + [f"{b} {names.get(str(b), '')}".strip() for b in range(NUM_BANKS)]
+
+    def populate_setlist(self):
+        for w in self.setlist_frame.winfo_children():
+            w.destroy()
+        self.setlist_widgets = []
+        choices = self._bank_choices()
+        entries = []
+        if self.df_setlist is not None:
+            for _, r in self.df_setlist.iterrows():
+                try:
+                    pos = float(clean(r.get("Position")))
+                    bank = int(float(clean(r.get("Bank_Number"))))
+                except ValueError:
+                    continue
+                if 0 <= bank < NUM_BANKS:
+                    entries.append((pos, bank))
+        order = [b for _, b in sorted(entries, key=lambda e: e[0])]
+        for i in range(SETLIST_MAX):
+            line = ctk.CTkFrame(self.setlist_frame, fg_color="transparent")
+            line.pack(fill="x", pady=2)
+            ctk.CTkLabel(line, text=f"{i + 1:>2}", width=28, font=BOLD).pack(side="left")
+            current = choices[order[i] + 1] if i < len(order) else NO_COMMAND
+            w = Option(line, choices, current, width=200)
+            w.pack(side="left", padx=6)
+            self.setlist_widgets.append(w)
+
+    def apply_setlist_changes(self):
+        if not self.setlist_widgets:
+            return
+        rows = []
+        for w in self.setlist_widgets:
+            v = w.value()
+            if v == NO_COMMAND:
+                break
+            try:
+                bank = int(v.split()[0])
+            except (ValueError, IndexError):
+                break
+            rows.append({"Position": str(len(rows) + 1), "Bank_Number": str(bank)})
+        self.df_setlist = pd.DataFrame(rows, columns=["Position", "Bank_Number"])
+
     # --- SysEx tab -----------------------------------------------------------------
     def _setup_sysex_tab(self):
         tab = self.tabview.tab("SysEx")
@@ -1240,6 +1319,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.apply_button_changes(silent=True)
         self.apply_bank_enter_changes()
         self.apply_bank_switch_changes()
+        self.apply_setlist_changes()
         self.apply_sysex_changes()
         for idx, w in self.global_widgets.items():
             self.df_global.at[idx, "Value"] = w.value()
@@ -1276,6 +1356,7 @@ class MidiCommanderGUI(ctk.CTk):
                 df_bank_enter=self.df_enter,
                 df_sysex=self.df_sysex,
                 df_bank_switch=self.df_bank_switch,
+                df_setlist=self.df_setlist,
             )
             messagebox.showinfo("Success", "CSV Saved Successfully!")
         except Exception as e:  # noqa: BLE001
@@ -1334,6 +1415,7 @@ class MidiCommanderGUI(ctk.CTk):
                 df_bank_enter=self.df_enter,
                 df_sysex=self.df_sysex,
                 df_bank_switch=self.df_bank_switch,
+                df_setlist=self.df_setlist,
             )
         except Exception as e:  # noqa: BLE001
             messagebox.showerror("Error", f"Could not save CSV before flashing: {e}")

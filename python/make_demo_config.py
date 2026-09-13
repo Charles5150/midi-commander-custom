@@ -47,6 +47,9 @@ BANKS = {
     11: ("MIX", "mixed"),
 }
 SETLIST_FROM = 12   # banks 12..31 are "songs"
+# The order Bank Up/Down follow with Setlist_Mode on: home, then songs out of
+# numeric order, which is the point of having a setlist at all
+DEMO_SETLIST = [0, 12, 15, 13, 14, 18, 16, 17, 19, 20]
 
 
 def blank_button_rows():
@@ -411,6 +414,7 @@ def global_settings() -> pd.DataFrame:
                 ("Bank_Change_CC", "32"),
                 ("Bank_Switch_Mode", "Bank+MIDI"),
                 ("Sleep_After_Min", "15"),
+                ("Setlist_Mode", "Y"),
             )
         ]
     )
@@ -435,6 +439,10 @@ def main() -> int:
         df_bank_enter=d.enter,
         df_sysex=d.sysex,
         df_bank_switch=d.bank_switch_frame,
+        df_setlist=pd.DataFrame(
+            [{"Position": str(i + 1), "Bank_Number": str(b)} for i, b in enumerate(DEMO_SETLIST)],
+            columns=["Position", "Bank_Number"],
+        ),
     )
     print(f"wrote {OUT}")
     return 0
