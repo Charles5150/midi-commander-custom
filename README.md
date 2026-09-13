@@ -139,6 +139,8 @@ Connect the pedal in normal mode (not DFU), click **Read from Device** to load w
 
 **Virtual Pedal** — the pedal as it is right now, laid out like its board: five switches a row with Bank Up and Down at the right, each LED at its real brightness, blinking and dimmed ones included, and between the rows the pedal's screen, mirrored pixel for pixel, so overlays and inverted toggle cells show exactly as on the pedal. Click a switch to tap it, hold the mouse button for a long press, click twice quickly for a double press. The press goes through exactly the same path as a foot, so long and double presses, the bank switches and everything they send behave as on the pedal. A switch held here lets go by itself after 10 seconds. Shares the Expression tab's connection; needs firmware 0.27.
 
+<img src="docs/images/gui_virtual_pedal.png" width="500">
+
 **Expression** — per pedal: end points, response curve, invert, channel. **Connect live view** shows the pedal position and the CC being sent, read from the pedal in real time. To calibrate: press **Calibrate**, sweep the pedal slowly from heel to toe and back a couple of times, press **Done**; the end points are filled in with a small margin so 0 and 127 are always reached.
 
 ---
