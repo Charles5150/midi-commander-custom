@@ -201,6 +201,9 @@ def build() -> Demo:
     for btn, target in (("D", 20),):
         d.long_press(0, btn, CommandType="Bank",
                      **{"KeyMode_(Key)": "GoTo", "OnValue_(CC/PB)": str(target)})
+    # Hold 1 on HOME to move to the next configuration slot holding one. HOME
+    # is where every bank leads back to and where a new configuration starts.
+    d.long_press(0, "1", CommandType="Bank", **{"KeyMode_(Key)": "NextConfig"})
 
     # --- bank 1: looper, the everyday case -------------------------------
     d.cc(1, "1", "REC", "1", toggle="Y", light="AlwaysOn")
@@ -315,8 +318,6 @@ def build() -> Demo:
     d.bank_cmd(10, "A", "DN 8", "Down", 8)
     d.bank_cmd(10, "B", "LAST", "GoTo", 31)
     d.bank_cmd(10, "C", "SONG", "GoTo", SETLIST_FROM)
-    # Hold HOME to move to the next configuration slot holding one
-    d.long_press(10, "1", CommandType="Bank", **{"KeyMode_(Key)": "NextConfig"})
     # A button that sends MIDI and then changes bank: the order matters
     d.cc(10, "D", "GO+C", "40")
     d.button(10, "D", slot="B", CommandType="Bank",

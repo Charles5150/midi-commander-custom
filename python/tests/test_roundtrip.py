@@ -1027,8 +1027,9 @@ class ConfigSlotCommandTest(unittest.TestCase):
         self.assertEqual(list(self.pack("Down", "8")), [0x42, 8, 0, 0])
 
     def test_demo_has_next_config_on_long_home(self):
+        """On a long press of 1 in HOME, bank 0, which every bank leads back to."""
         packed = packer.pack_config(read_config_csv(DEMO_CSV))
         long_frame = unpacker.unpack_config(packed)[3]
-        row = long_frame[(long_frame["Bank_Number"].astype(str) == "10")
+        row = long_frame[(long_frame["Bank_Number"].astype(str) == "0")
                          & (long_frame["Button_Identifier"].astype(str) == "1")].iloc[0]
         self.assertEqual((row["A_CommandType"], row["A_KeyMode_(Key)"]), ("Bank", "NextConfig"))
