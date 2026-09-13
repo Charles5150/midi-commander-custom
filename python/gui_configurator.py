@@ -41,6 +41,7 @@ from lib.configPacker import (  # noqa: E402
     empty_long_press_settings,
 )
 from lib.midiDevice import DeviceNotFound, DeviceTimeout, MidiCommander  # noqa: E402
+from lib import bankClipboard as bank_clipboard  # noqa: E402
 
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
@@ -406,6 +407,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.exp_widgets = {}       # pedal index -> dict of widgets
         self.press_mode = "Short press"
         self.editing_button = None  # (row_index, btn_id) of the button being edited
+        self.bank_clipboard = None  # a copied bank, see lib/bankClipboard.py
 
         self.global_widgets = {}  # df index -> widget with .value()
         self.bank_widgets = {}  # df index -> (large, small)
@@ -485,6 +487,11 @@ class MidiCommanderGUI(ctk.CTk):
         ctk.CTkLabel(top, text="Bank:").pack(side="left", padx=10)
         self.bank_selector = ctk.CTkOptionMenu(top, command=self.on_bank_change, width=80)
         self.bank_selector.pack(side="left", padx=10)
+        ctk.CTkButton(top, text="Copy bank", width=100, command=self.copy_bank).pack(side="left", padx=(20, 6))
+        self.paste_bank_button = ctk.CTkButton(
+            top, text="Paste bank", width=160, command=self.paste_bank, state="disabled"
+        )
+        self.paste_bank_button.pack(side="left", padx=6)
 
         self.button_matrix = ctk.CTkFrame(tab, width=130)
         self.button_matrix.grid(row=1, column=0, sticky="ns", padx=(5, 0), pady=5)
@@ -794,6 +801,49 @@ class MidiCommanderGUI(ctk.CTk):
                 width=110,
                 command=lambda rid=idx, bid=btn_id: self.load_button_commands(rid, bid),
             ).pack(pady=5, padx=8)
+
+    # --- Copy and paste a whole bank -------------------------------------------------
+    def copy_bank(self):
+        if self.df_buttons is None:
+            return
+        # Take whatever is still in the editors along with it
+        self.apply_button_changes(silent=True)
+        self.apply_bank_enter_changes()
+        bank = self.bank_selector.get()
+        self.bank_clipboard = bank_clipboard.copy_bank(self.df_buttons, self.df_long, self.df_enter, bank)
+        self.paste_bank_button.configure(state="normal", text=f"Paste bank {clean(bank)} here")
+
+    def paste_bank(self):
+        if not self.bank_clipboard or self.df_buttons is None:
+            return
+        target = clean(self.bank_selector.get())
+        source = self.bank_clipboard["bank"]
+        if target == source:
+            return
+        if not messagebox.askyesno(
+            "Paste bank",
+            f"Replace everything in bank {target} with bank {source}?\n\n"
+            "Labels, LED modes, short and long press commands and the commands sent on "
+            "entering the bank are all replaced. The bank name is kept.",
+        ):
+            return
+        self.apply_button_changes(silent=True)
+        self.apply_bank_enter_changes()
+        self.df_buttons, self.df_long, self.df_enter = bank_clipboard.paste_bank(
+            self.df_buttons, self.df_long, self.df_enter, self.bank_clipboard, target
+        )
+        # The open editors point at rows that were just replaced: drop them
+        # before refreshing, or they would write the old values back.
+        self.editing_row = None
+        self.editing_button = None
+        self.slot_editors = []
+        for w in self.cmd_editor.winfo_children():
+            w.destroy()
+        ctk.CTkLabel(self.cmd_editor, text="Select a button to edit", font=("Arial", 16)).pack(pady=10)
+        self.enter_editors = []
+        self.on_bank_change(target)
+        if self.enter_bank_selector.get():
+            self._on_enter_bank_change(self.enter_bank_selector.get())
 
     def _long_row_index(self, row_index):
         """Index in df_long of the button at df_buttons row_index (created if missing)."""

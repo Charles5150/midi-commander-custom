@@ -866,3 +866,87 @@ class PanicTest(unittest.TestCase):
         row = long_frame[(long_frame["Bank_Number"].astype(str) == "6")
                          & (long_frame["Button_Identifier"].astype(str) == "4")].iloc[0]
         self.assertEqual(row["A_CommandType"], "Panic")
+
+
+class BankClipboardTest(unittest.TestCase):
+    """Copy one bank over another, as the configurator's Copy/Paste bank does."""
+
+    SRC, DST = 3, 9
+
+    @staticmethod
+    def region(packed, start, stride, bank):
+        return packed[start + bank * stride:start + (bank + 1) * stride]
+
+    def setUp(self):
+        from lib import bankClipboard
+        self.clip = bankClipboard
+        self.sections = read_config_csv(DEMO_CSV)
+        self.before = packer.pack_config(self.sections)
+
+    def paste(self, src, dst):
+        s = self.sections
+        clip = self.clip.copy_bank(s["Button_Settings"], s.get(packer.LONG_PRESS_SECTION),
+                                   s.get(packer.BANK_ENTER_SECTION), src)
+        b, l, e = self.clip.paste_bank(s["Button_Settings"], s.get(packer.LONG_PRESS_SECTION),
+                                       s.get(packer.BANK_ENTER_SECTION), clip, dst)
+        new = dict(s)
+        new["Button_Settings"], new[packer.LONG_PRESS_SECTION], new[packer.BANK_ENTER_SECTION] = b, l, e
+        return new, packer.pack_config(new)
+
+    def test_target_becomes_identical(self):
+        _, after = self.paste(self.SRC, self.DST)
+        U = unpacker
+        for name, start, stride in (
+            ("commands", U.COMMANDS_OFFSET, 8 * U.BUTTON_STRIDE),
+            ("led modes", U.LED_MODES_OFFSET, 8),
+            ("labels", U.LABELS_OFFSET, 32),
+            ("long press", U.LONG_PRESS_OFFSET, 8 * U.BUTTON_STRIDE),
+            ("bank enter", U.BANK_ENTER_OFFSET, U.BUTTON_STRIDE),
+        ):
+            self.assertEqual(self.region(after, start, stride, self.DST),
+                             self.region(self.before, start, stride, self.SRC), name)
+
+    def test_nothing_else_changes(self):
+        _, after = self.paste(self.SRC, self.DST)
+        U = unpacker
+        diffs = [i for i in range(len(after)) if after[i] != self.before[i]]
+        allowed = []
+        for start, stride in ((U.COMMANDS_OFFSET, 8 * U.BUTTON_STRIDE), (U.LED_MODES_OFFSET, 8),
+                              (U.LABELS_OFFSET, 32), (U.LONG_PRESS_OFFSET, 8 * U.BUTTON_STRIDE),
+                              (U.BANK_ENTER_OFFSET, U.BUTTON_STRIDE)):
+            allowed.append(range(start + self.DST * stride, start + (self.DST + 1) * stride))
+        stray = [i for i in diffs if not any(i in r for r in allowed)]
+        self.assertEqual(stray, [], "bytes outside the target bank changed")
+        self.assertTrue(diffs, "the paste changed nothing")
+
+    def test_bank_name_is_kept(self):
+        _, after = self.paste(self.SRC, self.DST)
+        name = self.region(after, unpacker.GLOBAL_SIZE, 12, self.DST)
+        self.assertEqual(name, self.region(self.before, unpacker.GLOBAL_SIZE, 12, self.DST))
+
+    def test_rows_keep_their_count(self):
+        new, _ = self.paste(self.SRC, self.DST)
+        self.assertEqual(len(new["Button_Settings"]), len(self.sections["Button_Settings"]))
+
+    def test_target_extras_are_removed(self):
+        """Bank 1 has a long press on button 4; bank 6 only one on button 4 too; bank 2 none."""
+        s = self.sections
+        long_frame = s[packer.LONG_PRESS_SECTION]
+        def long_types(frame, bank):
+            rows = frame[frame["Bank_Number"].astype(str).str.replace(".0", "", regex=False) == str(bank)]
+            return sorted(str(r["A_CommandType"]) for _, r in rows.iterrows()
+                          if str(r["A_CommandType"]) not in ("", "nan"))
+        self.assertTrue(long_types(long_frame, 1))
+        new, _ = self.paste(2, 1)
+        self.assertEqual(long_types(new[packer.LONG_PRESS_SECTION], 1), long_types(long_frame, 2))
+
+    def test_copy_is_a_snapshot(self):
+        s = self.sections
+        clip = self.clip.copy_bank(s["Button_Settings"], None, None, self.SRC)
+        before = [dict(r) for r in clip["buttons"]]
+        s["Button_Settings"].loc[:, "Label"] = "XXXX"
+        self.assertEqual(clip["buttons"], before)
+
+    def test_paste_onto_itself_is_a_no_op(self):
+        _, after = self.paste(self.SRC, self.SRC)
+        self.assertEqual(after, self.before)
