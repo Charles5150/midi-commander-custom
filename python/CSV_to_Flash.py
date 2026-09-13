@@ -56,8 +56,12 @@ def main(args: argparse.Namespace) -> int:
     try:
         with MidiCommander() as dev:
             try:
-                target, active, _ = dev.select_slot(
-                    None if args.slot is None else args.slot - 1)
+                # Always choose explicitly: the target a previous read or write
+                # selected stays until the pedal restarts, so "the active slot"
+                # must be asked for, not assumed
+                _, active, _ = dev.select_slot(None)
+                wanted = active if args.slot is None else args.slot - 1
+                target, active, _ = dev.select_slot(wanted)
                 if args.slot is not None and target != args.slot - 1:
                     print(f"ERROR: the device did not accept slot {args.slot}")
                     return 1

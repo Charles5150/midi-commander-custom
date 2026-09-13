@@ -34,8 +34,10 @@ def main(args: argparse.Namespace) -> int:
                     print(f"Reading chunk {done}/{total}")
 
             try:
-                target, active, valid = dev.select_slot(
-                    None if args.slot is None else args.slot - 1)
+                # Always choose explicitly, see CSV_to_Flash.py
+                _, active, _ = dev.select_slot(None)
+                wanted = active if args.slot is None else args.slot - 1
+                target, active, valid = dev.select_slot(wanted)
                 if args.slot is not None and target != args.slot - 1:
                     print(f"ERROR: the device did not accept slot {args.slot}")
                     return 1
