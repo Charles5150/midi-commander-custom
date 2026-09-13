@@ -54,6 +54,10 @@ void leds_set(uint8_t led, uint8_t level){
 	led_level[led] = (level > LEDS_LEVELS) ? LEDS_LEVELS : level;
 }
 
+uint8_t leds_get(uint8_t led){
+	return (led < LEDS_COUNT) ? led_level[led] : 0;
+}
+
 void leds_set_all(uint8_t level){
 	for(uint8_t i=0; i<LEDS_COUNT; i++){
 		leds_set(i, level);

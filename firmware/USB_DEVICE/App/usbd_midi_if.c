@@ -11,6 +11,7 @@
 #include "midi_cmds.h"
 #include "expression.h"
 #include "switch_router.h"
+#include "leds.h"
 #include <string.h>
 
 extern I2C_HandleTypeDef hi2c1;
@@ -169,6 +170,60 @@ void sysex_select_slot(uint8_t* data_packet_start){
 	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
 }
 
+// Virtual pedal: press or release a switch as if by foot
+void sysex_press_button(uint8_t* data_packet_start){
+	uint8_t id = data_packet_start[0];
+	uint8_t down = data_packet_start[1] ? 1 : 0;
+	sw_virtual_press(id, down);
+
+	uint8_t *p = midi_msg_tx_buffer;
+	*(p++) = SYSEX_START;
+	*(p++) = MIDI_MANUF_ID;
+	*(p++) = SYSEX_RSP_PRESS_BUTTON;
+	*(p++) = id & 0x7F;
+	*(p++) = down;
+	*(p++) = SYSEX_END;
+	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
+}
+
+/*
+ * What the pedal shows, for the configurator's virtual pedal: current bank and
+ * slot, which toggle buttons are on, the bank's large name, the eight button
+ * labels and the level of all ten LEDs (0-16), so blinking and dimmed LEDs show
+ * as they really are. 54 bytes in all.
+ */
+void sysex_get_state(void){
+	uint8_t bank = sw_get_current_page();
+	uint8_t toggles = 0;
+	for(uint8_t i=0; i<MIDI_NUM_SWITCHES; i++){
+		if(sw_button_is_toggle(bank, i) && sw_get_toggle_state(bank, i)){
+			toggles |= (uint8_t)(1U << i);
+		}
+	}
+
+	uint8_t *p = midi_msg_tx_buffer;
+	*(p++) = SYSEX_START;
+	*(p++) = MIDI_MANUF_ID;
+	*(p++) = SYSEX_RSP_GET_STATE;
+	*(p++) = bank & 0x7F;
+	*(p++) = flash_settings_active_slot() & 0x7F;
+	*(p++) = toggles & 0x7F;
+	*(p++) = (toggles >> 7) & 0x01;
+	for(uint8_t k=0; k<4; k++){
+		*(p++) = pBankStrings[bank * CFG_BANK_STRING_SIZE + k] & 0x7F;
+	}
+	for(uint8_t i=0; i<MIDI_NUM_SWITCHES; i++){
+		for(uint8_t k=0; k<BUTTON_LABEL_LEN; k++){
+			*(p++) = pButtonLabels[(bank * MIDI_NUM_SWITCHES + i) * BUTTON_LABEL_LEN + k] & 0x7F;
+		}
+	}
+	for(uint8_t led=0; led<LEDS_COUNT; led++){
+		*(p++) = leds_get(led) & 0x7F;
+	}
+	*(p++) = SYSEX_END;
+	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
+}
+
 void sysex_get_version(void){
 	const char *version = FIRMWARE_VERSION;
 	uint8_t *p = midi_msg_tx_buffer;
@@ -234,6 +289,15 @@ void process_sysex_message(void){
 		if(sysex_rx_counter >= 5){
 			sysex_select_slot(&(pSysexHead->start_parameters));
 		}
+		break;
+	case SYSEX_CMD_PRESS_BUTTON:
+		// F0 7D 66 id down F7 = 6 bytes
+		if(sysex_rx_counter >= 6){
+			sysex_press_button(&(pSysexHead->start_parameters));
+		}
+		break;
+	case SYSEX_CMD_GET_STATE:
+		sysex_get_state();
 		break;
 	case SYSEX_CMD_GET_VERSION:
 		sysex_get_version();

@@ -42,7 +42,9 @@ from lib.configPacker import (  # noqa: E402
     empty_long_press_settings,
     empty_double_press_settings,
 )
-from lib.midiDevice import DeviceNotFound, DeviceTimeout, MidiCommander  # noqa: E402
+from lib.midiDevice import (  # noqa: E402
+    LED_LEVELS, VIRTUAL_SWITCHES, DeviceNotFound, DeviceTimeout, MidiCommander, version_at_least,
+)
 from lib import bankClipboard as bank_clipboard  # noqa: E402
 
 ctk.set_appearance_mode("Dark")
@@ -94,6 +96,26 @@ CMD_FIELDS = [
 ]
 
 BOLD = ("Arial", 12, "bold")
+
+# Virtual pedal: the switches as they sit on the pedal, Bank Up and Down at the right
+PEDAL_LAYOUT = [["1", "2", "3", "4", "UP"], ["A", "B", "C", "D", "DOWN"]]
+PEDAL_BANK_CAPTIONS = {"UP": "BANK \u25b2", "DOWN": "BANK \u25bc"}
+PEDAL_BODY = "#1c1c1e"
+PEDAL_SWITCH = "#48484a"
+PEDAL_SWITCH_DOWN = "#8e8e93"
+PEDAL_TOGGLE_RING = "#ff9f0a"
+PEDAL_LED_OFF = (0x2c, 0x2c, 0x2e)
+PEDAL_LED_ON = (0xff, 0x45, 0x3a)
+PEDAL_SCREEN = "#050608"
+PEDAL_SCREEN_TEXT = "#dff1ff"
+PEDAL_STATE_EVERY = 2   # poll the pedal state on every second live view tick (120 ms)
+
+
+def led_color(level) -> str:
+    """Screen colour for an LED at a PWM level 0..LED_LEVELS."""
+    t = max(0.0, min(1.0, level / LED_LEVELS))
+    rgb = [round(off + (on - off) * t) for off, on in zip(PEDAL_LED_OFF, PEDAL_LED_ON)]
+    return "#%02x%02x%02x" % tuple(rgb)
 
 
 def clean(val) -> str:
@@ -432,6 +454,8 @@ class MidiCommanderGUI(ctk.CTk):
         self.sysex_widgets = {}
         self.current_csv_path = None
         self.live = None            # MidiCommander while the live pedal view is on
+        self.pedal_supported = False  # the connected firmware answers PRESS_BUTTON/GET_STATE
+        self.pedal_tick = 0
         self.calibrating = {}       # pedal index -> [min_seen, max_seen]
         self.exp_widgets = {}       # pedal index -> dict of widgets
         self.press_mode = "Short press"
@@ -489,6 +513,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.tabview.grid(row=0, column=1, padx=(20, 0), pady=(20, 0), sticky="nsew")
         self.tabview.add("Global Settings")
         self.tabview.add("Button Config")
+        self.tabview.add("Virtual Pedal")
         self.tabview.add("Bank Names")
         self.tabview.add("Expression")
         self.tabview.add("Bank Enter")
@@ -504,6 +529,7 @@ class MidiCommanderGUI(ctk.CTk):
 
         self._setup_button_tab()
         self._setup_expression_tab()
+        self._setup_pedal_tab()
         self._setup_bank_enter_tab()
         self._setup_sysex_tab()
         self._setup_bank_switch_tab()
@@ -1149,10 +1175,13 @@ class MidiCommanderGUI(ctk.CTk):
             self._live_disconnect()
             messagebox.showerror("Live view", f"Could not connect to the pedal: {e}")
             return
-        self.lbl_live.configure(text=f"connected, firmware {version}")
-        self.btn_live.configure(text="Disconnect")
-        for w in self.exp_widgets.values():
+        if hasattr(self, "lbl_live") and self.lbl_live.winfo_exists():
+            self.lbl_live.configure(text=f"connected, firmware {version}")
+            self.btn_live.configure(text="Disconnect")
+        for w in getattr(self, "exp_widgets", {}).values():
             w["cal"].configure(state="normal")
+        self.pedal_supported = version_at_least(version, 0, 27)
+        self._pedal_connection_changed(version)
         self._live_poll()
 
     def _live_disconnect(self):
@@ -1166,8 +1195,11 @@ class MidiCommanderGUI(ctk.CTk):
         if hasattr(self, "lbl_live") and self.lbl_live.winfo_exists():
             self.lbl_live.configure(text="not connected")
             self.btn_live.configure(text="Connect live view")
-            for w in self.exp_widgets.values():
+            for w in getattr(self, "exp_widgets", {}).values():
                 w["cal"].configure(state="disabled", text="Calibrate")
+        self.pedal_supported = False
+        if hasattr(self, "pedal_widgets"):
+            self._pedal_connection_changed(None)
 
     def _live_poll(self):
         if self.live is None:
@@ -1188,7 +1220,135 @@ class MidiCommanderGUI(ctk.CTk):
                     lo, hi = self.calibrating[i]
                     self.calibrating[i] = [min(lo, raw), max(hi, raw)]
                     w["cal"].configure(text=f"Done ({self.calibrating[i][0]}-{self.calibrating[i][1]})")
+        # The virtual pedal's view of the display, labels and LEDs
+        self.pedal_tick += 1
+        if self.pedal_supported and self.pedal_tick % PEDAL_STATE_EVERY == 0:
+            try:
+                self._pedal_show(self.live.get_state(timeout=0.3))
+            except (DeviceTimeout, ValueError):
+                pass
         self.after(60, self._live_poll)
+
+    # --- Virtual Pedal tab --------------------------------------------------------
+    def _setup_pedal_tab(self):
+        tab = self.tabview.tab("Virtual Pedal")
+        frame = ctk.CTkFrame(tab, fg_color="transparent")
+        frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        ctk.CTkLabel(
+            frame,
+            text="Try the configuration without a foot on the pedal. Click a switch to tap it, "
+            "hold the mouse button down for a long press, click twice quickly for a double press. "
+            "The display, labels and LEDs below are read back from the pedal itself.",
+            text_color="gray",
+            wraplength=760,
+            justify="left",
+        ).pack(anchor="w", pady=(0, 10))
+
+        top = ctk.CTkFrame(frame, fg_color="transparent")
+        top.pack(anchor="w", pady=(0, 14))
+        self.btn_pedal_live = ctk.CTkButton(top, text="Connect", width=150, command=self._live_toggle)
+        self.btn_pedal_live.pack(side="left")
+        self.lbl_pedal_live = ctk.CTkLabel(top, text="not connected", text_color="gray")
+        self.lbl_pedal_live.pack(side="left", padx=10)
+
+        body = ctk.CTkFrame(frame, fg_color=PEDAL_BODY, corner_radius=18)
+        body.pack(anchor="w", padx=4)
+
+        # The pedal's display
+        screen = ctk.CTkFrame(body, fg_color=PEDAL_SCREEN, corner_radius=6,
+                              border_width=2, border_color="#3a3a3c")
+        screen.grid(row=0, column=0, columnspan=5, pady=(22, 10))
+        self.pedal_bank = ctk.CTkLabel(screen, text="--", width=380, font=("Courier", 36, "bold"),
+                                       text_color=PEDAL_SCREEN_TEXT)
+        self.pedal_bank.pack(padx=16, pady=(12, 0))
+        self.pedal_info = ctk.CTkLabel(screen, text="not connected", font=("Courier", 13),
+                                       text_color="#7d8b96")
+        self.pedal_info.pack(padx=16, pady=(0, 12))
+
+        self.pedal_widgets = {}
+        self.pedal_shown = {}
+        for r, row in enumerate(PEDAL_LAYOUT):
+            for c, name in enumerate(row):
+                sid = VIRTUAL_SWITCHES.index(name)
+                cell = ctk.CTkFrame(body, fg_color="transparent")
+                # A gap sets the bank switches apart, as on the pedal
+                cell.grid(row=r + 1, column=c, padx=(34 if c == 4 else 14, 22 if c == 4 else 14),
+                          pady=(10, 22 if r == 1 else 4))
+                led = ctk.CTkLabel(cell, text="", width=16, height=16, corner_radius=8,
+                                   fg_color=led_color(0))
+                led.pack(pady=(0, 8))
+                switch = ctk.CTkLabel(cell, text=PEDAL_BANK_CAPTIONS.get(name, name), width=76, height=76,
+                                      corner_radius=38, fg_color=PEDAL_SWITCH, text_color="white",
+                                      font=("Arial", 13, "bold"))
+                switch.pack()
+                ctk.CTkLabel(cell, text=name if name not in PEDAL_BANK_CAPTIONS else "",
+                             text_color="gray", font=("Arial", 11)).pack(pady=(4, 0))
+                switch.bind("<ButtonPress-1>", lambda _e, i=sid: self._pedal_press(i, True))
+                switch.bind("<ButtonRelease-1>", lambda _e, i=sid: self._pedal_press(i, False))
+                self.pedal_widgets[sid] = {"led": led, "switch": switch}
+
+        ctk.CTkLabel(
+            frame,
+            text="An orange ring marks a toggle button that is on. The LEDs follow the pedal's "
+            "own, dimmed and blinking ones included. A switch held here lets go by itself "
+            "after 10 seconds.",
+            text_color="gray",
+            wraplength=760,
+            justify="left",
+        ).pack(anchor="w", pady=(12, 0))
+
+    def _pedal_connection_changed(self, version):
+        """Reflect the shared live connection in the Virtual Pedal tab."""
+        if not hasattr(self, "lbl_pedal_live") or not self.lbl_pedal_live.winfo_exists():
+            return
+        if version is None:
+            self.lbl_pedal_live.configure(text="not connected", text_color="gray")
+            self.btn_pedal_live.configure(text="Connect")
+            self.pedal_bank.configure(text="--")
+            self.pedal_info.configure(text="not connected")
+            for sid, w in self.pedal_widgets.items():
+                w["led"].configure(fg_color=led_color(0))
+                w["switch"].configure(fg_color=PEDAL_SWITCH, border_width=0)
+            self.pedal_shown = {}
+            return
+        self.btn_pedal_live.configure(text="Disconnect")
+        if self.pedal_supported:
+            self.lbl_pedal_live.configure(text=f"connected, firmware {version}", text_color="gray")
+        else:
+            self.lbl_pedal_live.configure(
+                text=f"firmware {version} has no virtual pedal: update to 0.27 or later",
+                text_color="orange")
+
+    def _pedal_press(self, sid, down):
+        if self.live is None or not self.pedal_supported:
+            return
+        self.pedal_widgets[sid]["switch"].configure(fg_color=PEDAL_SWITCH_DOWN if down else PEDAL_SWITCH)
+        try:
+            self.live.press_button(sid, down, timeout=0.5)
+        except DeviceTimeout:
+            self.lbl_pedal_live.configure(text="the pedal did not answer", text_color="orange")
+
+    def _pedal_show(self, state):
+        """Paint what the pedal reports, touching only what changed."""
+        def update(key, value, apply):
+            if self.pedal_shown.get(key) != value:
+                self.pedal_shown[key] = value
+                apply(value)
+
+        update("bank", f"{state['bank']:>2}  {state['bank_name']}",
+               lambda v: self.pedal_bank.configure(text=v))
+        update("slot", f"configuration {state['slot'] + 1}",
+               lambda v: self.pedal_info.configure(text=v))
+        for sid, w in self.pedal_widgets.items():
+            update(("led", sid), led_color(state["leds"][sid]),
+                   lambda v, w=w: w["led"].configure(fg_color=v))
+            if sid < len(state["labels"]):
+                label = state["labels"][sid] or VIRTUAL_SWITCHES[sid]
+                update(("label", sid), label, lambda v, w=w: w["switch"].configure(text=v))
+                ring = 3 if state["toggles"][sid] else 0
+                update(("ring", sid), ring,
+                       lambda v, w=w: w["switch"].configure(border_width=v, border_color=PEDAL_TOGGLE_RING))
 
     def _calibrate_toggle(self, i):
         w = self.exp_widgets[i]

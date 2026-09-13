@@ -35,6 +35,14 @@ void sw_request_bank(uint8_t bank);
 // buttons whose command matches, without sending anything.
 void sw_feedback_message(const uint8_t *data);
 
+// Virtual pedal: press (down) or release a switch from the USB interrupt, as
+// SysEx PRESS_BUTTON does. 0-7 are the command switches, 8 Bank Down, 9 Bank
+// Up. Applied by handle_switches exactly like a foot on the switch.
+#define SW_VIRTUAL_BANK_DOWN	(8)
+#define SW_VIRTUAL_BANK_UP		(9)
+#define SW_VIRTUAL_COUNT		(10)
+void sw_virtual_press(uint8_t id, uint8_t down);
+
 // Per button/bank queries used by the display
 uint8_t sw_button_is_toggle(uint8_t bank, uint8_t sw);
 uint8_t sw_get_toggle_state(uint8_t bank, uint8_t sw);

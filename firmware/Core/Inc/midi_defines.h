@@ -51,6 +51,10 @@
 #define SYSEX_RSP_GET_PEDALS	(63) // per pedal: raw ADC high 7 bits, low 7 bits, current CC value
 #define SYSEX_CMD_SELECT_SLOT	(64) // one byte: slot 0-3 the next erase/write/read act on, 0x7F only asks
 #define SYSEX_RSP_SELECT_SLOT	(65) // target slot, active slot, bit mask of slots holding a configuration
+#define SYSEX_CMD_PRESS_BUTTON	(66) // switch 0-7 (1..4, A..D), 8 Bank Down, 9 Bank Up; then 1 down / 0 up
+#define SYSEX_RSP_PRESS_BUTTON	(67) // echoes the switch and the action
+#define SYSEX_CMD_GET_STATE	(68) // no parameters
+#define SYSEX_RSP_GET_STATE	(69) // bank, slot, toggles (low 7 bits, bit 7), bank name x4, labels 8x4, LED levels x10
 
 #define SYSEX_START (0xF0)
 #define SYSEX_END	(0xF7)

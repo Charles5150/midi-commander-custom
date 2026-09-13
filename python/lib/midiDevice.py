@@ -19,6 +19,14 @@ SYSEX_CMD_GET_PEDALS = 62
 SYSEX_RSP_GET_PEDALS = 63
 SYSEX_CMD_SELECT_SLOT = 64
 SYSEX_RSP_SELECT_SLOT = 65
+SYSEX_CMD_PRESS_BUTTON = 66
+SYSEX_RSP_PRESS_BUTTON = 67
+SYSEX_CMD_GET_STATE = 68
+SYSEX_RSP_GET_STATE = 69
+
+# Virtual pedal switch ids, in the firmware's order
+VIRTUAL_SWITCHES = ["1", "2", "3", "4", "A", "B", "C", "D", "DOWN", "UP"]
+LED_LEVELS = 16
 CONFIG_SLOTS = 4
 
 
@@ -28,6 +36,38 @@ class DeviceNotFound(Exception):
 
 class DeviceTimeout(Exception):
     pass
+
+
+def switch_id(button) -> int:
+    """A virtual switch id from 0-9 or a name: 1-4, A-D, DOWN, UP."""
+    if isinstance(button, int):
+        if 0 <= button < len(VIRTUAL_SWITCHES):
+            return button
+        raise ValueError(f"switch id out of range: {button}")
+    name = str(button).strip().upper()
+    if name not in VIRTUAL_SWITCHES:
+        raise ValueError(f"unknown switch: {button}")
+    return VIRTUAL_SWITCHES.index(name)
+
+
+def parse_state(data) -> dict:
+    """Decode a GET_STATE answer (the bytes after the response code)."""
+    data = list(data)
+    if len(data) < 50:
+        raise ValueError(f"state answer too short: {len(data)} bytes")
+
+    def text(chunk):
+        return "".join(chr(b) if 0x20 <= b <= 0x7E else " " for b in chunk).rstrip()
+
+    toggles = data[2] | (data[3] << 7)
+    return {
+        "bank": data[0],
+        "slot": data[1],
+        "toggles": [bool(toggles >> i & 1) for i in range(8)],
+        "bank_name": text(data[4:8]),
+        "labels": [text(data[8 + 4 * i : 12 + 4 * i]) for i in range(8)],
+        "leds": [min(v, LED_LEVELS) for v in data[40:50]],
+    }
 
 
 def version_at_least(version: str, major: int, minor: int) -> bool:
@@ -148,6 +188,17 @@ class MidiCommander:
         target, active, mask = data[0], data[1], data[2]
         valid = [s for s in range(CONFIG_SLOTS) if mask & (1 << s)]
         return target, active, valid
+
+    def press_button(self, button, down: bool, timeout=1.0):
+        """Press (down=True) or release a switch as if by foot (firmware 0.27)."""
+        sid = switch_id(button)
+        self.send([SYSEX_CMD_PRESS_BUTTON, sid, 1 if down else 0])
+        self.wait_for_sysex(SYSEX_RSP_PRESS_BUTTON, timeout)
+
+    def get_state(self, timeout=1.0) -> dict:
+        """Bank, slot, toggles, bank name, labels and LED levels (firmware 0.27)."""
+        self.send([SYSEX_CMD_GET_STATE])
+        return parse_state(self.wait_for_sysex(SYSEX_RSP_GET_STATE, timeout))
 
     def flash_report(self, timeout=1.0):
         """(flash size in kB the chip reports, double press storable), from the

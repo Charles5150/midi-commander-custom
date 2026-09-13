@@ -978,6 +978,54 @@ class DoublePressTest(unittest.TestCase):
         self.assertEqual((df["A_CommandType"] != "").sum(), 2)
 
 
+class VirtualPedalTest(unittest.TestCase):
+    """SysEx PRESS_BUTTON and GET_STATE, as the configurator's virtual pedal uses them."""
+
+    def test_sysex_codes_match_firmware(self):
+        import re
+        from lib import midiDevice as md
+
+        path = os.path.join(os.path.dirname(HERE), "..", "firmware", "Core", "Inc", "midi_defines.h")
+        with open(path) as f:
+            text = f.read()
+        for name in ("SYSEX_CMD_PRESS_BUTTON", "SYSEX_RSP_PRESS_BUTTON",
+                     "SYSEX_CMD_GET_STATE", "SYSEX_RSP_GET_STATE"):
+            m = re.search(r"#define\s+" + name + r"\s+\((\d+)\)", text)
+            self.assertIsNotNone(m, name)
+            self.assertEqual(int(m.group(1)), getattr(md, name), name)
+
+    def test_switch_ids(self):
+        from lib.midiDevice import switch_id
+
+        self.assertEqual([switch_id(n) for n in ("1", "4", "a", "D", "down", "UP")], [0, 3, 4, 7, 8, 9])
+        self.assertEqual(switch_id(9), 9)
+        for bad in ("E", 10, -1, "5"):
+            with self.assertRaises(ValueError):
+                switch_id(bad)
+
+    def test_parse_state(self):
+        from lib.midiDevice import parse_state
+
+        data = [2, 1, 0b0010101, 1]                      # bank 2, slot 2, toggles 1,3,5 and D
+        data += list(b"FX  ")
+        for label in ("NORM", "REVS", "ALWY", "MOMT", "DIM ", "BLNK", "HALF", "NOFF"):
+            data += list(label.encode())
+        data += [16, 0, 4, 0, 16, 16, 0, 0, 0, 20]       # LED levels, one out of range
+        state = parse_state(data)
+        self.assertEqual(state["bank"], 2)
+        self.assertEqual(state["slot"], 1)
+        self.assertEqual(state["toggles"], [True, False, True, False, True, False, False, True])
+        self.assertEqual(state["bank_name"], "FX")
+        self.assertEqual(state["labels"][4], "DIM")
+        self.assertEqual(state["leds"], [16, 0, 4, 0, 16, 16, 0, 0, 0, 16])
+        with self.assertRaises(ValueError):
+            parse_state(data[:20])
+
+    def test_state_fits_the_sysex_buffer(self):
+        """Firmware answer: F0 7D code + 50 data bytes + F7 must fit its 64 byte buffer."""
+        self.assertLessEqual(3 + 4 + 4 + 8 * 4 + 10 + 1, 64)
+
+
 class PanicTest(unittest.TestCase):
     """Panic command: no parameters, code 0x80."""
 

@@ -27,6 +27,7 @@
 void leds_init(void);						// start the PWM timer, load brightness from config
 void leds_set(uint8_t led, uint8_t level);	// level 0..LEDS_LEVELS
 void leds_set_all(uint8_t level);
+uint8_t leds_get(uint8_t led);				// current level, 0 for an unknown id
 
 uint8_t leds_level_active(void);			// configured "on" level
 uint8_t leds_level_rest(void);				// configured "lit at rest" level

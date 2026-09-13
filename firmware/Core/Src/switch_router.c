@@ -17,11 +17,13 @@
 #include "leds.h"
 #include "sleep.h"
 #include "expression.h"
+#include "switch_router.h"
 
 void update_leds_on_bank_change(void);
 static void fire_bank_enter_cmds(uint8_t bank);
 static void apply_scene(uint8_t mask, uint8_t states);
 uint8_t sw_button_is_toggle(uint8_t bank, uint8_t sw);
+static bool switch_down(GPIO_TypeDef *port, uint16_t pin);
 
 /*
  * Creating some constant arrays for the switches that can be scanned and handled
@@ -886,7 +888,7 @@ static void handle_bank_switch(bank_press_t *bp, GPIO_TypeDef *port, uint16_t pi
 	if(!(*pChanged & pin)) return;
 	*pChanged &= ~pin;
 
-	if(!HAL_GPIO_ReadPin(port, pin)){
+	if(switch_down(port, pin)){
 		// Pressed: wait to see whether this becomes a long press
 		bp->press_tick = now;
 		bp->state = PRESS_PENDING;
@@ -1013,6 +1015,97 @@ static void apply_scene(uint8_t mask, uint8_t states){
 
 	if(pending_bank == 0xFF) pending_bank = saved_pending;
 	applying = false;
+}
+
+/*
+ * Virtual pedal. The configurator presses and releases switches over SysEx so
+ * a configuration can be tried without a foot on the pedal. A virtual press
+ * does not bypass anything: it marks the switch as held and raises the same
+ * change flag the switch scan raises, so short, long and double presses, the
+ * bank switches and the LEDs all behave exactly as with a real press.
+ *
+ * The USB interrupt only queues the request; handle_switches applies it. A
+ * virtual press left down (the configurator closed mid-press) lets go by
+ * itself after VIRTUAL_MAX_HOLD_MS.
+ */
+#define VIRTUAL_QUEUE_LEN		(16)
+#define VIRTUAL_MAX_HOLD_MS		(10000U)
+
+static uint8_t virtual_queue[VIRTUAL_QUEUE_LEN];	// id | 0x80 when down
+static volatile uint8_t virtual_head = 0;	// written by the USB interrupt only
+static volatile uint8_t virtual_tail = 0;	// written by the main loop only
+static uint16_t virtual_down = 0;			// bit per virtual switch id
+static uint32_t virtual_tick[SW_VIRTUAL_COUNT];
+
+void sw_virtual_press(uint8_t id, uint8_t down){
+	if(id >= SW_VIRTUAL_COUNT) return;
+	uint8_t next = (uint8_t)((virtual_head + 1) % VIRTUAL_QUEUE_LEN);
+	if(next == virtual_tail) return;
+	virtual_queue[virtual_head] = id | (down ? 0x80 : 0);
+	virtual_head = next;
+}
+
+static void virtual_pin(uint8_t id, GPIO_TypeDef **port, uint16_t *pin, volatile uint16_t **changed){
+	if(id < MIDI_NUM_SWITCHES){
+		*port = a_sw_obj[id].sw_gpio_port;
+		*pin = a_sw_obj[id].sw_gpio_pin;
+		*changed = a_sw_obj[id].pSwChangeState;
+	} else if(id == SW_VIRTUAL_BANK_DOWN){
+		*port = SW_E_GPIO_Port;
+		*pin = SW_E_Pin;
+		*changed = &port_A_switches_changed;
+	} else {
+		*port = SW_5_GPIO_Port;
+		*pin = SW_5_Pin;
+		*changed = &port_B_switches_changed;
+	}
+}
+
+static void virtual_set(uint8_t id, bool down){
+	uint16_t bit = (uint16_t)(1U << id);
+	if(((virtual_down & bit) != 0) == down) return;
+	if(down){
+		virtual_down |= bit;
+		virtual_tick[id] = HAL_GetTick();
+	} else {
+		virtual_down &= (uint16_t)~bit;
+	}
+	GPIO_TypeDef *port;
+	uint16_t pin;
+	volatile uint16_t *changed;
+	virtual_pin(id, &port, &pin, &changed);
+	__disable_irq();	// the switch scan sets these flags from SysTick
+	*changed |= pin;
+	__enable_irq();
+	sleep_note_activity();
+}
+
+static void virtual_task(void){
+	while(virtual_tail != virtual_head){
+		uint8_t e = virtual_queue[virtual_tail];
+		virtual_tail = (uint8_t)((virtual_tail + 1) % VIRTUAL_QUEUE_LEN);
+		virtual_set(e & 0x7F, (e & 0x80) != 0);
+	}
+	uint32_t now = HAL_GetTick();
+	for(uint8_t id=0; id<SW_VIRTUAL_COUNT; id++){
+		if((virtual_down & (1U << id)) && (now - virtual_tick[id]) >= VIRTUAL_MAX_HOLD_MS){
+			virtual_set(id, false);
+		}
+	}
+}
+
+// A switch is down when a foot holds it or a virtual press does
+static bool switch_down(GPIO_TypeDef *port, uint16_t pin){
+	if(!HAL_GPIO_ReadPin(port, pin)) return true;
+	if(!virtual_down) return false;
+	for(uint8_t id=0; id<SW_VIRTUAL_COUNT; id++){
+		GPIO_TypeDef *p;
+		uint16_t n;
+		volatile uint16_t *c;
+		virtual_pin(id, &p, &n, &c);
+		if(p == port && n == pin) return (virtual_down >> id) & 1U;
+	}
+	return false;
 }
 
 /*
@@ -1164,6 +1257,8 @@ static void feedback_task(void){
 void handle_switches(void){
 	if(is_app_suspended) return;
 
+	virtual_task();
+
 	// A bank change asked for from interrupt context (incoming MIDI)
 	if(requested_bank != 0xFF){
 		uint8_t target = requested_bank;
@@ -1213,7 +1308,7 @@ void handle_switches(void){
 		if(*sw->pSwChangeState & sw->sw_gpio_pin){
 			*sw->pSwChangeState &= ~sw->sw_gpio_pin;
 
-			if(!HAL_GPIO_ReadPin(sw->sw_gpio_port, sw->sw_gpio_pin)){
+			if(switch_down(sw->sw_gpio_port, sw->sw_gpio_pin)){
 				// Switch Down
 				if(sw->press_state == PRESS_WAIT_SECOND){
 					// The second press of a double press
@@ -1275,7 +1370,7 @@ void handle_switches(void){
 				is_active = get_sw_toggle_state(&a_sw_obj[i]);
 			} else {
 				// Momentary Mode: Active if physically pressed
-				if(!HAL_GPIO_ReadPin(a_sw_obj[i].sw_gpio_port, a_sw_obj[i].sw_gpio_pin)){
+				if(switch_down(a_sw_obj[i].sw_gpio_port, a_sw_obj[i].sw_gpio_pin)){
 					is_active = 1;
 				}
 			}
@@ -1294,7 +1389,7 @@ void handle_switches(void){
 	// SW_E is Bank Down, SW_5 is Bank Up
 	
 	// Bank Down Switch State
-	uint8_t sw_e_down = !HAL_GPIO_ReadPin(SW_E_GPIO_Port, SW_E_Pin);
+	uint8_t sw_e_down = switch_down(SW_E_GPIO_Port, SW_E_Pin);
 	// Only update loop if blink is needed or change happened?
 	// To support Blink, we should update if mode is 2 and sw is down
 	if(bank_down_mode == 2 && sw_e_down) {
@@ -1303,7 +1398,7 @@ void handle_switches(void){
 	}
 
 	// Bank Up Switch State
-	uint8_t sw_5_down = !HAL_GPIO_ReadPin(SW_5_GPIO_Port, SW_5_Pin);
+	uint8_t sw_5_down = switch_down(SW_5_GPIO_Port, SW_5_Pin);
 	if(bank_up_mode == 2 && sw_5_down) {
 		uint8_t state = calculate_led_state(1, bank_up_mode);
 		leds_set(LED_ID_BANK_UP, state);
