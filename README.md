@@ -103,7 +103,7 @@ On macOS with Homebrew Python, the GUI also needs Tk: `brew install python-tk`.
 .venv/bin/python python/gui_configurator.py
 ```
 
-Connect the pedal in normal mode (not DFU), click **Read from Device** to load what it currently holds, edit, then **FLASH TO DEVICE**. The next section walks through the configurator.
+Connect the pedal in normal mode (not DFU), click **Read from Device** to load what it currently holds, edit, then **Flash to Device**. The next section walks through the configurator.
 
 ---
 
@@ -113,35 +113,36 @@ Connect the pedal in normal mode (not DFU), click **Read from Device** to load w
 
 <img src="docs/images/gui_workflow.png" width="500">
 
-**Sidebar**
+**Sidebar.** Two groups, the file and the pedal, with the name of the open file at the bottom.
 
-- **Load CSV** opens a configuration file. `python/demo-all-features.csv` is loaded at start, so every feature is there to look at straight away.
-- **Read from Device** pulls the configuration stored on the connected pedal into a CSV you choose, and loads it.
-- **Save CSV** writes the current settings to the open file.
-- **FLASH TO DEVICE** saves the CSV, transfers it to the pedal and reboots it.
-- **Slot** chooses which of the four configuration slots Read from Device and FLASH TO DEVICE use. `Active` means the one the pedal is running. Flashing one slot never touches the others.
+- **File: Load CSV** opens a configuration file. `python/demo-all-features.csv` is loaded at start, so every feature is there to look at straight away. **Save CSV** writes the current settings to the open file.
+- **Pedal: Slot** chooses which of the four configuration slots the two buttons below it use. `Active` means the one the pedal is running; flashing one slot never touches the others. **Read from Device** pulls that configuration from the connected pedal into a CSV you choose, and loads it. **Flash to Device**, the one red button, saves the CSV, transfers it to the pedal and reboots it.
 
-**Global Settings** — MIDI channel, config name, expression pedal CC numbers, bank LED modes, realtime passthrough, USB MIDI thru, remember state and the long press time. Bounded settings are drop-downs or check boxes; numbers are limited to their valid range. See the [reference](#global_settings).
+The tabs follow the order a configuration is usually built in. Each starts with a one line summary; the **?** next to it opens the details.
 
-**Button Config** — pick a bank, then a button. At the top you set its **display label** and **LED light mode**; below, ten command slots A–J. Choose a slot's command type and only the fields that type uses appear. **Short press / Long press** switches the slots between the two command sets of the button. Edits are kept in memory automatically when you switch button, bank or tab. **Copy bank** and **Paste bank** duplicate a whole bank onto another: labels, LED modes, short and long press commands and the commands sent on entering the bank. The target becomes identical to the source, so anything it had that the source does not is removed, and its name is kept, since a copy is usually the start of a variant. Pasting asks for confirmation first.
+**Buttons** — pick a bank, then a button from the eight laid out as on the pedal, 1 to 4 on top and A to D below; the one being edited is highlighted. At the top you set its **display label** and **LED light mode**; below, ten command slots A–J. Choose a slot's command type and only the fields that type uses appear. **Short press / Long press / Double press** switches the slots between the three command sets of the button. Edits are kept in memory automatically when you switch button, bank or tab. **Copy bank** and **Paste bank** duplicate a whole bank onto another: labels, LED modes, short, long and double press commands and the commands sent on entering the bank. The target becomes identical to the source, so anything it had that the source does not is removed, and its name is kept, since a copy is usually the start of a variant. Pasting asks for confirmation first.
 
 <img src="docs/images/gui_button_config.png" width="500">
 
-**Bank Names** — the 4 character name and 8 character info line of each bank.
+**Banks** — the 4 character name and 8 character info line of each bank.
 
-**Bank Enter** — the commands each bank sends when you switch to it. **SysEx** — the sixteen stored SysEx messages, with the byte count or a parse warning as you type.
+**Bank Enter** — the commands each bank sends when you switch to it.
 
-**Bank Switch** — the command lists of the Bank Down and Bank Up switches, one per switch and press length. Combine it with `Bank_Switch_Mode` in Global Settings.
-
-**Setlist** — the order Bank Up / Down follow when `Setlist_Mode` is on, one drop-down per position listing every bank by number and name. The list ends at the first empty row.
+**Bank Switch** — the command lists of the Bank Down and Bank Up switches, one per switch and press length. Combine it with **Bank switches** (`Bank_Switch_Mode`) in the Global tab.
 
 <img src="docs/images/gui_bank_switch.png" width="500">
+
+**Setlist** — the order Bank Up / Down follow when **Follow the setlist** (`Setlist_Mode`) is on, one drop-down per position listing every bank by number and name. The list ends at the first empty row.
+
+**Expression** — per pedal: end points, response curve, invert, channel and the toe and heel switches. **Connect live view** shows the pedal position and the CC being sent, read from the pedal in real time. To calibrate: press **Calibrate**, sweep the pedal slowly from heel to toe and back a couple of times, press **Done**; the end points are filled in with a small margin so 0 and 127 are always reached.
+
+**SysEx** — the sixteen stored SysEx messages, with the byte count or a parse warning as you type.
+
+**Global** — the global settings in groups: Configuration, Presses, LEDs, Banks, USB MIDI and Power. Each setting has a plain name, a short hint and, in small print, its label in the CSV, which is the name the [reference](#global_settings) uses. Bounded settings are drop-downs or check boxes; numbers are limited to their valid range.
 
 **Virtual Pedal** — the pedal as it is right now, laid out like its board: five switches a row with Bank Up and Down at the right, each LED at its real brightness, blinking and dimmed ones included, and between the rows the pedal's screen, mirrored pixel for pixel, so overlays and inverted toggle cells show exactly as on the pedal. Click a switch to tap it, hold the mouse button for a long press, click twice quickly for a double press. The press goes through exactly the same path as a foot, so long and double presses, the bank switches and everything they send behave as on the pedal. A switch held here lets go by itself after 10 seconds. Shares the Expression tab's connection; needs firmware 0.27.
 
 <img src="docs/images/gui_virtual_pedal.png" width="500">
-
-**Expression** — per pedal: end points, response curve, invert, channel. **Connect live view** shows the pedal position and the CC being sent, read from the pedal in real time. To calibrate: press **Calibrate**, sweep the pedal slowly from heel to toe and back a couple of times, press **Done**; the end points are filled in with a small margin so 0 and 127 are always reached.
 
 ---
 
@@ -374,7 +375,7 @@ Firmware versions are shown on the display at boot and reported by the tools.
 - **0.25 — LEDs that follow the computer.** `LED_Feedback` (global byte 35) lets a CC, Note On or Note Off arriving over USB set the toggle buttons that send it, in every bank and in the long press list, without sending anything. A CC is on when nearer the `OnValue` than the `OffValue`. The USB interrupt queues the message and the main loop applies it. The demo turns it on.
 - **0.24 — Four configurations.** The pedal keeps four configuration slots. Slot 1 stays at the address the configuration always had, so a pedal using only one behaves exactly as before; slots 2 to 4 follow the state journal and end at 256 kB. New `Bank` command modes `Config` and `NextConfig` switch between them from a button, waiting until every switch is released, flushing timed releases, starting the new configuration from bank 0 and showing its number and name. A new SysEx, `SELECT_SLOT` (64), chooses the slot the next erase, write and read act on and reports which slots hold a configuration; without it the tools act on the active slot, so older tools keep working. Writes are now bounds checked against the slot. `CSV_to_Flash.py` and `Flash_to_CSV.py` take `--slot`, and the configurator has a Slot selector. **The state journal changes format** to record the active slot, so the first boot after updating forgets the remembered bank and toggles once. Two bugs found on the way: expression pedal toe and heel switches started armed as if the pedal were at the heel, so a pedal resting past its toe threshold, such as an inverted pedal at rest, pressed its toe button at initialisation, which on batteries meant at every power on; they are now armed from the first real reading. And the tools reused a slot selected by an earlier run instead of the active one when no slot was given.
 - **0.23 — Scenes.** New `Scene` command type: one press sets any of the bank's toggle buttons on or off, pressing only those that are not already in the wanted state, so their commands, LEDs and display follow as if pressed by foot and a repeated scene is silent. Stored in two bytes of the command, written in the CSV as eight characters, `+`, `-` or `.`. A scene cannot recurse into another, and a bank change queued by the scene's own button is held until it finishes. The configuration layout is unchanged.
-- **Configurator: copy and paste banks.** Copy bank and Paste bank in the Button Config tab duplicate everything that belongs to a bank onto another one, except its name, after a confirmation. The logic lives in `python/lib/bankClipboard.py` and is covered by tests that pack the result and check the target bank's bytes match the source and nothing outside it moved. No firmware change.
+- **Configurator: copy and paste banks.** Copy bank and Paste bank in the Buttons tab duplicate everything that belongs to a bank onto another one, except its name, after a confirmation. The logic lives in `python/lib/bankClipboard.py` and is covered by tests that pack the result and check the target bank's bytes match the source and nothing outside it moved. No firmware change.
 - **0.22 — See relative CC values.** A `CCInc` button used to change a value nobody could see. The CC number and the value just sent now replace the bank's info line for a second and a half, as `CC7=69`, or `C120=127` for three digit CC numbers so it still fits. Firmware only: the configuration is unchanged.
 - **0.21 — Panic.** New `Panic` command type: All Sound Off and All Notes Off on all sixteen channels, to USB and DIN, packed into two USB packets and two serial buffers so a single press cannot exhaust the transmit buffers. A command type only, so the configuration layout is unchanged and 0.20 configurations need no re-flash.
 - **0.20 — Follow the host's clock.** `Clock_Follow` makes the pedal measure the MIDI clock arriving over USB over two beats and adopt its tempo, shown on the display as `EXT` and a tempo for 1.5 seconds when it is picked up or changes. While the host's clock runs the pedal never adds a second clock to the stream: it stays silent when realtime passthrough already forwards the host's clock to DIN, and re-clocks DIN at the host's tempo when it does not. When the host's clock stops, the pedal's own clock, if running, carries on at the tempo it adopted, so a looper behind it keeps time. A single byte in the global settings area, so nothing moves and configurations from 0.19 need no re-flash.

@@ -53,6 +53,90 @@ from lib import bankClipboard as bank_clipboard  # noqa: E402
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
 
+# --- Look -------------------------------------------------------------------
+# One palette and one type scale for the whole window. Blue is kept for actions,
+# red for the one that writes to the pedal, green for Apply; values sit in a
+# neutral grey so they no longer look like buttons.
+BG = "#1c1c1e"
+SIDEBAR_BG = "#161618"
+CARD = "#242426"
+CARD_EDGE = "#333336"
+CARD_RAISED = "#2c2c2e"
+FIELD = "#3a3a3c"
+FIELD_HOVER = "#48484a"
+FIELD_BUTTON = "#48484a"
+FIELD_BUTTON_HOVER = "#5a5a5e"
+ACCENT = "#0a84ff"
+ACCENT_HOVER = "#0071e3"
+DANGER = "#e5484d"
+DANGER_HOVER = "#c93b40"
+SUCCESS = "#2e9d57"
+SUCCESS_HOVER = "#257f46"
+TEXT = "#f2f2f7"
+MUTED = "#98989f"
+WARN = "#ff9f0a"
+
+FONT_TITLE = ("", 20, "bold")
+FONT_HEADING = ("", 15, "bold")
+FONT_BODY = ("", 13)
+FONT_SMALL = ("", 12)
+FONT_SECTION = ("", 11, "bold")
+
+
+def _apply_theme():
+    t = ctk.ThemeManager.theme
+
+    def both(widget, **kw):
+        for key, color in kw.items():
+            t[widget][key] = [color, color]
+
+    both("CTk", fg_color=BG)
+    both("CTkToplevel", fg_color=BG)
+    both("CTkFrame", fg_color=CARD, top_fg_color=CARD, border_color=CARD_EDGE)
+    both("CTkScrollableFrame", label_fg_color=CARD)
+    both("CTkButton", fg_color=ACCENT, hover_color=ACCENT_HOVER, text_color="#ffffff",
+         text_color_disabled="#6e6e73", border_color=CARD_EDGE)
+    both("CTkOptionMenu", fg_color=FIELD, button_color=FIELD_BUTTON,
+         button_hover_color=FIELD_BUTTON_HOVER, text_color=TEXT, text_color_disabled="#6e6e73")
+    both("CTkComboBox", fg_color=FIELD, border_color=FIELD_BUTTON, button_color=FIELD_BUTTON,
+         button_hover_color=FIELD_BUTTON_HOVER, text_color=TEXT)
+    both("CTkEntry", fg_color=FIELD, border_color=FIELD_BUTTON, text_color=TEXT)
+    both("CTkCheckBox", fg_color=ACCENT, hover_color=ACCENT_HOVER, border_color=FIELD_BUTTON_HOVER,
+         checkmark_color="#ffffff", text_color=TEXT)
+    both("CTkSegmentedButton", fg_color=FIELD, selected_color=ACCENT, selected_hover_color=ACCENT_HOVER,
+         unselected_color=FIELD, unselected_hover_color=FIELD_HOVER, text_color=TEXT)
+    both("CTkLabel", text_color=TEXT)
+    both("CTkProgressBar", fg_color=FIELD, progress_color=ACCENT, border_color=FIELD)
+    both("DropdownMenu", fg_color=CARD, hover_color=FIELD_HOVER, text_color=TEXT)
+
+
+_apply_theme()
+
+
+class Help(ctk.CTkFrame):
+    """A one line summary, with the full explanation behind a small "?" toggle."""
+
+    def __init__(self, master, summary, details=None, wraplength=780):
+        super().__init__(master, fg_color="transparent")
+        row = ctk.CTkFrame(self, fg_color="transparent")
+        row.pack(anchor="w", fill="x")
+        ctk.CTkLabel(row, text=summary, text_color=MUTED, font=FONT_BODY, justify="left",
+                     wraplength=wraplength).pack(side="left")
+        self.details = None
+        if details:
+            self.details = ctk.CTkLabel(self, text=details, text_color=MUTED, font=FONT_SMALL,
+                                        justify="left", wraplength=wraplength)
+            self.toggle = ctk.CTkButton(row, text="?", width=22, height=22, corner_radius=11,
+                                        fg_color=FIELD, hover_color=FIELD_HOVER, font=FONT_SECTION,
+                                        command=self._toggle)
+            self.toggle.pack(side="left", padx=8)
+
+    def _toggle(self):
+        if self.details.winfo_ismapped():
+            self.details.pack_forget()
+        else:
+            self.details.pack(anchor="w", pady=(4, 0))
+
 # Loaded at start: the demo covers every feature, so it doubles as the
 # reference for how anything is configured.
 DEFAULT_CSV = os.path.join(HERE, "demo-all-features.csv")
@@ -98,7 +182,7 @@ CMD_FIELDS = [
     "KeyMode_(Key)",
 ]
 
-BOLD = ("Arial", 12, "bold")
+BOLD = ("", 13, "bold")
 
 # Virtual pedal, drawn like the pedal: five switches a row, 1-4 and Bank Up on
 # top with their LEDs below, A-D and Bank Down underneath with their LEDs above,
@@ -111,7 +195,7 @@ PEDAL_TOP_SWITCH_Y, PEDAL_TOP_LED_Y = 95, 168
 PEDAL_BOT_LED_Y, PEDAL_BOT_SWITCH_Y = 422, 495
 PEDAL_SCREEN_ZOOM = 3
 PEDAL_SCREEN_CENTER = ((PEDAL_COL_X[1] + PEDAL_COL_X[2]) // 2, (PEDAL_TOP_LED_Y + PEDAL_BOT_LED_Y) // 2)
-PEDAL_BG = "#2b2b2b"            # the tab behind the pedal
+PEDAL_BG = "#242426"            # the tab behind the pedal (CARD)
 PEDAL_BODY = "#1c1c1e"
 PEDAL_BODY_EDGE = "#3a3a3c"
 PEDAL_RING = "#3a3a3c"
@@ -161,6 +245,45 @@ def to_int(val, default=0) -> int:
 
 def is_yes(val) -> bool:
     return clean(val).upper().startswith("Y")
+
+
+# Global settings, grouped by what they are about: (CSV label, name, hint)
+GLOBAL_GROUPS = [
+    ("Configuration", [
+        ("ConfigName", "Configuration name", "shown on the display at boot, 16 characters"),
+        ("MIDI_Channel", "MIDI channel", "used by the expression pedals"),
+        ("Exp1_CC", "Expression pedal 1 CC", "0-127"),
+        ("Exp2_CC", "Expression pedal 2 CC", "0-127"),
+    ]),
+    ("Presses", [
+        ("Long_Press_ms", "Long press after", "ms held, 100-2500"),
+        ("Double_Press_ms", "Double press within", "ms between presses, 100-1000"),
+        ("Remember_State", "Remember state", "come back in the last bank with every toggle as it was"),
+    ]),
+    ("LEDs", [
+        ("LED_Brightness", "Brightness", "% for a lit LED, 1-100"),
+        ("LED_Rest_Brightness", "Brightness at rest", "% for LEDs lit at rest by Reverse and AlwaysOn"),
+        ("Bank_Up_LED_Mode", "Bank Up LED", ""),
+        ("Bank_Down_LED_Mode", "Bank Down LED", ""),
+        ("LED_Feedback", "Follow the computer", "CC and notes from USB light the toggles that send them"),
+    ]),
+    ("Banks", [
+        ("Bank_Switch_Mode", "Bank switches", "what Bank Up / Down do, see the Bank Switch tab"),
+        ("Bank_Jump_Step", "Long press jumps", "banks, 1-31"),
+        ("Setlist_Mode", "Follow the setlist", "Bank Up / Down use the order in the Setlist tab"),
+        ("Bank_Change_Mode", "Change bank from MIDI", "an incoming PC or CC selects the bank"),
+        ("Bank_Change_Channel", "\u2026 listening on channel", ""),
+        ("Bank_Change_CC", "\u2026 with CC number", "when the mode is CC"),
+    ]),
+    ("USB MIDI", [
+        ("USB_MIDI_Thru", "USB to DIN thru", "forward notes, CC, PC and other devices' SysEx"),
+        ("RealTime_Passthrough", "Clock and transport thru", "forward Clock, Start, Continue and Stop"),
+        ("Clock_Follow", "Follow the host's clock", "adopt the tempo of MIDI clock from USB"),
+    ]),
+    ("Power", [
+        ("Sleep_After_Min", "Sleep after", "idle minutes before the display and LEDs go out, 0 = never"),
+    ]),
+]
 
 
 # --- Validated widgets ------------------------------------------------------
@@ -350,7 +473,7 @@ class SlotEditor:
             ctk.CTkLabel(
                 self.params,
                 text="(Tap sets the tempo, Clock starts/stops the MIDI clock)",
-                text_color="gray",
+                text_color=MUTED,
             ).pack(side="left", padx=8)
         elif cmd_type == "SysEx":
             self._label("String")
@@ -359,7 +482,7 @@ class SlotEditor:
             w.pack(side="left")
             self.widgets["sysexindex"] = w
             ctk.CTkLabel(self.params, text="(edit the bytes in the SysEx tab)",
-                         text_color="gray").pack(side="left", padx=8)
+                         text_color=MUTED).pack(side="left", padx=8)
         elif cmd_type == "Bank":
             self._label("Action")
             w = Option(self.params, BANK_MODES, self.initial.get("KeyMode_(Key)"), width=80,
@@ -376,7 +499,7 @@ class SlotEditor:
                 v = Option(self.params, CONFIG_SLOT_NAMES, self.initial.get("OnValue_(CC/PB)") or "1", width=60)
             elif mode == "NextConfig":
                 ctk.CTkLabel(self.params, text="(next slot holding a configuration)",
-                             text_color="gray").pack(side="left", padx=8)
+                             text_color=MUTED).pack(side="left", padx=8)
             else:
                 self._label("Banks")
                 v = IntEntry(self.params, 1, 31, self.initial.get("OnValue_(CC/PB)") or "8", width=55)
@@ -494,59 +617,62 @@ class MidiCommanderGUI(ctk.CTk):
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        # Sidebar
-        self.sidebar = ctk.CTkFrame(self, width=200, corner_radius=0)
+        # Sidebar: the file on the left of the workflow, the pedal on the right
+        self.sidebar = ctk.CTkFrame(self, width=210, corner_radius=0, fg_color=SIDEBAR_BG)
         self.sidebar.grid(row=0, column=0, sticky="nsew")
-        self.sidebar.grid_rowconfigure(5, weight=1)
+        self.sidebar.grid_columnconfigure(0, weight=1)
+        self.sidebar.grid_rowconfigure(20, weight=1)
 
-        ctk.CTkLabel(
-            self.sidebar,
-            text="Midi Commander\nConfigurator",
-            font=ctk.CTkFont(size=20, weight="bold"),
-        ).grid(row=0, column=0, padx=20, pady=(20, 10))
+        ctk.CTkLabel(self.sidebar, text="Midi Commander", font=FONT_TITLE).grid(
+            row=0, column=0, padx=20, pady=(22, 0), sticky="w")
+        ctk.CTkLabel(self.sidebar, text="Configurator", font=FONT_BODY, text_color=MUTED).grid(
+            row=1, column=0, padx=20, pady=(0, 18), sticky="w")
 
-        ctk.CTkButton(self.sidebar, text="Load CSV", command=self.load_csv).grid(
-            row=1, column=0, padx=20, pady=10
-        )
-        ctk.CTkButton(
-            self.sidebar, text="Read from Device", command=self.read_device
-        ).grid(row=2, column=0, padx=20, pady=10)
-        ctk.CTkButton(self.sidebar, text="Save CSV", command=self.save_csv).grid(
-            row=3, column=0, padx=20, pady=10
-        )
-        ctk.CTkButton(
-            self.sidebar,
-            text="FLASH TO DEVICE",
-            fg_color="red",
-            hover_color="darkred",
-            command=self.flash_device,
-        ).grid(row=4, column=0, padx=20, pady=20)
+        def section(row, text):
+            ctk.CTkLabel(self.sidebar, text=text, font=FONT_SECTION, text_color=MUTED).grid(
+                row=row, column=0, padx=20, pady=(14, 4), sticky="w")
 
-        # Configuration slot used by Read from Device and FLASH TO DEVICE
+        def action(row, text, command, **kw):
+            b = ctk.CTkButton(self.sidebar, text=text, command=command, height=34, **kw)
+            b.grid(row=row, column=0, padx=20, pady=4, sticky="ew")
+            return b
+
+        section(2, "FILE")
+        action(3, "Load CSV\u2026", self.load_csv, fg_color=FIELD, hover_color=FIELD_HOVER)
+        action(4, "Save CSV", self.save_csv, fg_color=FIELD, hover_color=FIELD_HOVER)
+
+        section(5, "PEDAL")
+        # Configuration slot used by Read from Device and Flash to Device
         slot_row = ctk.CTkFrame(self.sidebar, fg_color="transparent")
-        slot_row.grid(row=5, column=0, padx=20, pady=(0, 10))
-        ctk.CTkLabel(slot_row, text="Slot").pack(side="left", padx=(0, 8))
-        self.slot_selector = ctk.CTkOptionMenu(slot_row, values=SLOT_TARGETS, width=90)
+        slot_row.grid(row=6, column=0, padx=20, pady=4, sticky="ew")
+        ctk.CTkLabel(slot_row, text="Slot", font=FONT_BODY).pack(side="left")
+        self.slot_selector = ctk.CTkOptionMenu(slot_row, values=SLOT_TARGETS, width=100)
         self.slot_selector.set("Active")
-        self.slot_selector.pack(side="left")
+        self.slot_selector.pack(side="right")
+        action(7, "Read from Device", self.read_device, fg_color=FIELD, hover_color=FIELD_HOVER)
+        action(8, "Flash to Device", self.flash_device, fg_color=DANGER, hover_color=DANGER_HOVER,
+               font=("", 13, "bold"))
+
+        self.lbl_file = ctk.CTkLabel(self.sidebar, text="no file loaded", font=FONT_SMALL,
+                                     text_color=MUTED, wraplength=170, justify="left")
+        self.lbl_file.grid(row=21, column=0, padx=20, pady=(0, 18), sticky="sw")
 
         # Tabs
-        self.tabview = ctk.CTkTabview(self, width=900)
-        self.tabview.grid(row=0, column=1, padx=(20, 0), pady=(20, 0), sticky="nsew")
-        self.tabview.add("Global Settings")
-        self.tabview.add("Button Config")
-        self.tabview.add("Virtual Pedal")
-        self.tabview.add("Bank Names")
-        self.tabview.add("Expression")
-        self.tabview.add("Bank Enter")
-        self.tabview.add("SysEx")
-        self.tabview.add("Bank Switch")
-        self.tabview.add("Setlist")
+        self.tabview = ctk.CTkTabview(self, width=900, fg_color=CARD, segmented_button_fg_color=FIELD,
+                                      segmented_button_selected_color=ACCENT,
+                                      segmented_button_selected_hover_color=ACCENT_HOVER,
+                                      segmented_button_unselected_color=FIELD,
+                                      segmented_button_unselected_hover_color=FIELD_HOVER)
+        self.tabview.grid(row=0, column=1, padx=16, pady=(12, 16), sticky="nsew")
+        # In the order a configuration is usually built
+        for name in ("Buttons", "Banks", "Bank Enter", "Bank Switch", "Setlist",
+                     "Expression", "SysEx", "Global", "Virtual Pedal"):
+            self.tabview.add(name)
 
-        self.global_scroll = ctk.CTkScrollableFrame(self.tabview.tab("Global Settings"))
+        self.global_scroll = ctk.CTkScrollableFrame(self.tabview.tab("Global"))
         self.global_scroll.pack(fill="both", expand=True)
 
-        self.bank_scroll = ctk.CTkScrollableFrame(self.tabview.tab("Bank Names"))
+        self.bank_scroll = ctk.CTkScrollableFrame(self.tabview.tab("Banks"))
         self.bank_scroll.pack(fill="both", expand=True)
 
         self._setup_button_tab()
@@ -563,27 +689,31 @@ class MidiCommanderGUI(ctk.CTk):
 
     # --- Button tab layout ----------------------------------------------------
     def _setup_button_tab(self):
-        tab = self.tabview.tab("Button Config")
+        tab = self.tabview.tab("Buttons")
         tab.grid_columnconfigure(1, weight=1)
-        tab.grid_rowconfigure(1, weight=1)
+        tab.grid_rowconfigure(2, weight=1)
 
-        top = ctk.CTkFrame(tab, height=40)
+        top = ctk.CTkFrame(tab, height=40, fg_color="transparent")
         top.grid(row=0, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
         ctk.CTkLabel(top, text="Bank:").pack(side="left", padx=10)
         self.bank_selector = ctk.CTkOptionMenu(top, command=self.on_bank_change, width=80)
         self.bank_selector.pack(side="left", padx=10)
-        ctk.CTkButton(top, text="Copy bank", width=100, command=self.copy_bank).pack(side="left", padx=(20, 6))
+        ctk.CTkButton(top, text="Copy bank", width=100, command=self.copy_bank,
+                      fg_color=FIELD, hover_color=FIELD_HOVER).pack(side="left", padx=(20, 6))
         self.paste_bank_button = ctk.CTkButton(
-            top, text="Paste bank", width=160, command=self.paste_bank, state="disabled"
+            top, text="Paste bank", width=160, command=self.paste_bank, state="disabled",
+            fg_color=FIELD, hover_color=FIELD_HOVER
         )
         self.paste_bank_button.pack(side="left", padx=6)
 
-        self.button_matrix = ctk.CTkFrame(tab, width=130)
-        self.button_matrix.grid(row=1, column=0, sticky="ns", padx=(5, 0), pady=5)
+        # The eight buttons laid out as on the pedal: 1-4 on top, A-D below
+        self.button_matrix = ctk.CTkFrame(tab, fg_color="transparent")
+        self.button_matrix.grid(row=1, column=0, columnspan=2, sticky="w", padx=5, pady=(0, 4))
+        self.button_widgets = {}
 
-        self.cmd_editor = ctk.CTkScrollableFrame(tab)
-        self.cmd_editor.grid(row=1, column=1, sticky="nsew", padx=5, pady=5)
-        ctk.CTkLabel(self.cmd_editor, text="Select a button to edit", font=("Arial", 16)).pack(
+        self.cmd_editor = ctk.CTkScrollableFrame(tab, fg_color=CARD_RAISED, corner_radius=10)
+        self.cmd_editor.grid(row=2, column=0, columnspan=2, sticky="nsew", padx=5, pady=5)
+        ctk.CTkLabel(self.cmd_editor, text="Select a button to edit", font=FONT_HEADING, text_color=MUTED).pack(
             pady=10
         )
 
@@ -602,6 +732,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.current_csv_path = path
         self.editing_row = None
         self.slot_editors = []
+        self._show_file()
 
         if "Global_Settings" in data:
             self.df_global = data["Global_Settings"].astype(object).reset_index(drop=True)
@@ -749,6 +880,21 @@ class MidiCommanderGUI(ctk.CTk):
             self.bank_selector.set(banks[0])
             self.on_bank_change(banks[0])
 
+            # Show the first bank's and switch's commands straight away. The
+            # editors of a previous file must not be applied to this one.
+            self.enter_editors = []
+            self.enter_bank_selector.set(banks[0])
+            self._on_enter_bank_change(banks[0])
+            self.bank_switch_editors = []
+            self.bank_switch_row = None
+            self.bank_switch_selector.set(BANK_SWITCH_CHOICES[0])
+            self._on_bank_switch_change(BANK_SWITCH_CHOICES[0])
+
+    def _show_file(self):
+        if hasattr(self, "lbl_file"):
+            name = os.path.basename(self.current_csv_path) if self.current_csv_path else "no file loaded"
+            self.lbl_file.configure(text=name)
+
     def _pad_banks(self, df):
         """Ensure one Bank_Naming row per bank, in order."""
         rows = {clean(r["Bank_Number"]): r for _, r in df.iterrows()}
@@ -800,77 +946,64 @@ class MidiCommanderGUI(ctk.CTk):
             w.destroy()
         self.global_widgets = {}
 
-        for row, (idx, r) in enumerate(self.df_global.iterrows()):
-            label = str(r["Label"])
-            value = r["Value"]
-            ctk.CTkLabel(self.global_scroll, text=label).grid(
-                row=row, column=0, padx=10, pady=5, sticky="e"
-            )
+        by_label = {str(r["Label"]): (idx, r["Value"]) for idx, r in self.df_global.iterrows()}
+        known = {label for _, items in GLOBAL_GROUPS for label, _, _ in items}
+        groups = list(GLOBAL_GROUPS)
+        others = [(label, label, "") for label in by_label if label not in known]
+        if others:
+            groups.append(("Other", others))
 
-            if label == "MIDI_Channel":
-                w = Option(self.global_scroll, CHANNELS, value, width=80)
-            elif label in ("RealTime_Passthrough", "USB_MIDI_Thru", "Remember_State", "Setlist_Mode", "Clock_Follow", "LED_Feedback"):
-                w = Check(self.global_scroll, text="", checked=is_yes(value))
-            elif label in ("Bank_Up_LED_Mode", "Bank_Down_LED_Mode"):
-                w = Option(self.global_scroll, LED_MODES, value, width=110)
-            elif label in ("Exp1_CC", "Exp2_CC"):
-                w = IntEntry(self.global_scroll, 0, 127, value, width=70)
-            elif label == "Long_Press_ms":
-                w = IntEntry(self.global_scroll, 100, 2500, value, width=70)
-            elif label == "Double_Press_ms":
-                w = IntEntry(self.global_scroll, 100, 1000, value, width=70)
-            elif label in ("LED_Brightness", "LED_Rest_Brightness"):
-                w = IntEntry(self.global_scroll, 1, 100, value, width=70)
-            elif label == "Bank_Jump_Step":
-                w = IntEntry(self.global_scroll, 1, 31, value, width=70)
-            elif label == "Bank_Change_Mode":
-                w = Option(self.global_scroll, ["Off", "PC", "CC"], value, width=80)
-            elif label == "Bank_Switch_Mode":
-                w = Option(self.global_scroll, BANK_SWITCH_MODES, value, width=110)
-            elif label == "Sleep_After_Min":
-                w = IntEntry(self.global_scroll, 0, 60, value, width=70)
-            elif label == "Bank_Change_Channel":
-                w = Option(self.global_scroll, ["Any"] + CHANNELS, value, width=80)
-            elif label == "Bank_Change_CC":
-                w = IntEntry(self.global_scroll, 0, 127, value, width=70)
-            elif label == "ConfigName":
-                w = TextEntry(self.global_scroll, 16, value, width=180)
-            else:
-                w = TextEntry(self.global_scroll, 64, value, width=180)
+        for title, items in groups:
+            present = [item for item in items if item[0] in by_label]
+            if not present:
+                continue
+            card = ctk.CTkFrame(self.global_scroll, fg_color=CARD_RAISED, corner_radius=10)
+            card.pack(fill="x", padx=8, pady=(4, 10))
+            card.grid_columnconfigure(1, minsize=200)   # hints line up from card to card
+            card.grid_columnconfigure(2, weight=1)
+            ctk.CTkLabel(card, text=title, font=FONT_HEADING).grid(
+                row=0, column=0, columnspan=3, sticky="w", padx=16, pady=(12, 4))
+            for i, (label, name, hint) in enumerate(present, start=1):
+                idx, value = by_label[label]
+                ctk.CTkLabel(card, text=name, font=FONT_BODY, anchor="w", width=200).grid(
+                    row=i, column=0, sticky="w", padx=(16, 8), pady=4)
+                w = self._global_widget(card, label, value)
+                w.grid(row=i, column=1, sticky="w", padx=8, pady=4)
+                detail = f"{hint}  \u00b7  {label}" if hint else label
+                ctk.CTkLabel(card, text=detail, font=FONT_SMALL, text_color=MUTED, anchor="w").grid(
+                    row=i, column=2, sticky="w", padx=(8, 16))
+                self.global_widgets[idx] = w
+            ctk.CTkFrame(card, height=8, fg_color="transparent").grid(row=len(present) + 1, column=0)
 
-            w.grid(row=row, column=1, padx=10, pady=5, sticky="w")
-            self.global_widgets[idx] = w
-
-        hints = {
-            "MIDI_Channel": "channel used by the expression pedals",
-            "RealTime_Passthrough": "forward Clock/Start/Continue/Stop from USB to DIN",
-            "USB_MIDI_Thru": "forward all other MIDI from USB to DIN",
-            "Remember_State": "restore the last bank and toggle states at power on",
-            "Long_Press_ms": "hold time that turns a press into a long press (100-2500 ms)",
-            "LED_Brightness": "brightness of a lit LED, 1-100 %",
-            "LED_Rest_Brightness": "brightness of LEDs lit at rest by Reverse/AlwaysOn, 1-100 %",
-            "Bank_Jump_Step": "banks skipped by a long press on Bank Up/Down (1-31)",
-            "Bank_Change_Mode": "let an incoming PC or CC select a bank",
-            "Bank_Change_Channel": "channel the pedal listens on for bank changes",
-            "Bank_Change_CC": "CC number that selects a bank, when the mode is CC",
-            "Bank_Switch_Mode": "what the Bank Up/Down switches do, see the Bank Switch tab",
-            "Sleep_After_Min": "idle minutes before the display and LEDs go out, 0 = never",
-            "Setlist_Mode": "Bank Up/Down follow the order in the Setlist tab",
-            "Clock_Follow": "follow the tempo of MIDI clock from USB instead of sending our own",
-            "LED_Feedback": "CC and notes from USB light the toggle buttons that send them",
-            "Double_Press_ms": "time for the second press of a double press (100-1000 ms)",
-            "ConfigName": "shown on the display at boot (16 chars)",
-            "Exp1_CC": "CC number sent by expression pedal 1 (0-127)",
-            "Exp2_CC": "CC number sent by expression pedal 2 (0-127)",
-            "Bank_Up_LED_Mode": "LED of the Bank Up button",
-            "Bank_Down_LED_Mode": "LED of the Bank Down button",
-        }
-        for row, (idx, r) in enumerate(self.df_global.iterrows()):
-            hint = hints.get(str(r["Label"]))
-            if hint:
-                ctk.CTkLabel(self.global_scroll, text=hint, text_color="gray").grid(
-                    row=row, column=2, padx=10, sticky="w"
-                )
+    def _global_widget(self, parent, label, value):
+        if label == "MIDI_Channel":
+            return Option(parent, CHANNELS, value, width=80)
+        if label in ("RealTime_Passthrough", "USB_MIDI_Thru", "Remember_State", "Setlist_Mode",
+                     "Clock_Follow", "LED_Feedback"):
+            return Check(parent, text="", checked=is_yes(value))
+        if label in ("Bank_Up_LED_Mode", "Bank_Down_LED_Mode"):
+            return Option(parent, LED_MODES, value, width=110)
+        if label in ("Exp1_CC", "Exp2_CC", "Bank_Change_CC"):
+            return IntEntry(parent, 0, 127, value, width=70)
+        if label == "Long_Press_ms":
+            return IntEntry(parent, 100, 2500, value, width=70)
+        if label == "Double_Press_ms":
+            return IntEntry(parent, 100, 1000, value, width=70)
+        if label in ("LED_Brightness", "LED_Rest_Brightness"):
+            return IntEntry(parent, 1, 100, value, width=70)
+        if label == "Bank_Jump_Step":
+            return IntEntry(parent, 1, 31, value, width=70)
+        if label == "Bank_Change_Mode":
+            return Option(parent, ["Off", "PC", "CC"], value, width=80)
+        if label == "Bank_Switch_Mode":
+            return Option(parent, BANK_SWITCH_MODES, value, width=110)
+        if label == "Sleep_After_Min":
+            return IntEntry(parent, 0, 60, value, width=70)
+        if label == "Bank_Change_Channel":
+            return Option(parent, ["Any"] + CHANNELS, value, width=80)
+        if label == "ConfigName":
+            return TextEntry(parent, 16, value, width=180)
+        return TextEntry(parent, 64, value, width=180)
 
     # --- Bank tab -------------------------------------------------------------------
     def populate_banks(self):
@@ -878,9 +1011,9 @@ class MidiCommanderGUI(ctk.CTk):
             w.destroy()
         self.bank_widgets = {}
 
-        ctk.CTkLabel(self.bank_scroll, text="Bank").grid(row=0, column=0)
-        ctk.CTkLabel(self.bank_scroll, text="Name (large, 4 chars)").grid(row=0, column=1)
-        ctk.CTkLabel(self.bank_scroll, text="Info (small, 8 chars)").grid(row=0, column=2)
+        for col, text in enumerate(("BANK", "NAME \u00b7 4 LARGE CHARACTERS", "INFO \u00b7 8 SMALL CHARACTERS")):
+            ctk.CTkLabel(self.bank_scroll, text=text, font=FONT_SECTION, text_color=MUTED).grid(
+                row=0, column=col, padx=(10, 16), pady=(8, 6), sticky="w")
 
         for row, (idx, r) in enumerate(self.df_banks.iterrows(), start=1):
             ctk.CTkLabel(self.bank_scroll, text=clean(r["Bank_Number"])).grid(
@@ -897,19 +1030,42 @@ class MidiCommanderGUI(ctk.CTk):
         self.apply_button_changes(silent=True)
         for w in self.button_matrix.winfo_children():
             w.destroy()
+        self.button_widgets = {}
 
         rows = self.df_buttons[
             self.df_buttons["Bank_Number"].map(clean) == clean(bank_val)
         ]
         for idx, row_data in rows.iterrows():
-            btn_id = clean(row_data["Button_Identifier"])
+            btn_id = clean(row_data["Button_Identifier"]).upper()
+            if btn_id not in BUTTON_IDS:
+                continue
+            pos = BUTTON_IDS.index(btn_id)
             label = clean(row_data.get("Label"))
-            ctk.CTkButton(
+            b = ctk.CTkButton(
                 self.button_matrix,
-                text=f"{btn_id}   {label}" if label else f"Button {btn_id}",
-                width=110,
+                text=f"{btn_id}\n{label}" if label else btn_id,
+                width=96,
+                height=52,
+                corner_radius=10,
+                font=BOLD,
+                fg_color=FIELD,
+                hover_color=FIELD_HOVER,
                 command=lambda rid=idx, bid=btn_id: self.load_button_commands(rid, bid),
-            ).pack(pady=5, padx=8)
+            )
+            b.grid(row=pos // 4, column=pos % 4, padx=4, pady=4)
+            self.button_widgets[btn_id] = b
+
+        # Keep the highlight when the button being edited belongs to this bank
+        editing = None
+        if self.editing_button is not None and self.editing_row in rows.index:
+            editing = self.editing_button[1]
+        self._highlight_button(editing)
+
+    def _highlight_button(self, btn_id):
+        for bid, b in self.button_widgets.items():
+            chosen = bid == btn_id
+            b.configure(fg_color=ACCENT if chosen else FIELD,
+                        hover_color=ACCENT_HOVER if chosen else FIELD_HOVER)
 
     # --- Copy and paste a whole bank -------------------------------------------------
     def copy_bank(self):
@@ -921,7 +1077,8 @@ class MidiCommanderGUI(ctk.CTk):
         bank = self.bank_selector.get()
         self.bank_clipboard = bank_clipboard.copy_bank(
             self.df_buttons, self.df_long, self.df_enter, bank, df_double=self.df_double)
-        self.paste_bank_button.configure(state="normal", text=f"Paste bank {clean(bank)} here")
+        self.paste_bank_button.configure(state="normal", text=f"Paste bank {clean(bank)} here",
+                                         fg_color=ACCENT, hover_color=ACCENT_HOVER)
 
     def paste_bank(self):
         if not self.bank_clipboard or self.df_buttons is None:
@@ -950,7 +1107,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.slot_editors = []
         for w in self.cmd_editor.winfo_children():
             w.destroy()
-        ctk.CTkLabel(self.cmd_editor, text="Select a button to edit", font=("Arial", 16)).pack(pady=10)
+        ctk.CTkLabel(self.cmd_editor, text="Select a button to edit", font=FONT_HEADING, text_color=MUTED).pack(pady=10)
         self.enter_editors = []
         self.on_bank_change(target)
         if self.enter_bank_selector.get():
@@ -996,6 +1153,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.slot_editors = []
         self.editing_row = row_index
         self.editing_button = (row_index, btn_id)
+        self._highlight_button(clean(btn_id).upper())
         self.label_entry = None
         self.light_mode = None
         long_mode = self.press_mode == "Long press"
@@ -1004,7 +1162,7 @@ class MidiCommanderGUI(ctk.CTk):
         ctk.CTkLabel(
             self.cmd_editor,
             text=f"Bank {self.bank_selector.get()} - Button {btn_id}",
-            font=("Arial", 16, "bold"),
+            font=FONT_HEADING,
         ).pack(anchor="w", padx=10, pady=(5, 5))
 
         current = self.df_buttons.loc[row_index]
@@ -1036,7 +1194,7 @@ class MidiCommanderGUI(ctk.CTk):
                 if double_mode
                 else "commands sent in order A to J when the button is pressed"
             ),
-            text_color="gray",
+            text_color=MUTED,
         ).pack(side="left", padx=10)
 
         if long_mode:
@@ -1050,15 +1208,11 @@ class MidiCommanderGUI(ctk.CTk):
             initial = {f: current.get(f"{slot}_{f}") for f in CMD_FIELDS}
             self.slot_editors.append(SlotEditor(table, slot, initial))
 
-        ctk.CTkLabel(
+        Help(
             self.cmd_editor,
-            text=(
-                "Dur = duration in 10 ms steps (0-127).  Bend = -8192..8191.  "
-                "BankSel = MIDI Bank Select sent before a PC (0..16383).  "
-                "Hold = key (or media key) stays pressed until the next press."
-            ),
-            text_color="gray",
-            justify="left",
+            "What Dur, Bend, BankSel and Hold mean.",
+            "Dur = duration in 10 ms steps (0-127). Bend = -8192..8191. BankSel = MIDI Bank Select "
+            "sent before a PC (0..16383). Hold = the key (or media key) stays pressed until the next press.",
             wraplength=720,
         ).pack(anchor="w", padx=10)
 
@@ -1066,8 +1220,8 @@ class MidiCommanderGUI(ctk.CTk):
             self.cmd_editor,
             text="Apply Changes to Memory",
             command=self.apply_button_changes,
-            fg_color="green",
-            hover_color="darkgreen",
+            fg_color=SUCCESS,
+            hover_color=SUCCESS_HOVER,
         ).pack(anchor="w", padx=10, pady=12)
 
     def apply_button_changes(self, silent=False):
@@ -1105,20 +1259,17 @@ class MidiCommanderGUI(ctk.CTk):
         self.exp_widgets = {}
         self.calibrating = {}
 
-        ctk.CTkLabel(
+        Help(
             self.exp_frame,
-            text="Calibration: connect the pedal, press Calibrate, move the pedal slowly "
-            "from heel to toe and back a couple of times, then press Done.",
-            text_color="gray",
-            wraplength=760,
-            justify="left",
+            "To calibrate: connect, press Calibrate, sweep the pedal from heel to toe and back a "
+            "couple of times, then press Done.",
         ).pack(anchor="w", pady=(0, 6))
 
         top = ctk.CTkFrame(self.exp_frame, fg_color="transparent")
         top.pack(anchor="w", pady=(0, 8))
         self.btn_live = ctk.CTkButton(top, text="Connect live view", width=150, command=self._live_toggle)
         self.btn_live.pack(side="left")
-        self.lbl_live = ctk.CTkLabel(top, text="not connected", text_color="gray")
+        self.lbl_live = ctk.CTkLabel(top, text="not connected", text_color=MUTED)
         self.lbl_live.pack(side="left", padx=10)
 
         for i, r in self.df_exp.iterrows():
@@ -1135,7 +1286,7 @@ class MidiCommanderGUI(ctk.CTk):
             w["bar"].pack(side="left", padx=4)
             w["cc"] = ctk.CTkLabel(head, text="CC --", width=60, anchor="w")
             w["cc"].pack(side="left", padx=4)
-            w["cal"] = ctk.CTkButton(head, text="Calibrate", width=90, state="disabled",
+            w["cal"] = ctk.CTkButton(head, text="Calibrate", width=90, state="disabled", fg_color=FIELD, hover_color=FIELD_HOVER,
                                      command=lambda i=i: self._calibrate_toggle(i))
             w["cal"].pack(side="left", padx=(10, 0))
 
@@ -1174,16 +1325,14 @@ class MidiCommanderGUI(ctk.CTk):
 
             self.exp_widgets[i] = w
 
-        ctk.CTkLabel(
+        Help(
             self.exp_frame,
-            text="Curve: Linear = proportional, Log = fast at the start, Exp = slow at the start. "
-            "Channel Global = MIDI_Channel from Global Settings. CC numbers are Exp1_CC / Exp2_CC.\n"
+            "How curves, channels and the toe and heel switches work.",
+            "Curve: Linear = proportional, Log = fast at the start, Exp = slow at the start. "
+            "Channel Global = MIDI channel from the Global tab. CC numbers are set in the Global tab.\n"
             "As a switch, reaching the toe or returning to the heel taps a button of the current "
             "bank, sending whatever that button is configured to send. Each direction re-arms only "
             "after the pedal moves back past the level, so resting on the edge does not retrigger.",
-            text_color="gray",
-            wraplength=760,
-            justify="left",
         ).pack(anchor="w", pady=(6, 0))
 
     def _live_toggle(self):
@@ -1201,7 +1350,7 @@ class MidiCommanderGUI(ctk.CTk):
             self.lbl_live.configure(text=f"connected, firmware {version}")
             self.btn_live.configure(text="Disconnect")
         for w in getattr(self, "exp_widgets", {}).values():
-            w["cal"].configure(state="normal")
+            w["cal"].configure(state="normal", fg_color=ACCENT, hover_color=ACCENT_HOVER)
         self.pedal_supported = version_at_least(version, 0, 27)
         self._pedal_connection_changed(version)
         self._live_poll()
@@ -1218,7 +1367,7 @@ class MidiCommanderGUI(ctk.CTk):
             self.lbl_live.configure(text="not connected")
             self.btn_live.configure(text="Connect live view")
             for w in getattr(self, "exp_widgets", {}).values():
-                w["cal"].configure(state="disabled", text="Calibrate")
+                w["cal"].configure(state="disabled", text="Calibrate", fg_color=FIELD, hover_color=FIELD_HOVER)
         self.pedal_supported = False
         if hasattr(self, "pedal_widgets"):
             self._pedal_connection_changed(None)
@@ -1267,17 +1416,14 @@ class MidiCommanderGUI(ctk.CTk):
         top.pack(anchor="w", pady=(0, 6))
         self.btn_pedal_live = ctk.CTkButton(top, text="Connect", width=150, command=self._live_toggle)
         self.btn_pedal_live.pack(side="left")
-        self.lbl_pedal_live = ctk.CTkLabel(top, text="not connected", text_color="gray")
+        self.lbl_pedal_live = ctk.CTkLabel(top, text="not connected", text_color=MUTED)
         self.lbl_pedal_live.pack(side="left", padx=10)
 
-        ctk.CTkLabel(
+        Help(
             frame,
-            text="Click a switch to tap it, hold the mouse button down for a long press, click twice "
-            "quickly for a double press. The display and the LEDs are the pedal's own, read back as "
-            "they are.",
-            text_color="gray",
-            wraplength=760,
-            justify="left",
+            "Click a switch to tap it, hold it for a long press, click twice quickly for a double press.",
+            "The display and the LEDs are the pedal's own, read back as they are. The press goes "
+            "through the same path as a foot. A switch held here lets go by itself after 10 seconds.",
         ).pack(anchor="w", pady=(0, 8))
 
         c = tk.Canvas(frame, width=PEDAL_W, height=PEDAL_H, bg=PEDAL_BG, highlightthickness=0)
@@ -1294,7 +1440,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.pedal_screen_image = None
         self.pedal_screen_item = c.create_image(cx, cy)
         self.pedal_screen_note = c.create_text(cx, cy, text="not connected", fill="#636366",
-                                               font=("Arial", 15))
+                                               font=FONT_BODY)
         self._pedal_draw_screen(None)
 
         self.pedal_widgets = {}
@@ -1315,7 +1461,7 @@ class MidiCommanderGUI(ctk.CTk):
                 cap = c.create_oval(x - 25, switch_y - 25, x + 25, switch_y + 25, fill=PEDAL_CAP,
                                     outline="#f2f2f7", tags=tag)
                 c.create_text(x, caption_y, text=PEDAL_CAPTIONS.get(name, name), fill="#aeaeb2",
-                              font=("Arial", 13, "bold"))
+                              font=BOLD)
                 glow = c.create_oval(x - 17, led_y - 17, x + 17, led_y + 17, fill=PEDAL_BODY, outline="")
                 c.create_oval(x - 10, led_y - 10, x + 10, led_y + 10, fill="#0f0f10", outline="#48484a")
                 lens = c.create_oval(x - 7, led_y - 7, x + 7, led_y + 7, fill=led_color(0), outline="")
@@ -1350,7 +1496,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.pedal_frame = None
         self.pedal_shown = {}
         if version is None:
-            self.lbl_pedal_live.configure(text="not connected", text_color="gray")
+            self.lbl_pedal_live.configure(text="not connected", text_color=MUTED)
             self.btn_pedal_live.configure(text="Connect")
             self._pedal_draw_screen(None)
             self.pedal_canvas.itemconfigure(self.pedal_screen_note, text="not connected", state="normal")
@@ -1360,12 +1506,12 @@ class MidiCommanderGUI(ctk.CTk):
             return
         self.btn_pedal_live.configure(text="Disconnect")
         if self.pedal_supported:
-            self.lbl_pedal_live.configure(text=f"connected, firmware {version}", text_color="gray")
+            self.lbl_pedal_live.configure(text=f"connected, firmware {version}", text_color=MUTED)
             self.pedal_canvas.itemconfigure(self.pedal_screen_note, state="hidden")
         else:
             self.lbl_pedal_live.configure(
                 text=f"firmware {version} has no virtual pedal: update to 0.27 or later",
-                text_color="orange")
+                text_color=WARN)
             self.pedal_canvas.itemconfigure(self.pedal_screen_note, text="firmware 0.27 needed")
 
     def _pedal_cap(self, w, down):
@@ -1384,7 +1530,7 @@ class MidiCommanderGUI(ctk.CTk):
         try:
             self.live.press_button(sid, down, timeout=0.5)
         except DeviceTimeout:
-            self.lbl_pedal_live.configure(text="the pedal did not answer", text_color="orange")
+            self.lbl_pedal_live.configure(text="the pedal did not answer", text_color=WARN)
 
     def _pedal_show(self, state):
         """Paint the LEDs the pedal reports, touching only what changed."""
@@ -1403,10 +1549,10 @@ class MidiCommanderGUI(ctk.CTk):
         w = self.exp_widgets[i]
         if i not in self.calibrating:
             self.calibrating[i] = [4095, 0]
-            w["cal"].configure(text="Done", fg_color="darkorange")
+            w["cal"].configure(text="Done", fg_color=WARN)
             return
         lo, hi = self.calibrating.pop(i)
-        w["cal"].configure(text="Calibrate", fg_color=["#3B8ED0", "#1F6AA5"])
+        w["cal"].configure(text="Calibrate", fg_color=ACCENT)
         if hi - lo < 200:
             messagebox.showwarning(
                 "Calibration", f"Pedal {i + 1} only moved {hi - lo} counts. Move it over its full range and try again."
@@ -1426,14 +1572,11 @@ class MidiCommanderGUI(ctk.CTk):
         tab = self.tabview.tab("Bank Enter")
         top = ctk.CTkFrame(tab, fg_color="transparent")
         top.pack(fill="x", padx=10, pady=(10, 4))
-        ctk.CTkLabel(
+        Help(
             top,
-            text="Commands sent once when a bank is entered, from any source: bank buttons, "
-            "a Bank command or an incoming MIDI message. Typically a Program Change that "
-            "selects the patch for the bank. No release is sent, and Bank commands are ignored.",
-            text_color="gray",
-            wraplength=780,
-            justify="left",
+            "Commands sent once whenever a bank is entered, typically a Program Change for its patch.",
+            "From any source: the bank switches, a Bank command or an incoming MIDI message. "
+            "No release is sent, and Bank commands are ignored here.",
         ).pack(anchor="w")
 
         sel = ctk.CTkFrame(tab, fg_color="transparent")
@@ -1480,17 +1623,13 @@ class MidiCommanderGUI(ctk.CTk):
         tab = self.tabview.tab("Bank Switch")
         top = ctk.CTkFrame(tab, fg_color="transparent")
         top.pack(fill="x", padx=10, pady=(10, 4))
-        ctk.CTkLabel(
+        Help(
             top,
-            text="Commands sent by the Bank Down and Bank Up switches themselves, the same "
-            "in every bank. Bank_Switch_Mode in Global Settings decides whether they also "
-            "change bank (Bank+MIDI), change bank silently (Bank) or stop changing bank "
-            "altogether (MIDI only), which turns the pedal into a ten switch controller. "
-            "Each list fires as a tap, press then release, so toggles flip once. Bank "
-            "commands are ignored here.",
-            text_color="gray",
-            wraplength=780,
-            justify="left",
+            "Commands sent by the Bank Down and Bank Up switches, the same in every bank.",
+            "Bank_Switch_Mode in the Global tab decides whether they also change bank (Bank+MIDI), "
+            "change bank silently (Bank) or stop changing bank altogether (MIDI only), which turns "
+            "the pedal into a ten switch controller. Each list fires as a tap, press then release, "
+            "so toggles flip once. Bank commands are ignored here.",
         ).pack(anchor="w")
 
         sel = ctk.CTkFrame(tab, fg_color="transparent")
@@ -1539,16 +1678,12 @@ class MidiCommanderGUI(ctk.CTk):
     # --- Setlist tab ---------------------------------------------------------------
     def _setup_setlist_tab(self):
         tab = self.tabview.tab("Setlist")
-        ctk.CTkLabel(
+        Help(
             tab,
-            text="The order Bank Up and Bank Down follow when Setlist_Mode is on in Global "
-            "Settings, instead of stepping through the bank numbers. Relative Bank commands "
-            "follow it too; GoTo still jumps to an exact bank. From a bank that is not in the "
-            "list, Up enters at the first entry and Down at the last. Up to 32 entries; the "
-            "list ends at the first empty row.",
-            text_color="gray",
-            wraplength=780,
-            justify="left",
+            "The order Bank Up and Bank Down follow when Follow the setlist is on in the Global tab.",
+            "Relative Bank commands follow it too; GoTo still jumps to an exact bank. From a bank "
+            "that is not in the list, Up enters at the first entry and Down at the last. Up to 32 "
+            "entries; the list ends at the first empty row.",
         ).pack(anchor="w", padx=10, pady=(10, 6))
         self.setlist_frame = ctk.CTkScrollableFrame(tab)
         self.setlist_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
@@ -1603,15 +1738,11 @@ class MidiCommanderGUI(ctk.CTk):
     # --- SysEx tab -----------------------------------------------------------------
     def _setup_sysex_tab(self):
         tab = self.tabview.tab("SysEx")
-        ctk.CTkLabel(
+        Help(
             tab,
-            text="Stored SysEx messages a SysEx command can send. Write the bytes in "
-            "hexadecimal as the device manual shows them; a leading F0 and trailing F7 "
-            "are optional and added when sending. Up to 23 data bytes, each 00-7F. "
-            "A line that cannot be parsed is stored empty and nothing is sent.",
-            text_color="gray",
-            wraplength=780,
-            justify="left",
+            "SysEx messages a SysEx command can send, in hexadecimal as the device manual shows them.",
+            "A leading F0 and trailing F7 are optional and added when sending. Up to 23 data bytes, "
+            "each 00-7F. A line that cannot be parsed is stored empty and nothing is sent.",
         ).pack(anchor="w", padx=10, pady=(10, 6))
         self.sysex_frame = ctk.CTkScrollableFrame(tab)
         self.sysex_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
@@ -1628,7 +1759,7 @@ class MidiCommanderGUI(ctk.CTk):
             src = rows.get(str(i))
             entry = TextEntry(line, 80, clean(src.get("Bytes")) if src is not None else "", width=430)
             entry.pack(side="left", padx=6)
-            status = ctk.CTkLabel(line, text="", text_color="gray", width=160, anchor="w")
+            status = ctk.CTkLabel(line, text="", text_color=MUTED, width=160, anchor="w")
             status.pack(side="left")
             self.sysex_widgets[i] = (entry, status)
             entry.bind("<KeyRelease>", lambda _e, n=i: self._sysex_status(n))
@@ -1638,13 +1769,13 @@ class MidiCommanderGUI(ctk.CTk):
         entry, status = self.sysex_widgets[i]
         text = entry.value().strip()
         if not text:
-            status.configure(text="", text_color="gray")
+            status.configure(text="", text_color=MUTED)
             return
         data = parse_sysex_bytes(text)
         if data:
-            status.configure(text=f"{len(data)} bytes", text_color="gray")
+            status.configure(text=f"{len(data)} bytes", text_color=MUTED)
         else:
-            status.configure(text="cannot be parsed", text_color="orange")
+            status.configure(text="cannot be parsed", text_color=WARN)
 
     def apply_sysex_changes(self):
         if self.df_sysex is None:
@@ -1684,6 +1815,7 @@ class MidiCommanderGUI(ctk.CTk):
             if not save_path:
                 return
             self.current_csv_path = save_path
+            self._show_file()
 
         self._collect()
         try:
