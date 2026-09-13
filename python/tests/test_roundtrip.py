@@ -991,3 +991,44 @@ class SceneTest(unittest.TestCase):
         self.assertEqual(scene("1"), ("Scene", "+++.++.."))
         self.assertEqual(scene("4"), ("Scene", "---.--.."))
         self.assertEqual(scene("A"), ("Scene", "+-+..-.."))
+
+
+class ConfigSlotCommandTest(unittest.TestCase):
+    """Bank command modes that switch configuration slot."""
+
+    @staticmethod
+    def pack(mode, value=""):
+        row = {f"A_{f}": "" for f in unpacker.CMD_FIELDS}
+        row["A_CommandType"] = "Bank"
+        row["A_KeyMode_(Key)"] = mode
+        row["A_OnValue_(CC/PB)"] = value
+        return bytes(cbp.pack_row(pd.Series(row)))[:4]
+
+    def test_config_goto(self):
+        for slot in (1, 2, 3, 4):
+            packed = self.pack("Config", str(slot))
+            self.assertEqual(list(packed), [0x43, slot - 1, 0, 0])
+            back = unpacker.unpack_command(packed)
+            self.assertEqual((back["KeyMode_(Key)"], back["OnValue_(CC/PB)"]), ("Config", str(slot)))
+
+    def test_config_slot_clamped(self):
+        self.assertEqual(list(self.pack("Config", "9")), [0x43, 3, 0, 0])
+        self.assertEqual(list(self.pack("Config", "")), [0x43, 0, 0, 0])
+
+    def test_next_config(self):
+        packed = self.pack("NextConfig")
+        self.assertEqual(list(packed), [0x44, 0, 0, 0])
+        back = unpacker.unpack_command(packed)
+        self.assertEqual((back["KeyMode_(Key)"], back["OnValue_(CC/PB)"]), ("NextConfig", ""))
+
+    def test_existing_modes_unchanged(self):
+        self.assertEqual(list(self.pack("GoTo", "12")), [0x40, 12, 0, 0])
+        self.assertEqual(list(self.pack("Up", "3")), [0x41, 3, 0, 0])
+        self.assertEqual(list(self.pack("Down", "8")), [0x42, 8, 0, 0])
+
+    def test_demo_has_next_config_on_long_home(self):
+        packed = packer.pack_config(read_config_csv(DEMO_CSV))
+        long_frame = unpacker.unpack_config(packed)[3]
+        row = long_frame[(long_frame["Bank_Number"].astype(str) == "10")
+                         & (long_frame["Button_Identifier"].astype(str) == "1")].iloc[0]
+        self.assertEqual((row["A_CommandType"], row["A_KeyMode_(Key)"]), ("Bank", "NextConfig"))

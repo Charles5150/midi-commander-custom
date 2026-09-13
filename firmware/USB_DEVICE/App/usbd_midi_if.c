@@ -124,7 +124,7 @@ void sysex_read_flash(uint8_t* data_packet_start){
 		return; // Out of range, ignore silently
 	}
 
-	uint8_t *src = pGlobalSettings + flash_byte_offset;
+	const uint8_t *src = flash_settings_target_base() + flash_byte_offset;
 	uint8_t *p = midi_msg_tx_buffer;
 
 	*(p++) = SYSEX_START;
@@ -138,6 +138,28 @@ void sysex_read_flash(uint8_t* data_packet_start){
 	}
 	*(p++) = SYSEX_END;
 
+	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
+}
+
+/*
+ * Choose which configuration slot the following erase, write and read act on.
+ * 0x7F (or any out of range value) changes nothing and only reports. The
+ * answer carries the target slot, the active one and which slots hold a
+ * configuration, so the tools can check before erasing anything.
+ */
+void sysex_select_slot(uint8_t* data_packet_start){
+	uint8_t slot = data_packet_start[0];
+	if(slot < CONFIG_SLOTS){
+		flash_settings_set_target(slot);
+	}
+	uint8_t *p = midi_msg_tx_buffer;
+	*(p++) = SYSEX_START;
+	*(p++) = MIDI_MANUF_ID;
+	*(p++) = SYSEX_RSP_SELECT_SLOT;
+	*(p++) = flash_settings_target_slot();
+	*(p++) = flash_settings_active_slot();
+	*(p++) = flash_settings_valid_mask() & 0x7F;
+	*(p++) = SYSEX_END;
 	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
 }
 
@@ -199,6 +221,12 @@ void process_sysex_message(void){
 		// F0 7D 56 hi lo F7 = 6 bytes minimum
 		if(sysex_rx_counter >= 6){
 			sysex_read_flash(&(pSysexHead->start_parameters));
+		}
+		break;
+	case SYSEX_CMD_SELECT_SLOT:
+		// F0 7D 64 slot F7 = 5 bytes
+		if(sysex_rx_counter >= 5){
+			sysex_select_slot(&(pSysexHead->start_parameters));
 		}
 		break;
 	case SYSEX_CMD_GET_VERSION:

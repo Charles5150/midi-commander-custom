@@ -61,7 +61,10 @@ SCENE_STATES = ["-", "On", "Off"]
 BANK_SWITCH_MODES = ["Bank", "Bank+MIDI", "MIDI only"]
 BANK_SWITCH_CHOICES = [f"{sw} / {pr}" for sw, pr in BANK_SWITCH_LISTS]
 CCINC_DIRECTIONS = ["Up", "Down"]
-BANK_MODES = ["GoTo", "Up", "Down"]
+BANK_MODES = ["GoTo", "Up", "Down", "Config", "NextConfig"]
+CONFIG_SLOT_NAMES = ["1", "2", "3", "4"]
+# Which configuration slot Read and Flash use; "Active" lets the pedal decide
+SLOT_TARGETS = ["Active"] + CONFIG_SLOT_NAMES
 BANKS = [str(i) for i in range(32)]
 MEDIA_NAMES = list(MEDIA_KEYS.keys())
 KEY_MODES = ["Normal", "Down", "Up"]
@@ -317,14 +320,23 @@ class SlotEditor:
                        command=lambda _v: self._rebuild("Bank"))
             w.pack(side="left")
             self.widgets["bankmode"] = w
-            if w.get() == "GoTo":
+            mode = w.get()
+            v = None
+            if mode == "GoTo":
                 self._label("Bank")
                 v = Option(self.params, BANKS, self.initial.get("OnValue_(CC/PB)"), width=70)
+            elif mode == "Config":
+                self._label("Slot")
+                v = Option(self.params, CONFIG_SLOT_NAMES, self.initial.get("OnValue_(CC/PB)") or "1", width=60)
+            elif mode == "NextConfig":
+                ctk.CTkLabel(self.params, text="(next slot holding a configuration)",
+                             text_color="gray").pack(side="left", padx=8)
             else:
                 self._label("Banks")
                 v = IntEntry(self.params, 1, 31, self.initial.get("OnValue_(CC/PB)") or "8", width=55)
-            v.pack(side="left")
-            self.widgets["bankvalue"] = v
+            if v is not None:
+                v.pack(side="left")
+                self.widgets["bankvalue"] = v
         elif cmd_type == "Media":
             self._label("Key")
             w = Option(self.params, MEDIA_NAMES, self.initial.get("OnValue_(CC/PB)"), width=130)
@@ -379,7 +391,7 @@ class SlotEditor:
             out["OnValue_(CC/PB)"] = w["media"].value()
         if cmd_type == "Bank":
             out["KeyMode_(Key)"] = w["bankmode"].value()
-            out["OnValue_(CC/PB)"] = w["bankvalue"].value()
+            out["OnValue_(CC/PB)"] = w["bankvalue"].value() if "bankvalue" in w else ""
         if cmd_type == "CCInc":
             out["KeyMode_(Key)"] = w["ccincdir"].value()
             out["OffValue_(CC)"] = w["step"].value()
@@ -460,6 +472,14 @@ class MidiCommanderGUI(ctk.CTk):
             hover_color="darkred",
             command=self.flash_device,
         ).grid(row=4, column=0, padx=20, pady=20)
+
+        # Configuration slot used by Read from Device and FLASH TO DEVICE
+        slot_row = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        slot_row.grid(row=5, column=0, padx=20, pady=(0, 10))
+        ctk.CTkLabel(slot_row, text="Slot").pack(side="left", padx=(0, 8))
+        self.slot_selector = ctk.CTkOptionMenu(slot_row, values=SLOT_TARGETS, width=90)
+        self.slot_selector.set("Active")
+        self.slot_selector.pack(side="left")
 
         # Tabs
         self.tabview = ctk.CTkTabview(self, width=900)
@@ -1428,6 +1448,11 @@ class MidiCommanderGUI(ctk.CTk):
         except Exception as e:  # noqa: BLE001
             messagebox.showerror("Error", f"Could not save CSV: {e}")
 
+    def _slot_args(self):
+        """--slot for the device tools, unless the pedal's active slot is wanted."""
+        choice = self.slot_selector.get()
+        return [] if choice == "Active" else ["--slot", choice]
+
     def _run_tool(self, script, *args):
         self._live_disconnect()
         cmd = [sys.executable, os.path.join(HERE, script), *args]
@@ -1447,7 +1472,7 @@ class MidiCommanderGUI(ctk.CTk):
         if not save_path:
             return
         try:
-            p = self._run_tool("Flash_to_CSV.py", save_path)
+            p = self._run_tool("Flash_to_CSV.py", save_path, *self._slot_args())
         except Exception as e:  # noqa: BLE001
             messagebox.showerror("Error", f"Failed to run read script: {e}")
             return
@@ -1488,7 +1513,7 @@ class MidiCommanderGUI(ctk.CTk):
             return
 
         try:
-            p = self._run_tool("CSV_to_Flash.py", self.current_csv_path, "--yes")
+            p = self._run_tool("CSV_to_Flash.py", self.current_csv_path, "--yes", *self._slot_args())
         except Exception as e:  # noqa: BLE001
             messagebox.showerror("Error", f"Failed to run flash script: {e}")
             return

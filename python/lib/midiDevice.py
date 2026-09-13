@@ -17,6 +17,9 @@ SYSEX_RSP_GET_VERSION = 59
 SYSEX_CMD_RESET = 60
 SYSEX_CMD_GET_PEDALS = 62
 SYSEX_RSP_GET_PEDALS = 63
+SYSEX_CMD_SELECT_SLOT = 64
+SYSEX_RSP_SELECT_SLOT = 65
+CONFIG_SLOTS = 4
 
 
 class DeviceNotFound(Exception):
@@ -117,6 +120,19 @@ class MidiCommander:
             hi, lo, cc = data[3 * i : 3 * i + 3]
             out.append(((hi << 7) | lo, cc))
         return out
+
+    def select_slot(self, slot=None, timeout=1.0):
+        """Choose the configuration slot (0-3) the next erase, write and read
+        act on, or with None only ask. Returns (target, active, valid_slots).
+
+        Raises DeviceTimeout on firmware older than 0.24, which has no slots.
+        """
+        code = 0x7F if slot is None else int(slot)
+        self.send([SYSEX_CMD_SELECT_SLOT, code & 0x7F])
+        data = self.wait_for_sysex(SYSEX_RSP_SELECT_SLOT, timeout)
+        target, active, mask = data[0], data[1], data[2]
+        valid = [s for s in range(CONFIG_SLOTS) if mask & (1 << s)]
+        return target, active, valid
 
     def read_chunk(self, chunk_index: int, timeout=1.0) -> bytes:
         hi = (chunk_index >> 7) & 0x7F

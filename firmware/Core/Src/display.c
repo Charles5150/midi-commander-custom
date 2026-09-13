@@ -184,6 +184,28 @@ void display_show_cc(uint8_t cc, uint8_t value){
 	show_overlay(msg);
 }
 
+void display_show_message(const char *msg){
+	show_overlay(msg);
+}
+
+void display_show_config(uint8_t slot){
+	char title[12];
+	snprintf(title, sizeof(title), "CONFIG %u", (unsigned)(slot + 1));
+
+	ssd1306_Fill(Black);
+	ssd1306_SetCursor(0, 8);
+	ssd1306_WriteString(title, Font_11x18, White);
+	ssd1306_SetCursor(0, 38);
+	for(int i=0; i<16; i++){
+		ssd1306_WriteChar((char)pGlobalSettings[16+i], Font_7x10, White);
+	}
+	ssd1306_UpdateScreen();
+
+	// The bank screen comes back once the notice has been read
+	overlay_until = HAL_GetTick() + OVERLAY_MS;
+	refresh_pending = 0;
+}
+
 void display_task(void){
 	// An external clock appeared or changed tempo
 	if(tempo_take_display_update()){

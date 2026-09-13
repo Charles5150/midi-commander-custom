@@ -14,6 +14,7 @@ from lib.midiDevice import (
     SYSEX_CMD_WRITE_FLASH,
     SYSEX_RSP_ERASE_FLASH,
     SYSEX_RSP_WRITE_FLASH,
+    CONFIG_SLOTS,
     DeviceNotFound,
     DeviceTimeout,
     MidiCommander,
@@ -54,6 +55,19 @@ def main(args: argparse.Namespace) -> int:
 
     try:
         with MidiCommander() as dev:
+            try:
+                target, active, _ = dev.select_slot(
+                    None if args.slot is None else args.slot - 1)
+                if args.slot is not None and target != args.slot - 1:
+                    print(f"ERROR: the device did not accept slot {args.slot}")
+                    return 1
+                print(f"Writing configuration slot {target + 1} "
+                      f"(the pedal is running slot {active + 1})")
+            except DeviceTimeout:
+                if args.slot not in (None, 1):
+                    print("ERROR: this firmware has a single configuration; "
+                          "slots need 0.24 or later")
+                    return 1
             print("Erasing Flash Settings")
             dev.send([SYSEX_CMD_ERASE_FLASH, 0x42, 0x24])
             dev.wait_for_sysex(SYSEX_RSP_ERASE_FLASH, timeout=5.0)
@@ -91,6 +105,12 @@ if __name__ == "__main__":
     p.add_argument(
         "csv_file",
         help="Path to a CSV file downloaded from the Google Spreadsheet configuration",
+    )
+    p.add_argument(
+        "--slot",
+        type=int,
+        choices=range(1, CONFIG_SLOTS + 1),
+        help="Configuration slot to write, 1-4. Defaults to the one the pedal is running.",
     )
     p.add_argument(
         "--yes",

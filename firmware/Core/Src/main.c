@@ -143,6 +143,15 @@ int main(void)
 	  Error(msg);
   }
 
+  // Come back on the configuration slot the pedal was left on, if it still
+  // holds one. Every configuration pointer follows from here.
+  uint8_t saved_bank = 0, saved_slot = 0;
+  uint32_t saved_toggles[8] = {0}, saved_long[8] = {0};
+  bool have_state = state_store_load(&saved_bank, saved_toggles, saved_long, &saved_slot);
+  if(have_state && saved_slot != 0 && flash_settings_slot_valid(saved_slot)){
+	  flash_settings_select(saved_slot);
+  }
+
   display_setConfigName();
 
   leds_init();
@@ -154,13 +163,11 @@ int main(void)
   HAL_Delay(200);
   f_sys_config_complete = 1; // Don't scan switch changes until everything is init'd
 
-  // Restore the last bank and toggle states if the user asked for it
-  if(pGlobalSettings[GLOBAL_SETTINGS_REMEMBER_STATE] == 1){
-    uint8_t bank;
-    uint32_t toggles[8], long_toggles[8];
-    if(state_store_load(&bank, toggles, long_toggles)){
-      sw_restore_state(bank, toggles, long_toggles);
-    }
+  // Restore the last bank and toggle states if this configuration asks for
+  // it, and only if they were saved while this same configuration was active
+  if(pGlobalSettings[GLOBAL_SETTINGS_REMEMBER_STATE] == 1
+		  && have_state && saved_slot == flash_settings_active_slot()){
+    sw_restore_state(saved_bank, saved_toggles, saved_long);
   }
   display_setBankName(sw_get_current_page());
 

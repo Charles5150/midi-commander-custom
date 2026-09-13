@@ -49,6 +49,8 @@
 #define SYSEX_CMD_RESET			(60) // Reset the device
 #define SYSEX_CMD_GET_PEDALS	(62) // no parameters
 #define SYSEX_RSP_GET_PEDALS	(63) // per pedal: raw ADC high 7 bits, low 7 bits, current CC value
+#define SYSEX_CMD_SELECT_SLOT	(64) // one byte: slot 0-3 the next erase/write/read act on, 0x7F only asks
+#define SYSEX_RSP_SELECT_SLOT	(65) // target slot, active slot, bit mask of slots holding a configuration
 
 #define SYSEX_START (0xF0)
 #define SYSEX_END	(0xF7)
@@ -67,6 +69,9 @@
 #define CMD_START_NIBBLE	(0x10)
 #define CMD_STOP_NIBBLE		(0x20)
 #define CMD_PANIC_NIBBLE	(0x80)	// All Sound Off and All Notes Off on every channel
+#define BANK_MODE_CONFIG	(3)	// Bank command low nibble: switch to configuration slot byte 1
+#define BANK_MODE_NEXT_CONFIG	(4)	// Bank command low nibble: switch to the next slot holding one
+#define CONFIG_NEXT		(0x80)
 #define CMD_SCENE_NIBBLE	(0xA0)	// Scene: byte1 = buttons affected (bit 0 = button 1 .. bit 7 = D), byte2 = wanted states
 
 #define GLOBAL_SETTINGS_CHANNEL (0)

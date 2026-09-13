@@ -12,8 +12,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-// Load the last saved state. Returns false if nothing valid is stored.
-bool state_store_load(uint8_t *bank, uint32_t toggles[8], uint32_t long_toggles[8]);
+// Load the last saved state, including the configuration slot that was
+// active. Returns false if nothing valid is stored.
+bool state_store_load(uint8_t *bank, uint32_t toggles[8], uint32_t long_toggles[8], uint8_t *slot);
 
 // Call whenever the bank or a toggle state changes. The save itself is
 // deferred until the state has been stable for a couple of seconds.

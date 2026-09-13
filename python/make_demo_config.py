@@ -315,6 +315,8 @@ def build() -> Demo:
     d.bank_cmd(10, "A", "DN 8", "Down", 8)
     d.bank_cmd(10, "B", "LAST", "GoTo", 31)
     d.bank_cmd(10, "C", "SONG", "GoTo", SETLIST_FROM)
+    # Hold HOME to move to the next configuration slot holding one
+    d.long_press(10, "1", CommandType="Bank", **{"KeyMode_(Key)": "NextConfig"})
     # A button that sends MIDI and then changes bank: the order matters
     d.cc(10, "D", "GO+C", "40")
     d.button(10, "D", slot="B", CommandType="Bank",

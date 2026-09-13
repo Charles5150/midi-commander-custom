@@ -326,8 +326,18 @@ def cmd_sysex(cmd):
 
 
 def cmd_bank(cmd):
-    """Bank change. OnValue holds the target bank, or the step for Up/Down."""
-    mode_text = str(cmd.get("KeyMode_(Key)", "")).strip().upper()
+    """Bank change, or configuration switch.
+
+    GoTo: OnValue is the bank. Up/Down: OnValue is the step. Config: OnValue is
+    the configuration slot 1-4. NextConfig: moves to the next slot holding a
+    configuration, no value.
+    """
+    mode_text = str(cmd.get("KeyMode_(Key)", "")).strip().upper().replace(" ", "")
+    if mode_text.startswith("NEXT"):
+        return [CMD_BANK_NIBBLE | 4, 0, 0, 0]
+    if mode_text.startswith("CONFIG"):
+        slot = max(1, min(4, safe_int(cmd.get("OnValue_(CC/PB)", 1)) or 1))
+        return [CMD_BANK_NIBBLE | 3, slot - 1, 0, 0]
     mode = 1 if mode_text.startswith("UP") else 2 if mode_text.startswith("DOWN") else 0
     value = safe_int(cmd.get("OnValue_(CC/PB)", 0))
     if mode == 0:

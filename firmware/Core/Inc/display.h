@@ -21,6 +21,10 @@ void display_setBankName(uint8_t bankNumber);
 void display_show_tempo(void);
 // Briefly show a relative CC and the value it was just sent, e.g. "CC7=69"
 void display_show_cc(uint8_t cc, uint8_t value);
+// Full screen notice after switching configuration: its number and name
+void display_show_config(uint8_t slot);
+// A short message in the bank's info line, for a moment (8 characters fit)
+void display_show_message(const char *msg);
 
 // Ask for the current bank screen to be redrawn from the main loop
 // (e.g. after a toggle state changed), without blocking the caller.

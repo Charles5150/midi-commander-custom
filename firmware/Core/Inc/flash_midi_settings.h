@@ -9,6 +9,7 @@
 #define INC_FLASH_MIDI_SETTINGS_H_
 
 #include "main.h"
+#include <stdbool.h>
 
 extern uint8_t *pSwitchCmds;
 extern uint8_t *pGlobalSettings;
@@ -71,6 +72,25 @@ extern uint8_t *pSetlist;		// Bank numbers in setlist order, 0xFF ends the list
 #define FLASH_SETTINGS_NO_PAGES	(12)
 #define FLASH_SETTINGS_SIZE		(FLASH_SETTINGS_NO_PAGES * FLASH_PAGE_SIZE)
 
+/*
+ * Configuration slots. Slot 0 keeps the address the configuration always had,
+ * so a pedal that never uses the others behaves exactly as before. The state
+ * journal follows it, then slots 1-3, which end at 256 kB.
+ *
+ *   0x08020000  slot 0     12 pages
+ *   0x08026000  journal     4 pages
+ *   0x0802E000  slot 1     12 pages
+ *   0x08034000  slot 2     12 pages
+ *   0x0803A000  slot 3     12 pages
+ *   0x08040000  end
+ */
+#define CONFIG_SLOTS			(4)
+#define FLASH_STATE_PAGES		(4)
+#define FLASH_SETTINGS_OFFSET	(1024U * 128U)
+#define FLASH_SLOT0_ADDR		(FLASH_BASE + FLASH_SETTINGS_OFFSET)
+#define FLASH_STATE_ADDR		(FLASH_SLOT0_ADDR + FLASH_SETTINGS_SIZE)
+#define FLASH_SLOTN_ADDR(n)		(FLASH_STATE_ADDR + FLASH_STATE_PAGES * FLASH_PAGE_SIZE + ((n) - 1U) * FLASH_SETTINGS_SIZE)
+
 #define MIDI_ROM_CMD_SIZE	(4)
 #define MIDI_NUM_COMMANDS_PER_SWITCH (10)
 #define MIDI_ROM_KEY_STRIDE	(MIDI_NUM_COMMANDS_PER_SWITCH*MIDI_ROM_CMD_SIZE)
@@ -119,7 +139,19 @@ extern uint8_t *pSetlist;		// Bank numbers in setlist order, 0xFF ends the list
 #define CFG_SETLIST_OFF		(CFG_BANK_SWITCH_OFF + CFG_BANK_SWITCH_SIZE)
 #define CFG_TOTAL_SIZE		(CFG_SETLIST_OFF + CFG_SETLIST_SIZE)
 
+// Erase and write act on the target slot, see flash_settings_set_target()
 void flash_settings_erase(void);
 void flash_settings_write(uint8_t* data, uint32_t offset);
+
+// Point every configuration pointer at a slot; it becomes active and the target
+bool flash_settings_select(uint8_t slot);
+uint8_t flash_settings_active_slot(void);
+// The slot the tools erase, write and read; follows the active one until changed
+void flash_settings_set_target(uint8_t slot);
+uint8_t flash_settings_target_slot(void);
+const uint8_t *flash_settings_target_base(void);
+// True when a slot holds a configuration (see the .c file for the test)
+bool flash_settings_slot_valid(uint8_t slot);
+uint8_t flash_settings_valid_mask(void);
 
 #endif /* INC_FLASH_MIDI_SETTINGS_H_ */

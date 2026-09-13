@@ -16,6 +16,7 @@
 #include "state_store.h"
 #include "leds.h"
 #include "sleep.h"
+#include "expression.h"
 
 void update_leds_on_bank_change(void);
 static void fire_bank_enter_cmds(uint8_t bank);
@@ -285,6 +286,9 @@ static uint8_t bank_jump_step(void){
 // list has run, so the remaining commands still come from the bank the button
 // belongs to.
 static uint8_t pending_bank = 0xFF;
+// A configuration switch asked for by a Bank command: a slot, CONFIG_NEXT, or
+// 0xFF for none. Applied once every button is released, see handle_switches.
+static uint8_t pending_config = 0xFF;
 
 // Commands stored for "entering this bank"
 static uint8_t* get_bank_enter_pointer(uint8_t bank, uint8_t cmd){
@@ -577,6 +581,8 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 		switch(*pRom & 0x0F){
 		case 1:  pending_bank = bank_step(+(int16_t)pRom[1]); break;
 		case 2:  pending_bank = bank_step(-(int16_t)pRom[1]); break;
+		case BANK_MODE_CONFIG:      pending_config = (pRom[1] < CONFIG_SLOTS) ? pRom[1] : 0xFF; break;
+		case BANK_MODE_NEXT_CONFIG: pending_config = CONFIG_NEXT; break;
 		default: pending_bank = (pRom[1] < MIDI_NUM_BANKS) ? pRom[1] : 0xFF; break;
 		}
 		break;
@@ -864,6 +870,76 @@ static void handle_bank_switch(bank_press_t *bp, GPIO_TypeDef *port, uint16_t pi
 	}
 }
 
+/*
+ * Configuration switching.
+ *
+ * Every configuration pointer moves at once, so this must not happen while a
+ * button's command lists are still being read: the release would run the new
+ * configuration's list. It is therefore applied from handle_switches once all
+ * switches are up.
+ */
+static bool all_switches_released(void){
+	for(int i=0; i<MIDI_NUM_SWITCHES; i++){
+		if(a_sw_obj[i].press_state != PRESS_IDLE) return false;
+	}
+	return bank_down_press.state == PRESS_IDLE && bank_up_press.state == PRESS_IDLE;
+}
+
+// Send now every release still waiting on a timer, so no note is left hanging
+static void flush_delayed_cmds(void){
+	for(int i=0; i<MAX_DELAYED_CMDS; i++){
+		if(delayed_cmds[i].systick_timout != UINT32_MAX){
+			delayed_cmds[i].systick_timout = 0;
+		}
+	}
+	handle_delayed_cmds();
+}
+
+static void switch_config(uint8_t target){
+	uint8_t from = flash_settings_active_slot();
+	uint8_t slot = target;
+
+	if(target == CONFIG_NEXT){
+		slot = 0xFF;
+		for(uint8_t k=1; k<CONFIG_SLOTS; k++){
+			uint8_t s = (uint8_t)((from + k) % CONFIG_SLOTS);
+			if(flash_settings_slot_valid(s)){ slot = s; break; }
+		}
+		if(slot == 0xFF){
+			display_show_message("NO CFG");
+			return;
+		}
+	}
+	if(slot >= CONFIG_SLOTS || slot == from) return;
+	if(!flash_settings_slot_valid(slot)){
+		char msg[9];
+		snprintf(msg, sizeof(msg), "NO CFG %u", (unsigned)(slot + 1));
+		display_show_message(msg);
+		return;
+	}
+
+	flush_delayed_cmds();
+	flash_settings_select(slot);
+
+	// A different configuration starts from its first bank with nothing on
+	switch_current_page = 0;
+	for(int i=0; i<MIDI_NUM_SWITCHES; i++){
+		a_sw_obj[i].switch_toggle_state = 0;
+		a_sw_obj[i].long_toggle_state = 0;
+	}
+	pending_bank = 0xFF;
+
+	// Rebuild everything derived from the configuration
+	leds_init();
+	sw_led_init();
+	expression_init();
+
+	display_setBankName(0);
+	display_show_config(slot);
+	state_store_mark_dirty();
+	fire_bank_enter_cmds(0);
+}
+
 void sw_trigger_button(uint8_t sw){
 	if(sw >= MIDI_NUM_SWITCHES || is_app_suspended) return;
 	// A quick tap: the down list, then the up list, exactly like a foot press
@@ -912,6 +988,14 @@ void handle_switches(void){
 		uint8_t target = requested_bank;
 		requested_bank = 0xFF;
 		goto_bank(target);
+	}
+
+	// A configuration switch waits until every button is up
+	if(pending_config != 0xFF && all_switches_released()){
+		uint8_t target = pending_config;
+		pending_config = 0xFF;
+		switch_config(target);
+		return;
 	}
 
 	// The Command switches
