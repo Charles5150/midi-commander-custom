@@ -30,6 +30,11 @@ void sw_trigger_button(uint8_t sw);
 // message handled in the USB interrupt). Applied by handle_switches.
 void sw_request_bank(uint8_t bank);
 
+// LED_Feedback: queue an incoming CC, Note On or Note Off (the three MIDI
+// bytes) from the USB interrupt. handle_switches applies it to the toggle
+// buttons whose command matches, without sending anything.
+void sw_feedback_message(const uint8_t *data);
+
 // Per button/bank queries used by the display
 uint8_t sw_button_is_toggle(uint8_t bank, uint8_t sw);
 uint8_t sw_get_toggle_state(uint8_t bank, uint8_t sw);

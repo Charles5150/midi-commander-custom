@@ -849,6 +849,42 @@ class ClockFollowTest(unittest.TestCase):
         self.assertEqual(packed[32], 15)    # Sleep_After_Min in the demo
 
 
+class LedFeedbackTest(unittest.TestCase):
+    """Global byte 35: incoming CC and notes set the toggle buttons that send them."""
+
+    def pack_with(self, value):
+        sections = read_config_csv(DEMO_CSV)
+        g = sections["Global_Settings"]
+        g.loc[g["Label"] == "LED_Feedback", "Value"] = value
+        return packer.pack_config(sections)
+
+    def test_round_trip(self):
+        for text, byte in (("Y", 1), ("N", 0)):
+            packed = self.pack_with(text)
+            self.assertEqual(packed[35], byte, text)
+            back = unpacker.unpack_config(packed)[0].set_index("Label")["Value"]
+            self.assertEqual(back["LED_Feedback"], text)
+
+    def test_missing_setting_means_off(self):
+        sections = read_config_csv(DEMO_CSV)
+        g = sections["Global_Settings"]
+        sections["Global_Settings"] = g[g["Label"] != "LED_Feedback"]
+        self.assertEqual(packer.pack_config(sections)[35], 0)
+
+    def test_erased_byte_reads_off(self):
+        """Configurations written before 0.25 may hold 0 or erased flash here."""
+        image = bytearray(self.pack_with("N"))
+        for old in (0x00, 0xFF):
+            image[35] = old
+            back = unpacker.unpack_config(bytes(image))[0].set_index("Label")["Value"]
+            self.assertEqual(back["LED_Feedback"], "N")
+
+    def test_neighbours_untouched(self):
+        packed = self.pack_with("Y")
+        self.assertEqual(packed[34], 1)     # Clock_Follow in the demo
+        self.assertEqual(packed[36], 0)
+
+
 class PanicTest(unittest.TestCase):
     """Panic command: no parameters, code 0x80."""
 

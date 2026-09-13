@@ -404,13 +404,21 @@ uint16_t MIDI_DataRx(uint8_t *msg, uint16_t length)
 		case CIN_CONTROL_CHANGE:
 			// May select a bank before being forwarded to the DIN output
 			handle_bank_change_message(cin, data);
+			if(cin == CIN_CONTROL_CHANGE){
+				sw_feedback_message(data);
+			}
+			thru_push(data, len);
+			break;
+
+		case CIN_NOTE_OFF:
+		case CIN_NOTE_ON:
+			// May set the LED of a toggle button that sends this note
+			sw_feedback_message(data);
 			thru_push(data, len);
 			break;
 
 		case CIN_TWO_BYTE_SYSTEM_COMMON:
 		case CIN_THREE_BYTE_SYSTEM_COMMON:
-		case CIN_NOTE_OFF:
-		case CIN_NOTE_ON:
 		case CIN_POLY_KEYPRESS:
 		case CIN_CHANNEL_PRESSURE:
 		case CIN_PITCHBEND_CHANGE:

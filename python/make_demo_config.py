@@ -426,6 +426,7 @@ def global_settings() -> pd.DataFrame:
                 ("Sleep_After_Min", "15"),
                 ("Setlist_Mode", "Y"),
                 ("Clock_Follow", "Y"),
+                ("LED_Feedback", "Y"),
             )
         ]
     )

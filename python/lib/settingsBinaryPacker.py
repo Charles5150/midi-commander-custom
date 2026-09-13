@@ -16,6 +16,7 @@ GLOBAL_SETTINGS_BANK_SWITCH_MODE = 15
 GLOBAL_SETTINGS_SLEEP_AFTER_MIN = 32
 GLOBAL_SETTINGS_SETLIST_MODE = 33
 GLOBAL_SETTINGS_CLOCK_FOLLOW = 34
+GLOBAL_SETTINGS_LED_FEEDBACK = 35
 
 BANK_SWITCH_MODES = {"BANK": 0, "BANK+MIDI": 1, "MIDI": 2}
 
@@ -154,6 +155,10 @@ def pack_global_settings(df):
     # Adopt the tempo of MIDI clock arriving over USB
     if "Clock_Follow" in df.index and "Y" in str(df.loc["Clock_Follow", "Value"]).upper():
         bin_list[GLOBAL_SETTINGS_CLOCK_FOLLOW] = 1
+
+    # Incoming CC and notes over USB set the toggle buttons that send them
+    if "LED_Feedback" in df.index and "Y" in str(df.loc["LED_Feedback", "Value"]).upper():
+        bin_list[GLOBAL_SETTINGS_LED_FEEDBACK] = 1
 
     return bin_list
 

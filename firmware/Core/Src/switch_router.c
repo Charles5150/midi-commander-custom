@@ -980,6 +980,122 @@ static void apply_scene(uint8_t mask, uint8_t states){
 	applying = false;
 }
 
+/*
+ * LED feedback (LED_Feedback): a CC or a note arriving over USB puts the
+ * toggle buttons that send it into the state it describes, so their LEDs and
+ * display cells follow a DAW or an amp editor. Only the state changes: nothing
+ * is sent, so a host echoing our own messages back cannot cause a loop.
+ *
+ * Every bank is updated, not only the current one, and the long press list
+ * too, so the next press sends the opposite of what the host last reported.
+ * The USB interrupt only queues the message; it is applied here, in the main
+ * loop, where the switch state is owned. A full queue drops messages.
+ */
+#define FEEDBACK_QUEUE_LEN		(32)
+#define FEEDBACK_PER_PASS		(4)
+
+static uint8_t feedback_queue[FEEDBACK_QUEUE_LEN][3];
+static volatile uint8_t feedback_head = 0;	// written by the USB interrupt only
+static volatile uint8_t feedback_tail = 0;	// written by the main loop only
+
+void sw_feedback_message(const uint8_t *data){
+	if(pGlobalSettings[GLOBAL_SETTINGS_LED_FEEDBACK] != 1) return;
+	uint8_t next = (uint8_t)((feedback_head + 1) % FEEDBACK_QUEUE_LEN);
+	if(next == feedback_tail) return;
+	feedback_queue[feedback_head][0] = data[0];
+	feedback_queue[feedback_head][1] = data[1] & 0x7F;
+	feedback_queue[feedback_head][2] = data[2] & 0x7F;
+	feedback_head = next;
+}
+
+/*
+ * What an incoming message says about one command: 1 on, 0 off, -1 nothing.
+ * A CC is on when its value is nearer the command's OnValue than its OffValue;
+ * a command without an OffValue only recognises its OnValue. A Note On with a
+ * velocity turns a note command on, a Note Off or velocity 0 turns it off.
+ */
+static int8_t feedback_state_for(uint8_t *pRom, const uint8_t *msg){
+	if(!midiCmd_get_cmd_toggle(pRom)) return -1;
+	if((pRom[0] & 0x0F) != (msg[0] & 0x0F)) return -1;
+	if((pRom[1] & 0x7F) != msg[1]) return -1;
+
+	uint8_t type = pRom[0] & 0xF0;
+	uint8_t value = msg[2];
+	switch(msg[0] & 0xF0){
+	case 0xB0:
+		if(type != CMD_CC_NIBBLE) return -1;
+		{
+			uint8_t on = pRom[2] & 0x7F;
+			if(pRom[3] > 0x7F) return (value == on) ? 1 : -1;
+			uint8_t off = pRom[3];
+			uint8_t d_on  = (value > on)  ? value - on  : on - value;
+			uint8_t d_off = (value > off) ? value - off : off - value;
+			return (d_on <= d_off) ? 1 : 0;
+		}
+	case 0x90:
+		if(type != CMD_NOTE_NIBBLE) return -1;
+		return (value > 0) ? 1 : 0;
+	case 0x80:
+		if(type != CMD_NOTE_NIBBLE) return -1;
+		return 0;
+	default:
+		return -1;
+	}
+}
+
+// The state one command list asks for, or -1. The last matching command wins.
+static int8_t feedback_list_state(uint8_t *(*rom)(uint8_t, uint8_t, uint8_t),
+		uint8_t bank, uint8_t sw, const uint8_t *msg){
+	int8_t want = -1;
+	for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
+		int8_t s = feedback_state_for(rom(bank, sw, j), msg);
+		if(s >= 0) want = s;
+	}
+	return want;
+}
+
+static void feedback_apply(const uint8_t *msg){
+	bool changed = false;
+	for(uint8_t i=0; i<MIDI_NUM_SWITCHES; i++){
+		sw_t *sw = &a_sw_obj[i];
+		for(uint8_t b=0; b<MIDI_NUM_BANKS; b++){
+			uint32_t bit = 1UL << b;
+
+			if(sw->led_cmd_toggle & bit){
+				int8_t want = feedback_list_state(get_rom_pointer, b, i, msg);
+				if(want >= 0 && ((sw->switch_toggle_state & bit) != 0) != (want == 1)){
+					sw->switch_toggle_state ^= bit;
+					changed = true;
+					if(b == switch_current_page){
+						if(!sleep_is_asleep()){
+							set_led(i, calculate_led_state(want, get_button_led_mode(i)));
+						}
+						display_request_refresh();
+					}
+				}
+			}
+
+			if(sw->long_cmd_toggle & bit){
+				int8_t want = feedback_list_state(get_long_rom_pointer, b, i, msg);
+				if(want >= 0 && ((sw->long_toggle_state & bit) != 0) != (want == 1)){
+					sw->long_toggle_state ^= bit;
+					changed = true;
+				}
+			}
+		}
+	}
+	if(changed){
+		state_store_mark_dirty();
+	}
+}
+
+static void feedback_task(void){
+	for(uint8_t n=0; n<FEEDBACK_PER_PASS && feedback_tail != feedback_head; n++){
+		feedback_apply(feedback_queue[feedback_tail]);
+		feedback_tail = (uint8_t)((feedback_tail + 1) % FEEDBACK_QUEUE_LEN);
+	}
+}
+
 void handle_switches(void){
 	if(is_app_suspended) return;
 
@@ -997,6 +1113,8 @@ void handle_switches(void){
 		switch_config(target);
 		return;
 	}
+
+	feedback_task();
 
 	// The Command switches
 	uint32_t now = HAL_GetTick();

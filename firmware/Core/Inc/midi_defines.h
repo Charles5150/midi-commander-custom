@@ -94,6 +94,7 @@
 #define GLOBAL_SETTINGS_SLEEP_AFTER_MIN (32)	// Idle minutes before the display and LEDs go out (0 = never)
 #define GLOBAL_SETTINGS_SETLIST_MODE (33)	// 1 = Bank Up/Down follow the setlist order instead of bank numbers
 #define GLOBAL_SETTINGS_CLOCK_FOLLOW (34)	// 1 = adopt the tempo of MIDI clock arriving over USB
+#define GLOBAL_SETTINGS_LED_FEEDBACK (35)	// 1 = incoming CC/Note over USB set matching toggle buttons
 
 #define BANK_SWITCH_BANK_ONLY	(0)	// change bank, send nothing (the original behaviour)
 #define BANK_SWITCH_BANK_MIDI	(1)	// change bank and send the switch's commands

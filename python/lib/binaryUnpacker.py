@@ -127,6 +127,7 @@ def unpack_global_settings(data: bytes) -> pd.DataFrame:
         ("Sleep_After_Min", "0" if g[32] in (0, 0xFF) else str(min(g[32], 60))),
         ("Setlist_Mode", "Y" if g[33] == 1 else "N"),
         ("Clock_Follow", "Y" if g[34] == 1 else "N"),
+        ("LED_Feedback", "Y" if g[35] == 1 else "N"),
     ]
     return pd.DataFrame(rows, columns=["Label", "Value"])
 

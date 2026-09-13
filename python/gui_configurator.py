@@ -574,6 +574,7 @@ class MidiCommanderGUI(ctk.CTk):
                 ("Sleep_After_Min", "0"),
                 ("Setlist_Mode", "N"),
                 ("Clock_Follow", "N"),
+                ("LED_Feedback", "N"),
             ]
             missing = [{"Label": l, "Value": v} for l, v in defaults if l not in labels]
             if missing:
@@ -738,7 +739,7 @@ class MidiCommanderGUI(ctk.CTk):
 
             if label == "MIDI_Channel":
                 w = Option(self.global_scroll, CHANNELS, value, width=80)
-            elif label in ("RealTime_Passthrough", "USB_MIDI_Thru", "Remember_State", "Setlist_Mode", "Clock_Follow"):
+            elif label in ("RealTime_Passthrough", "USB_MIDI_Thru", "Remember_State", "Setlist_Mode", "Clock_Follow", "LED_Feedback"):
                 w = Check(self.global_scroll, text="", checked=is_yes(value))
             elif label in ("Bank_Up_LED_Mode", "Bank_Down_LED_Mode"):
                 w = Option(self.global_scroll, LED_MODES, value, width=110)
@@ -784,6 +785,7 @@ class MidiCommanderGUI(ctk.CTk):
             "Sleep_After_Min": "idle minutes before the display and LEDs go out, 0 = never",
             "Setlist_Mode": "Bank Up/Down follow the order in the Setlist tab",
             "Clock_Follow": "follow the tempo of MIDI clock from USB instead of sending our own",
+            "LED_Feedback": "CC and notes from USB light the toggle buttons that send them",
             "ConfigName": "shown on the display at boot (16 chars)",
             "Exp1_CC": "CC number sent by expression pedal 1 (0-127)",
             "Exp2_CC": "CC number sent by expression pedal 2 (0-127)",
