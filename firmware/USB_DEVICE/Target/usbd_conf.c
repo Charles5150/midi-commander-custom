@@ -208,6 +208,18 @@ void HAL_PCD_SuspendCallback(PCD_HandleTypeDef *hpcd)
   USBD_LL_Suspend((USBD_HandleTypeDef*)hpcd->pData);
   /* Enter in STOP mode. */
   /* USER CODE BEGIN 2 */
+  /*
+   * Only a host that configured the pedal can suspend it. Without one, on a
+   * USB charger or power bank, the bus is idle from the start and the core
+   * reports a suspend a few milliseconds after boot; honouring it switched the
+   * display off and ignored every switch, so the pedal could not be used
+   * without a computer. It now keeps running: DIN MIDI works as usual and USB
+   * MIDI is discarded until a host appears.
+   */
+  if (((USBD_HandleTypeDef*)hpcd->pData)->dev_old_state != USBD_STATE_CONFIGURED)
+  {
+    return;
+  }
   // Turn off Display and LEDs, and block main loop updates
   ssd1306_SetDisplayOn(0);
   
