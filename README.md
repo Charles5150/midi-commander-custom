@@ -40,6 +40,7 @@ The firmware replaces the stock MeloAudio one but never touches its bootloader, 
 - **Custom SysEx.** Up to sixteen SysEx messages can be stored and sent from a button, for devices that are only controllable that way.
 - **USB keyboard and media keys (HID).** A command can press a key with Ctrl / Shift / Alt / Cmd modifiers, tap it, hold it or release it, or send a media key (play/pause, next, previous, stop, volume, mute, record) to the computer.
 - **Two expression pedals** with per-pedal CC number, MIDI channel, calibrated end points, response curve and direction, calibrated live from the configurator. Each can also act as a switch: reaching the toe, or returning to the heel, taps a button of the current bank.
+- **Expression per bank.** Each bank can give each expression pedal its own CC and channel, or silence it, so the same pedal is a wah in one bank and a volume in another.
 - **Virtual pedal.** The configurator draws the pedal as it is built, and lets you press its switches with the mouse, tap, hold or double click, while its screen, pixel for pixel, and its LEDs are read back from the pedal, so a configuration can be tried without standing on it.
 - **Double press.** A third command list per button, fired by two quick presses, alongside the short and the long press.
 - **LEDs that follow the computer.** With `LED_Feedback` on, a CC or a note arriving over USB lights or darkens the toggle buttons that send it, so the pedal shows what is really on when an effect is changed from a DAW or an amp editor.
@@ -124,7 +125,7 @@ The tabs follow the order a configuration is usually built in. Each starts with 
 
 <img src="docs/images/gui_button_config.png" width="500">
 
-**Banks** — the 4 character name and 8 character info line of each bank.
+**Banks** — the 4 character name and 8 character info line of each bank, and where the expression pedals send while it is selected: a CC and a channel per pedal, each `Default` to keep the pedal's own, or `Off` for the CC to silence the pedal in that bank.
 
 **Bank Enter** — the commands each bank sends when you switch to it.
 
@@ -307,7 +308,18 @@ Used as a switch, the pedal taps a button of the **current bank**, sending whate
 
 Both 1/4" jacks are read through the ADC every millisecond, with the pin pulled down between readings to prevent crosstalk between the two inputs, smoothed with an adaptive filter and a small hysteresis so a resting pedal does not chatter. A CC is sent only when the 7-bit value changes.
 
-If a pedal produces no CC, open the Expression tab and press **Connect live view**: if the raw value does not follow the pedal, the problem is the cable or jack; if it does but no CC reaches your MIDI monitor, check the channel and CC number.
+If a pedal produces no CC, open the Expression tab and press **Connect live view**: if the raw value does not follow the pedal, the problem is the cable or jack; if it does but no CC reaches your MIDI monitor, check the channel and CC number, and the bank's own settings in `BankExpression_Settings`.
+
+### BankExpression_Settings
+
+Optional; one row per `Bank_Number` (0–31), rows may be missing or in any order.
+
+| Column | Values | Meaning |
+|---|---|---|
+| `Exp1_CC`, `Exp2_CC` | empty, 0–127 or Off | CC the pedal sends while this bank is selected. Empty keeps `Exp1_CC` / `Exp2_CC` from `Global_Settings`; Off silences the pedal in this bank. |
+| `Exp1_Channel`, `Exp2_Channel` | empty or 1–16 | Channel for that pedal in this bank. Empty keeps the pedal's `Channel` from `Expression_Settings`. |
+
+A silenced pedal still acts as a switch: its `Toe_Button` and `Heel_Button` keep working. After a bank change the pedal is not sent to its new CC or channel at the position it happens to rest in; it follows the next movement. Configurations written before 0.28 have nothing stored here and behave as if every cell were empty. Edit it in the configurator's **Banks** tab.
 
 ---
 
@@ -370,6 +382,7 @@ Hardware notes (MCU, pinout, I²C addresses) are in `HardwareNotes.txt`; `backup
 
 Firmware versions are shown on the display at boot and reported by the tools.
 
+- **0.28 — Expression per bank.** New `BankExpression_Settings` section, four bytes per bank after the setlist: each bank can give each expression pedal its own CC and channel, or silence it (`0x80`); erased flash keeps the pedal's own settings, so older configurations are unchanged. A silenced pedal's toe and heel switches keep working, and after a bank change a pedal follows its next movement rather than jumping to its new target. CC and channel columns per pedal in the configurator's Banks tab, carried by Copy / Paste bank.
 - **0.27 — Virtual pedal.** SysEx `PRESS_BUTTON` (66) presses or releases any of the ten switches: the switch is marked as held and the switch scan's change flag is raised, so every press type and the bank switches behave exactly as with a foot; a press left down lets go after 10 seconds. SysEx `GET_STATE` (68) returns the bank, slot, toggles, bank name, button labels, the level of all ten LEDs, a screen frame counter and whether the pedal is asleep; `GET_SCREEN` (70) returns the display buffer in sixteen parts packed 7 in 8, fetched only when the frame counter moves. New Virtual Pedal tab in the configurator, drawn like the pedal.
 - **0.26 — Double press.** New `DoublePress_Settings` section and `Double_Press_ms` setting (global byte 36): two presses within the window fire a third command list per button. The slot's 12 pages had 496 bytes free and slot 1 cannot grow without moving the journal and the other slots, so each slot gets five more pages in the gap between the firmware and slot 1, `0x08016000` to `0x08020000`; the linker scripts now cap the firmware at 76 kB so it can never grow into them. To the tools they continue the image from offset 24576: SysEx write and read map there, and erasing a slot erases them too. Global byte 37 marks a slot whose double press area the tools wrote, so leftovers from older firmware are never read as commands; on the test pedal that area held 928 bytes of them. `CSV_to_Flash.py` skips chunks that are already erased. The `SELECT_SLOT` answer also reports the flash size the chip declares: a Harley Benton MP-100 reports 256 kB, not the 512 kB the hardware notes give, so nothing is stored above 256 kB.
 - **0.25 — LEDs that follow the computer.** `LED_Feedback` (global byte 35) lets a CC, Note On or Note Off arriving over USB set the toggle buttons that send it, in every bank and in the long press list, without sending anything. A CC is on when nearer the `OnValue` than the `OffValue`. The USB interrupt queues the message and the main loop applies it. The demo turns it on.
