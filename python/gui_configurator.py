@@ -162,7 +162,7 @@ SCENE_STATES = ["-", "On", "Off"]
 BANK_SWITCH_MODES = ["Bank", "Bank+MIDI", "MIDI only"]
 BANK_SWITCH_CHOICES = [f"{sw} / {pr}" for sw, pr in BANK_SWITCH_LISTS]
 CCINC_DIRECTIONS = ["Up", "Down", "Up Repeat", "Down Repeat"]
-BANK_MODES = ["GoTo", "Up", "Down", "Config", "NextConfig", "Page"]
+BANK_MODES = ["GoTo", "Up", "Down", "Config", "NextConfig", "Page", "Back"]
 CONFIG_SLOT_NAMES = ["1", "2", "3", "4"]
 # Which configuration slot Read and Flash use; "Active" lets the pedal decide
 SLOT_TARGETS = ["Active"] + CONFIG_SLOT_NAMES
@@ -542,6 +542,9 @@ class SlotEditor:
                 v = Option(self.params, CONFIG_SLOT_NAMES, self.initial.get("OnValue_(CC/PB)") or "1", width=60)
             elif mode == "NextConfig":
                 ctk.CTkLabel(self.params, text="(next slot holding a configuration)",
+                             text_color=MUTED).pack(side="left", padx=8)
+            elif mode == "Back":
+                ctk.CTkLabel(self.params, text="(the bank you came from)",
                              text_color=MUTED).pack(side="left", padx=8)
             else:
                 self._label("Banks")

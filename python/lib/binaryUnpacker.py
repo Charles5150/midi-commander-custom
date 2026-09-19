@@ -331,10 +331,10 @@ def unpack_command(raw: bytes, cycle_labels=None) -> dict:
     elif cmd_type == CMD_BANK_NIBBLE:
         cmd["CommandType"] = "Bank"
         mode = b0 & 0x0F
-        cmd["KeyMode_(Key)"] = {1: "Up", 2: "Down", 3: "Config", 4: "NextConfig", 5: "Page"}.get(mode, "GoTo")
+        cmd["KeyMode_(Key)"] = {1: "Up", 2: "Down", 3: "Config", 4: "NextConfig", 5: "Page", 6: "Back"}.get(mode, "GoTo")
         if mode == 3:
             cmd["OnValue_(CC/PB)"] = str(min(b1, 3) + 1)   # slots are 1-4 for people
-        elif mode == 4:
+        elif mode == 4 or mode == 6:
             cmd["OnValue_(CC/PB)"] = ""
         else:
             cmd["OnValue_(CC/PB)"] = str(b1)

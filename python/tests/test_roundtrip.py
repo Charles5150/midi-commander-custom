@@ -2459,6 +2459,51 @@ class PageCommandTest(unittest.TestCase):
                          ("Bank", "Page", "12"))
 
 
+class BackCommandTest(unittest.TestCase):
+    """Bank command mode Back: return to the bank you came from (firmware 0.49)."""
+
+    pack = staticmethod(ConfigSlotCommandTest.pack)
+
+    def test_mode_matches_firmware(self):
+        import re
+
+        path = os.path.join(os.path.dirname(__file__), "..", "..", "firmware", "Core", "Inc", "midi_defines.h")
+        with open(path) as handle:
+            text = handle.read()
+        value = re.search(r"^#define\s+BANK_MODE_BACK\s+\((\d+)\)", text, re.M).group(1)
+        self.assertEqual(list(self.pack("Back"))[0], 0x40 | int(value))
+        # A mode of its own: no other Bank mode took that nibble
+        others = re.findall(r"^#define\s+BANK_MODE_(\w+)\s+\((\d+)\)", text, re.M)
+        taken = [int(v) for name, v in others if name != "BACK"]
+        self.assertNotIn(int(value), taken)
+
+    def test_round_trip(self):
+        packed = self.pack("Back")
+        self.assertEqual(list(packed), [0x46, 0, 0, 0])
+        back = unpacker.unpack_command(packed)
+        self.assertEqual((back["KeyMode_(Key)"], back["OnValue_(CC/PB)"]), ("Back", ""))
+
+    def test_value_is_ignored(self):
+        """Back takes no bank: whatever the cell says, the bytes are the same."""
+        self.assertEqual(list(self.pack("Back", "17")), [0x46, 0, 0, 0])
+
+    def test_existing_modes_unchanged(self):
+        for mode, value, want in (("GoTo", "12", [0x40, 12, 0, 0]), ("Up", "3", [0x41, 3, 0, 0]),
+                                  ("Down", "8", [0x42, 8, 0, 0]), ("Page", "31", [0x45, 31, 0, 0])):
+            self.assertEqual(list(self.pack(mode, value)), want)
+
+    def test_demo_has_one(self):
+        """B in bank 10, the navigation bank, goes back to the bank you came from."""
+        packed = packer.pack_config(read_config_csv(DEMO_CSV))
+        frames = unpacker.unpack_config(packed)
+        buttons = next(f for f in frames if "A_CommandType" in f.columns and "Label" in f.columns)
+        row = buttons[(buttons["Bank_Number"].astype(str) == "10")
+                      & (buttons["Button_Identifier"].astype(str) == "B")].iloc[0]
+        self.assertEqual((row["Label"], row["A_CommandType"], row["A_KeyMode_(Key)"]),
+                         ("PREV", "Bank", "Back"))
+        self.assertEqual(norm(row["A_OnValue_(CC/PB)"]), "")
+
+
 class FakePedal:
     """A pedal in memory that answers the SysEx the slot tools use: four slots
     of flash, a target selected with SELECT_SLOT, erase, write and read."""

@@ -486,6 +486,13 @@ static uint8_t pending_page = 0xFF;
  * otherwise.
  */
 static uint8_t page_home = 0xFF;
+/*
+ * The bank left by the last bank change, whoever asked for it: a button, the
+ * computer or a command. A Bank command in Back mode returns to it, so a
+ * detour to a utility bank costs one button there. 0xFF until the first
+ * change, and a Back command then does nothing.
+ */
+static uint8_t previous_bank = 0xFF;
 
 // Commands stored for "entering this bank"
 static uint8_t* get_bank_enter_pointer(uint8_t bank, uint8_t cmd){
@@ -536,6 +543,7 @@ static uint8_t home_bank(void){
 static void goto_bank(uint8_t bank){
 	if(bank >= MIDI_NUM_BANKS) return;
 	if(page_home == 0xFF && bank == switch_current_page) return;
+	previous_bank = home_bank();
 	if(page_home != 0xFF){
 		// Leaving the bank from its page leaves the page first
 		fire_bank_leave_cmds(switch_current_page);
@@ -919,6 +927,7 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 		case BANK_MODE_CONFIG:      pending_config = (pRom[1] < CONFIG_SLOTS) ? pRom[1] : 0xFF; break;
 		case BANK_MODE_NEXT_CONFIG: pending_config = CONFIG_NEXT; break;
 		case BANK_MODE_PAGE:        pending_page = pRom[1] & 0x7F; break;
+		case BANK_MODE_BACK:        pending_bank = previous_bank; break;
 		default: pending_bank = (pRom[1] < MIDI_NUM_BANKS) ? pRom[1] : 0xFF; break;
 		}
 		break;
@@ -1892,6 +1901,7 @@ static void switch_config(uint8_t target){
 	// A different configuration starts from its first bank with nothing on
 	switch_current_page = 0;
 	page_home = 0xFF;
+	previous_bank = 0xFF;	// the bank left belongs to the other configuration
 	for(int i=0; i<MIDI_NUM_SWITCHES; i++){
 		a_sw_obj[i].switch_toggle_state = 0;
 		a_sw_obj[i].long_toggle_state = 0;

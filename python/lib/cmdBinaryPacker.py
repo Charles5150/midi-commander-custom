@@ -421,9 +421,12 @@ def cmd_bank(cmd):
     GoTo: OnValue is the bank. Up/Down: OnValue is the step. Config: OnValue is
     the configuration slot 1-4. NextConfig: moves to the next slot holding a
     configuration, no value. Page: OnValue is the bank shown as this bank's
-    second page; pressed again, or on the page, it goes back.
+    second page; pressed again, or on the page, it goes back. Back: returns to
+    the bank left by the last bank change, no value.
     """
     mode_text = str(cmd.get("KeyMode_(Key)", "")).strip().upper().replace(" ", "")
+    if mode_text.startswith("BACK"):
+        return [CMD_BANK_NIBBLE | 6, 0, 0, 0]
     if mode_text.startswith("PAGE"):
         bank = max(0, min(31, safe_int(cmd.get("OnValue_(CC/PB)", 0))))
         return [CMD_BANK_NIBBLE | 5, bank, 0, 0]

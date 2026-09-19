@@ -383,7 +383,8 @@ def build() -> Demo:
     d.bank_cmd(10, "3", "DN 1", "Down", 1)
     d.bank_cmd(10, "4", "UP 8", "Up", 8)
     d.bank_cmd(10, "A", "DN 8", "Down", 8)
-    d.bank_cmd(10, "B", "LAST", "GoTo", PAGE_BANK - 1)
+    # Back returns to the bank you came from, for a detour and back
+    d.bank_cmd(10, "B", "PREV", "Back", "")
     d.bank_cmd(10, "C", "SONG", "GoTo", SETLIST_FROM)
     # A button that sends MIDI and then changes bank: the order matters
     d.cc(10, "D", "GO+C", "40")
