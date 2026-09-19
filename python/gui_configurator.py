@@ -147,7 +147,7 @@ DEFAULT_CSV = os.path.join(HERE, "demo-all-features.csv")
 LED_MODES = ["Normal", "Reverse", "AlwaysOn"]
 CHANNELS = [str(i) for i in range(1, 17)]
 NO_COMMAND = "(none)"
-COMMAND_TYPES = [NO_COMMAND, "PC", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "Panic", "Scene", "Wait"]
+COMMAND_TYPES = [NO_COMMAND, "PC", "PCInc", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "Panic", "Scene", "Wait"]
 TAP_MODES = ["Tap", "Clock"]
 # A scene leaves a button alone, or switches it on or off
 SCENE_STATES = ["-", "On", "Off"]
@@ -467,6 +467,18 @@ class SlotEditor:
             self._int("step", "Step", "OffValue_(CC)", 1, 127, width=50)
             self._int("on", "Start", "OnValue_(CC/PB)", 0, 127, width=55)
             self._check("toggle", "Wrap", "Toggle_(CC/PB/Note)")
+        elif cmd_type == "PCInc":
+            self._channel()
+            self._label("Dir")
+            w = Option(self.params, CCINC_DIRECTIONS, self.initial.get("KeyMode_(Key)"), width=75)
+            w.pack(side="left")
+            self.widgets["ccincdir"] = w
+            self._int("step", "Step", "OffValue_(CC)", 1, 127, width=50)
+            self._label("Last")
+            w = IntEntry(self.params, 0, 127, clean(self.initial.get("Number_(PC/CC/Note)")) or "127", width=50)
+            w.pack(side="left")
+            self.widgets["number"] = w
+            self._check("toggle", "Wrap", "Toggle_(CC/PB/Note)")
         elif cmd_type == "Tap":
             self._label("Action")
             w = Option(self.params, TAP_MODES, self.initial.get("KeyMode_(Key)"), width=80)
@@ -570,7 +582,7 @@ class SlotEditor:
         if cmd_type == "Bank":
             out["KeyMode_(Key)"] = w["bankmode"].value()
             out["OnValue_(CC/PB)"] = w["bankvalue"].value() if "bankvalue" in w else ""
-        if cmd_type == "CCInc":
+        if cmd_type in ("CCInc", "PCInc"):
             out["KeyMode_(Key)"] = w["ccincdir"].value()
             out["OffValue_(CC)"] = w["step"].value()
         if cmd_type == "SysEx":

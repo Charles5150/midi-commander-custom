@@ -524,6 +524,8 @@ uint16_t MIDI_DataRx(uint8_t *msg, uint16_t length)
 			handle_bank_change_message(cin, data);
 			if(cin == CIN_CONTROL_CHANGE){
 				sw_feedback_message(data);
+			} else {
+				sw_note_program(data[0], data[1]);	// next / previous preset follow the host
 			}
 			thru_push(data, len);
 			break;

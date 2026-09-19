@@ -258,12 +258,18 @@ def build() -> Demo:
     # --- bank 3: program changes, with and without bank select -----------
     d.pc(3, "1", "P 0", "0")
     d.pc(3, "2", "P 1", "1")
-    d.pc(3, "3", "P 7", "7")
-    d.pc(3, "4", "P 42", "42")
+    d.pc(3, "3", "CH 5", "7", ch="5")
+    d.pc(3, "4", "CH16", "42", ch="16")
     d.pc(3, "A", "BS 3", "3", bank_select="3")
     d.pc(3, "B", "BSM", "4", bank_select="300", msb="Y")
-    d.pc(3, "C", "CH 5", "9", ch="5")
-    d.pc(3, "D", "CH16", "9", ch="16")
+    # Previous / next preset, moving from whatever program was sent last on
+    # the channel: entering this bank sends PC 0, so NEXT goes to 1
+    d.button(3, "C", "PREV", None, "A", CommandType="PCInc",
+             **{"Channel_(PC/CC/Note/PB)": "1", "KeyMode_(Key)": "Down", "OffValue_(CC)": "1",
+                "Number_(PC/CC/Note)": "127", "Toggle_(CC/PB/Note)": "Y"})
+    d.button(3, "D", "NEXT", None, "A", CommandType="PCInc",
+             **{"Channel_(PC/CC/Note/PB)": "1", "KeyMode_(Key)": "Up", "OffValue_(CC)": "1",
+                "Number_(PC/CC/Note)": "127", "Toggle_(CC/PB/Note)": "Y"})
     # Entering this bank already selects a patch
     d.on_enter(3, CommandType="PC",
                **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": "0"})

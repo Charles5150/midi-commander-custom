@@ -68,6 +68,11 @@
 // left at 0 because its top bit is what marks a command as toggling.
 #define CMD_WAIT_MODE		(1)
 #define CMD_PC_NIBBLE		(0xC0)
+// Relative Program Change: a PC whose byte 2 (the Bank Select MSB, 0x80 and up
+// meaning none) holds one of these markers. Byte 1 is the step, byte 3 the last
+// program in the range, with bit 7 set to wrap round at the ends.
+#define PC_REL_UP			(0x81)
+#define PC_REL_DOWN			(0x82)
 #define CMD_CC_NIBBLE		(0xB0)
 #define CMD_PB_NIBBLE		(0xE0)
 #define CMD_NOTE_NIBBLE		(0x90)

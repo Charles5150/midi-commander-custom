@@ -1238,6 +1238,60 @@ class BankClipboardTest(unittest.TestCase):
         self.assertEqual(after, self.before)
 
 
+class PcIncTest(unittest.TestCase):
+    """Relative Program Change: next and previous preset."""
+
+    @staticmethod
+    def pack(direction="Up", step="1", last="", wrap="N", ch="1"):
+        row = {f"A_{f}": "" for f in unpacker.CMD_FIELDS}
+        row.update({
+            "A_CommandType": "PCInc", "A_Channel_(PC/CC/Note/PB)": ch,
+            "A_KeyMode_(Key)": direction, "A_OffValue_(CC)": step,
+            "A_Number_(PC/CC/Note)": last, "A_Toggle_(CC/PB/Note)": wrap,
+        })
+        return bytes(cbp.pack_row(pd.Series(row)))[:4]
+
+    def test_encoding(self):
+        self.assertEqual(list(self.pack()), [0xC0, 1, 0x81, 127])
+        self.assertEqual(list(self.pack("Down", "5", "125", "Y", "16")), [0xCF, 5, 0x82, 0x80 | 125])
+
+    def test_defaults_and_clamps(self):
+        self.assertEqual(list(self.pack(step="", last="")), [0xC0, 1, 0x81, 127])
+        self.assertEqual(list(self.pack(step="999", last="999")), [0xC0, 127, 0x81, 127])
+        self.assertEqual(list(self.pack(last="0")), [0xC0, 1, 0x81, 0])
+
+    def test_round_trip(self):
+        for args in (("Up", "1", "127", "N", "1"), ("Down", "4", "125", "Y", "10")):
+            d = unpacker.unpack_command(self.pack(*args))
+            self.assertEqual(d["CommandType"], "PCInc")
+            self.assertEqual(
+                (d["KeyMode_(Key)"], d["OffValue_(CC)"], d["Number_(PC/CC/Note)"],
+                 d["Toggle_(CC/PB/Note)"], d["Channel_(PC/CC/Note/PB)"]), args)
+
+    def test_not_a_toggle(self):
+        """Byte 1 is the step and stays below 0x80: the button is no toggle."""
+        self.assertEqual(self.pack(step="127")[1] & 0x80, 0)
+
+    def test_plain_pc_unchanged(self):
+        """An ordinary Program Change never carries the markers."""
+        row = {f"A_{f}": "" for f in unpacker.CMD_FIELDS}
+        row.update({"A_CommandType": "PC", "A_Channel_(PC/CC/Note/PB)": "1",
+                    "A_Number_(PC/CC/Note)": "5", "A_BankSelect_(PC)": "",
+                    "A_BankSelectHighByte_(PC)": "N"})
+        packed = bytes(cbp.pack_row(pd.Series(row)))[:4]
+        self.assertNotIn(packed[2], (cbp.PC_REL_UP, cbp.PC_REL_DOWN))
+        self.assertEqual(unpacker.unpack_command(packed)["CommandType"], "PC")
+
+    def test_demo_prev_next(self):
+        buttons = unpacker.unpack_config(packer.pack_config(read_config_csv(DEMO_CSV)))[2]
+        def btn(b):
+            r = buttons[(buttons["Bank_Number"].astype(str) == "3")
+                        & (buttons["Button_Identifier"].astype(str) == b)].iloc[0]
+            return r["Label"], r["A_CommandType"], r["A_KeyMode_(Key)"]
+        self.assertEqual(btn("C"), ("PREV", "PCInc", "Down"))
+        self.assertEqual(btn("D"), ("NEXT", "PCInc", "Up"))
+
+
 class WaitTest(unittest.TestCase):
     """Wait command: a pause before the rest of the button's commands."""
 

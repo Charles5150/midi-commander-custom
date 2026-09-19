@@ -35,6 +35,11 @@ void sw_request_bank(uint8_t bank);
 // buttons whose command matches, without sending anything.
 void sw_feedback_message(const uint8_t *data);
 
+// Remember the program last selected on a channel (0-15), whether by a PC
+// command or by one arriving over USB, for the relative Program Change
+// command to move from. A single byte store, safe from the USB interrupt.
+void sw_note_program(uint8_t channel, uint8_t program);
+
 // Virtual pedal: press (down) or release a switch from the USB interrupt, as
 // SysEx PRESS_BUTTON does. 0-7 are the command switches, 8 Bank Down, 9 Bank
 // Up. Applied by handle_switches exactly like a foot on the switch.

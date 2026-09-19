@@ -266,6 +266,43 @@ static void send_ccinc(uint8_t *pRom){
 	display_show_cc(cc, (uint8_t)next);
 }
 
+/*
+ * Relative Program Change ("next / previous preset"): moves from the program
+ * last sent on the channel, whoever sent it: a PC command, a bank being
+ * entered, or the host over USB. Nothing sent yet counts as program 0. Shared
+ * by every button, so a Next and a Previous button work as a pair.
+ */
+static uint8_t pc_current[16] = { [0 ... 15] = 0xFF };
+
+void sw_note_program(uint8_t channel, uint8_t program){
+	pc_current[channel & 0x0F] = program & 0x7F;
+}
+
+static void send_pc_relative(const uint8_t *pRom){
+	uint8_t channel = pRom[0] & 0x0F;
+	int16_t step = (pRom[1] & 0x7F) ? (pRom[1] & 0x7F) : 1;
+	int16_t top = pRom[3] & 0x7F;
+	bool wrap = (pRom[3] & 0x80) != 0;
+	int16_t current = (pc_current[channel] <= 127) ? pc_current[channel] : 0;
+
+	int16_t next = current + ((pRom[2] == PC_REL_DOWN) ? -step : step);
+	if(wrap){
+		next %= top + 1;
+		if(next < 0) next += top + 1;
+	} else {
+		if(next > top) next = top;
+		if(next < 0) next = 0;
+	}
+
+	uint8_t pc[4] = { CMD_PC_NIBBLE | channel, (uint8_t)next, 0x80, 0xFF }; // no Bank Select
+	midiCmd_send_pc_command_from_rom(pc);
+	pc_current[channel] = (uint8_t)next;
+
+	char msg[9];
+	snprintf(msg, sizeof(msg), "PC %u", (unsigned)next);
+	display_show_message(msg);
+}
+
 // A stored SysEx payload, wrapped in F0 ... F7 and sent to USB and DIN
 static void send_stored_sysex(const uint8_t *pRom){
 	uint8_t index = pRom[1];
@@ -536,7 +573,12 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 
 	switch(*pRom & 0xF0){
 	case CMD_PC_NIBBLE:
-		status = midiCmd_send_pc_command_from_rom(pRom);
+		if(pRom[2] == PC_REL_UP || pRom[2] == PC_REL_DOWN){
+			send_pc_relative(pRom);
+		} else {
+			status = midiCmd_send_pc_command_from_rom(pRom);
+			sw_note_program(pRom[0], pRom[1]);
+		}
 		break;
 	case CMD_CC_NIBBLE:
 		if(midiCmd_get_cmd_toggle(pRom)){

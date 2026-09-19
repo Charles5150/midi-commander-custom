@@ -20,6 +20,10 @@ CMD_SCENE_NIBBLE = 0xA0
 # A pause shares the empty command type, marked by its low nibble, so a command
 # of all zeroes stays an empty command. Byte 2 holds the pause in 10 ms units.
 CMD_WAIT_MODE = 1
+# A relative Program Change is a PC whose Bank Select MSB byte, where 0x80 and
+# above already meant "none", holds one of these markers
+PC_REL_UP = 0x81
+PC_REL_DOWN = 0x82
 # Button order of a scene string, one character each: + on, - off, . leave
 SCENE_BUTTONS = "1234ABCD"
 
@@ -322,6 +326,25 @@ def cmd_ccinc(cmd):
     ]
 
 
+def cmd_pcinc(cmd):
+    """Relative Program Change: next or previous preset.
+
+    Moves from the program last sent on the channel. OffValue is the step,
+    Number the last program in the range (127 when empty), KeyMode the
+    direction (Up/Down) and Toggle wraps round at the ends instead of stopping.
+    """
+    step = max(1, min(127, safe_int(cmd.get("OffValue_(CC)", 1)) or 1))
+    top = max(0, min(127, safe_int(cmd.get("Number_(PC/CC/Note)", ""), 127)))
+    down = str(cmd.get("KeyMode_(Key)", "")).strip().upper().startswith("DOWN")
+    wrap = get_toggle_bit(str(cmd.get("Toggle_(CC/PB/Note)", ""))) != 0
+    return [
+        CMD_PC_NIBBLE | channel_nibble(cmd["Channel_(PC/CC/Note/PB)"]),
+        step,
+        PC_REL_DOWN if down else PC_REL_UP,
+        (0x80 if wrap else 0) | top,
+    ]
+
+
 def cmd_sysex(cmd):
     """Send a stored SysEx string. Number selects the table entry."""
     index = max(0, min(15, safe_int(cmd.get("Number_(PC/CC/Note)", 0))))
@@ -403,6 +426,7 @@ cmd_route_table = {
     "Media": cmd_media,
     "Bank": cmd_bank,
     "CCInc": cmd_ccinc,
+    "PCInc": cmd_pcinc,
     "Tap": cmd_tap,
     "SysEx": cmd_sysex,
     "Wait": cmd_wait,
