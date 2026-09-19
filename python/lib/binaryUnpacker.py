@@ -22,6 +22,8 @@ from lib.cmdBinaryPacker import (
     CMD_RAMP_MODE,
     CMD_CYCLE_MODE,
     CMD_LEAVE_MODE,
+    CMD_EXP_MODE,
+    EXP_TARGET_OFF,
     CYCLE_LABEL_COUNT,
     CYCLE_LABEL_LEN,
     PC_REL_MARKERS,
@@ -219,6 +221,19 @@ def unpack_command(raw: bytes, cycle_labels=None) -> dict:
             cmd["OnValue_(CC/PB)"] = cycle_labels[b1]
     elif cmd_type == CMD_NO_CMD_NIBBLE and (b0 & 0x0F) == CMD_LEAVE_MODE:
         cmd["CommandType"] = "Leave"
+    elif cmd_type == CMD_NO_CMD_NIBBLE and (b0 & 0x0F) == CMD_EXP_MODE:
+        cmd["CommandType"] = "Exp"
+        cmd["OnValue_(CC/PB)"] = str((b1 & 0x7F) + 1)
+        cmd["Toggle_(CC/PB/Note)"] = toggle
+        if b2 == EXP_TARGET_OFF:
+            cmd["KeyMode_(Key)"] = "Off"
+        elif b2 < 0x80:
+            cmd["KeyMode_(Key)"] = "CC"
+            cmd["Number_(PC/CC/Note)"] = str(b2)
+            if 1 <= b3 <= 16:
+                cmd["Channel_(PC/CC/Note/PB)"] = str(b3)
+        else:
+            cmd["KeyMode_(Key)"] = "Own"
     elif cmd_type == CMD_PC_NIBBLE and b2 in PC_REL_MARKERS:
         cmd["CommandType"] = "PCInc"
         cmd["Channel_(PC/CC/Note/PB)"] = channel

@@ -81,6 +81,15 @@
 // which it splits in two: the commands above it are sent on entering the bank,
 // those below it on leaving it. The other bytes are 0.
 #define CMD_LEAVE_MODE		(4)
+// Exp: same empty command type, low nibble 5. Changes what an expression pedal
+// sends until another Exp command or a bank change. Byte 1 is the pedal (0 or
+// 1), with the top bit marking a toggling command, which puts the pedal back
+// to its own target when switched off. Byte 2 is the CC, EXP_TARGET_OFF to
+// silence the pedal or EXP_TARGET_RESET to give it back its own target. Byte 3
+// is the channel 1-16, or 0 to keep the pedal's own.
+#define CMD_EXP_MODE		(5)
+#define EXP_TARGET_OFF		(0x80)
+#define EXP_TARGET_RESET	(0x81)
 #define CMD_PC_NIBBLE		(0xC0)
 // Relative Program Change: a PC whose byte 2 (the Bank Select MSB, 0x80 and up
 // meaning none) holds one of these markers. Byte 1 is the step, byte 3 the last

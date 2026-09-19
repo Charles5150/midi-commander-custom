@@ -346,8 +346,14 @@ def build() -> Demo:
     d.sysex_cmd(8, "3", "MAKR", 2)
     d.sysex_cmd(8, "4", "EMPT", 15)                    # empty entry: sends nothing
     d.cc(8, "A", "CC30", "30")
-    d.cc(8, "B", "CC31", "31")
-    d.cc(8, "C", "CC32", "32")
+    # Exp commands: while VOL is on, pedal 1 is a volume pedal (CC 7) instead
+    # of the wah, and switching it off gives the wah back; P2 X silences pedal 2
+    # while it is on
+    d.button(8, "B", "P2 X", slot="A", CommandType="Exp",
+             **{"OnValue_(CC/PB)": "2", "KeyMode_(Key)": "Off", "Toggle_(CC/PB/Note)": "Y"})
+    d.button(8, "C", "VOL", slot="A", CommandType="Exp",
+             **{"OnValue_(CC/PB)": "1", "KeyMode_(Key)": "CC", "Number_(PC/CC/Note)": "7",
+                "Toggle_(CC/PB/Note)": "Y"})
     # A wah switched by pedal 1 itself (auto-engage, see the pedals below)
     d.cc(8, "D", "WAH", "33", toggle="Y")
 

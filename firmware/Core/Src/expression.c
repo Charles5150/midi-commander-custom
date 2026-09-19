@@ -16,7 +16,8 @@
  *
  * The CC numbers come from the global settings (Exp1_CC / Exp2_CC). A bank can
  * give a pedal another CC, channel and output range, or silence it (see
- * pedal_target).
+ * pedal_target), and an Exp command on a button can change it again until the
+ * next bank change (see expression_set_target).
  *
  * A pedal can also act as a switch: crossing up through the toe threshold, or
  * back down through the heel threshold, taps a button of the current bank. Each
@@ -119,6 +120,17 @@ typedef struct {
 } exp_pedal_t;
 
 static exp_pedal_t pedals[EXP_PEDAL_COUNT];
+
+// Set by Exp commands: a CC (or EXP_TARGET_OFF) and channel that win over the
+// bank's. Kept by expression_init, which runs at boot after the saved button
+// states have set them.
+typedef struct {
+  bool active;
+  uint8_t cc;
+  uint8_t channel;      // 1-16, 0 = keep the pedal's own
+} exp_override_t;
+
+static exp_override_t overrides[EXP_PEDAL_COUNT];
 static uint32_t next_process_tick = 0U;
 
 // --- Pin handling -----------------------------------------------------------
@@ -279,10 +291,43 @@ static bool pedal_target(uint32_t i, uint8_t *cc, uint8_t *channel,
   *channel = midi_channel(c);
   *lo = (r[0] <= 127U) ? r[0] : c->out_min;
   *hi = (r[1] <= 127U) ? r[1] : c->out_max;
-  if (b[0] == BANK_EXP_CC_OFF) return false;
+  bool enabled = (b[0] != BANK_EXP_CC_OFF);
   if (b[0] <= 127U) *cc = b[0];
   if (b[1] >= 1U && b[1] <= 16U) *channel = b[1] - 1U;
-  return true;
+
+  // An Exp command wins over the bank, even over a pedal the bank silenced;
+  // the output range stays the bank's
+  const exp_override_t *o = &overrides[i];
+  if (o->active) {
+      if (o->cc == EXP_TARGET_OFF) return false;
+      *cc = o->cc;
+      if (o->channel >= 1U && o->channel <= 16U) *channel = o->channel - 1U;
+      return true;
+  }
+  return enabled;
+}
+
+/*
+ * Exp commands. The pedal switches over on its next movement, like on a bank
+ * change: the new target is not sent the position it was left at, so a pedal
+ * moved from the wah to the volume does not jump the volume.
+ */
+void expression_set_target(uint8_t pedal, uint8_t cc, uint8_t channel)
+{
+  if (pedal >= EXP_PEDAL_COUNT) return;
+  exp_override_t *o = &overrides[pedal];
+  if (cc == EXP_TARGET_RESET || cc > EXP_TARGET_OFF) {
+      o->active = false;
+      return;
+  }
+  o->active = true;
+  o->cc = cc;
+  o->channel = (channel <= 16U) ? channel : 0U;
+}
+
+void expression_clear_targets(void)
+{
+  for (uint32_t i = 0; i < EXP_PEDAL_COUNT; i++) overrides[i].active = false;
 }
 
 // --- Public API --------------------------------------------------------------
@@ -334,8 +379,12 @@ uint8_t expression_get_midi(uint8_t pedal)
  * leaves the heel and only switched off once per rest at the heel, so a wah
  * switched off by hand with the pedal up, or on by hand at the heel, stays as
  * it was left. Nothing fires on the first reading.
+ *
+ * While an Exp command has the pedal somewhere else it leaves the button
+ * alone: the pedal is not driving the wah then. It only follows the edges, so
+ * getting the pedal back does not fire anything either.
  */
-static void auto_engage(exp_pedal_t *p, uint8_t midi_value)
+static void auto_engage(exp_pedal_t *p, bool redirected, uint8_t midi_value)
 {
   const exp_cal_t *c = &p->cal;
   if (c->auto_button == NO_BUTTON) return;
@@ -347,6 +396,12 @@ static void auto_engage(exp_pedal_t *p, uint8_t midi_value)
       p->auto_at_heel = at_heel;
       p->auto_off_done = false;
       p->auto_heel_tick = now;
+      return;
+  }
+
+  if (redirected) {
+      p->auto_at_heel = at_heel;
+      p->auto_off_done = true;
       return;
   }
 
@@ -420,7 +475,7 @@ static void process_pedal(uint32_t i)
   }
 
   // The wah goes on before the first position reaches it
-  auto_engage(p, midi_value);
+  auto_engage(p, overrides[i].active, midi_value);
 
   // A bank change can move the pedal to another CC, channel or range, or
   // silence it. The new target is not sent the old position: it follows the

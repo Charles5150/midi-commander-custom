@@ -21,7 +21,7 @@ import pandas as pd
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-from lib.cmdBinaryPacker import HID_SPECIAL_KEYS, MEDIA_KEYS, RAMP_MAX_MS  # noqa: E402
+from lib.cmdBinaryPacker import EXP_TARGETS, HID_SPECIAL_KEYS, MEDIA_KEYS, RAMP_MAX_MS  # noqa: E402
 from lib.configCsv import read_config_csv, write_config_csv  # noqa: E402
 from lib.configPacker import NUM_BANKS, BUTTON_IDS  # noqa: E402
 from lib.configPacker import (  # noqa: E402
@@ -151,7 +151,7 @@ LED_MODES = ["Normal", "Reverse", "AlwaysOn"]
 BUTTON_GROUPS = ["None", "1", "2", "3", "4"]
 CHANNELS = [str(i) for i in range(1, 17)]
 NO_COMMAND = "(none)"
-COMMAND_TYPES = [NO_COMMAND, "PC", "PCInc", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "Panic", "Scene", "Wait", "Ramp"]
+COMMAND_TYPES = [NO_COMMAND, "PC", "PCInc", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "Panic", "Scene", "Wait", "Ramp", "Exp"]
 # Cycle splits a button's short press list into states, so only that list offers it
 SHORT_COMMAND_TYPES = COMMAND_TYPES + ["Cycle"]
 # Leave splits a bank's enter list into the commands on entering and on leaving
@@ -592,6 +592,29 @@ class SlotEditor:
                 text="(the CC right below walks to its value over this time)",
                 text_color=MUTED,
             ).pack(side="left", padx=8)
+        elif cmd_type == "Exp":
+            self._label("Pedal")
+            w = Option(self.params, ["1", "2"], self.initial.get("OnValue_(CC/PB)"), width=50)
+            w.pack(side="left")
+            self.widgets["exppedal"] = w
+            self._label("To")
+            w = Option(self.params, EXP_TARGETS, self.initial.get("KeyMode_(Key)"), width=65,
+                       command=lambda v: self._remode("Exp", v))
+            w.pack(side="left")
+            self.widgets["exptarget"] = w
+            if w.get() == "CC":
+                self._int("number", "CC#", "Number_(PC/CC/Note)", 0, 127)
+                self._label("Ch")
+                c = Option(self.params, ["Own"] + CHANNELS,
+                           self.initial.get("Channel_(PC/CC/Note/PB)"), width=65)
+                c.pack(side="left")
+                self.widgets["channel"] = c
+            self._check("toggle", "Toggle", "Toggle_(CC/PB/Note)")
+            ctk.CTkLabel(
+                self.params,
+                text="(until the bank changes; a toggle gives it back when off)",
+                text_color=MUTED,
+            ).pack(side="left", padx=8)
         # Start, Stop, Panic and (none) have no parameters
 
     # Read back ------------------------------------------------------------
@@ -644,6 +667,11 @@ class SlotEditor:
                 out["OffValue_(CC)"] = w["step"].value()
         if cmd_type == "Cycle":
             out["OnValue_(CC/PB)"] = w["cyclelabel"].value().strip()
+        if cmd_type == "Exp":
+            out["OnValue_(CC/PB)"] = w["exppedal"].value()
+            out["KeyMode_(Key)"] = w["exptarget"].value()
+            if out["Channel_(PC/CC/Note/PB)"] == "Own":
+                out["Channel_(PC/CC/Note/PB)"] = ""
         if cmd_type == "Scene":
             code = {"On": "+", "Off": "-"}
             out["OnValue_(CC/PB)"] = "".join(code.get(w[f"scene_{i}"].value(), ".") for i in range(8))

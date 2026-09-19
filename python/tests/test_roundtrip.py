@@ -1817,6 +1817,58 @@ class LeaveCommandTest(unittest.TestCase):
         self.assertEqual(int(m.group(1)), cbp.CMD_LEAVE_MODE)
 
 
+class ExpCommandTest(unittest.TestCase):
+    """Exp commands, which point an expression pedal somewhere else."""
+
+    def pack(self, **fields):
+        row = pd.Series({"A_CommandType": "Exp", **{f"A_{k}": v for k, v in fields.items()}})
+        return cbp.pack_row(row)[:4]
+
+    def test_encoding(self):
+        self.assertEqual(self.pack(**{"OnValue_(CC/PB)": "1", "KeyMode_(Key)": "CC",
+                                      "Number_(PC/CC/Note)": "7"}), [0x05, 0, 7, 0])
+        self.assertEqual(self.pack(**{"OnValue_(CC/PB)": "2", "Number_(PC/CC/Note)": "74",
+                                      "Channel_(PC/CC/Note/PB)": "16",
+                                      "Toggle_(CC/PB/Note)": "Y"}), [0x05, 0x81, 74, 16])
+        self.assertEqual(self.pack(**{"OnValue_(CC/PB)": "2", "KeyMode_(Key)": "Off"}),
+                         [0x05, 1, cbp.EXP_TARGET_OFF, 0])
+        self.assertEqual(self.pack(**{"KeyMode_(Key)": "Own", "Channel_(PC/CC/Note/PB)": "5"}),
+                         [0x05, 0, cbp.EXP_TARGET_OWN, 0])
+
+    def test_bad_values(self):
+        for fields in ({"OnValue_(CC/PB)": "3", "Number_(PC/CC/Note)": "7"},
+                       {"Number_(PC/CC/Note)": ""},
+                       {"Number_(PC/CC/Note)": "128"},
+                       {"Number_(PC/CC/Note)": "7", "Channel_(PC/CC/Note/PB)": "17"},
+                       {"KeyMode_(Key)": "Wah"}):
+            with self.assertRaises(ValueError, msg=fields):
+                self.pack(**fields)
+
+    def test_round_trip(self):
+        for raw in ([0x05, 0, 7, 0], [0x05, 0x81, 74, 16], [0x05, 1, 0x80, 0], [0x05, 0x80, 0x81, 0]):
+            cmd = unpacker.unpack_command(bytes(raw))
+            row = pd.Series({f"A_{k}": v for k, v in cmd.items()})
+            self.assertEqual(cbp.pack_row(row)[:4], raw, cmd)
+
+    def test_demo(self):
+        packed = packer.pack_config(read_config_csv(DEMO_CSV))
+        at = unpacker.COMMANDS_OFFSET + (8 * 8 + 5) * unpacker.BUTTON_STRIDE
+        self.assertEqual(packed[at : at + 4], bytes([0x05, 0x81, cbp.EXP_TARGET_OFF, 0]))
+        at += unpacker.BUTTON_STRIDE
+        self.assertEqual(packed[at : at + 4], bytes([0x05, 0x80, 7, 0]))
+
+    def test_firmware_values_match(self):
+        import re
+        path = os.path.join(os.path.dirname(__file__), "..", "..", "firmware", "Core", "Inc",
+                            "midi_defines.h")
+        with open(path) as handle:
+            header = handle.read()
+        for name, value in (("CMD_EXP_MODE", cbp.CMD_EXP_MODE), ("EXP_TARGET_OFF", cbp.EXP_TARGET_OFF),
+                            ("EXP_TARGET_RESET", cbp.EXP_TARGET_OWN)):
+            m = re.search(rf"#define\s+{name}\s+\((0x[0-9A-Fa-f]+|\d+)\)", header)
+            self.assertEqual(int(m.group(1), 0), value, name)
+
+
 class Fm3TemplateTest(unittest.TestCase):
     """The FM3 template packs and reads back as the template describes."""
 

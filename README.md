@@ -32,6 +32,8 @@ The firmware replaces the stock MeloAudio one but never touches its bootloader, 
 - **Pauses between commands.** A `Wait` command spaces out the commands of a button, for the device that drops a Control Change arriving right behind a Program Change. The pedal keeps reading switches and pedals while it waits.
 - **CC ramps.** A `Ramp` command makes the Control Change below it walk to its value over a time, up to about 11 minutes, instead of jumping: a volume swell or a slow filter sweep from a single press, and back again on the release or when a toggle is switched off.
 - **Cycle buttons.** One button steps through several states, each with its own commands and its own label on the display: the four channels of an amp on a single switch, say, one press each, round and round.
+
+**Changing an expression pedal's target.** `CommandType` `Exp` changes what an expression pedal sends, so one pedal can drive the wah, then the volume, then a parameter. `OnValue` is the pedal, 1 or 2, and `KeyMode` says where it goes: `CC` sends it to the CC in `Number`, on `Channel` or, left empty, on the pedal's own channel; `Off` silences it; `Own` gives it back what it sends in this bank. It lasts until another `Exp` for the same pedal or a bank change, and it wins over the bank's `BankExpression_Settings`, even over a bank that silences the pedal, while the output range stays the bank's. With `Toggle` Y the command does it while the button is on, and switching the button off gives the pedal back its own target, so a button with `Exp 1 CC 7` as a toggle turns the wah pedal into a volume pedal and back, with the LED showing which. The pedal switches over on its next movement, like on a bank change, so the volume does not jump to where the wah was left. On entering a bank the pedals start from that bank's own targets, and then any toggling `Exp` on a button of the bank that is on takes effect again, so the pedals always match the LEDs, also after switching the pedal off and on. While an `Exp` has a pedal somewhere else, its auto-engage leaves its button alone. Like `Wait`, an `Exp` is marked by the low nibble of the empty command type, 5; byte 1 is the pedal with the toggle bit, byte 2 the CC, 0x80 for Off or 0x81 for Own, and byte 3 the channel, 0 for the pedal's own. Needs firmware 0.42; older firmware ignores it.
 - **Momentary or toggle** behaviour per command, and timed auto-release (up to 1.27 s) for Notes, Pitch Bend and keys.
 - **Button labels on the display.** Each button has a 4 character label; the screen shows the current bank and a 2×4 grid mirroring the pedal, with toggle buttons drawn inverted while on.
 - **LED modes** per button: Normal, Reverse (lit when off) or AlwaysOn (blinks while active). The Bank Up / Down LEDs have the same options. Global brightness for lit LEDs and, separately, for LEDs lit at rest, so an active button stands out from an idle one.
@@ -47,6 +49,7 @@ The firmware replaces the stock MeloAudio one but never touches its bootloader, 
 - **USB keyboard and media keys (HID).** A command can press a key with Ctrl / Shift / Alt / Cmd modifiers, tap it, hold it or release it, or send a media key (play/pause, next, previous, stop, volume, mute, record) to the computer.
 - **Two expression pedals** with per-pedal CC number, MIDI channel, calibrated end points, response curve and direction, calibrated live from the configurator. Each can also act as a switch: reaching the toe, or returning to the heel, taps a button of the current bank.
 - **Expression per bank.** Each bank can give each expression pedal its own CC and channel, or silence it, so the same pedal is a wah in one bank and a volume in another.
+- **Expression target from a button.** A command changes what an expression pedal sends, its CC and channel, or silences it, so one pedal can be the wah, then the volume, then a parameter, within the same bank; as a toggle, switching it off gives the pedal back.
 - **Auto-engage wah.** Moving an expression pedal up from the heel switches a button on, and resting at the heel for a moment switches it off again, like the auto-engage wahs of Fractal and Line 6: no stomping on the wah before using it.
 - **Expression output range.** A pedal can send only part of the range, 40 to 127 for a volume that never drops to silence for instance, or run backwards; per pedal, and per bank on top of that.
 - **Virtual pedal.** The configurator draws the pedal as it is built, and lets you press its switches with the mouse, tap, hold or double click, while its screen, pixel for pixel, and its LEDs are read back from the pedal, so a configuration can be tried without standing on it.
@@ -174,7 +177,7 @@ A configuration is a CSV with several sections, each introduced by a line starti
 | 5 | Media keys |
 | 6 | Tap tempo, clock start/stop, transport, and BPM up/down (hold SYNC for 120 BPM) |
 | 7 | Relative CC, up and down, with and without wrapping, VOL+ and VOL- repeating while held, and two CC ramps: a toggle swell and a momentary rise |
-| 8 | Stored SysEx messages, including an empty entry that sends nothing, and a WAH on D that pedal 1 switches on and off by itself |
+| 8 | Stored SysEx messages, including an empty entry that sends nothing, a WAH on D that pedal 1 switches on and off by itself, VOL on C, which turns pedal 1 into a volume pedal (CC 7) while it is on, and P2 X on B, which silences pedal 2 while it is on |
 | 9 | Notes and pitch bend, with durations and toggles |
 | 10 | Bank navigation from buttons, absolute and relative |
 | 11 | Several commands chained on one button, short versus long press, and a cycle button stepping through four amp channels (D), and a boost that latches on a tap and is momentary when held (4). Entering the bank sends CC 59 127 and leaving it CC 59 0 |
@@ -255,17 +258,17 @@ One row per button, 256 rows in bank order and, within a bank, in the order `1, 
 
 | Field | PC | CC | Note | PB | Key | Meaning |
 |---|---|---|---|---|---|---|
-| `CommandType` | | | | | | `PC`, `PCInc`, `CC`, `CCInc`, `Note`, `PB`, `Key`, `Media`, `Bank`, `SysEx`, `Tap`, `Start`, `Stop`, `Panic`, `Scene`, `Wait`, `Ramp`, `Cycle` (short press only), or empty for none |
-| `Channel_(PC/CC/Note/PB)` | ✓ | ✓ | ✓ | ✓ | | MIDI channel 1–16 |
-| `Number_(PC/CC/Note)` | ✓ | ✓ | ✓ | | ✓ | PC: program 0–127. CC: controller number. Note: note number. Key: modifier mask |
-| `OnValue_(CC/PB)` | | ✓ | | ✓ | ✓ | CC: value on press (0–127). PB: −8192..8191. Key: key name. Media: media key name. Cycle: the state's label, up to 4 characters |
+| `CommandType` | | | | | | `PC`, `PCInc`, `CC`, `CCInc`, `Note`, `PB`, `Key`, `Media`, `Bank`, `SysEx`, `Tap`, `Start`, `Stop`, `Panic`, `Scene`, `Wait`, `Ramp`, `Exp`, `Cycle` (short press only), or empty for none |
+| `Channel_(PC/CC/Note/PB)` | ✓ | ✓ | ✓ | ✓ | | MIDI channel 1–16. Exp: empty for the pedal's own |
+| `Number_(PC/CC/Note)` | ✓ | ✓ | ✓ | | ✓ | PC: program 0–127. CC: controller number. Note: note number. Key: modifier mask. Exp: the CC the pedal sends |
+| `OnValue_(CC/PB)` | | ✓ | | ✓ | ✓ | CC: value on press (0–127). PB: −8192..8191. Key: key name. Media: media key name. Cycle: the state's label, up to 4 characters. Exp: the pedal, 1 or 2 |
 | `OffValue_(CC)` | | ✓ | | | | CC: value on release / toggle off (0–127) |
 | `BankSelect_(PC)` | ✓ | | | | | 0–16383, sent as CC#32 (LSB) before the PC |
 | `BankSelectHighByte_(PC)` | ✓ | | | | | Y: also send CC#0 (MSB) |
 | `Toggle_(CC/PB/Note)` | | ✓ | ✓ | ✓ | ✓ | Y: alternate on / off on successive presses. Key / Media: hold until the next press |
 | `Velocity_(Note)` | | | ✓ | | | 0–127 |
 | `Duration_(Note/PB)` | | | ✓ | ✓ | ✓ | In 10 ms steps, 0–127 (max 1.27 s). Media: same as Key. Wait: the pause in milliseconds, up to 2550. Ramp: its time in milliseconds, up to 655350 |
-| `KeyMode_(Key)` | | | | | ✓ | Normal / Down / Up. CCInc and PCInc: Up / Down / Up Repeat / Down Repeat. Tap: Tap / Clock / Set / Up / Down / Up Repeat / Down Repeat |
+| `KeyMode_(Key)` | | | | | ✓ | Normal / Down / Up. CCInc and PCInc: Up / Down / Up Repeat / Down Repeat. Tap: Tap / Clock / Set / Up / Down / Up Repeat / Down Repeat. Exp: CC / Off / Own |
 
 `Start` and `Stop` take no parameters; they send MIDI Start (0xFA) / Stop (0xFC) over USB and DIN.
 
@@ -385,7 +388,7 @@ Optional; one row per `Bank_Number` (0–31), rows may be missing or in any orde
 | `Exp1_Channel`, `Exp2_Channel` | empty or 1–16 | Channel for that pedal in this bank. Empty keeps the pedal's `Channel` from `Expression_Settings`. |
 | `Exp1_Min`, `Exp1_Max`, `Exp2_Min`, `Exp2_Max` | empty or 0–127 | Values the pedal sends at the heel and at the toe in this bank. Empty keeps its `Out_Min` / `Out_Max` from `Expression_Settings`; each end is taken on its own. Needs firmware 0.33. |
 
-A silenced pedal still acts as a switch: its `Toe_Button` and `Heel_Button` keep working. After a bank change the pedal is not sent to its new CC, channel or range at the position it happens to rest in; it follows the next movement. Configurations written before 0.28 have nothing stored here and behave as if every cell were empty, and those written before 0.33 have no range here. The range is a table of its own after the CC and channel one, four bytes per bank, so their layout is unchanged. Edit it in the configurator's **Banks** tab.
+An `Exp` command on a button can change these again until the next bank change, see [Button_Settings](#button_settings). A silenced pedal still acts as a switch: its `Toe_Button` and `Heel_Button` keep working. After a bank change the pedal is not sent to its new CC, channel or range at the position it happens to rest in; it follows the next movement. Configurations written before 0.28 have nothing stored here and behave as if every cell were empty, and those written before 0.33 have no range here. The range is a table of its own after the CC and channel one, four bytes per bank, so their layout is unchanged. Edit it in the configurator's **Banks** tab.
 
 ---
 
@@ -454,6 +457,7 @@ Hardware notes (MCU, pinout, I²C addresses) are in `HardwareNotes.txt`; `backup
 
 Firmware versions are shown on the display at boot and reported by the tools.
 
+- **0.42 — Expression target from a button.** New `Exp` command type: sends an expression pedal to another CC and channel, silences it (`Off`) or gives it back its own target (`Own`), until another `Exp` or a bank change; as a toggle, switching it off gives the pedal back. Toggling `Exp` commands that are on take effect again on entering their bank and at power up. Auto-engage pauses while the pedal is elsewhere. Marked by the low nibble of the empty command type, 5, so the layout is unchanged. `Exp` in the configurator's command lists. The demo's bank 8 has VOL on C, pedal 1 as a volume pedal, and P2 X on B, pedal 2 silenced.
 - **0.41 — Auto-engage from the expression pedal.** New `Auto_Button` and `Auto_Off_ms` columns in `Expression_Settings`, stored in bytes 13 and 14 of each pedal's record, which older tools left at zero, meaning none. Leaving the heel switches the toggle button on, resting at the heel for the delay (default 500 ms) switches it off, each only on that edge so the button can still be pressed by hand. The threshold is `Heel_Level`. Auto-engage fields in the configurator's Expression tab. The demo's bank 8 has a WAH on D that pedal 1 drives.
 - **0.40 — Commands on leaving a bank.** New `Leave` command type for a bank's enter list: the commands below it are sent on leaving the bank, just before the next bank's, and on changing configuration, straight through without pauses. Marked by the low nibble of the empty command type, 4, so the layout is unchanged. `Leave` in the configurator's Bank Enter command list. The demo's bank 11 switches CC 59 on as it is entered and off as it is left.
 - **0.39 — Latch or momentary.** New `Momentary_Hold` column in `Button_Settings`: a toggle button with it set latches on a tap, and held past `Long_Press_ms` goes back to its previous state on release. Stored in bit 7 of the button's LED mode byte, so the layout is unchanged and a CSV without the column packs exactly as before. "Momentary when held" box in the configurator's button editor. The demo's bank 11 button 4 becomes BOST, a boost using it.

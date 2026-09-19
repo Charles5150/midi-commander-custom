@@ -35,6 +35,15 @@ CYCLE_LABEL_LEN = 4
 # And the split of a bank's enter list: the commands above it are sent on
 # entering the bank, those below it on leaving it. The other bytes are 0.
 CMD_LEAVE_MODE = 4
+# And a change of what an expression pedal sends, until another one or a bank
+# change. Byte 1 is the pedal (0 or 1) with the toggle bit, byte 2 the CC,
+# EXP_TARGET_OFF to silence the pedal or EXP_TARGET_OWN to give it back its own
+# target, byte 3 the channel 1-16 or 0 for the pedal's own. A toggling one gives
+# the pedal back its own target when switched off.
+CMD_EXP_MODE = 5
+EXP_TARGET_OFF = 0x80
+EXP_TARGET_OWN = 0x81
+EXP_TARGETS = ["CC", "Off", "Own"]
 # A relative Program Change is a PC whose Bank Select MSB byte, where 0x80 and
 # above already meant "none", holds one of these markers
 PC_REL_UP = 0x81
@@ -469,6 +478,37 @@ def cmd_ramp(cmd):
     return [CMD_NO_CMD_NIBBLE | CMD_RAMP_MODE, 0, steps & 0xFF, (steps >> 8) & 0xFF]
 
 
+def cmd_exp(cmd):
+    """Point an expression pedal somewhere else.
+
+    OnValue is the pedal, 1 or 2. KeyMode says where to: CC (the default) sends
+    it to CC Number, on Channel if one is given or else on the pedal's own;
+    Off silences it; Own gives it back its own target.
+    """
+    pedal = safe_int(cmd.get("OnValue_(CC/PB)"), 1)
+    if pedal not in (1, 2):
+        raise ValueError(f"Exp pedal must be 1 or 2, not {cmd.get('OnValue_(CC/PB)')!r}")
+    target = str(cmd.get("KeyMode_(Key)", "")).strip().upper()
+    if target in ("", "NAN", "CC"):
+        cc = safe_int(cmd.get("Number_(PC/CC/Note)"), -1)
+        if not 0 <= cc <= 127:
+            raise ValueError(f"Exp needs a CC number 0-127, not {cmd.get('Number_(PC/CC/Note)')!r}")
+    elif target == "OFF":
+        cc = EXP_TARGET_OFF
+    elif target == "OWN":
+        cc = EXP_TARGET_OWN
+    else:
+        raise ValueError(f"Exp target must be CC, Off or Own, not {cmd.get('KeyMode_(Key)')!r}")
+    channel = 0
+    ch = str(cmd.get("Channel_(PC/CC/Note/PB)", "")).strip().upper()
+    if cc < 0x80 and ch not in ("", "NAN", "OWN"):
+        channel = safe_int(ch, 0)
+        if not 1 <= channel <= 16:
+            raise ValueError(f"Exp channel must be empty or 1-16, not {ch!r}")
+    toggle = get_toggle_bit(str(cmd.get("Toggle_(CC/PB/Note)", "")))
+    return [CMD_NO_CMD_NIBBLE | CMD_EXP_MODE, (pedal - 1) | toggle, cc, channel]
+
+
 def cycle_label_text(value) -> str:
     """A Cycle command's label as stored: at most 4 ASCII characters."""
     text = "" if value is None else str(value)
@@ -524,6 +564,7 @@ cmd_route_table = {
     "SysEx": cmd_sysex,
     "Wait": cmd_wait,
     "Ramp": cmd_ramp,
+    "Exp": cmd_exp,
 }
 
 

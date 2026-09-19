@@ -479,10 +479,47 @@ static uint8_t* get_bank_enter_pointer(uint8_t bank, uint8_t cmd){
 	return pBankEnterCmds + (MIDI_ROM_KEY_STRIDE * bank) + (MIDI_ROM_CMD_SIZE * cmd);
 }
 
+static inline bool cmd_is_exp(const uint8_t *pRom){
+	return (pRom[0] & 0xF0) == CMD_NO_CMD_NIBBLE && (pRom[0] & 0x0F) == CMD_EXP_MODE;
+}
+
+/*
+ * Exp: point an expression pedal somewhere else. A toggling one does it while
+ * its button is on and gives the pedal back its own target when switched off.
+ */
+static void send_exp(const uint8_t *pRom, uint8_t toggleState){
+	uint8_t pedal = pRom[1] & 0x7F;
+	if((pRom[1] & 0x80) && !toggleState){
+		expression_set_target(pedal, EXP_TARGET_RESET, 0);
+	} else {
+		expression_set_target(pedal, pRom[2], pRom[3]);
+	}
+}
+
+/*
+ * What Exp commands have done lasts until the bank changes, and then the
+ * pedals start from the new bank's own targets, overridden by the toggling
+ * Exp commands of its buttons that are on. So the pedals always match the
+ * LEDs, however the bank was left.
+ */
+static void exp_targets_for_bank(void){
+	expression_clear_targets();
+	for(uint8_t i=0; i<MIDI_NUM_SWITCHES; i++){
+		if(!sw_button_is_toggle(switch_current_page, i)) continue;
+		if(!get_sw_toggle_state(&a_sw_obj[i])) continue;
+		for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
+			uint8_t *pRom = get_rom_pointer(switch_current_page, i, j);
+			if(cmd_is_cycle(pRom)) break;
+			if(cmd_is_exp(pRom) && (pRom[1] & 0x80)) send_exp(pRom, MIDI_CONTROL_ON);
+		}
+	}
+}
+
 static void goto_bank(uint8_t bank){
 	if(bank >= MIDI_NUM_BANKS || bank == switch_current_page) return;
 	fire_bank_leave_cmds(switch_current_page);
 	switch_current_page = bank;
+	exp_targets_for_bank();
 	update_leds_on_bank_change();
 	display_setBankName(switch_current_page);
 	state_store_mark_dirty();
@@ -834,6 +871,9 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 		break;
 	case CMD_SCENE_NIBBLE:
 		apply_scene(pRom[1], pRom[2]);
+		break;
+	case CMD_NO_CMD_NIBBLE:
+		if(cmd_is_exp(pRom)) send_exp(pRom, toggleState);
 		break;
 	default:
 		break;
@@ -1568,6 +1608,7 @@ static void switch_config(uint8_t target){
 	leds_init();
 	sw_led_init();
 	expression_init();
+	expression_clear_targets();
 
 	display_setBankName(0);
 	display_show_config(slot);
@@ -2076,6 +2117,7 @@ void sw_restore_state(uint8_t page, const uint32_t toggles[8], const uint32_t lo
 		a_sw_obj[i].switch_toggle_state = toggles[i];
 		a_sw_obj[i].long_toggle_state = long_toggles[i];
 	}
+	exp_targets_for_bank();
 	update_leds_on_bank_change();
 }
 
