@@ -569,13 +569,31 @@ def button_group_value(value) -> int:
     return g
 
 
-def pack_button_led_modes(light_modes, groups=None) -> list:
+# Bit 7: momentary when held. A toggle button held past Long_Press_ms goes
+# back to its previous state when released; a tap still latches it.
+BUTTON_MOMENTARY_HOLD = 0x80
+
+
+def momentary_hold_value(value) -> bool:
+    """Momentary_Hold cell: Y/Yes/1/True is on, empty, N or None is off."""
+    s = str(value).strip().upper()
+    if s in ("", "NAN", "NONE", "N", "NO", "0", "0.0", "FALSE"):
+        return False
+    if s in ("Y", "YES", "1", "1.0", "TRUE"):
+        return True
+    raise ValueError(f"Momentary_Hold must be empty, Y or N, not {value!r}")
+
+
+def pack_button_led_modes(light_modes, groups=None, holds=None) -> list:
     """Pack one LED mode byte per button from an iterable of mode names, with
-    the exclusive group of each button, if given, in the top bits."""
+    the exclusive group of each button, if given, in bits 4-6 and its
+    momentary hold, if given, in bit 7."""
     modes = [led_mode_value(m) for m in light_modes]
-    if groups is None:
-        return modes
-    return [m | (button_group_value(g) << BUTTON_GROUP_SHIFT) for m, g in zip(modes, groups)]
+    if groups is not None:
+        modes = [m | (button_group_value(g) << BUTTON_GROUP_SHIFT) for m, g in zip(modes, groups)]
+    if holds is not None:
+        modes = [m | (BUTTON_MOMENTARY_HOLD if momentary_hold_value(h) else 0) for m, h in zip(modes, holds)]
+    return modes
 
 
 def pack_row(row, cycle_labels=None):

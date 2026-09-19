@@ -1369,6 +1369,60 @@ class ButtonGroupTest(unittest.TestCase):
                 cbp.button_group_value(cell)
 
 
+class MomentaryHoldTest(unittest.TestCase):
+    """Momentary hold, bit 7 of each button's LED mode byte."""
+
+    def test_packs_in_the_led_byte(self):
+        sections = read_config_csv(DEMO_CSV)
+        df = sections["Button_Settings"].copy()
+        df["Momentary_Hold"] = ""
+        i = df.index[(df["Bank_Number"].astype(str) == "5") & (df["Button_Identifier"] == "B")][0]
+        df.at[i, "Light_Mode"] = "Reverse"
+        df.at[i, "Group"] = "2"
+        base = pack_config({**sections, "Button_Settings": df})
+        df.at[i, "Momentary_Hold"] = "Y"
+        packed = pack_config({**sections, "Button_Settings": df})
+        at = unpacker.LED_MODES_OFFSET + 5 * 8 + unpacker.BUTTON_IDS.index("B")
+        self.assertEqual(base[at], 0x21)
+        self.assertEqual(packed[at], 0xA1)
+        self.assertEqual(packed[:at] + packed[at + 1:], base[:at] + base[at + 1:])
+
+    def test_round_trip(self):
+        sections = read_config_csv(DEMO_CSV)
+        _, _, decoded, *_ = unpacker.unpack_config(pack_config(sections))
+        row = decoded[(decoded["Bank_Number"] == "11") & (decoded["Button_Identifier"] == "4")]
+        self.assertEqual(row["Momentary_Hold"].iloc[0], "Y")
+        self.assertEqual(row["Light_Mode"].iloc[0], "AlwaysOn")
+        self.assertEqual((decoded["Momentary_Hold"] == "Y").sum(), 1)
+
+    def test_older_configurations_have_none(self):
+        sections = read_config_csv(SAMPLE_CSV)
+        self.assertNotIn("Momentary_Hold", sections["Button_Settings"].columns)
+        _, _, decoded, *_ = unpacker.unpack_config(pack_config(sections))
+        self.assertTrue((decoded["Momentary_Hold"] == "").all())
+
+    def test_erased_flash_has_none(self):
+        blank = bytes([0xFF]) * unpacker.CONFIG_SIZE
+        _, _, df, *_ = unpacker.unpack_config(blank)
+        self.assertTrue((df["Momentary_Hold"] == "").all())
+
+    def test_values(self):
+        for cell, want in (("", False), (float("nan"), False), ("N", False), ("0", False),
+                           ("Y", True), ("yes", True), ("1.0", True)):
+            self.assertEqual(cbp.momentary_hold_value(cell), want, cell)
+        with self.assertRaises(ValueError):
+            cbp.momentary_hold_value("maybe")
+
+    def test_firmware_bit_matches(self):
+        import re
+        path = os.path.join(os.path.dirname(__file__), "..", "..", "firmware", "Core", "Inc",
+                            "flash_midi_settings.h")
+        with open(path) as handle:
+            header = handle.read()
+        m = re.search(r"#define\s+BUTTON_MOMENTARY_HOLD\s+\((0x[0-9A-Fa-f]+)\)", header)
+        self.assertEqual(int(m.group(1), 16), cbp.BUTTON_MOMENTARY_HOLD)
+
+
 class PcIncTest(unittest.TestCase):
     """Relative Program Change: next and previous preset."""
 

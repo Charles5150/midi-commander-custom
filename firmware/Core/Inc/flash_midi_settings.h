@@ -68,13 +68,16 @@ extern uint8_t *pCycleLabels;	// Labels of the states of cycle buttons, BUTTON_L
 
 // Button LED modes, one byte per button indexed by (bank * 8 + switch).
 // Low nibble: 0 = Normal, 1 = Reverse, 2 = AlwaysOn. Bits 4-6: exclusive
-// group, 0 for none. Erased flash (0xFF) reads as Normal with no group.
+// group, 0 for none. Bit 7: momentary when held (a toggle button held past
+// the long press threshold goes back to its previous state on release).
+// Erased flash (0xFF) reads as Normal with no group and no momentary hold.
 #define LED_MODE_NORMAL		(0)
 #define LED_MODE_REVERSE	(1)
 #define LED_MODE_ALWAYS_ON	(2)
 #define LED_MODE_MASK		(0x0F)
 #define BUTTON_GROUP_SHIFT	(4)
 #define BUTTON_GROUP_MASK	(0x07)
+#define BUTTON_MOMENTARY_HOLD	(0x80)
 
 
 // Number of flash pages reserved for the settings. Pages are 2 kB on the

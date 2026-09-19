@@ -57,7 +57,7 @@ def blank_button_rows():
     columns = ["Bank_Number", "Button_Identifier", "Label"]
     for slot in SLOT_NAMES:
         columns += [f"{slot}_{f}" for f in CMD_FIELDS]
-    columns += ["Light_Mode", "Group"]
+    columns += ["Light_Mode", "Group", "Momentary_Hold"]
     columns += [f"{slot}_KeyMode_(Key)" for slot in SLOT_NAMES]
 
     rows = []
@@ -143,6 +143,9 @@ class Demo:
     # --- shorthands for each command type --------------------------------
     def group(self, bank, btn, group):
         self.buttons.at[self._index(self.buttons, bank, btn), "Group"] = str(group)
+
+    def momentary_hold(self, bank, btn):
+        self.buttons.at[self._index(self.buttons, bank, btn), "Momentary_Hold"] = "Y"
 
     def cc(self, bank, btn, label, number, on="127", off="0", toggle="N", ch="1", light=None, slot="A"):
         self.button(bank, btn, label, light, slot, CommandType="CC",
@@ -388,7 +391,10 @@ def build() -> Demo:
                  **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": "55",
                     "OnValue_(CC/PB)": "127", "OffValue_(CC)": "0",
                     "Toggle_(CC/PB/Note)": "Y"})
-    d.cc(11, "4", "MULT", "56", toggle="Y", light="AlwaysOn")
+    # A boost that latches on a tap and is momentary when held: hold it for a
+    # solo and it goes back off when you let go
+    d.cc(11, "4", "BOST", "56", toggle="Y", light="AlwaysOn")
+    d.momentary_hold(11, "4")
     d.media(11, "A", "PLAY", "play_pause")
     # A pause in the middle of a list: the program change goes out, and the CC
     # follows 200 ms later, once the device has finished loading the patch

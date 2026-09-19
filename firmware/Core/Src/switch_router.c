@@ -1361,6 +1361,21 @@ static void fire_short_down(uint8_t i){
 	run_cmd_list(get_rom_pointer(switch_current_page, i, 0), first, first, get_sw_toggle_state(sw), i, 0, true);
 }
 
+/*
+ * Momentary hold: a toggle button with BUTTON_MOMENTARY_HOLD latches on a tap
+ * and works as a momentary switch when held. Its press toggles at once, as
+ * always; held past the long press threshold, its release presses it once
+ * more, so it goes back to where it was: on only while held, or off only while
+ * held if it was on. A button with a long press list uses the hold for that
+ * list instead, and a cycle button has no state to go back to.
+ */
+static bool button_momentary_hold(uint8_t i){
+	uint8_t v = pButtonLedModes[switch_current_page * MIDI_NUM_SWITCHES + i];
+	if(v == 0xFF || !(v & BUTTON_MOMENTARY_HOLD)) return false;
+	if(!sw_button_is_toggle(switch_current_page, i)) return false;
+	return cycle_states(get_rom_pointer(switch_current_page, i, 0)) == 1;
+}
+
 static void fire_short_up(uint8_t i){
 	sw_t *sw = &a_sw_obj[i];
 	set_momentary_led(i, 0);
@@ -1878,6 +1893,7 @@ void handle_switches(void){
 					sw->press_state = PRESS_PENDING;
 					set_momentary_led(i, 1);
 				} else {
+					sw->press_tick = now;
 					fire_short_down(i);
 					sw->press_state = PRESS_SHORT;
 				}
@@ -1899,6 +1915,9 @@ void handle_switches(void){
 					break;
 				case PRESS_SHORT:
 					fire_short_up(i);
+					if(button_momentary_hold(i) && (now - sw->press_tick) >= long_press_threshold_ms()){
+						sw_trigger_button(i);	// held: back to the state before the press
+					}
 					break;
 				case PRESS_LONG:
 					fire_long_up(i);
