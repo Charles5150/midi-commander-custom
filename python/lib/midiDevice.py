@@ -25,6 +25,14 @@ SYSEX_CMD_GET_STATE = 68
 SYSEX_RSP_GET_STATE = 69
 SYSEX_CMD_GET_SCREEN = 70
 SYSEX_RSP_GET_SCREEN = 71
+SYSEX_CMD_SET_TEXT = 72
+SYSEX_RSP_SET_TEXT = 73
+
+# Where host text goes on the display (firmware 0.46), and the most it shows
+TEXT_PLACES = {"info": 0, "name": 1, "line": 2, "small": 3}
+TEXT_MAX = {"info": 11, "name": 4, "line": 11, "small": 18}
+# How long it stays
+TEXT_KEEP = {"bank": 0, "always": 1, "moment": 2}
 
 # The pedal's screen buffer: one byte per column for every 8 rows
 SCREEN_WIDTH = 130      # columns in the buffer; the firmware draws in 0..127
@@ -57,6 +65,22 @@ def switch_id(button) -> int:
     if name not in VIRTUAL_SWITCHES:
         raise ValueError(f"unknown switch: {button}")
     return VIRTUAL_SWITCHES.index(name)
+
+
+def text_sysex(text: str, place: str = "line", keep: str = "bank") -> list:
+    """The whole SysEx message, F0 to F7, that puts text on the display.
+
+    place is one of TEXT_PLACES, keep one of TEXT_KEEP. Characters the display
+    cannot draw become spaces; an empty text gives the place back to the bank.
+    """
+    place = place.strip().lower()
+    keep = keep.strip().lower()
+    if place not in TEXT_PLACES:
+        raise ValueError(f"unknown place: {place} (use {', '.join(TEXT_PLACES)})")
+    if keep not in TEXT_KEEP:
+        raise ValueError(f"unknown keep: {keep} (use {', '.join(TEXT_KEEP)})")
+    body = [ord(c) if 0x20 <= ord(c) <= 0x7E else 0x20 for c in text[: TEXT_MAX[place]]]
+    return [0xF0, MIDI_MANUF_ID, SYSEX_CMD_SET_TEXT, TEXT_PLACES[place], TEXT_KEEP[keep]] + body + [0xF7]
 
 
 def unpack7(data) -> bytes:
@@ -225,6 +249,11 @@ class MidiCommander:
         sid = switch_id(button)
         self.send([SYSEX_CMD_PRESS_BUTTON, sid, 1 if down else 0])
         self.wait_for_sysex(SYSEX_RSP_PRESS_BUTTON, timeout)
+
+    def set_text(self, text: str, place: str = "line", keep: str = "bank", timeout=1.0):
+        """Put text on the display (firmware 0.46); see text_sysex."""
+        self.outport.send(mido.Message("sysex", data=text_sysex(text, place, keep)[1:-1]))
+        self.wait_for_sysex(SYSEX_RSP_SET_TEXT, timeout)
 
     def get_state(self, timeout=1.0) -> dict:
         """Bank, slot, toggles, bank name, labels and LED levels (firmware 0.27)."""

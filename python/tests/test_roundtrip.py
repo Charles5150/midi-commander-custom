@@ -951,6 +951,74 @@ class RemotePressTest(unittest.TestCase):
             self.assertEqual(back["Remote_Channel"], "Any")
 
 
+class HostTextTest(unittest.TestCase):
+    """SysEx SET_TEXT: the host writes on the display (firmware 0.46)."""
+
+    @classmethod
+    def setUpClass(cls):
+        import re
+
+        root = os.path.join(os.path.dirname(__file__), "..", "..", "firmware")
+        text = ""
+        for rel in (("Core", "Inc", "midi_defines.h"), ("Core", "Inc", "display.h"), ("Core", "Src", "display.c")):
+            with open(os.path.join(root, *rel)) as handle:
+                text += handle.read() + "\n"
+        cls.firmware = text
+        cls.macros = {k: int(v) for k, v in re.findall(r"^#define\s+(\w+)\s+\((\d+)\)", text, re.M)}
+
+    def test_codes_match_firmware(self):
+        from lib import midiDevice as md
+
+        self.assertEqual(self.macros["SYSEX_CMD_SET_TEXT"], md.SYSEX_CMD_SET_TEXT)
+        self.assertEqual(self.macros["SYSEX_RSP_SET_TEXT"], md.SYSEX_RSP_SET_TEXT)
+        places = {"info": "DISPLAY_TEXT_INFO", "name": "DISPLAY_TEXT_NAME",
+                  "line": "DISPLAY_TEXT_LINE_LARGE", "small": "DISPLAY_TEXT_LINE_SMALL"}
+        for name, macro in places.items():
+            self.assertEqual(self.macros[macro], md.TEXT_PLACES[name], name)
+        keeps = {"bank": "TEXT_KEEP_BANK", "always": "TEXT_KEEP_ALWAYS", "moment": "TEXT_KEEP_MOMENT"}
+        for name, macro in keeps.items():
+            self.assertEqual(self.macros[macro], md.TEXT_KEEP[name], name)
+
+    def test_lengths_match_firmware(self):
+        import re
+
+        from lib import midiDevice as md
+
+        m = re.search(r"host_text_max\[DISPLAY_TEXT_PLACES\] = \{([^}]*)\}", self.firmware)
+        lengths = [int(v) for v in m.group(1).split(",")]
+        for name, place in md.TEXT_PLACES.items():
+            self.assertEqual(lengths[place], md.TEXT_MAX[name], name)
+
+    def test_message(self):
+        from lib.midiDevice import text_sysex
+
+        self.assertEqual(text_sysex("Intro"), [0xF0, 0x7D, 72, 2, 0] + list(b"Intro") + [0xF7])
+        self.assertEqual(text_sysex("Clean", "info", "moment")[3:5], [0, 2])
+        self.assertEqual(text_sysex("SONG", " Name ", "Always")[3:5], [1, 1])
+        self.assertEqual(text_sysex("", "line"), [0xF0, 0x7D, 72, 2, 0, 0xF7])
+
+    def test_cut_to_fit_and_seven_bit(self):
+        from lib.midiDevice import text_sysex
+
+        self.assertEqual(bytes(text_sysex("Sweet Child O Mine")[5:-1]), b"Sweet Child")
+        self.assertEqual(bytes(text_sysex("Canción", "small")[5:-1]), b"Canci n")
+        self.assertTrue(all(b < 0x80 for b in text_sysex("\u00f1\u00e9\u20ac\x7f", "small")[1:-1]))
+
+    def test_fits_the_receive_buffer(self):
+        """The longest message must fit the firmware's 64 byte SysEx buffer."""
+        from lib.midiDevice import text_sysex
+
+        self.assertLessEqual(len(text_sysex("x" * 100, "small")), 64)
+
+    def test_bad_place_or_keep(self):
+        from lib.midiDevice import text_sysex
+
+        with self.assertRaises(ValueError):
+            text_sysex("x", "middle")
+        with self.assertRaises(ValueError):
+            text_sysex("x", "line", "forever")
+
+
 class DoublePressTest(unittest.TestCase):
     """Double press commands, written after the slot's pages (firmware 0.26)."""
 

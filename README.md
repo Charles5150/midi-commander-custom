@@ -58,6 +58,7 @@ The firmware replaces the stock MeloAudio one but never touches its bootloader, 
 - **Double press.** A third command list per button, fired by two quick presses, alongside the short and the long press.
 - **LEDs that follow the computer.** With `LED_Feedback` on, a CC or a note arriving over USB lights or darkens the toggle buttons that send it, so the pedal shows what is really on when an effect is changed from a DAW or an amp editor.
 - **Pressed from the computer.** With `Remote_Mode` on, ten CCs or notes arriving over USB press the ten switches, held for as long as the host holds them, so a DAW, MainStage or a script can drive the pedal's own logic: toggles, long and double presses, bank changes, LEDs and display.
+- **Written on by the computer.** A DAW, MainStage or a script can put the patch or song name on the display over SysEx: in place of the bank name, of its info, or across the whole top line in large or small letters, until the bank changes, for good, or for a moment. `Send_Text.py` sends it from a terminal, or prints the bytes for a host to send.
 - **Follows the host's clock.** With `Clock_Follow` on, the pedal measures MIDI clock arriving over USB, adopts that tempo and flashes it on the display for 1.5 seconds, and keeps its own clock out of the way while the host's is running. If the host's clock stops, the pedal's carries on at the same tempo.
 - **Setlist.** Bank Up / Down can follow an order of your choosing instead of the bank numbers, so the night's songs come up one after another whatever banks they live in. Relative Bank commands follow it too; jumping to an exact bank still works as before.
 - **Idle sleep.** After a configurable number of minutes with nobody touching it, the display and the LEDs switch off. Any press or expression pedal movement brings them back, and the press that wakes it still does its job, so nothing is lost on stage. It matters on batteries, where there is no host to suspend the USB bus.
@@ -407,6 +408,41 @@ An `Exp` command on a button can change these again until the next bank change, 
 
 The 128×64 OLED shows, on the top line, the bank's large 4 character name and its 8 character info. Below it, a 2×4 grid laid out like the pedal: buttons **1 2 3 4** on the top row, **A B C D** on the bottom. Each cell shows the button's label, or its identifier when it has none, and cells of toggle buttons are drawn inverted while the toggle is on, so the state of the whole bank is visible at a glance.
 
+### Text from the computer
+
+A host can write on the top line with one SysEx message (firmware 0.46), for instance the name of the patch or song it has just loaded:
+
+```
+F0 7D 48 place how text... F7
+```
+
+| `place` | Where | Fits |
+|---|---|---|
+| `00` | the small info line right of the bank name | 11 characters |
+| `01` | the large bank name | 4 characters |
+| `02` | the whole top line, large | 11 characters |
+| `03` | the whole top line, small | 18 characters |
+
+| `how` | How long |
+|---|---|
+| `00` | until the bank changes |
+| `01` | until the host changes it |
+| `02` | 1.5 seconds, like the tempo readout |
+
+The text is plain ASCII, one byte per character (`20`–`7E`); longer text is cut to fit, and anything else shows as a space. An empty text gives the place back to what the bank shows. A whole line text hides the bank name and info while it is there, and the large and small whole lines replace each other. A text shown for a moment goes back to what was there before, and one in the bank name or info shows even over a whole line text. Text also wakes the display if the pedal was asleep. The pedal answers `F0 7D 49 place how F7`, and ignores a place or `how` it does not know.
+
+For example, `F0 7D 48 02 00 53 77 65 65 74 20 43 68 69 6C 64 F7` puts **Sweet Child** across the top line until the bank changes. `Send_Text.py` builds and sends it:
+
+```bash
+.venv/bin/python python/Send_Text.py "Sweet Child"                      # whole line, large, until the bank changes
+.venv/bin/python python/Send_Text.py --place info --keep always "Clean"  # the info line, for good
+.venv/bin/python python/Send_Text.py --keep moment "Next: Intro"        # for a moment
+.venv/bin/python python/Send_Text.py ""                                 # back to the bank
+.venv/bin/python python/Send_Text.py --hex "Sweet Child"                # only print the bytes, for a host to send
+```
+
+`--place` is `info`, `name`, `line` (the default) or `small`, and `--keep` is `bank` (the default), `always` or `moment`.
+
 ---
 
 ## Command line tools
@@ -429,7 +465,7 @@ Everything the GUI does is available from the terminal, from the repository root
 
 **Backups.** `Backup_Slots.py backup` reads every slot that holds a configuration into a folder, `slot1.csv` to `slot4.csv`, plus a `backup.txt` with the date, the firmware and the name in each slot; with no folder given it makes one named after the date and time. Each CSV is an ordinary configuration, so any of them can be opened in the configurator or flashed on its own. `restore` checks every file before touching the pedal, lists what it will overwrite and asks first (`--yes` skips the question), writes each file to its slot and restarts the pedal once at the end; slots with no file in the folder are left as they are. A backup restored onto the pedal gives the same bytes it was read from, except that settings a configuration from older firmware never had are written with the value the pedal was already using for them.
 
-The tools find the pedal by its USB MIDI name (`MIDI Commander Custom`), check the firmware version, and exchange the configuration as SysEx messages under manufacturer ID `0x7D`: erase (52), write 16-byte chunk (54), read chunk (56), version (58), reset (60), pedal readings (62). The read-back commands need firmware 0.2 or later; the tools tell you if the pedal is older.
+The tools find the pedal by its USB MIDI name (`MIDI Commander Custom`), check the firmware version, and exchange the configuration as SysEx messages under manufacturer ID `0x7D`: erase (52), write 16-byte chunk (54), read chunk (56), version (58), reset (60), pedal readings (62), and put text on the display (72). The read-back commands need firmware 0.2 or later; the tools tell you if the pedal is older.
 
 To watch what the pedal sends, use any MIDI monitor (MIDI Monitor on macOS, MIDI-OX on Windows, `aseqdump -p 'MIDI Commander Custom'` on Linux).
 
@@ -468,6 +504,7 @@ Hardware notes (MCU, pinout, I²C addresses) are in `HardwareNotes.txt`; `backup
 
 Firmware versions are shown on the display at boot and reported by the tools.
 
+- **0.46 — The computer writes on the display.** New SysEx `SET_TEXT` (72): the host puts up to 18 characters in the bank name, the info line or across the whole top line, large or small, until the bank changes, until it changes them, or for 1.5 seconds; an empty text gives the place back to the bank. It is stored from the USB interrupt and drawn from the main loop, and wakes the display. The bank screen now clears its refresh flag before drawing, so a refresh asked for while it draws is no longer lost. New `Send_Text.py`, which sends the text or prints the bytes for a host.
 - **0.45 — Press a button from the computer.** New global settings `Remote_Mode` (Off, CC or Note), `Remote_Channel` and `Remote_First`, in bytes 38–40, which older tools left at zero, meaning off. Ten CCs or notes over USB press and release the ten switches through the virtual pedal, so every press type works; a press and its release arriving in the same USB packet are now taken one pass apart, so the press is never lost. The messages used are not forwarded. Three new fields in the configurator's USB MIDI group. The demo listens on CC 102–111, channel 16.
 - **0.44 — Pitch Bend and 14-bit CC from an expression pedal.** New `Output` column in `Expression_Settings`, `CC`, `PitchBend` or `CC14`, stored in byte 15 of each pedal's record, which older tools left at zero, meaning CC. A 14-bit CC goes out as the CC and CC + 32, high byte first, both in one packet; CCs above 31, and any CC a bank or an `Exp` command sends the pedal to in Pitch Bend mode, stay 7-bit. The output range still counts 0–127, 64 being the middle of the bend. A narrower dead band in these modes gives the finer steps; a pedal at rest stays quiet. `Output` choice in the configurator's Expression tab. The demo's pedal 2 sends a 14-bit CC.
 - **0.43 — Tempo-synced LFO.** New `LFO` command type: the `CC` command right below it swings between its `OffValue` and `OnValue` while the button is held or the toggle is on, one cycle per note division of the tempo, from `1/16T` to `4/1`, in a `Sine`, `Triangle`, `SawUp`, `SawDown`, `Square` or `Random` shape. Locked to the beat of the tap LED or the followed clock, so taps and tempo changes are followed at once. Keeps running across bank changes; toggled ones restart at power up. Marked by the low nibble of the empty command type, 6, so the layout is unchanged. `LFO` in the configurator's command lists. The demo's bank 6 swaps TAP2 on A for TREM, a 1/8 sine tremolo on CC 14.

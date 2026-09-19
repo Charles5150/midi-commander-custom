@@ -26,6 +26,22 @@ void display_show_config(uint8_t slot);
 // A short message in the bank's info line, for a moment (8 characters fit)
 void display_show_message(const char *msg);
 
+/*
+ * Text sent by the host over SysEx, called from the USB interrupt. place is
+ * one of the DISPLAY_TEXT_ values, how one of the TEXT_KEEP_ ones. An empty
+ * text takes that place back to what the bank shows. Returns 0 for a place or
+ * how it does not know.
+ */
+#define DISPLAY_TEXT_INFO	(0)	// the small line right of the bank name, 11 chars
+#define DISPLAY_TEXT_NAME	(1)	// the large bank name, 4 chars
+#define DISPLAY_TEXT_LINE_LARGE	(2)	// the whole top line, 11 large chars
+#define DISPLAY_TEXT_LINE_SMALL	(3)	// the whole top line, 18 small chars
+#define DISPLAY_TEXT_PLACES	(4)
+#define TEXT_KEEP_BANK		(0)	// until the bank changes
+#define TEXT_KEEP_ALWAYS	(1)	// until the host changes it
+#define TEXT_KEEP_MOMENT	(2)	// for a moment, like the tempo readout
+uint8_t display_host_text(uint8_t place, uint8_t how, const uint8_t *text, uint8_t len);
+
 // Ask for the current bank screen to be redrawn from the main loop
 // (e.g. after a toggle state changed), without blocking the caller.
 void display_request_refresh(void);
