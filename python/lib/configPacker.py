@@ -403,6 +403,7 @@ def pack_config(sections: dict) -> bytes:
     light_modes = []
     groups = []
     labels = b""
+    cycle_labels = []
     for bank in range(NUM_BANKS):
         for btn in BUTTON_IDS:
             row = button_rows.get((str(bank), btn))
@@ -412,7 +413,7 @@ def pack_config(sections: dict) -> bytes:
                 groups.append("")
                 labels += pack_label("")
             else:
-                out += cbp.pack_row(row)
+                out += cbp.pack_row(row, cycle_labels)
                 light_modes.append(row.get("Light_Mode", "Normal"))
                 groups.append(row.get("Group", ""))
                 labels += pack_label(row.get("Label", ""))
@@ -469,5 +470,6 @@ def pack_config(sections: dict) -> bytes:
     out += list(pack_setlist(sections.get(SETLIST_SECTION)))
     out += list(pack_bank_expression(sections.get(BANK_EXPRESSION_SECTION)))
     out += list(pack_bank_expression_range(sections.get(BANK_EXPRESSION_SECTION)))
+    out += list(cbp.pack_cycle_labels(cycle_labels))
 
     return bytes(out)

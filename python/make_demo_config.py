@@ -396,7 +396,12 @@ def build() -> Demo:
     d.button(11, "B", slot="B", CommandType="Wait", **{"Duration_(Note/PB)": "200"})
     d.cc(11, "B", None, "58", slot="C")   # None: keep the label the first slot set
     d.ccinc(11, "C", "NUDG", "57", "Up", 4, 0, wrap="Y")
-    d.sysex_cmd(11, "D", "SYX", 0)
+    # A cycle button: four amp channels on one switch, one per press. Each
+    # Cycle command starts the next state and names it on the display
+    d.pc(11, "D", "CH A", "0", ch="2")
+    for n, (slot, name) in enumerate((("B", "CH B"), ("D", "CH C"), ("F", "CH D")), start=1):
+        d.button(11, "D", slot=slot, CommandType="Cycle", **{"OnValue_(CC/PB)": name})
+        d.pc(11, "D", None, str(n), ch="2", slot=chr(ord(slot) + 1))
 
     # --- banks 12..31: a setlist, each selecting its patch on entry ----------
     for bank in range(SETLIST_FROM, NUM_BANKS):

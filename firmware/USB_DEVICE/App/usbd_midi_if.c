@@ -215,8 +215,9 @@ void sysex_get_state(void){
 		*(p++) = pBankStrings[bank * CFG_BANK_STRING_SIZE + k] & 0x7F;
 	}
 	for(uint8_t i=0; i<MIDI_NUM_SWITCHES; i++){
+		const uint8_t *label = sw_button_label(bank, i);	// a cycle button's current state
 		for(uint8_t k=0; k<BUTTON_LABEL_LEN; k++){
-			*(p++) = pButtonLabels[(bank * MIDI_NUM_SWITCHES + i) * BUTTON_LABEL_LEN + k] & 0x7F;
+			*(p++) = label[k] & 0x7F;
 		}
 	}
 	for(uint8_t led=0; led<LEDS_COUNT; led++){

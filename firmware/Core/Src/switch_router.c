@@ -18,6 +18,7 @@
 #include "sleep.h"
 #include "expression.h"
 #include "switch_router.h"
+#include <string.h>
 
 void update_leds_on_bank_change(void);
 static void fire_bank_enter_cmds(uint8_t bank);
@@ -30,8 +31,8 @@ static bool switch_down(GPIO_TypeDef *port, uint16_t pin);
 #define PENDING_OWNER_NONE	(0xFF)	// a list with no button to release
 #define LIST_SKIP_BANK		(0x01)	// bank change commands are ignored in this list
 #define LIST_UP_AFTER		(0x02)	// the release pass follows the press pass
-static bool run_cmd_list(uint8_t *base, uint8_t start, uint8_t toggle, uint8_t owner, uint8_t flags, bool allow_wait);
-static void run_list_up(uint8_t *base, uint8_t toggle, uint8_t flags);
+static bool run_cmd_list(uint8_t *base, uint8_t first, uint8_t start, uint8_t toggle, uint8_t owner, uint8_t flags, bool allow_wait);
+static void run_list_up(uint8_t *base, uint8_t first, uint8_t toggle, uint8_t flags);
 static bool pending_defer_release(uint8_t owner);
 static void pending_flush_owner(uint8_t owner);
 static bool pending_any(void);
@@ -66,6 +67,7 @@ typedef struct {
 	uint8_t press_state;         // PRESS_IDLE / PRESS_PENDING / PRESS_SHORT / PRESS_LONG
 	// Auto-repeat of the CCInc / PCInc commands marked Repeat while held
 	uint8_t *repeat_list;        // List that fired and holds such commands, NULL for none
+	uint8_t repeat_first;        // First command of the part of it that fired (a cycle state)
 	uint32_t repeat_tick;        // HAL tick of the last firing
 	uint16_t repeat_interval;    // ms until the next one
 } sw_t;
@@ -383,6 +385,78 @@ static uint8_t* get_double_rom_pointer(uint8_t page, uint8_t sw, uint8_t cmd){
 static inline uint8_t cmd_is_present(const uint8_t *pRom){
 	uint8_t t = *pRom & 0xF0;
 	return t != CMD_NO_CMD_NIBBLE && t != 0xF0; // 0xF0 = erased flash
+}
+
+/*
+ * Cycle buttons. Cycle commands split a button's short press list into states:
+ * the commands before the first Cycle are state 1, those after it state 2, and
+ * so on. Each press sends the next state's commands, back to state 1 after the
+ * last, and the display shows the label of the state last sent. A button starts
+ * before its first state, so its first press sends state 1. Every button of
+ * every bank keeps its place while the pedal is on; a change of configuration
+ * or a power cycle starts them all again.
+ */
+#define CYCLE_NONE	(0xFF)	// nothing sent yet
+static uint8_t cycle_pos[CFG_BUTTONS] = { [0 ... CFG_BUTTONS - 1] = CYCLE_NONE };
+
+static inline bool cmd_is_cycle(const uint8_t *pRom){
+	return (pRom[0] & 0xF0) == CMD_NO_CMD_NIBBLE && (pRom[0] & 0x0F) == CMD_CYCLE_MODE;
+}
+
+// Number of states of a list, 1 for a list without Cycle commands
+static uint8_t cycle_states(const uint8_t *base){
+	uint8_t n = 1;
+	for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
+		if(cmd_is_cycle(base + j * MIDI_ROM_CMD_SIZE)) n++;
+	}
+	return n;
+}
+
+// The Cycle command opening a state, or 0xFF for state 0 (or one past the last)
+static uint8_t cycle_marker(const uint8_t *base, uint8_t state){
+	if(state == 0) return 0xFF;
+	for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
+		if(cmd_is_cycle(base + j * MIDI_ROM_CMD_SIZE) && --state == 0) return j;
+	}
+	return 0xFF;
+}
+
+// First command of a state
+static uint8_t cycle_first(const uint8_t *base, uint8_t state){
+	uint8_t marker = cycle_marker(base, state);
+	return (marker == 0xFF) ? 0 : (uint8_t)(marker + 1);
+}
+
+// Step a button of the current bank on to its next state and return the first
+// command of that state; 0 for a button that does not cycle
+static uint8_t cycle_advance(uint8_t i){
+	const uint8_t *base = get_rom_pointer(switch_current_page, i, 0);
+	uint8_t n = cycle_states(base);
+	if(n == 1) return 0;
+	uint8_t *pos = &cycle_pos[switch_current_page * MIDI_NUM_SWITCHES + i];
+	*pos = (*pos == CYCLE_NONE || *pos + 1 >= n) ? 0 : (uint8_t)(*pos + 1);
+	display_request_refresh();
+	return cycle_first(base, *pos);
+}
+
+// First command of the state a button of the current bank last sent
+static uint8_t cycle_current_first(uint8_t i){
+	uint8_t pos = cycle_pos[switch_current_page * MIDI_NUM_SWITCHES + i];
+	if(pos == CYCLE_NONE) return 0;
+	return cycle_first(get_rom_pointer(switch_current_page, i, 0), pos);
+}
+
+const uint8_t *sw_button_label(uint8_t bank, uint8_t sw){
+	uint16_t k = (uint16_t)(bank * MIDI_NUM_SWITCHES + sw);
+	const uint8_t *own = pButtonLabels + k * BUTTON_LABEL_LEN;
+	uint8_t pos = cycle_pos[k];
+	if(pos == CYCLE_NONE) return own;
+	const uint8_t *base = get_rom_pointer(bank, sw, 0);
+	uint8_t marker = cycle_marker(base, pos);
+	if(marker == 0xFF) return own;
+	uint8_t index = base[marker * MIDI_ROM_CMD_SIZE + 1];
+	if(index >= CYCLE_LABEL_COUNT) return own;	// CYCLE_NO_LABEL
+	return pCycleLabels + index * BUTTON_LABEL_LEN;
 }
 
 static uint8_t bank_jump_step(void){
@@ -874,7 +948,7 @@ void update_leds_on_bank_change(void){
  */
 static void fire_bank_enter_cmds(uint8_t bank){
 	if(bank >= MIDI_NUM_BANKS) return;
-	run_cmd_list(get_bank_enter_pointer(bank, 0), 0, MIDI_CONTROL_ON,
+	run_cmd_list(get_bank_enter_pointer(bank, 0), 0, 0, MIDI_CONTROL_ON,
 			PENDING_OWNER_NONE, LIST_SKIP_BANK, true);
 }
 
@@ -902,6 +976,7 @@ static void apply_pending_bank(void){
 
 typedef struct {
 	uint8_t *base;		// first command of the list
+	uint8_t first;		// first command of the part that fired, for the release pass
 	uint32_t due;		// HAL tick when the rest of it runs
 	uint8_t next;		// index of the command to run next
 	uint8_t toggle;		// toggle state the list was fired with
@@ -917,12 +992,13 @@ static inline bool cmd_is_wait(const uint8_t *pRom){
 	return (pRom[0] & 0xF0) == CMD_NO_CMD_NIBBLE && (pRom[0] & 0x0F) == CMD_WAIT_MODE;
 }
 
-static bool pending_schedule(uint8_t *base, uint8_t next, uint8_t toggle, uint8_t owner,
-		uint8_t flags, uint32_t ms){
+static bool pending_schedule(uint8_t *base, uint8_t first, uint8_t next, uint8_t toggle,
+		uint8_t owner, uint8_t flags, uint32_t ms){
 	for(uint8_t i=0; i<PENDING_LISTS; i++){
 		pending_list_t *p = &pending_lists[i];
 		if(p->active) continue;
 		p->base = base;
+		p->first = first;
 		p->due = HAL_GetTick() + ms;
 		p->next = next;
 		p->toggle = toggle;
@@ -953,8 +1029,8 @@ static void pending_flush_owner(uint8_t owner){
 		if(!p->active || p->owner != owner) continue;
 		pending_list_t run = *p;
 		p->active = false;
-		run_cmd_list(run.base, run.next, run.toggle, run.owner, run.flags, false);
-		if(run.release_pending) run_list_up(run.base, run.toggle, run.flags);
+		run_cmd_list(run.base, run.first, run.next, run.toggle, run.owner, run.flags, false);
+		if(run.release_pending) run_list_up(run.base, run.first, run.toggle, run.flags);
 	}
 }
 
@@ -976,8 +1052,8 @@ static void pending_task(void){
 		if(!p->active || (int32_t)(now - p->due) < 0) continue;
 		pending_list_t run = *p;
 		p->active = false;	// free the slot: the rest of the list may need it
-		if(run_cmd_list(run.base, run.next, run.toggle, run.owner, run.flags, true)){
-			if(run.release_pending) run_list_up(run.base, run.toggle, run.flags);
+		if(run_cmd_list(run.base, run.first, run.next, run.toggle, run.owner, run.flags, true)){
+			if(run.release_pending) run_list_up(run.base, run.first, run.toggle, run.flags);
 		} else if(run.release_pending){
 			pending_defer_release(run.owner);	// another Wait: the release waits too
 		}
@@ -1100,14 +1176,17 @@ static void ramp_task(void){
 }
 
 /*
- * One command list, from command `start` on. Returns false when it stopped at
- * a Wait and left the rest to pending_task.
+ * One command list, from command `start` on, up to the end of the list or the
+ * next Cycle command. `first` is where the part of the list that fired begins,
+ * the state of a cycle button, which is where its release pass starts. Returns
+ * false when it stopped at a Wait and left the rest to pending_task.
  */
-static bool run_cmd_list(uint8_t *base, uint8_t start, uint8_t toggle, uint8_t owner,
-		uint8_t flags, bool allow_wait){
+static bool run_cmd_list(uint8_t *base, uint8_t first, uint8_t start, uint8_t toggle,
+		uint8_t owner, uint8_t flags, bool allow_wait){
 	uint32_t ramp = 0;	// time of a Ramp just above the command, 0 for none
 	for(uint8_t j=start; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
 		uint8_t *pRom = base + j * MIDI_ROM_CMD_SIZE;
+		if(cmd_is_cycle(pRom)) break;	// the next state
 		if((flags & LIST_SKIP_BANK) && (*pRom & 0xF0) == CMD_BANK_NIBBLE) continue;
 		uint32_t ramp_ms = ramp;
 		ramp = 0;	// a Ramp only reaches the command right below it
@@ -1118,7 +1197,7 @@ static bool run_cmd_list(uint8_t *base, uint8_t start, uint8_t toggle, uint8_t o
 		if(cmd_is_wait(pRom)){
 			uint32_t ms = (uint32_t)pRom[2] * 10;
 			if(allow_wait && ms &&
-					pending_schedule(base, (uint8_t)(j + 1), toggle, owner, flags, ms)){
+					pending_schedule(base, first, (uint8_t)(j + 1), toggle, owner, flags, ms)){
 				return false;
 			}
 			continue;
@@ -1135,16 +1214,17 @@ static bool run_cmd_list(uint8_t *base, uint8_t start, uint8_t toggle, uint8_t o
 	} else {
 		apply_pending_bank();
 	}
-	if(flags & LIST_UP_AFTER) run_list_up(base, toggle, flags);
+	if(flags & LIST_UP_AFTER) run_list_up(base, first, toggle, flags);
 	return true;
 }
 
 // The release pass of a list. Pauses belong to the press, so this one runs
 // straight through.
-static void run_list_up(uint8_t *base, uint8_t toggle, uint8_t flags){
+static void run_list_up(uint8_t *base, uint8_t first, uint8_t toggle, uint8_t flags){
 	uint32_t ramp = 0;
-	for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
+	for(uint8_t j=first; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
 		uint8_t *pRom = base + j * MIDI_ROM_CMD_SIZE;
+		if(cmd_is_cycle(pRom)) break;
 		uint32_t ramp_ms = ramp;
 		ramp = cmd_is_ramp(pRom) ? ramp_time_ms(pRom) : 0;
 		if((flags & LIST_SKIP_BANK) && (*pRom & 0xF0) == CMD_BANK_NIBBLE) continue;
@@ -1182,12 +1262,15 @@ static bool cmd_repeats(const uint8_t *pRom){
 	}
 }
 
-// Called as a list fires: remember it if it has anything to repeat
-static void repeat_arm(sw_t *sw, uint8_t *base){
+// Called as a list fires: remember it if the part that fired, from command
+// `first` to the next Cycle, has anything to repeat
+static void repeat_arm(sw_t *sw, uint8_t *base, uint8_t first){
 	sw->repeat_list = NULL;
-	for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
+	for(uint8_t j=first; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
+		if(cmd_is_cycle(base + j * MIDI_ROM_CMD_SIZE)) return;
 		if(cmd_repeats(base + j * MIDI_ROM_CMD_SIZE)){
 			sw->repeat_list = base;
+			sw->repeat_first = first;
 			sw->repeat_tick = HAL_GetTick();
 			sw->repeat_interval = REPEAT_DELAY_MS;
 			return;
@@ -1213,8 +1296,9 @@ static void repeat_task(sw_t *sw, uint32_t now){
 		uint16_t next = (uint16_t)(sw->repeat_interval * 3 / 4);
 		sw->repeat_interval = (next > REPEAT_MIN_MS) ? next : REPEAT_MIN_MS;
 	}
-	for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
+	for(uint8_t j=sw->repeat_first; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
 		uint8_t *pRom = sw->repeat_list + j * MIDI_ROM_CMD_SIZE;
+		if(cmd_is_cycle(pRom)) break;
 		if(!cmd_repeats(pRom)) continue;
 		if((pRom[0] & 0xF0) == CMD_CCINC_NIBBLE){
 			send_ccinc(pRom, true);
@@ -1272,15 +1356,16 @@ static void fire_short_down(uint8_t i){
 		set_momentary_led(i, 1);
 	}
 
-	repeat_arm(sw, get_rom_pointer(switch_current_page, i, 0));
-	run_cmd_list(get_rom_pointer(switch_current_page, i, 0), 0, get_sw_toggle_state(sw), i, 0, true);
+	uint8_t first = cycle_advance(i);
+	repeat_arm(sw, get_rom_pointer(switch_current_page, i, 0), first);
+	run_cmd_list(get_rom_pointer(switch_current_page, i, 0), first, first, get_sw_toggle_state(sw), i, 0, true);
 }
 
 static void fire_short_up(uint8_t i){
 	sw_t *sw = &a_sw_obj[i];
 	set_momentary_led(i, 0);
 	if(pending_defer_release(i)) return;	// still waiting: released once it finishes
-	run_list_up(get_rom_pointer(switch_current_page, i, 0), get_sw_toggle_state(sw), 0);
+	run_list_up(get_rom_pointer(switch_current_page, i, 0), cycle_current_first(i), get_sw_toggle_state(sw), 0);
 }
 
 static void fire_long_down(uint8_t i){
@@ -1289,8 +1374,8 @@ static void fire_long_down(uint8_t i){
 	sw->long_toggle_state ^= (1UL << switch_current_page);
 	state_store_mark_dirty();
 	uint8_t toggleState = (sw->long_toggle_state >> switch_current_page) & 1;
-	repeat_arm(sw, get_long_rom_pointer(switch_current_page, i, 0));
-	run_cmd_list(get_long_rom_pointer(switch_current_page, i, 0), 0, toggleState, i, 0, true);
+	repeat_arm(sw, get_long_rom_pointer(switch_current_page, i, 0), 0);
+	run_cmd_list(get_long_rom_pointer(switch_current_page, i, 0), 0, 0, toggleState, i, 0, true);
 }
 
 static void fire_long_up(uint8_t i){
@@ -1298,7 +1383,7 @@ static void fire_long_up(uint8_t i){
 	set_momentary_led(i, 0);
 	if(pending_defer_release(i)) return;
 	uint8_t toggleState = (sw->long_toggle_state >> switch_current_page) & 1;
-	run_list_up(get_long_rom_pointer(switch_current_page, i, 0), toggleState, 0);
+	run_list_up(get_long_rom_pointer(switch_current_page, i, 0), 0, toggleState, 0);
 }
 
 // Press tracking for the two bank switches, so they can tell a short press
@@ -1334,7 +1419,7 @@ static void fire_bank_switch_cmds(uint8_t which, bool long_press){
 	uint8_t toggle = bank_switch_toggle[list];
 	uint8_t *base = pBankSwitchCmds + list * MIDI_ROM_KEY_STRIDE;
 
-	run_cmd_list(base, 0, toggle, PENDING_OWNER_NONE, LIST_SKIP_BANK | LIST_UP_AFTER, true);
+	run_cmd_list(base, 0, 0, toggle, PENDING_OWNER_NONE, LIST_SKIP_BANK | LIST_UP_AFTER, true);
 }
 
 static void handle_bank_switch(bank_press_t *bp, GPIO_TypeDef *port, uint16_t pin,
@@ -1435,6 +1520,7 @@ static void switch_config(uint8_t target){
 		a_sw_obj[i].long_toggle_state = 0;
 		a_sw_obj[i].double_toggle_state = 0;
 	}
+	memset(cycle_pos, CYCLE_NONE, sizeof(cycle_pos));
 	pending_bank = 0xFF;
 
 	// Rebuild everything derived from the configuration
@@ -1705,15 +1791,15 @@ static void fire_double_down(uint8_t i){
 	pending_flush_owner(i);
 	sw->double_toggle_state ^= (1UL << switch_current_page);
 	uint8_t toggleState = (sw->double_toggle_state >> switch_current_page) & 1;
-	repeat_arm(sw, get_double_rom_pointer(switch_current_page, i, 0));
-	run_cmd_list(get_double_rom_pointer(switch_current_page, i, 0), 0, toggleState, i, 0, true);
+	repeat_arm(sw, get_double_rom_pointer(switch_current_page, i, 0), 0);
+	run_cmd_list(get_double_rom_pointer(switch_current_page, i, 0), 0, 0, toggleState, i, 0, true);
 }
 
 static void fire_double_up(uint8_t i){
 	sw_t *sw = &a_sw_obj[i];
 	uint8_t toggleState = (sw->double_toggle_state >> switch_current_page) & 1;
 	if(pending_defer_release(i)) return;
-	run_list_up(get_double_rom_pointer(switch_current_page, i, 0), toggleState, 0);
+	run_list_up(get_double_rom_pointer(switch_current_page, i, 0), 0, toggleState, 0);
 }
 
 static void feedback_task(void){

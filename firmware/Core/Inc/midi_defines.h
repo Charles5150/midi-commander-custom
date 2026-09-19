@@ -70,6 +70,13 @@
 // Ramp: same empty command type, low nibble 2. Turns the CC command right
 // below it into a ramp: bytes 2 (low) and 3 (high) hold its time in 10ms units.
 #define CMD_RAMP_MODE		(2)
+// Cycle: same empty command type, low nibble 3. Only in a button's short press
+// list, where each one starts a new state: the list before the first is state
+// 1, and every press sends the next state's commands, round and round. Byte 1
+// is the state's label, an index into the cycle label table, or CYCLE_NO_LABEL
+// to show the button's own.
+#define CMD_CYCLE_MODE		(3)
+#define CYCLE_NO_LABEL		(0x7F)
 #define CMD_PC_NIBBLE		(0xC0)
 // Relative Program Change: a PC whose byte 2 (the Bank Select MSB, 0x80 and up
 // meaning none) holds one of these markers. Byte 1 is the step, byte 3 the last

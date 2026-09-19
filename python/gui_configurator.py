@@ -152,6 +152,8 @@ BUTTON_GROUPS = ["None", "1", "2", "3", "4"]
 CHANNELS = [str(i) for i in range(1, 17)]
 NO_COMMAND = "(none)"
 COMMAND_TYPES = [NO_COMMAND, "PC", "PCInc", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "Panic", "Scene", "Wait", "Ramp"]
+# Cycle splits a button's short press list into states, so only that list offers it
+SHORT_COMMAND_TYPES = COMMAND_TYPES + ["Cycle"]
 TAP_MODES = ["Tap", "Clock", "Set", "Up", "Down", "Up Repeat", "Down Repeat"]
 # A scene leaves a button alone, or switches it on or off
 SCENE_STATES = ["-", "On", "Off"]
@@ -374,7 +376,7 @@ class Combo(ctk.CTkComboBox):
 class SlotEditor:
     """One row of the button editor: command type plus the fields it needs."""
 
-    def __init__(self, parent, slot: str, initial: dict):
+    def __init__(self, parent, slot: str, initial: dict, types=COMMAND_TYPES):
         self.slot = slot
         self.initial = initial
         self.widgets = {}
@@ -387,7 +389,7 @@ class SlotEditor:
         )
         cmd_type = clean(initial.get("CommandType")) or NO_COMMAND
         self.type_menu = Option(
-            self.frame, COMMAND_TYPES, cmd_type, width=80, command=self._rebuild
+            self.frame, types, cmd_type, width=80, command=self._rebuild
         )
         self.type_menu.pack(side="left", padx=4)
 
@@ -565,6 +567,16 @@ class SlotEditor:
                 text="(pauses the commands below it, in steps of 10 ms)",
                 text_color=MUTED,
             ).pack(side="left", padx=8)
+        elif cmd_type == "Cycle":
+            self._label("Label")
+            w = TextEntry(self.params, 4, self.initial.get("OnValue_(CC/PB)"), width=70)
+            w.pack(side="left")
+            self.widgets["cyclelabel"] = w
+            ctk.CTkLabel(
+                self.params,
+                text="(the commands below are the next state; empty = the button's label)",
+                text_color=MUTED,
+            ).pack(side="left", padx=8)
         elif cmd_type == "Ramp":
             self._int("duration", "ms", "Duration_(Note/PB)", 0, RAMP_MAX_MS, width=75)
             ctk.CTkLabel(
@@ -622,6 +634,8 @@ class SlotEditor:
                 out["OnValue_(CC/PB)"] = w["bpm"].value()
             if "step" in w:
                 out["OffValue_(CC)"] = w["step"].value()
+        if cmd_type == "Cycle":
+            out["OnValue_(CC/PB)"] = w["cyclelabel"].value().strip()
         if cmd_type == "Scene":
             code = {"On": "+", "Off": "-"}
             out["OnValue_(CC/PB)"] = "".join(code.get(w[f"scene_{i}"].value(), ".") for i in range(8))
@@ -1337,7 +1351,20 @@ class MidiCommanderGUI(ctk.CTk):
         table.pack(fill="x", padx=10, pady=(0, 5))
         for slot in SLOTS:
             initial = {f: current.get(f"{slot}_{f}") for f in CMD_FIELDS}
-            self.slot_editors.append(SlotEditor(table, slot, initial))
+            types = COMMAND_TYPES if (long_mode or double_mode) else SHORT_COMMAND_TYPES
+            self.slot_editors.append(SlotEditor(table, slot, initial, types))
+
+        if not (long_mode or double_mode):
+            Help(
+                self.cmd_editor,
+                "Cycle: one button, several states.",
+                "Each Cycle command starts a new state: the commands above the first one are "
+                "state 1, those below it state 2, and so on. Every press sends the next state, "
+                "back to the first after the last, and the display shows the label of the state "
+                "just sent (the button's own label for state 1, or for a Cycle left without one). "
+                "Needs firmware 0.38.",
+                wraplength=720,
+            ).pack(anchor="w", padx=10, pady=(0, 4))
 
         Help(
             self.cmd_editor,

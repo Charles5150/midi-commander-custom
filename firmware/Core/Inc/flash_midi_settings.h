@@ -25,6 +25,7 @@ extern uint8_t *pBankSwitchCmds;	// Command lists for the Bank Down/Up switches
 extern uint8_t *pSetlist;		// Bank numbers in setlist order, 0xFF ends the list
 extern uint8_t *pBankExpSettings;	// Expression pedal CC and channel per bank, CFG_BANK_EXP_STRIDE bytes per bank
 extern uint8_t *pBankExpRange;	// Expression pedal output range per bank, CFG_BANK_EXP_RANGE_STRIDE bytes per bank
+extern uint8_t *pCycleLabels;	// Labels of the states of cycle buttons, BUTTON_LABEL_LEN chars each
 
 /*
  * Four command lists, one per switch and press length, in this order:
@@ -193,7 +194,17 @@ extern uint8_t *pBankExpRange;	// Expression pedal output range per bank, CFG_BA
 #define CFG_BANK_EXP_RANGE_STRIDE	(4)
 #define CFG_BANK_EXP_RANGE_SIZE	(MIDI_NUM_BANKS * CFG_BANK_EXP_RANGE_STRIDE)
 #define CFG_BANK_EXP_RANGE_OFF	(CFG_BANK_EXP_OFF + CFG_BANK_EXP_SIZE)
-#define CFG_TOTAL_SIZE		(CFG_BANK_EXP_RANGE_OFF + CFG_BANK_EXP_RANGE_SIZE)
+/*
+ * Labels of the states of cycle buttons, BUTTON_LABEL_LEN chars each, space
+ * padded. A Cycle command names its state's label by its index in this table,
+ * so the tools store a label used in many places only once. Erased flash,
+ * which is all a configuration written before 0.38 holds here, is never read:
+ * such a configuration has no Cycle commands.
+ */
+#define CYCLE_LABEL_COUNT	(48)
+#define CFG_CYCLE_LABELS_SIZE	(CYCLE_LABEL_COUNT * BUTTON_LABEL_LEN)
+#define CFG_CYCLE_LABELS_OFF	(CFG_BANK_EXP_RANGE_OFF + CFG_BANK_EXP_RANGE_SIZE)
+#define CFG_TOTAL_SIZE		(CFG_CYCLE_LABELS_OFF + CFG_CYCLE_LABELS_SIZE)
 // Double press commands, same size as CMDS, stored in the extension area
 #define CFG_DOUBLE_CMDS_OFF	(FLASH_SETTINGS_NO_PAGES * CFG_PAGE_SIZE)
 #define CFG_DOUBLE_CMDS_SIZE	(CFG_CMDS_SIZE)

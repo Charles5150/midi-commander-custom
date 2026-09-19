@@ -613,6 +613,8 @@ class FirmwareLayoutTest(unittest.TestCase):
             ("CFG_BANK_EXP_STRIDE", "BANK_EXP_STRIDE"),
             ("BANK_EXP_CC_OFF", "BANK_EXP_CC_OFF"),
             ("SETLIST_MAX", "SETLIST_MAX"),
+            ("CFG_CYCLE_LABELS_OFF", "CYCLE_LABELS_OFFSET"),
+            ("CYCLE_LABEL_COUNT", "CYCLE_LABEL_COUNT"),
             ("CFG_TOTAL_SIZE", "CONFIG_SIZE"),
             ("CFG_DOUBLE_CMDS_OFF", "DOUBLE_PRESS_OFFSET"),
             ("CFG_DOUBLE_CMDS_SIZE", "DOUBLE_PRESS_SIZE"),
@@ -1104,7 +1106,7 @@ class BankExpressionTest(unittest.TestCase):
     def test_missing_section_keeps_pedals_as_they_are(self):
         sections = {k: v for k, v in self.sections.items() if k != packer.BANK_EXPRESSION_SECTION}
         packed = packer.pack_config(sections)
-        self.assertEqual(set(packed[unpacker.BANK_EXP_OFFSET : unpacker.CONFIG_SIZE]), {0xFF})
+        self.assertEqual(set(packed[unpacker.BANK_EXP_OFFSET : unpacker.CYCLE_LABELS_OFFSET]), {0xFF})
 
     def test_cell_values(self):
         cc, ch = packer.bank_exp_cc_byte, packer.bank_exp_channel_byte
@@ -1200,7 +1202,7 @@ class ExpressionRangeTest(unittest.TestCase):
         df = self.sections[packer.BANK_EXPRESSION_SECTION].drop(
             columns=["Exp1_Min", "Exp1_Max", "Exp2_Min", "Exp2_Max"])
         packed = packer.pack_config({**self.sections, packer.BANK_EXPRESSION_SECTION: df})
-        self.assertEqual(set(packed[unpacker.BANK_EXP_RANGE_OFFSET : unpacker.CONFIG_SIZE]), {0xFF})
+        self.assertEqual(set(packed[unpacker.BANK_EXP_RANGE_OFFSET : unpacker.CYCLE_LABELS_OFFSET]), {0xFF})
 
     def test_range_values(self):
         r = packer.bank_exp_range_byte
@@ -1612,6 +1614,64 @@ class TempoCommandTest(unittest.TestCase):
         hold = row(long_frame, "B")
         self.assertEqual((hold["A_CommandType"], hold["A_KeyMode_(Key)"], hold["A_OnValue_(CC/PB)"]),
                          ("Tap", "Set", "120"))
+
+
+class CycleCommandTest(unittest.TestCase):
+    """Cycle commands, which split a short press list into states."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.sections = read_config_csv(DEMO_CSV)
+        cls.packed = packer.pack_config(cls.sections)
+        cls.buttons = unpacker.unpack_config(cls.packed)[2]
+
+    def demo_d(self):
+        b = self.buttons
+        return b[(b["Bank_Number"].astype(str) == "11") & (b["Button_Identifier"] == "D")].iloc[0]
+
+    def test_encoding_and_label_table(self):
+        labels = []
+        cycle = lambda text: cbp.cmd_cycle(pd.Series({"OnValue_(CC/PB)": text}), labels)
+        self.assertEqual(cycle("CH B"), [0x03, 0, 0, 0])
+        self.assertEqual(cycle("CH C"), [0x03, 1, 0, 0])
+        self.assertEqual(cycle("CH B"), [0x03, 0, 0, 0])      # stored once
+        self.assertEqual(cycle("TOOLONG"), [0x03, 2, 0, 0])   # cut to 4 chars
+        self.assertEqual(labels, ["CH B", "CH C", "TOOL"])
+        self.assertEqual(cycle(""), [0x03, cbp.CYCLE_NO_LABEL, 0, 0])
+        table = cbp.pack_cycle_labels(labels)
+        self.assertEqual(len(table), cbp.CYCLE_LABEL_COUNT * 4)
+        self.assertEqual(table[:12], b"CH BCH CTOOL")
+        self.assertEqual(set(table[12:]), {0xFF})
+
+    def test_too_many_labels(self):
+        labels = [f"L{i}" for i in range(cbp.CYCLE_LABEL_COUNT)]
+        with self.assertRaises(ValueError):
+            cbp.cmd_cycle(pd.Series({"OnValue_(CC/PB)": "NEW"}), labels)
+        # A label already in the full table still packs
+        self.assertEqual(cbp.cmd_cycle(pd.Series({"OnValue_(CC/PB)": "L3"}), labels)[1], 3)
+
+    def test_only_in_short_press_lists(self):
+        row = pd.Series({"A_CommandType": "Cycle", "A_OnValue_(CC/PB)": "X"})
+        with self.assertRaises(ValueError):
+            cbp.pack_row(row)
+        self.assertEqual(cbp.pack_row(row, [])[:4], [0x03, 0, 0, 0])
+
+    def test_demo_round_trip(self):
+        row = self.demo_d()
+        got = [(row[f"{s}_CommandType"], norm(row[f"{s}_OnValue_(CC/PB)"]),
+                norm(row[f"{s}_Number_(PC/CC/Note)"])) for s in "ABCDEFG"]
+        self.assertEqual(got, [("PC", "", "0"), ("Cycle", "CH B", ""), ("PC", "", "1"),
+                               ("Cycle", "CH C", ""), ("PC", "", "2"),
+                               ("Cycle", "CH D", ""), ("PC", "", "3")])
+        self.assertEqual(row["Label"], "CH A")
+        table = self.packed[unpacker.CYCLE_LABELS_OFFSET : unpacker.CONFIG_SIZE]
+        self.assertEqual(table[:12], b"CH BCH CCH D")
+
+    def test_older_dump_without_the_table(self):
+        # Tools before 0.38 read and saved a dump ending before the table
+        buttons = unpacker.unpack_config(self.packed[: unpacker.CYCLE_LABELS_OFFSET])[2]
+        row = buttons[(buttons["Bank_Number"].astype(str) == "11") & (buttons["Button_Identifier"] == "D")].iloc[0]
+        self.assertEqual((row["B_CommandType"], norm(row["B_OnValue_(CC/PB)"])), ("Cycle", ""))
 
 
 class Fm3TemplateTest(unittest.TestCase):

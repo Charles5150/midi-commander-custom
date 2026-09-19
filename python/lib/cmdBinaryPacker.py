@@ -24,6 +24,14 @@ CMD_WAIT_MODE = 1
 # and 3 (high) hold its time in 10 ms units.
 CMD_RAMP_MODE = 2
 RAMP_MAX_MS = 0xFFFF * 10
+# And a cycle step: in a button's short press list, each one starts a new
+# state, and every press sends the next state. Byte 1 is the state's label, an
+# index into the configuration's cycle label table, or CYCLE_NO_LABEL to show
+# the button's own label. The label text goes in OnValue in the CSV.
+CMD_CYCLE_MODE = 3
+CYCLE_NO_LABEL = 0x7F
+CYCLE_LABEL_COUNT = 48
+CYCLE_LABEL_LEN = 4
 # A relative Program Change is a PC whose Bank Select MSB byte, where 0x80 and
 # above already meant "none", holds one of these markers
 PC_REL_UP = 0x81
@@ -458,6 +466,39 @@ def cmd_ramp(cmd):
     return [CMD_NO_CMD_NIBBLE | CMD_RAMP_MODE, 0, steps & 0xFF, (steps >> 8) & 0xFF]
 
 
+def cycle_label_text(value) -> str:
+    """A Cycle command's label as stored: at most 4 ASCII characters."""
+    text = "" if value is None else str(value)
+    if text.strip().lower() == "nan":
+        text = ""
+    return text.strip()[:CYCLE_LABEL_LEN].encode("ascii", errors="replace").decode("ascii")
+
+
+def cmd_cycle(cmd, cycle_labels):
+    """Start the next state of a cycle button.
+
+    ``cycle_labels`` is the configuration's label table, a list the label is
+    looked up in and added to when new, so a label used on many buttons is
+    stored once. None means the list being packed cannot hold states.
+    """
+    if cycle_labels is None:
+        raise ValueError("Cycle commands only work in a button's short press list")
+    label = cycle_label_text(cmd.get("OnValue_(CC/PB)", ""))
+    if label == "":
+        return [CMD_NO_CMD_NIBBLE | CMD_CYCLE_MODE, CYCLE_NO_LABEL, 0, 0]
+    if label not in cycle_labels:
+        if len(cycle_labels) >= CYCLE_LABEL_COUNT:
+            raise ValueError(f"Too many different cycle labels, at most {CYCLE_LABEL_COUNT}")
+        cycle_labels.append(label)
+    return [CMD_NO_CMD_NIBBLE | CMD_CYCLE_MODE, cycle_labels.index(label), 0, 0]
+
+
+def pack_cycle_labels(cycle_labels) -> bytes:
+    """The cycle label table: used entries space padded, the rest erased."""
+    out = b"".join(l.encode("ascii").ljust(CYCLE_LABEL_LEN, b" ") for l in cycle_labels)
+    return out.ljust(CYCLE_LABEL_COUNT * CYCLE_LABEL_LEN, b"\xff")
+
+
 def cmd_none(cmd):
     return [0, 0, 0, 0]
 
@@ -537,7 +578,9 @@ def pack_button_led_modes(light_modes, groups=None) -> list:
     return [m | (button_group_value(g) << BUTTON_GROUP_SHIFT) for m, g in zip(modes, groups)]
 
 
-def pack_row(row):
+def pack_row(row, cycle_labels=None):
+    """Pack a row's command list. ``cycle_labels`` is the configuration's
+    cycle label table, for a short press list, where Cycle commands belong."""
     row_byte_list = []
 
     for i in range(0, MIDI_NUM_COMMANDS_PER_SWITCH):
@@ -553,8 +596,11 @@ def pack_row(row):
             # Remove prefix from index to match cmd_xxx expectations
             cmd.index = cmd.index.str.replace(cmd_prefix, "", regex=False)
 
-            func = cmd_route_table.get(str(cmd["CommandType"]).strip(), cmd_none)
-            cmd_byte_list = func(cmd)
+            cmd_type = str(cmd["CommandType"]).strip()
+            if cmd_type == "Cycle":
+                cmd_byte_list = cmd_cycle(cmd, cycle_labels)
+            else:
+                cmd_byte_list = cmd_route_table.get(cmd_type, cmd_none)(cmd)
 
         row_byte_list += cmd_byte_list
 

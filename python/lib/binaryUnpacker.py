@@ -20,6 +20,9 @@ from lib.cmdBinaryPacker import (
     CMD_NO_CMD_NIBBLE,
     CMD_WAIT_MODE,
     CMD_RAMP_MODE,
+    CMD_CYCLE_MODE,
+    CYCLE_LABEL_COUNT,
+    CYCLE_LABEL_LEN,
     PC_REL_MARKERS,
     CMD_CC_NIBBLE,
     CMD_BANK_NIBBLE,
@@ -71,7 +74,9 @@ BANK_EXP_CC_OFF = 0x80
 # Expression pedal output range per bank (firmware 0.33), 4 bytes per bank
 BANK_EXP_RANGE_OFFSET = BANK_EXP_OFFSET + NUM_BANKS * BANK_EXP_STRIDE
 BANK_EXP_RANGE_STRIDE = 4
-CONFIG_SIZE = BANK_EXP_RANGE_OFFSET + NUM_BANKS * BANK_EXP_RANGE_STRIDE
+# Labels of the states of cycle buttons (firmware 0.38), 4 chars each
+CYCLE_LABELS_OFFSET = BANK_EXP_RANGE_OFFSET + NUM_BANKS * BANK_EXP_RANGE_STRIDE
+CONFIG_SIZE = CYCLE_LABELS_OFFSET + CYCLE_LABEL_COUNT * CYCLE_LABEL_LEN
 # Double press commands follow the slot's 12 pages, in the extension area the
 # firmware maps there (firmware 0.26). Same shape as the long press commands.
 FLASH_PAGE_SIZE = 2048
@@ -180,8 +185,18 @@ def _empty_cmd() -> dict:
     return cmd
 
 
-def unpack_command(raw: bytes) -> dict:
-    """Decode one 4 byte command into its CSV fields."""
+def unpack_cycle_labels(data: bytes) -> list:
+    """The cycle label table; entries past the end of the data read as blank."""
+    labels = []
+    for i in range(CYCLE_LABEL_COUNT):
+        start = CYCLE_LABELS_OFFSET + i * CYCLE_LABEL_LEN
+        labels.append(_ascii(data[start : start + CYCLE_LABEL_LEN]).strip())
+    return labels
+
+
+def unpack_command(raw: bytes, cycle_labels=None) -> dict:
+    """Decode one 4 byte command into its CSV fields. ``cycle_labels`` is the
+    configuration's cycle label table, see unpack_cycle_labels."""
     b0, b1, b2, b3 = raw
     cmd = _empty_cmd()
     cmd_type = b0 & 0xF0
@@ -195,6 +210,10 @@ def unpack_command(raw: bytes) -> dict:
     elif cmd_type == CMD_NO_CMD_NIBBLE and (b0 & 0x0F) == CMD_RAMP_MODE:
         cmd["CommandType"] = "Ramp"
         cmd["Duration_(Note/PB)"] = str((b2 | (b3 << 8)) * 10)
+    elif cmd_type == CMD_NO_CMD_NIBBLE and (b0 & 0x0F) == CMD_CYCLE_MODE:
+        cmd["CommandType"] = "Cycle"
+        if cycle_labels is not None and b1 < len(cycle_labels):
+            cmd["OnValue_(CC/PB)"] = cycle_labels[b1]
     elif cmd_type == CMD_PC_NIBBLE and b2 in PC_REL_MARKERS:
         cmd["CommandType"] = "PCInc"
         cmd["Channel_(PC/CC/Note/PB)"] = channel
@@ -310,6 +329,7 @@ def unpack_button_settings(data: bytes) -> pd.DataFrame:
     columns += ["Light_Mode", "Group"]
     columns += [f"{slot}_KeyMode_(Key)" for slot in SLOT_NAMES]
 
+    cycle_labels = unpack_cycle_labels(data)
     rows = []
     for bank in range(NUM_BANKS):
         for btn_index, btn_id in enumerate(BUTTON_IDS):
@@ -324,7 +344,7 @@ def unpack_button_settings(data: bytes) -> pd.DataFrame:
                 offset = (
                     COMMANDS_OFFSET + button_number * BUTTON_STRIDE + slot_index * CMD_SIZE
                 )
-                cmd = unpack_command(data[offset : offset + CMD_SIZE])
+                cmd = unpack_command(data[offset : offset + CMD_SIZE], cycle_labels)
                 for f in CMD_FIELDS:
                     row[f"{slot}_{f}"] = cmd[f]
                 row[f"{slot}_KeyMode_(Key)"] = cmd["KeyMode_(Key)"]
@@ -505,10 +525,13 @@ def unpack_sysex_strings(data: bytes) -> pd.DataFrame:
 
 def unpack_config(data: bytes):
     """Return the six configuration frames plus the SysEx string table."""
-    if len(data) < CONFIG_SIZE:
+    if len(data) < CYCLE_LABELS_OFFSET:
         raise ValueError(
             f"Settings dump is {len(data)} bytes, expected at least {CONFIG_SIZE}"
         )
+    # A dump saved by tools older than 0.38 stops before the cycle labels
+    if len(data) < CONFIG_SIZE:
+        data = bytes(data) + b"\xff" * (CONFIG_SIZE - len(data))
     return (
         unpack_global_settings(data),
         unpack_bank_strings(data),

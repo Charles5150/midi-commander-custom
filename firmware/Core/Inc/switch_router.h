@@ -51,5 +51,8 @@ void sw_virtual_press(uint8_t id, uint8_t down);
 // Per button/bank queries used by the display
 uint8_t sw_button_is_toggle(uint8_t bank, uint8_t sw);
 uint8_t sw_get_toggle_state(uint8_t bank, uint8_t sw);
+// The BUTTON_LABEL_LEN chars a button shows: its own label, or for a cycle
+// button the label of the state it last sent
+const uint8_t *sw_button_label(uint8_t bank, uint8_t sw);
 
 #endif /* INC_SWITCH_ROUTER_H_ */

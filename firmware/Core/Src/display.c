@@ -75,7 +75,7 @@ static void fill_rect(uint8_t x, uint8_t y, uint8_t w, uint8_t h, SSD1306_COLOR 
 // Copy the stored label of a button into buf (up to 4 chars, NUL terminated),
 // dropping anything not printable. Erased flash (0xFF) yields an empty label.
 static void get_label(uint8_t bank, uint8_t sw, char buf[BUTTON_LABEL_LEN + 1]){
-	const uint8_t *src = pButtonLabels + (bank * MIDI_NUM_SWITCHES + sw) * BUTTON_LABEL_LEN;
+	const uint8_t *src = sw_button_label(bank, sw);
 	int n = 0;
 	for(int i=0; i<BUTTON_LABEL_LEN; i++){
 		char c = (char)src[i];
