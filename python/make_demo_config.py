@@ -58,7 +58,7 @@ def blank_button_rows():
     columns = ["Bank_Number", "Button_Identifier", "Label"]
     for slot in SLOT_NAMES:
         columns += [f"{slot}_{f}" for f in CMD_FIELDS]
-    columns += ["Light_Mode", "Group", "Momentary_Hold"]
+    columns += ["Light_Mode", "Group", "Momentary_Hold", "Tempo_Flash"]
     columns += [f"{slot}_KeyMode_(Key)" for slot in SLOT_NAMES]
 
     rows = []
@@ -147,6 +147,9 @@ class Demo:
 
     def momentary_hold(self, bank, btn):
         self.buttons.at[self._index(self.buttons, bank, btn), "Momentary_Hold"] = "Y"
+
+    def tempo_flash(self, bank, btn):
+        self.buttons.at[self._index(self.buttons, bank, btn), "Tempo_Flash"] = "Y"
 
     def cc(self, bank, btn, label, number, on="127", off="0", toggle="N", ch="1", light=None, slot="A"):
         self.button(bank, btn, label, light, slot, CommandType="CC",
@@ -317,6 +320,8 @@ def build() -> Demo:
              **{"OnValue_(CC/PB)": "1/8", "KeyMode_(Key)": "Sine"})
     d.cc(6, "A", None, "14", on="127", off="40", toggle="Y", slot="B")
     d.cc(6, "B", "SYNC", "20", toggle="Y")
+    # Any button can blink with the beat, not only the ones holding a Tap
+    d.tempo_flash(6, "B")
     # The tempo a BPM at a time, faster while held; hold SYNC for 120 BPM
     d.button(6, "C", "BPM+", None, "A", CommandType="Tap",
              **{"KeyMode_(Key)": "Up Repeat", "OffValue_(CC)": "1"})

@@ -934,6 +934,10 @@ class MidiCommanderGUI(ctk.CTk):
                 df.insert(df.columns.get_loc("Group") + 1, "Momentary_Hold", "")
             else:
                 df["Momentary_Hold"] = df["Momentary_Hold"].fillna("")
+            if "Tempo_Flash" not in df.columns:
+                df.insert(df.columns.get_loc("Momentary_Hold") + 1, "Tempo_Flash", "")
+            else:
+                df["Tempo_Flash"] = df["Tempo_Flash"].fillna("")
             missing = [
                 f"{slot}_{field}"
                 for slot in SLOTS
@@ -1091,7 +1095,7 @@ class MidiCommanderGUI(ctk.CTk):
         for slot in SLOTS:
             columns += [f"{slot}_{f}" for f in CMD_FIELDS]
         if with_extras:
-            columns += ["Light_Mode", "Group", "Momentary_Hold"]
+            columns += ["Light_Mode", "Group", "Momentary_Hold", "Tempo_Flash"]
 
         out = []
         for b in range(NUM_BANKS):
@@ -1104,6 +1108,7 @@ class MidiCommanderGUI(ctk.CTk):
                     row["Light_Mode"] = "Normal"
                     row["Group"] = ""
                     row["Momentary_Hold"] = ""
+                    row["Tempo_Flash"] = ""
                 if src is not None:
                     for c in columns:
                         if c in src.index and c not in ("Bank_Number", "Button_Identifier"):
@@ -1357,6 +1362,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.light_mode = None
         self.group = None
         self.momentary_hold = None
+        self.tempo_flash = None
         long_mode = self.press_mode == "Long press"
         double_mode = self.press_mode == "Double press"
 
@@ -1385,6 +1391,9 @@ class MidiCommanderGUI(ctk.CTk):
             self.momentary_hold = Check(light_frame, text="Momentary when held",
                                         checked=is_yes(current.get("Momentary_Hold")))
             self.momentary_hold.pack(side="left", padx=(12, 0))
+            self.tempo_flash = Check(light_frame, text="Flash at the tempo",
+                                     checked=is_yes(current.get("Tempo_Flash")))
+            self.tempo_flash.pack(side="left", padx=(12, 0))
             Help(
                 self.cmd_editor,
                 "Exclusive group: switching this button on switches off the others of its group "
@@ -1401,6 +1410,14 @@ class MidiCommanderGUI(ctk.CTk):
                 "Held, it goes back to where it was when you let go: on only while held, or off "
                 "only while held if it was on. For toggle buttons without a long press list "
                 "(which would take the hold) and without Cycle commands.",
+                wraplength=720,
+            ).pack(anchor="w", padx=10, pady=(0, 4))
+            Help(
+                self.cmd_editor,
+                "Flash at the tempo: this button's LED blinks on every beat, as a Tap button's does.",
+                "The beat is the host's clock while it is followed, the pedal's clock while it "
+                "runs, and otherwise the tempo running freely from the last tap. The flash sits "
+                "on top of the LED, which goes on showing whatever it shows.",
                 wraplength=720,
             ).pack(anchor="w", padx=10, pady=(0, 8))
 
@@ -1484,6 +1501,8 @@ class MidiCommanderGUI(ctk.CTk):
             self.df_buttons.at[idx, "Group"] = "" if g == "None" else g
         if self.momentary_hold is not None:
             self.df_buttons.at[idx, "Momentary_Hold"] = "Y" if self.momentary_hold.value() == "Y" else ""
+        if self.tempo_flash is not None:
+            self.df_buttons.at[idx, "Tempo_Flash"] = "Y" if self.tempo_flash.value() == "Y" else ""
         if self.label_entry is not None:
             self.df_buttons.at[idx, "Label"] = self.label_entry.value().strip()
 

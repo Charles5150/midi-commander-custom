@@ -1660,6 +1660,66 @@ class MomentaryHoldTest(unittest.TestCase):
         self.assertEqual(int(m.group(1), 16), cbp.BUTTON_MOMENTARY_HOLD)
 
 
+class TempoFlashTest(unittest.TestCase):
+    """Flashing at the tempo, bit 2 of each button's LED mode byte."""
+
+    def test_packs_in_the_led_byte(self):
+        sections = read_config_csv(DEMO_CSV)
+        df = sections["Button_Settings"].copy()
+        df["Tempo_Flash"] = ""
+        i = df.index[(df["Bank_Number"].astype(str) == "5") & (df["Button_Identifier"] == "B")][0]
+        df.at[i, "Light_Mode"] = "Reverse"
+        df.at[i, "Group"] = "2"
+        df.at[i, "Momentary_Hold"] = "Y"
+        base = pack_config({**sections, "Button_Settings": df})
+        df.at[i, "Tempo_Flash"] = "Y"
+        packed = pack_config({**sections, "Button_Settings": df})
+        at = unpacker.LED_MODES_OFFSET + 5 * 8 + unpacker.BUTTON_IDS.index("B")
+        self.assertEqual(base[at], 0xA1)
+        self.assertEqual(packed[at], 0xA5)
+        self.assertEqual(packed[:at] + packed[at + 1:], base[:at] + base[at + 1:])
+
+    def test_round_trip(self):
+        sections = read_config_csv(DEMO_CSV)
+        _, _, decoded, *_ = unpacker.unpack_config(pack_config(sections))
+        row = decoded[(decoded["Bank_Number"] == "6") & (decoded["Button_Identifier"] == "B")]
+        self.assertEqual(row["Tempo_Flash"].iloc[0], "Y")
+        # A plain CC toggle, not a Tap button: the flash is the button's own
+        self.assertEqual(row["A_CommandType"].iloc[0], "CC")
+        self.assertEqual((decoded["Tempo_Flash"] == "Y").sum(), 1)
+
+    def test_older_configurations_have_none(self):
+        sections = read_config_csv(SAMPLE_CSV)
+        self.assertNotIn("Tempo_Flash", sections["Button_Settings"].columns)
+        _, _, decoded, *_ = unpacker.unpack_config(pack_config(sections))
+        self.assertTrue((decoded["Tempo_Flash"] == "").all())
+
+    def test_erased_flash_has_none(self):
+        blank = bytes([0xFF]) * unpacker.CONFIG_SIZE
+        _, _, df, *_ = unpacker.unpack_config(blank)
+        self.assertTrue((df["Tempo_Flash"] == "").all())
+
+    def test_values(self):
+        for cell, want in (("", False), (float("nan"), False), ("N", False), ("0", False),
+                           ("Y", True), ("yes", True), ("1.0", True)):
+            self.assertEqual(cbp.tempo_flash_value(cell), want, cell)
+        with self.assertRaises(ValueError):
+            cbp.tempo_flash_value("maybe")
+
+    def test_firmware_bits_match(self):
+        import re
+        path = os.path.join(os.path.dirname(__file__), "..", "..", "firmware", "Core", "Inc",
+                            "flash_midi_settings.h")
+        with open(path) as handle:
+            header = handle.read()
+        m = re.search(r"#define\s+BUTTON_TEMPO_FLASH\s+\((0x[0-9A-Fa-f]+)\)", header)
+        self.assertEqual(int(m.group(1), 16), cbp.BUTTON_TEMPO_FLASH)
+        # The mode itself now stops below the flash bit, so the two never mix
+        m = re.search(r"#define\s+LED_MODE_MASK\s+\((0x[0-9A-Fa-f]+)\)", header)
+        self.assertEqual(int(m.group(1), 16), 0x03)
+        self.assertLess(max(cbp.LED_MODE_VALUES.values()), cbp.BUTTON_TEMPO_FLASH)
+
+
 class PcIncTest(unittest.TestCase):
     """Relative Program Change: next and previous preset."""
 

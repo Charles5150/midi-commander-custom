@@ -656,6 +656,15 @@ static uint8_t get_button_group(uint8_t sw){
 	return (v >> BUTTON_GROUP_SHIFT) & BUTTON_GROUP_MASK;
 }
 
+// Whether a button of the current bank asks its LED to flash at the tempo,
+// as a Tap button's does. Shares the LED mode byte, in a bit older
+// configurations always left at zero.
+static bool get_button_tempo_flash(uint8_t sw){
+	uint8_t v = pButtonLedModes[switch_current_page * MIDI_NUM_SWITCHES + sw];
+	if(v == 0xFF) return false;
+	return (v & BUTTON_TEMPO_FLASH) != 0;
+}
+
 uint8_t get_bank_down_led_mode(){ // SW_E is Bank Down
 	return sanitize_led_mode(pGlobalSettings[5]);
 }
@@ -2359,8 +2368,9 @@ void handle_switches(void){
 
 /*
  * Tap LED: the buttons of this bank holding a Tap command flash at the start
- * of every beat, those in Clock mode only while the clock runs. The flash is
- * an overlay on top of whatever the LED shows, so nothing else is disturbed.
+ * of every beat, those in Clock mode only while the clock runs, and so does
+ * any button whose LED mode byte asks for it. The flash is an overlay on top
+ * of whatever the LED shows, so nothing else is disturbed.
  */
 static void tap_led_task(void){
 	uint16_t mask = 0;
@@ -2368,7 +2378,8 @@ static void tap_led_task(void){
 		uint32_t bit = 1UL << switch_current_page;
 		bool clock = tempo_clock_running();
 		for(int i=0; i<8; i++){
-			if((a_sw_obj[i].tap_blink & bit) || (clock && (a_sw_obj[i].clock_blink & bit))){
+			if((a_sw_obj[i].tap_blink & bit) || get_button_tempo_flash(i)
+					|| (clock && (a_sw_obj[i].clock_blink & bit))){
 				mask |= (uint16_t)(1U << i);
 			}
 		}

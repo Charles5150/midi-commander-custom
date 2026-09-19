@@ -646,30 +646,47 @@ def button_group_value(value) -> int:
     return g
 
 
+# Bit 2: the LED flashes at the tempo, as a Tap button's does. Older
+# configurations always left it at zero.
+BUTTON_TEMPO_FLASH = 0x04
+
+
+def tempo_flash_value(value) -> bool:
+    """Tempo_Flash cell: Y/Yes/1/True is on, empty, N or None is off."""
+    return _yes_no(value, "Tempo_Flash")
+
+
 # Bit 7: momentary when held. A toggle button held past Long_Press_ms goes
 # back to its previous state when released; a tap still latches it.
 BUTTON_MOMENTARY_HOLD = 0x80
 
 
-def momentary_hold_value(value) -> bool:
-    """Momentary_Hold cell: Y/Yes/1/True is on, empty, N or None is off."""
+def _yes_no(value, column) -> bool:
+    """A Y/N cell: Y/Yes/1/True is on, empty, N or None is off."""
     s = str(value).strip().upper()
     if s in ("", "NAN", "NONE", "N", "NO", "0", "0.0", "FALSE"):
         return False
     if s in ("Y", "YES", "1", "1.0", "TRUE"):
         return True
-    raise ValueError(f"Momentary_Hold must be empty, Y or N, not {value!r}")
+    raise ValueError(f"{column} must be empty, Y or N, not {value!r}")
 
 
-def pack_button_led_modes(light_modes, groups=None, holds=None) -> list:
+def momentary_hold_value(value) -> bool:
+    """Momentary_Hold cell: Y/Yes/1/True is on, empty, N or None is off."""
+    return _yes_no(value, "Momentary_Hold")
+
+
+def pack_button_led_modes(light_modes, groups=None, holds=None, flashes=None) -> list:
     """Pack one LED mode byte per button from an iterable of mode names, with
-    the exclusive group of each button, if given, in bits 4-6 and its
-    momentary hold, if given, in bit 7."""
+    the exclusive group of each button, if given, in bits 4-6, its momentary
+    hold, if given, in bit 7, and its tempo flash, if given, in bit 2."""
     modes = [led_mode_value(m) for m in light_modes]
     if groups is not None:
         modes = [m | (button_group_value(g) << BUTTON_GROUP_SHIFT) for m, g in zip(modes, groups)]
     if holds is not None:
         modes = [m | (BUTTON_MOMENTARY_HOLD if momentary_hold_value(h) else 0) for m, h in zip(modes, holds)]
+    if flashes is not None:
+        modes = [m | (BUTTON_TEMPO_FLASH if tempo_flash_value(f) else 0) for m, f in zip(modes, flashes)]
     return modes
 
 
