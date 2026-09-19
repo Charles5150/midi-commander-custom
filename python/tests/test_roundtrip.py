@@ -1224,13 +1224,13 @@ class AutoEngageTest(unittest.TestCase):
 
     def auto_bytes(self, packed, pedal):
         base = unpacker.EXP_OFFSET + pedal * unpacker.EXP_STRIDE
-        return list(packed[base + 13 : base + 16])
+        return list(packed[base + 13 : base + 15])
 
     def test_demo(self):
         packed = packer.pack_config(self.sections)
         # Pedal 1 switches D (index 7, stored + 1) and waits 600 ms; pedal 2 has none
-        self.assertEqual(self.auto_bytes(packed, 0), [8, 60, 0])
-        self.assertEqual(self.auto_bytes(packed, 1), [0, 50, 0])
+        self.assertEqual(self.auto_bytes(packed, 0), [8, 60])
+        self.assertEqual(self.auto_bytes(packed, 1), [0, 50])
         exp = unpacker.unpack_config(packed)[4]
         self.assertEqual(list(exp["Auto_Button"]), ["D", "None"])
         self.assertEqual(list(exp["Auto_Off_ms"]), ["600", "500"])
@@ -1243,8 +1243,8 @@ class AutoEngageTest(unittest.TestCase):
             df.loc[0, ["Auto_Button", "Auto_Off_ms"]] = [name, "5"]
             df.loc[1, ["Auto_Button", "Auto_Off_ms"]] = ["None", "99999"]
             packed = packer.pack_config({**self.sections, packer.EXPRESSION_SECTION: df})
-            self.assertEqual(self.auto_bytes(packed, 0), [idx + 1, 1, 0])
-            self.assertEqual(self.auto_bytes(packed, 1), [0, 254, 0])
+            self.assertEqual(self.auto_bytes(packed, 0), [idx + 1, 1])
+            self.assertEqual(self.auto_bytes(packed, 1), [0, 254])
             exp = unpacker.unpack_config(packed)[4]
             self.assertEqual(list(exp["Auto_Button"]), [name, "None"])
             self.assertEqual(list(exp["Auto_Off_ms"]), ["10", "2540"])
@@ -1262,7 +1262,71 @@ class AutoEngageTest(unittest.TestCase):
     def test_csv_without_the_columns(self):
         df = self.sections[packer.EXPRESSION_SECTION].drop(columns=["Auto_Button", "Auto_Off_ms"])
         packed = packer.pack_config({**self.sections, packer.EXPRESSION_SECTION: df})
-        self.assertEqual(self.auto_bytes(packed, 0), [0, 50, 0])
+        self.assertEqual(self.auto_bytes(packed, 0), [0, 50])
+
+
+class ExpressionOutputTest(unittest.TestCase):
+    """Pitch Bend and 14-bit CC from an expression pedal, byte 15 of its record (firmware 0.44)."""
+
+    def setUp(self):
+        self.sections = read_config_csv(DEMO_CSV)
+
+    def output_bytes(self, packed):
+        return [packed[unpacker.EXP_OFFSET + i * unpacker.EXP_STRIDE + 15] for i in range(2)]
+
+    def with_outputs(self, a, b):
+        from lib.configPacker import empty_expression_settings
+
+        df = empty_expression_settings()
+        df.loc[0, "Output"] = a
+        df.loc[1, "Output"] = b
+        return packer.pack_config({**self.sections, packer.EXPRESSION_SECTION: df})
+
+    def test_demo(self):
+        packed = packer.pack_config(self.sections)
+        self.assertEqual(self.output_bytes(packed), [0, 2])
+        exp = unpacker.unpack_config(packed)[4]
+        self.assertEqual(list(exp["Output"]), ["CC", "CC14"])
+
+    def test_every_kind_round_trips(self):
+        for name, code in (("CC", 0), ("PitchBend", 1), ("CC14", 2)):
+            packed = self.with_outputs(name, "CC")
+            self.assertEqual(self.output_bytes(packed), [code, 0])
+            exp = unpacker.unpack_config(packed)[4]
+            self.assertEqual(list(exp["Output"]), [name, "CC"])
+
+    def test_spellings(self):
+        for text, code in (("pitchbend", 1), ("PB", 1), ("Pitch Bend", 1), ("cc14", 2),
+                           ("CC 14", 2), ("14-bit", 2), ("", 0), ("cc", 0)):
+            self.assertEqual(self.output_bytes(self.with_outputs(text, "CC"))[0], code, text)
+
+    def test_bad_value(self):
+        with self.assertRaises(ValueError):
+            self.with_outputs("NRPN", "CC")
+
+    def test_older_records_send_cc(self):
+        """Older tools wrote a zero in byte 15, blank flash is 0xFF."""
+        packed = bytearray(packer.pack_config(self.sections))
+        packed[unpacker.EXP_OFFSET + 15] = 0xFF
+        packed[unpacker.EXP_OFFSET + unpacker.EXP_STRIDE + 15] = 0
+        exp = unpacker.unpack_config(bytes(packed))[4]
+        self.assertEqual(list(exp["Output"]), ["CC", "CC"])
+
+    def test_csv_without_the_column(self):
+        df = self.sections[packer.EXPRESSION_SECTION].drop(columns=["Output"])
+        packed = packer.pack_config({**self.sections, packer.EXPRESSION_SECTION: df})
+        self.assertEqual(self.output_bytes(packed), [0, 0])
+
+    def test_firmware_values_match(self):
+        import re
+        path = os.path.join(os.path.dirname(__file__), "..", "..", "firmware", "Core", "Inc",
+                            "flash_midi_settings.h")
+        with open(path) as handle:
+            header = handle.read()
+        for name, code in (("CC", 0), ("PITCHBEND", 1), ("CC14", 2)):
+            m = re.search(rf"#define\s+EXP_OUT_{name}\s+\((\d+)\)", header)
+            self.assertEqual(int(m.group(1)), code, name)
+            self.assertEqual(packer.EXP_OUTPUTS[name], code)
 
 
 class PanicTest(unittest.TestCase):

@@ -50,7 +50,9 @@ extern uint8_t *pCycleLabels;	// Labels of the states of cycle buttons, BUTTON_L
  *   [8]    button triggered when it returns to the heel (0-7, 0xFF none)
  *   [9]    toe threshold, as a 7-bit value    [10] heel threshold
  *   [11]   lowest value sent (0-127)          [12] highest value sent
- *   rest reserved. Blank flash (0xFF) means "not set" everywhere. The tools
+ *   [13]   auto-engage button + 1 (0 none)    [14] auto-engage rest, 10 ms units
+ *   [15]   what it sends: EXP_OUT_CC, EXP_OUT_PITCHBEND or EXP_OUT_CC14
+ *   Blank flash (0xFF) means "not set" everywhere. Blank flash (0xFF) means "not set" everywhere. The tools
  *   used to write zeros after byte 10, so a range of 0 to 0 means the full
  *   range too.
  */
@@ -58,6 +60,9 @@ extern uint8_t *pCycleLabels;	// Labels of the states of cycle buttons, BUTTON_L
 #define EXP_CURVE_LINEAR		(0)
 #define EXP_CURVE_LOG			(1)
 #define EXP_CURVE_EXP			(2)
+#define EXP_OUT_CC				(0)	// a 7-bit CC; also blank flash
+#define EXP_OUT_PITCHBEND		(1)	// 14-bit Pitch Bend
+#define EXP_OUT_CC14			(2)	// 14-bit CC pair: MSB on the CC, LSB on CC + 32
 
 #define MIDI_NUM_BANKS			(32)
 #define MIDI_NUM_SWITCHES		(8)

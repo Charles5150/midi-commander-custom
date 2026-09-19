@@ -41,11 +41,14 @@ SYSEX_STRING_MAX = 23
 SYSEX_STRING_STRIDE = SYSEX_STRING_MAX + 1
 EXP_STRIDE = 16
 EXP_CURVES = {"LINEAR": 0, "LOG": 1, "EXP": 2}
+# What a pedal sends: a 7-bit CC, Pitch Bend, or a 14-bit CC pair (MSB on the
+# CC, LSB on CC + 32)
+EXP_OUTPUTS = {"CC": 0, "PITCHBEND": 1, "CC14": 2}
 EXP_DEFAULTS = {
     "Min_ADC": "80", "Max_ADC": "3900", "Curve": "Linear", "Invert": "N",
     "Channel": "Global", "Toe_Button": "None", "Heel_Button": "None",
     "Toe_Level": "120", "Heel_Level": "7", "Out_Min": "0", "Out_Max": "127",
-    "Auto_Button": "None", "Auto_Off_ms": "500",
+    "Auto_Button": "None", "Auto_Off_ms": "500", "Output": "CC",
 }
 EXP_BUTTON_IDS = ["1", "2", "3", "4", "A", "B", "C", "D"]
 
@@ -212,7 +215,7 @@ def _to_int(value, default):
 def pack_expression_settings(df) -> bytes:
     """Two 16 byte records: min/max ADC (LE), curve, invert, channel, toe and
     heel buttons and levels, output range, auto-engage button and off delay,
-    zeros."""
+    output kind."""
     rows = {}
     if df is not None:
         for _, row in df.iterrows():
@@ -251,10 +254,20 @@ def pack_expression_settings(df) -> bytes:
         auto_btn = button("Auto_Button")
         auto_btn = 0 if auto_btn == 0xFF else auto_btn + 1
         auto_off = max(1, min(254, round(_to_int(get("Auto_Off_ms"), 500) / 10)))
+        out_text = str(get("Output")).strip().upper().replace(" ", "").replace("-", "").replace("_", "")
+        if out_text in ("", "NAN", "NONE"):
+            out_text = "CC"
+        if out_text in ("PB", "PITCH"):
+            out_text = "PITCHBEND"
+        if out_text in ("CC14BIT", "14BIT", "14BITCC"):
+            out_text = "CC14"
+        if out_text not in EXP_OUTPUTS:
+            raise ValueError(f"Expression pedal {i + 1}: Output must be CC, PitchBend or CC14, not {get('Output')!r}")
+        output = EXP_OUTPUTS[out_text]
 
         out += bytes([lo & 0xFF, lo >> 8, hi & 0xFF, hi >> 8, curve, invert, channel,
                       toe_btn, heel_btn, toe_level, heel_level,
-                      out_min, out_max, auto_btn, auto_off]) + bytes(EXP_STRIDE - 15)
+                      out_min, out_max, auto_btn, auto_off, output]) + bytes(EXP_STRIDE - 16)
     return out
 
 

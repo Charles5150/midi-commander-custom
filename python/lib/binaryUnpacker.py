@@ -92,6 +92,7 @@ DOUBLE_PRESS_SIZE = NUM_BANKS * len(BUTTON_IDS) * BUTTON_STRIDE
 DOUBLE_PRESS_PAGES = 5
 IMAGE_SIZE = DOUBLE_PRESS_OFFSET + DOUBLE_PRESS_PAGES * FLASH_PAGE_SIZE
 EXP_CURVE_NAMES = {0: "Linear", 1: "Log", 2: "Exp"}
+EXP_OUTPUT_NAMES = {0: "CC", 1: "PitchBend", 2: "CC14"}
 EXP_BUTTON_IDS = ["1", "2", "3", "4", "A", "B", "C", "D"]
 
 SLOT_NAMES = [chr(ord("A") + i) for i in range(MIDI_NUM_COMMANDS_PER_SWITCH)]
@@ -483,6 +484,7 @@ def unpack_expression_settings(data: bytes) -> pd.DataFrame:
                 "Out_Max": str(out_max),
                 "Auto_Button": EXP_BUTTON_IDS[p[13] - 1] if 1 <= p[13] <= 8 else "None",
                 "Auto_Off_ms": str(p[14] * 10 if p[14] not in (0, 0xFF) else 500),
+                "Output": EXP_OUTPUT_NAMES.get(p[15], "CC"),
             }
         )
     return pd.DataFrame(rows)

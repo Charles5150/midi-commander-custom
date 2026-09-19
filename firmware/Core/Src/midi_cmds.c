@@ -325,6 +325,50 @@ int8_t midiCmd_send_cc(uint8_t channel, uint8_t cc_number, uint8_t value)
 	return 0;
 }
 
+/*
+ * A 14-bit CC: the MSB on cc_number and the LSB on cc_number + 32, in one
+ * buffer so the pair is never split. cc_number must be below 32.
+ */
+int8_t midiCmd_send_cc14(uint8_t channel, uint8_t cc_number, uint16_t value)
+{
+	__disable_irq();
+	int8_t buffer_no = get_next_available_tx_buffer();
+	if(buffer_no < 0){
+		__enable_irq();
+		return ERROR_BUFFERS_FULL;
+	}
+
+	uint8_t *serialBuf = &(midi_uart_out_buffer[buffer_no][0]);
+	uint8_t *usbBuf = midi_usb_assembly_buffer;
+
+	for(uint8_t k = 0; k < 2; k++){
+		*(usbBuf++) = CIN_CONTROL_CHANGE;
+		*(usbBuf++) = 0xB0 | (channel & 0xF);
+		*(usbBuf++) = k ? (cc_number & 0x1F) + 32 : cc_number & 0x1F;
+		*(usbBuf++) = k ? value & 0x7F : (value >> 7) & 0x7F;
+
+		memcpy(serialBuf, (usbBuf-3), 3);
+		serialBuf += 3;
+	}
+
+	midi_uart_out_buffer_bytes_to_tx[buffer_no] = serialBuf - &midi_uart_out_buffer[buffer_no][0];
+
+	__enable_irq();
+
+	uint8_t usb_bytes_to_tx = usbBuf - midi_usb_assembly_buffer;
+	MIDI_DataTx(midi_usb_assembly_buffer, usb_bytes_to_tx);
+
+	midi_serial_transmit();
+	return 0;
+}
+
+// Pitch Bend, value 0-16383 with 8192 in the middle
+int8_t midiCmd_send_pb(uint8_t channel, uint16_t value)
+{
+	uint8_t rom[3] = {channel & 0xF, value & 0x7F, (value >> 7) & 0x7F};
+	return midiCmd_send_pb_command_from_rom(rom, 1);
+}
+
 int8_t midiCmd_send_cc_command_from_rom(uint8_t *pRom, uint8_t on_off){
 	// Check switch off value is valid, else no off value will be sent
 	if(!on_off){

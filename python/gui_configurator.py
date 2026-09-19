@@ -980,7 +980,8 @@ class MidiCommanderGUI(ctk.CTk):
                 if EXPRESSION_SECTION in data
                 else empty_expression_settings()
             )
-            for col, default in (("Out_Min", "0"), ("Out_Max", "127"), ("Auto_Button", "None"), ("Auto_Off_ms", "500")):
+            for col, default in (("Out_Min", "0"), ("Out_Max", "127"), ("Auto_Button", "None"), ("Auto_Off_ms", "500"),
+                                 ("Output", "CC")):
                 if col not in self.df_exp.columns:
                     self.df_exp[col] = default
             self.populate_expression()
@@ -1565,7 +1566,9 @@ class MidiCommanderGUI(ctk.CTk):
             ctk.CTkLabel(out, text="at the heel to").pack(side="left", padx=(6, 2))
             w["out_max"] = IntEntry(out, 0, 127, clean(r.get("Out_Max")) or "127", width=55)
             w["out_max"].pack(side="left", padx=(6, 2))
-            ctk.CTkLabel(out, text="at the toe").pack(side="left", padx=(6, 2))
+            ctk.CTkLabel(out, text="at the toe, as").pack(side="left", padx=(6, 2))
+            w["output"] = Option(out, ["CC", "PitchBend", "CC14"], clean(r.get("Output")) or "CC", width=100)
+            w["output"].pack(side="left", padx=(6, 2))
 
             auto = ctk.CTkFrame(box, fg_color="transparent")
             auto.pack(fill="x", padx=8, pady=(0, 8))
@@ -1587,6 +1590,10 @@ class MidiCommanderGUI(ctk.CTk):
             "The pedal sends values between the two ends of its range, e.g. 40 to 127 so a volume "
             "never drops to silence; the heel value can be the higher one. A bank can set its own "
             "range in the Banks tab.\n"
+            "As CC the pedal sends 0-127. PitchBend sends Pitch Bend instead of its CC, and CC14 a "
+            "14-bit CC pair, the CC and CC + 32 (CC below 32 only), both with 16384 steps; the range "
+            "still counts in 0-127, so 64 is the middle of the bend. A bank or an Exp button sending "
+            "the pedal to another CC sends that CC.\n"
             "As a switch, reaching the toe or returning to the heel taps a button of the current "
             "bank, sending whatever that button is configured to send. Each direction re-arms only "
             "after the pedal moves back past the level, so resting on the edge does not retrigger.\n"
@@ -2074,6 +2081,7 @@ class MidiCommanderGUI(ctk.CTk):
             self.df_exp.at[i, "Out_Max"] = w["out_max"].value() or "127"
             self.df_exp.at[i, "Auto_Button"] = w["auto_button"].value()
             self.df_exp.at[i, "Auto_Off_ms"] = w["auto_off"].value() or "500"
+            self.df_exp.at[i, "Output"] = w["output"].value()
 
     def apply_bank_changes(self):
         """Bank names and per bank expression settings back into their frames."""

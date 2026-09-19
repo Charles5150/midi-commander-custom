@@ -458,6 +458,10 @@ def build() -> Demo:
     # Pedal 2: logarithmic and inverted, with both switch directions in use
     d.exp.loc[1, ["Min_ADC", "Max_ADC", "Curve", "Invert", "Channel"]] = ["100", "3900", "Log", "Y", "2"]
     d.exp.loc[1, ["Toe_Button", "Toe_Level", "Heel_Button", "Heel_Level"]] = ["C", "110", "D", "5"]
+    # Pedal 1 keeps the plain 7-bit CC; pedal 2 sends a 14-bit CC pair, CC 4
+    # and 36 (CC 7 and 39 in bank 7)
+    d.exp.loc[0, "Output"] = "CC"
+    d.exp.loc[1, "Output"] = "CC14"
 
     # The Bank Down/Up switches send MIDI of their own as well as changing
     # bank, which is what Bank_Switch_Mode = Bank+MIDI means. A host can use

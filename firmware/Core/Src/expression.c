@@ -19,6 +19,12 @@
  * pedal_target), and an Exp command on a button can change it again until the
  * next bank change (see expression_set_target).
  *
+ * Instead of its own 7-bit CC a pedal can send Pitch Bend, or a 14-bit CC pair
+ * (MSB on its CC, LSB on CC + 32), for finer steps than 0-127 (see
+ * send_kind). A pedal sent to another CC by its bank or an Exp command sends
+ * that CC: 14-bit when the pedal is set to 14-bit CC and the CC has an LSB
+ * partner, 7-bit otherwise.
+ *
  * A pedal can also act as a switch: crossing up through the toe threshold, or
  * back down through the heel threshold, taps a button of the current bank. Each
  * direction re-arms only once the pedal has moved back out of the threshold by
@@ -49,6 +55,9 @@
 #define EXP_FAST_MOVE_THRESHOLD (50U) // ADC counts
 
 #define EXP_HYSTERESIS         (16U)  // ADC counts
+// Finer steps need a smaller dead band; the averaging and the EMA keep a pedal
+// at rest quiet with it
+#define EXP_HYSTERESIS_FINE    (4U)
 #define EXP_PROCESS_INTERVAL_MS (1U)
 
 // Defaults used when the calibration table is blank or invalid
@@ -96,11 +105,16 @@ typedef struct {
   uint8_t out_max;      // value sent at the toe
   uint8_t auto_button;  // auto-engage button, NO_BUTTON when unused
   uint16_t auto_off_ms; // rest at the heel before switching it off
+  uint8_t out_mode;     // EXP_OUT_CC, EXP_OUT_PITCHBEND or EXP_OUT_CC14
 } exp_cal_t;
+
+// What a pedal sends at the moment
+typedef enum { SEND_CC7, SEND_CC14, SEND_PB } send_kind_t;
 
 typedef struct {
   exp_cal_t cal;
-  uint8_t last_sent_midi;
+  uint8_t last_sent_midi;    // 7-bit view of the last value sent, 0xFF before the first
+  uint16_t last_sent_value;  // the last value sent, in the resolution of target_kind
   uint8_t activity_ref;      // value the last real movement settled on
   bool activity_ref_set;
   uint32_t last_stable_adc;
@@ -113,6 +127,7 @@ typedef struct {
   uint8_t target_channel;
   uint8_t target_min;
   uint8_t target_max;
+  uint8_t target_kind;   // send_kind_t
   bool auto_primed;      // auto-engage has seen a first reading
   bool auto_at_heel;     // at or below the heel level
   bool auto_off_done;    // this rest at the heel has been dealt with
@@ -226,6 +241,8 @@ static void load_calibration(uint32_t i)
   // Auto-engage: button + 1, so the zeros older tools wrote here mean none
   c->auto_button = (p[13] >= 1 && p[13] <= MIDI_NUM_SWITCHES) ? p[13] - 1U : NO_BUTTON;
   c->auto_off_ms = (p[14] != 0 && p[14] != 0xFF) ? p[14] * AUTO_OFF_UNIT_MS : AUTO_OFF_DEFAULT_MS;
+
+  c->out_mode = (p[15] == EXP_OUT_PITCHBEND || p[15] == EXP_OUT_CC14) ? p[15] : EXP_OUT_CC;
 }
 
 static uint8_t adc_to_midi(const exp_cal_t *c, uint32_t sample)
@@ -256,6 +273,51 @@ static uint8_t adc_to_midi(const exp_cal_t *c, uint32_t sample)
 }
 
 /*
+ * The same with 14 bits, 0..16383, for Pitch Bend and 14-bit CCs.
+ */
+static uint16_t adc_to_fine(const exp_cal_t *c, uint32_t sample)
+{
+  if (sample <= c->min_adc) return c->invert ? 16383U : 0U;
+  if (sample >= c->max_adc) return c->invert ? 0U : 16383U;
+
+  uint32_t span = c->max_adc - c->min_adc;
+  uint32_t n = ((sample - c->min_adc) * 16384U) / span;   // 0..16384
+  if (c->invert) n = 16384U - n;
+
+  uint32_t v;
+  switch (c->curve) {
+  case EXP_CURVE_EXP:
+      v = (n * n) >> 14;
+      break;
+  case EXP_CURVE_LOG: {
+      uint32_t m = 16384U - n;
+      v = 16384U - ((m * m) >> 14);
+      break;
+  }
+  default:
+      v = n;
+      break;
+  }
+  return (uint16_t)(v > 16383U ? 16383U : v);
+}
+
+// A 7-bit range end in 14 bits: 64 is the middle (8192) and 127 the top
+static int32_t fine_end(uint8_t v)
+{
+  return (v >= 127U) ? 16383 : (int32_t)v << 7;
+}
+
+static uint16_t scale_fine(uint16_t v, uint8_t lo, uint8_t hi)
+{
+  if (lo == 0U && hi == 127U) return v;
+  int32_t flo = fine_end(lo);
+  int32_t span = fine_end(hi) - flo;
+  int32_t num = (int32_t)v * span;
+  num += (num >= 0) ? 8191 : -8191;
+  return (uint16_t)(flo + num / 16383);
+}
+
+/*
  * Map a 7-bit pedal position into [lo, hi]. hi may be below lo, which turns
  * the pedal round. The ends map exactly, the rest is rounded.
  */
@@ -281,7 +343,7 @@ static uint8_t midi_channel(const exp_cal_t *c)
  * and heel switches are not affected.
  */
 static bool pedal_target(uint32_t i, uint8_t *cc, uint8_t *channel,
-                         uint8_t *lo, uint8_t *hi)
+                         uint8_t *lo, uint8_t *hi, bool *own)
 {
   const exp_cal_t *c = &pedals[i].cal;
   uint8_t page = sw_get_current_page();
@@ -292,7 +354,11 @@ static bool pedal_target(uint32_t i, uint8_t *cc, uint8_t *channel,
   *lo = (r[0] <= 127U) ? r[0] : c->out_min;
   *hi = (r[1] <= 127U) ? r[1] : c->out_max;
   bool enabled = (b[0] != BANK_EXP_CC_OFF);
-  if (b[0] <= 127U) *cc = b[0];
+  *own = true;
+  if (b[0] <= 127U && b[0] != c->cc_number) {
+      *cc = b[0];
+      *own = false;
+  }
   if (b[1] >= 1U && b[1] <= 16U) *channel = b[1] - 1U;
 
   // An Exp command wins over the bank, even over a pedal the bank silenced;
@@ -300,11 +366,23 @@ static bool pedal_target(uint32_t i, uint8_t *cc, uint8_t *channel,
   const exp_override_t *o = &overrides[i];
   if (o->active) {
       if (o->cc == EXP_TARGET_OFF) return false;
+      *own = (o->cc == c->cc_number);
       *cc = o->cc;
       if (o->channel >= 1U && o->channel <= 16U) *channel = o->channel - 1U;
       return true;
   }
   return enabled;
+}
+
+/*
+ * What goes out: Pitch Bend replaces the pedal's own CC only, and a 14-bit CC
+ * needs a CC below 32, whose LSB partner is CC + 32.
+ */
+static send_kind_t send_kind(const exp_cal_t *c, uint8_t cc, bool own)
+{
+  if (c->out_mode == EXP_OUT_PITCHBEND && own) return SEND_PB;
+  if (c->out_mode == EXP_OUT_CC14 && cc < 32U) return SEND_CC14;
+  return SEND_CC7;
 }
 
 /*
@@ -336,6 +414,8 @@ void expression_init(void)
   for (uint32_t i = 0; i < EXP_PEDAL_COUNT; i++) {
     load_calibration(i);
     pedals[i].last_sent_midi = 0xFFU;
+    pedals[i].last_sent_value = 0xFFFFU;
+    pedals[i].target_kind = SEND_CC7;
     pedals[i].activity_ref = 0;
     pedals[i].activity_ref_set = false;
     pedals[i].last_stable_adc = 0;
@@ -365,7 +445,7 @@ uint8_t expression_get_midi(uint8_t pedal)
 {
   if (pedal >= EXP_PEDAL_COUNT) return 0;
   uint8_t v = pedals[pedal].last_sent_midi;
-  return (v == 0xFFU) ? 0 : v;
+  return (v == 0xFFU) ? 0 : (v & 0x7FU);
 }
 
 /*
@@ -450,7 +530,8 @@ static void process_pedal(uint32_t i)
   uint32_t diff = (filtered > p->last_stable_adc) ? filtered - p->last_stable_adc
                                                   : p->last_stable_adc - filtered;
   bool at_end = (filtered <= p->cal.min_adc) || (filtered >= p->cal.max_adc);
-  if (diff >= EXP_HYSTERESIS || at_end) {
+  uint32_t hysteresis = (p->cal.out_mode == EXP_OUT_CC) ? EXP_HYSTERESIS : EXP_HYSTERESIS_FINE;
+  if (diff >= hysteresis || at_end) {
       p->last_stable_adc = filtered;
   } else {
       filtered = p->last_stable_adc;
@@ -459,6 +540,7 @@ static void process_pedal(uint32_t i)
   // Pedal position, 0 at the heel and 127 at the toe. The switches and the
   // activity marker follow it; the value sent is scaled into the output range.
   uint8_t midi_value = adc_to_midi(&p->cal, filtered);
+  uint16_t fine_value = adc_to_fine(&p->cal, filtered);
 
   // Only a real move counts as activity; noise must not hold off sleep
   if (!p->activity_ref_set) {
@@ -481,25 +563,36 @@ static void process_pedal(uint32_t i)
   // silence it. The new target is not sent the old position: it follows the
   // next movement.
   uint8_t cc, channel, lo, hi;
-  bool enabled = pedal_target(i, &cc, &channel, &lo, &hi);
-  uint8_t out_value = scale_output(midi_value, lo, hi);
+  bool own;
+  bool enabled = pedal_target(i, &cc, &channel, &lo, &hi, &own);
+  send_kind_t kind = send_kind(&p->cal, cc, own);
+  uint16_t out_value = (kind == SEND_CC7) ? scale_output(midi_value, lo, hi)
+                                          : scale_fine(fine_value, lo, hi);
+  uint8_t out_midi = (kind == SEND_CC7) ? (uint8_t)out_value : (uint8_t)(out_value >> 7);
   uint8_t target = enabled ? cc : BANK_EXP_CC_OFF;
   if (target != p->target_cc || channel != p->target_channel
-      || lo != p->target_min || hi != p->target_max) {
+      || lo != p->target_min || hi != p->target_max || kind != p->target_kind) {
       if (p->target_cc != 0xFFU) {
-          p->last_sent_midi = out_value;
+          p->last_sent_value = out_value;
+          p->last_sent_midi = out_midi;
       }
       p->target_cc = target;
       p->target_channel = channel;
       p->target_min = lo;
       p->target_max = hi;
+      p->target_kind = kind;
   }
 
-  if (p->last_sent_midi != out_value) {
-      if (!enabled) {
-          p->last_sent_midi = out_value;    // silent in this bank
-      } else if (midiCmd_send_cc(channel, cc, out_value) != ERROR_BUFFERS_FULL) {
-          p->last_sent_midi = out_value;
+  if (p->last_sent_value != out_value) {
+      int8_t sent = 0;
+      if (enabled) {                        // else silent in this bank
+          if (kind == SEND_PB) sent = midiCmd_send_pb(channel, out_value);
+          else if (kind == SEND_CC14) sent = midiCmd_send_cc14(channel, cc, out_value);
+          else sent = midiCmd_send_cc(channel, cc, (uint8_t)out_value);
+      }
+      if (sent != ERROR_BUFFERS_FULL) {
+          p->last_sent_value = out_value;
+          p->last_sent_midi = out_midi;
       }
   }
 
