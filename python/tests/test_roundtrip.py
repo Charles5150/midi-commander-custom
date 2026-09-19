@@ -22,6 +22,7 @@ from lib.configPacker import pack_config  # noqa: E402
 
 SAMPLE_CSV = os.path.join(os.path.dirname(HERE), "MeloConfig_10_Cmds - RC-600.csv")
 DEMO_CSV = os.path.join(os.path.dirname(HERE), "demo-all-features.csv")
+FM3_CSV = os.path.join(os.path.dirname(HERE), "templates", "FM3.csv")
 
 
 def pack_csv(path: str) -> bytes:
@@ -1559,6 +1560,49 @@ class RepeatTest(unittest.TestCase):
             return r["Label"], r["A_CommandType"], r["A_KeyMode_(Key)"]
         self.assertEqual(btn("1"), ("VOL+", "CCInc", "Up Repeat"))
         self.assertEqual(btn("2"), ("VOL-", "CCInc", "Down Repeat"))
+
+
+class Fm3TemplateTest(unittest.TestCase):
+    """The FM3 template packs and reads back as the template describes."""
+
+    @classmethod
+    def setUpClass(cls):
+        packed = packer.pack_config(read_config_csv(FM3_CSV))
+        tables = unpacker.unpack_config(packed)
+        cls.banks, cls.buttons, cls.enter = tables[1], tables[2], tables[5]
+
+    def button(self, bank, btn):
+        b = self.buttons
+        return b[(b["Bank_Number"].astype(str) == str(bank)) & (b["Button_Identifier"] == btn)].iloc[0]
+
+    def test_preset_banks_load_their_preset(self):
+        for bank in (0, 7, 29):
+            row = self.enter[self.enter["Bank_Number"].astype(str) == str(bank)].iloc[0]
+            self.assertEqual(row["A_CommandType"], "PC")
+            self.assertEqual(norm(row["A_Number_(PC/CC/Note)"]), str(bank))
+
+    def test_scene_buttons(self):
+        for btn, value in (("1", 0), ("4", 3), ("A", 4), ("B", 5)):
+            row = self.button(3, btn)
+            self.assertEqual(row["A_CommandType"], "CC")
+            self.assertEqual(norm(row["A_Number_(PC/CC/Note)"]), "34")
+            self.assertEqual(norm(row["A_OnValue_(CC/PB)"]), str(value))
+            self.assertEqual(norm(row["A_OffValue_(CC)"]), "128")   # sends nothing
+            self.assertEqual(row["A_Toggle_(CC/PB/Note)"], "Y")
+            self.assertEqual(norm(row["Group"]), "1")
+
+    def test_tap_sends_only_on_the_press(self):
+        row = self.button(0, "D")
+        self.assertEqual(norm(row["A_Number_(PC/CC/Note)"]), "14")
+        self.assertEqual(norm(row["A_OffValue_(CC)"]), "128")
+        self.assertEqual(row["A_Toggle_(CC/PB/Note)"], "N")
+
+    def test_looper_and_fx_banks(self):
+        names = self.banks.set_index(self.banks["Bank_Number"].astype(str))["Bank_Name_Large"]
+        self.assertEqual(names["30"], "LOOP")
+        self.assertEqual(names["31"], "FX")
+        self.assertEqual(norm(self.button(30, "1")["A_Number_(PC/CC/Note)"]), "20")
+        self.assertEqual(self.button(31, "A")["A_Toggle_(CC/PB/Note)"], "Y")
 
 
 class SceneTest(unittest.TestCase):

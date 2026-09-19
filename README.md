@@ -59,6 +59,7 @@ The firmware replaces the stock MeloAudio one but never touches its bootloader, 
 - **Remember state.** Optionally power up in the last bank with every toggle exactly as you left it, journaled across several flash pages so wear is not a concern.
 - **Works without a computer.** On a USB charger or a power bank the pedal runs normally and drives your gear over the DIN output.
 - **Sleep mode.** When the computer the pedal is connected to suspends, LEDs and display switch off; they come back when it wakes.
+- **Ready for the Fractal FM3.** A template that loads a preset per bank and puts scenes, tuner, tap tempo, the looper and block bypass under your feet; see [the FM3 template](#fractal-audio-fm3-template).
 - **Configuration over USB.** Flash a configuration to the pedal and read it back, from the GUI or the command line, over ordinary USB MIDI SysEx. No special driver.
 - **Backups.** Copy all four configuration slots to a folder in one go, one editable CSV each, and put them all back just as easily.
 - Firmware updates through the stock DFU bootloader with `dfu-util`.
@@ -179,6 +180,31 @@ A configuration is a CSV with several sections, each introduced by a line starti
 Both expression pedals are configured, one linear and one logarithmic and inverted, with the toe and heel acting as switches. Bank 2 turns pedal 1 into a modulation wheel held between 20 and 100, and bank 7 silences it and makes pedal 2 a volume on channel 2 that never drops below 40. Regenerate the file with `python3 python/make_demo_config.py` after adding a feature, so it keeps covering everything.
 
 (`python/MeloConfig_10_Cmds - RC-600.csv` is a real-world configuration for a Boss RC-600. The original project's Google Sheets template is no longer online, and it predated several columns anyway; start from one of the CSVs instead.)
+
+### Fractal Audio FM3 template
+
+**`python/templates/FM3.csv`** is ready to flash for a Fractal Audio FM3 driven over the DIN output, and should suit an Axe-Fx III or FM9 too, which are set up the same way. Connect the pedal's MIDI OUT to the FM3's MIDI IN and power the pedal over USB.
+
+| Banks | Buttons |
+|---|---|
+| 0–29, `P000`–`P029` | Entering the bank loads the FM3 preset with the same number. 1 2 3 4 A B are scenes 1–6, C latches the tuner, D taps the tempo |
+| 30, `LOOP` | Looper: Record, Play/Stop, Undo, Once, Reverse, Half Speed, then tuner and tap |
+| 31, `FX` | Engages and bypasses Drive 1, Compressor 1, Phaser 1, Chorus 1, Delay 1, Reverb 1, Wah 1 and Pitch 1 |
+
+Bank Up / Down step through the presets, and a long press jumps ten. The scene buttons are an exclusive group, so the LED and the display show the scene last picked; pressing the lit one again darkens it without sending anything. The expression pedals are External 1 and 2, to attach to any parameter as a modifier.
+
+The FM3 comes with no MIDI CC assigned, so on the FM3, under **SETUP > MIDI/Remote**, set its MIDI channel to 1 and assign:
+
+| Page | Function | CC |
+|---|---|---|
+| Other | Tempo Tap | 14 |
+| Other | Tuner | 15 |
+| Other | Scene Select | 34 |
+| External | External 1, External 2 | 16, 17 |
+| Looper | Record, Play, Undo, Once, Reverse, Half Speed | 20–25 |
+| Bypass | Drive 1, Compressor 1, Phaser 1, Chorus 1, Delay 1, Reverb 1, Wah 1, Pitch 1 | 40–47 |
+
+To use other numbers, or another channel, change the constants at the top of `python/make_fm3_template.py` and run it again, or edit the buttons in the configurator. Presets above 29, or in the FM3's banks B to D, take a Program Change with `BankSelect_(PC)` set to 128 times the FM3 bank and `BankSelectHighByte_(PC)` to `Y`, so that CC#0 carries the bank.
 
 ### Global_Settings
 
