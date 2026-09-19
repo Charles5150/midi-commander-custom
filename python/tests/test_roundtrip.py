@@ -1728,6 +1728,46 @@ class CycleCommandTest(unittest.TestCase):
         self.assertEqual((row["B_CommandType"], norm(row["B_OnValue_(CC/PB)"])), ("Cycle", ""))
 
 
+class LeaveCommandTest(unittest.TestCase):
+    """Leave commands, which split a bank's enter list into entering and leaving."""
+
+    def test_encoding(self):
+        row = pd.Series({"A_CommandType": "Wait", "A_Duration_(Note/PB)": "100",
+                         "B_CommandType": "Leave"})
+        self.assertEqual(cbp.pack_row(row, leave=True)[:8], [0x01, 0, 10, 0, 0x04, 0, 0, 0])
+
+    def test_only_in_bank_enter_lists(self):
+        row = pd.Series({"A_CommandType": "Leave"})
+        with self.assertRaises(ValueError):
+            cbp.pack_row(row)
+        with self.assertRaises(ValueError):
+            cbp.pack_row(row, [])
+
+    def test_a_single_one(self):
+        row = pd.Series({"A_CommandType": "Leave", "B_CommandType": "Leave"})
+        with self.assertRaises(ValueError):
+            cbp.pack_row(row, leave=True)
+
+    def test_demo_round_trip(self):
+        packed = packer.pack_config(read_config_csv(DEMO_CSV))
+        enter = unpacker.unpack_config(packed)[5]
+        row = enter[enter["Bank_Number"].astype(str) == "11"].iloc[0]
+        got = [(row[f"{s}_CommandType"], norm(row[f"{s}_Number_(PC/CC/Note)"]),
+                norm(row[f"{s}_OnValue_(CC/PB)"])) for s in "ABC"]
+        self.assertEqual(got, [("CC", "59", "127"), ("Leave", "", ""), ("CC", "59", "0")])
+        at = unpacker.BANK_ENTER_OFFSET + 11 * unpacker.BUTTON_STRIDE + 4
+        self.assertEqual(packed[at : at + 4], bytes([0x04, 0, 0, 0]))
+
+    def test_firmware_mode_matches(self):
+        import re
+        path = os.path.join(os.path.dirname(__file__), "..", "..", "firmware", "Core", "Inc",
+                            "midi_defines.h")
+        with open(path) as handle:
+            header = handle.read()
+        m = re.search(r"#define\s+CMD_LEAVE_MODE\s+\((\d+)\)", header)
+        self.assertEqual(int(m.group(1)), cbp.CMD_LEAVE_MODE)
+
+
 class Fm3TemplateTest(unittest.TestCase):
     """The FM3 template packs and reads back as the template describes."""
 

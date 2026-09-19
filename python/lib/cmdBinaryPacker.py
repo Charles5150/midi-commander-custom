@@ -32,6 +32,9 @@ CMD_CYCLE_MODE = 3
 CYCLE_NO_LABEL = 0x7F
 CYCLE_LABEL_COUNT = 48
 CYCLE_LABEL_LEN = 4
+# And the split of a bank's enter list: the commands above it are sent on
+# entering the bank, those below it on leaving it. The other bytes are 0.
+CMD_LEAVE_MODE = 4
 # A relative Program Change is a PC whose Bank Select MSB byte, where 0x80 and
 # above already meant "none", holds one of these markers
 PC_REL_UP = 0x81
@@ -596,10 +599,12 @@ def pack_button_led_modes(light_modes, groups=None, holds=None) -> list:
     return modes
 
 
-def pack_row(row, cycle_labels=None):
+def pack_row(row, cycle_labels=None, leave=False):
     """Pack a row's command list. ``cycle_labels`` is the configuration's
-    cycle label table, for a short press list, where Cycle commands belong."""
+    cycle label table, for a short press list, where Cycle commands belong.
+    ``leave`` allows one Leave command, for a bank's enter list."""
     row_byte_list = []
+    leaves = 0
 
     for i in range(0, MIDI_NUM_COMMANDS_PER_SWITCH):
         cmd_prefix = f"{chr(ord('A') + i)}_"
@@ -617,6 +622,13 @@ def pack_row(row, cycle_labels=None):
             cmd_type = str(cmd["CommandType"]).strip()
             if cmd_type == "Cycle":
                 cmd_byte_list = cmd_cycle(cmd, cycle_labels)
+            elif cmd_type == "Leave":
+                if not leave:
+                    raise ValueError("Leave commands only work in a bank's enter list")
+                leaves += 1
+                if leaves > 1:
+                    raise ValueError("A bank's enter list takes a single Leave command")
+                cmd_byte_list = [CMD_NO_CMD_NIBBLE | CMD_LEAVE_MODE, 0, 0, 0]
             else:
                 cmd_byte_list = cmd_route_table.get(cmd_type, cmd_none)(cmd)
 

@@ -77,6 +77,10 @@
 // to show the button's own.
 #define CMD_CYCLE_MODE		(3)
 #define CYCLE_NO_LABEL		(0x7F)
+// Leave: same empty command type, low nibble 4. Only in a bank's enter list,
+// which it splits in two: the commands above it are sent on entering the bank,
+// those below it on leaving it. The other bytes are 0.
+#define CMD_LEAVE_MODE		(4)
 #define CMD_PC_NIBBLE		(0xC0)
 // Relative Program Change: a PC whose byte 2 (the Bank Select MSB, 0x80 and up
 // meaning none) holds one of these markers. Byte 1 is the step, byte 3 the last

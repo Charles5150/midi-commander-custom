@@ -22,6 +22,7 @@
 
 void update_leds_on_bank_change(void);
 static void fire_bank_enter_cmds(uint8_t bank);
+static void fire_bank_leave_cmds(uint8_t bank);
 static void apply_scene(uint8_t mask, uint8_t states);
 static void release_group(uint8_t i);
 uint8_t sw_button_is_toggle(uint8_t bank, uint8_t sw);
@@ -480,6 +481,7 @@ static uint8_t* get_bank_enter_pointer(uint8_t bank, uint8_t cmd){
 
 static void goto_bank(uint8_t bank){
 	if(bank >= MIDI_NUM_BANKS || bank == switch_current_page) return;
+	fire_bank_leave_cmds(switch_current_page);
 	switch_current_page = bank;
 	update_leds_on_bank_change();
 	display_setBankName(switch_current_page);
@@ -952,6 +954,28 @@ static void fire_bank_enter_cmds(uint8_t bank){
 			PENDING_OWNER_NONE, LIST_SKIP_BANK, true);
 }
 
+static inline bool cmd_is_leave(const uint8_t *pRom){
+	return (pRom[0] & 0xF0) == CMD_NO_CMD_NIBBLE && (pRom[0] & 0x0F) == CMD_LEAVE_MODE;
+}
+
+/*
+ * Commands sent on leaving a bank: those below a Leave command in its enter
+ * list. They go out just before the next bank's enter commands, straight
+ * through: a pause among them is skipped, so the two lists never overlap. A
+ * pause at the top of the next bank's enter list spaces them out instead.
+ */
+static void fire_bank_leave_cmds(uint8_t bank){
+	if(bank >= MIDI_NUM_BANKS) return;
+	uint8_t *base = get_bank_enter_pointer(bank, 0);
+	for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
+		if(cmd_is_leave(base + j * MIDI_ROM_CMD_SIZE)){
+			run_cmd_list(base, 0, (uint8_t)(j + 1), MIDI_CONTROL_ON,
+					PENDING_OWNER_NONE, LIST_SKIP_BANK, false);
+			return;
+		}
+	}
+}
+
 static void apply_pending_bank(void){
 	if(pending_bank != 0xFF){
 		uint8_t target = pending_bank;
@@ -1187,6 +1211,7 @@ static bool run_cmd_list(uint8_t *base, uint8_t first, uint8_t start, uint8_t to
 	for(uint8_t j=start; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
 		uint8_t *pRom = base + j * MIDI_ROM_CMD_SIZE;
 		if(cmd_is_cycle(pRom)) break;	// the next state
+		if(cmd_is_leave(pRom)) break;	// a bank's commands on leaving it
 		if((flags & LIST_SKIP_BANK) && (*pRom & 0xF0) == CMD_BANK_NIBBLE) continue;
 		uint32_t ramp_ms = ramp;
 		ramp = 0;	// a Ramp only reaches the command right below it
@@ -1524,6 +1549,7 @@ static void switch_config(uint8_t target){
 		return;
 	}
 
+	fire_bank_leave_cmds(switch_current_page);
 	flush_delayed_cmds();
 	pending_clear();	// their commands live in the configuration we are leaving
 	flash_settings_select(slot);

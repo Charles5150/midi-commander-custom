@@ -56,7 +56,7 @@ The firmware replaces the stock MeloAudio one but never touches its bootloader, 
 - **Idle sleep.** After a configurable number of minutes with nobody touching it, the display and the LEDs switch off. Any press or expression pedal movement brings them back, and the press that wakes it still does its job, so nothing is lost on stage. It matters on batteries, where there is no host to suspend the USB bus.
 - **Survives Active Sensing.** Some hosts, the Kemper Profiler Player among them, send an Active Sensing byte every 300 ms. A controller that never reads it lets its USB buffer fill until the link stalls, which is what makes the stock firmware drag the host down to a crawl. Here every incoming USB MIDI event is consumed and the endpoint is always re-armed, so the stream cannot back up.
 - **USB-to-DIN MIDI thru.** Optionally forward everything received over USB to the MIDI OUT jack, so the pedal doubles as a USB MIDI interface for the device behind it. Clock / Start / Continue / Stop have their own switch.
-- **Commands on entering a bank.** Each bank can send a set of commands when you switch to it, typically a Program Change that selects its patch, so no button is spent on it.
+- **Commands on entering and leaving a bank.** Each bank can send a set of commands when you switch to it, typically a Program Change that selects its patch, so no button is spent on it, and another when you leave it, for instance to switch off what it switched on.
 - **Bank changes from incoming MIDI.** A Program Change or a Control Change arriving over USB can select a bank, so a DAW or another pedal can drive this one.
 - **Remember state.** Optionally power up in the last bank with every toggle exactly as you left it, journaled across several flash pages so wear is not a concern.
 - **Works without a computer.** On a USB charger or a power bank the pedal runs normally and drives your gear over the DIN output.
@@ -137,7 +137,7 @@ The tabs follow the order a configuration is usually built in. Each starts with 
 
 **Banks** — the 4 character name and 8 character info line of each bank, and where the expression pedals send while it is selected: a CC and a channel per pedal, each `Default` to keep the pedal's own, or `Off` for the CC to silence the pedal in that bank, and the lowest and highest value it sends there, left empty to keep the pedal's own range.
 
-**Bank Enter** — the commands each bank sends when you switch to it.
+**Bank Enter** — the commands each bank sends when you switch to it, and, below a `Leave` command, when you leave it.
 
 **Bank Switch** — the command lists of the Bank Down and Bank Up switches, one per switch and press length. Combine it with **Bank switches** (`Bank_Switch_Mode`) in the Global tab.
 
@@ -176,7 +176,7 @@ A configuration is a CSV with several sections, each introduced by a line starti
 | 8 | Stored SysEx messages, including an empty entry that sends nothing |
 | 9 | Notes and pitch bend, with durations and toggles |
 | 10 | Bank navigation from buttons, absolute and relative |
-| 11 | Several commands chained on one button, short versus long press, and a cycle button stepping through four amp channels (D), and a boost that latches on a tap and is momentary when held (4) |
+| 11 | Several commands chained on one button, short versus long press, and a cycle button stepping through four amp channels (D), and a boost that latches on a tap and is momentary when held (4). Entering the bank sends CC 59 127 and leaving it CC 59 0 |
 | 12–31 | A setlist: each bank selects its patch on entry and has looper controls |
 
 Both expression pedals are configured, one linear and one logarithmic and inverted, with the toe and heel acting as switches. Bank 2 turns pedal 1 into a modulation wheel held between 20 and 100, and bank 7 silences it and makes pedal 2 a volume on channel 2 that never drops below 40. Regenerate the file with `python3 python/make_demo_config.py` after adding a feature, so it keeps covering everything.
@@ -334,6 +334,8 @@ Optional; sixteen rows with an `Index` (0–15) and `Bytes`. Write the bytes in 
 
 Optional; one row per bank with the same ten command slots as a button, minus the button columns. These commands are sent once when the bank is entered, from any source: the bank switches, a `Bank` command or an incoming MIDI message. No release is sent, and `Bank` commands are ignored so entering a bank cannot chain into another one. Edit it in the configurator's **Bank Enter** tab.
 
+**Commands on leaving a bank.** A `Leave` command, which takes no fields, splits the list in two: the commands above it are sent on entering the bank, those below it on leaving it. A bank that switches a delay on as it is entered, for instance, has `CC 59 127`, `Leave`, `CC 59 0`, and the delay goes off again whichever way you leave. The leaving commands go out just before those of the bank being entered, whatever took you there, a bank switch, a `Bank` command or incoming MIDI, and also when you change configuration, before the new one's first bank is entered. They are sent straight through: a `Wait` among them is skipped, so the two lists never overlap, and a `Wait` at the top of the next bank's list is how to space them out. The ten slots are shared by both parts and the `Leave` takes one of them; the tools refuse a second `Leave`, or one anywhere else than a bank's list. Like `Wait`, a `Leave` is marked by the low nibble of the empty command type, 4, so the layout is unchanged. Needs firmware 0.40; older firmware sends both parts on entering.
+
 ### BankSwitch_Settings
 
 Optional; four rows, one per switch and press length: `Switch` `Down` or `Up`, `Press` `Short` or `Long`, then the same ten command slots as a button. Rows may be missing or in any order.
@@ -447,6 +449,7 @@ Hardware notes (MCU, pinout, I²C addresses) are in `HardwareNotes.txt`; `backup
 
 Firmware versions are shown on the display at boot and reported by the tools.
 
+- **0.40 — Commands on leaving a bank.** New `Leave` command type for a bank's enter list: the commands below it are sent on leaving the bank, just before the next bank's, and on changing configuration, straight through without pauses. Marked by the low nibble of the empty command type, 4, so the layout is unchanged. `Leave` in the configurator's Bank Enter command list. The demo's bank 11 switches CC 59 on as it is entered and off as it is left.
 - **0.39 — Latch or momentary.** New `Momentary_Hold` column in `Button_Settings`: a toggle button with it set latches on a tap, and held past `Long_Press_ms` goes back to its previous state on release. Stored in bit 7 of the button's LED mode byte, so the layout is unchanged and a CSV without the column packs exactly as before. "Momentary when held" box in the configurator's button editor. The demo's bank 11 button 4 becomes BOST, a boost using it.
 - **0.38 — Cycle buttons.** New `Cycle` command type: in a button's short press list, each `Cycle` starts a new state, and every press sends the next state's commands, round and round, with the state's label on the display. The labels live in a new table of 48 four character labels at the end of the configuration, in space the slot already had, so nothing moves; the tools read and write it, and read older dumps without it. The virtual pedal and `GET_STATE` report the label shown. `Cycle` in the configurator's short press command list, with a field for its label. The demo's bank 11 D becomes a cycle button through four amp channels, in place of a second SysEx button.
 - **0.37 — Setting the tempo.** The `Tap` command takes the new `KeyMode` values `Set`, to set the tempo to a BPM, for instance on entering a bank, and `Up`, `Down`, `Up Repeat` and `Down Repeat`, to step it by a number of BPM, repeating while held. The configurator's `Tap` menu offers them, with a BPM or step field to match; its `Bank` action menu no longer jumps back to the old action when changed. The demo's bank 6 has BPM+ and BPM- on C and D, in place of a second Start and Stop, and holding SYNC sets 120 BPM. The configuration layout is unchanged.

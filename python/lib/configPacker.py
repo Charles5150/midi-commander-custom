@@ -452,7 +452,7 @@ def pack_config(sections: dict) -> bytes:
         if row is None:
             out += [0] * (cbp.MIDI_NUM_COMMANDS_PER_SWITCH * 4)
         else:
-            out += cbp.pack_row(row)
+            out += cbp.pack_row(row, leave=True)
 
     out += list(pack_sysex_strings(sections.get(SYSEX_SECTION)))
 

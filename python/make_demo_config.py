@@ -408,6 +408,15 @@ def build() -> Demo:
     for n, (slot, name) in enumerate((("B", "CH B"), ("D", "CH C"), ("F", "CH D")), start=1):
         d.button(11, "D", slot=slot, CommandType="Cycle", **{"OnValue_(CC/PB)": name})
         d.pc(11, "D", None, str(n), ch="2", slot=chr(ord(slot) + 1))
+    # Entering the bank switches an effect on, and leaving it switches it off
+    # again: the commands below the Leave go out on the way out
+    d.on_enter(11, CommandType="CC",
+               **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": "59",
+                  "OnValue_(CC/PB)": "127", "OffValue_(CC)": "0"})
+    d.on_enter(11, slot="B", CommandType="Leave")
+    d.on_enter(11, slot="C", CommandType="CC",
+               **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": "59",
+                  "OnValue_(CC/PB)": "0", "OffValue_(CC)": "0"})
 
     # --- banks 12..31: a setlist, each selecting its patch on entry ----------
     for bank in range(SETLIST_FROM, NUM_BANKS):

@@ -154,6 +154,8 @@ NO_COMMAND = "(none)"
 COMMAND_TYPES = [NO_COMMAND, "PC", "PCInc", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "Panic", "Scene", "Wait", "Ramp"]
 # Cycle splits a button's short press list into states, so only that list offers it
 SHORT_COMMAND_TYPES = COMMAND_TYPES + ["Cycle"]
+# Leave splits a bank's enter list into the commands on entering and on leaving
+ENTER_COMMAND_TYPES = COMMAND_TYPES + ["Leave"]
 TAP_MODES = ["Tap", "Clock", "Set", "Up", "Down", "Up Repeat", "Down Repeat"]
 # A scene leaves a button alone, or switches it on or off
 SCENE_STATES = ["-", "On", "Off"]
@@ -575,6 +577,12 @@ class SlotEditor:
             ctk.CTkLabel(
                 self.params,
                 text="(the commands below are the next state; empty = the button's label)",
+                text_color=MUTED,
+            ).pack(side="left", padx=8)
+        elif cmd_type == "Leave":
+            ctk.CTkLabel(
+                self.params,
+                text="(the commands below are sent on leaving the bank instead)",
                 text_color=MUTED,
             ).pack(side="left", padx=8)
         elif cmd_type == "Ramp":
@@ -1770,7 +1778,11 @@ class MidiCommanderGUI(ctk.CTk):
             top,
             "Commands sent once whenever a bank is entered, typically a Program Change for its patch.",
             "From any source: the bank switches, a Bank command or an incoming MIDI message. "
-            "No release is sent, and Bank commands are ignored here.",
+            "No release is sent, and Bank commands are ignored here. "
+            "A Leave command splits the list: the commands below it are sent on leaving the bank "
+            "instead, just before the next bank's, for instance to switch off what the bank "
+            "switched on. They go out without pauses; a Wait at the top of the next bank's list "
+            "spaces the two out.",
         ).pack(anchor="w")
 
         sel = ctk.CTkFrame(tab, fg_color="transparent")
@@ -1801,7 +1813,7 @@ class MidiCommanderGUI(ctk.CTk):
         table.pack(fill="x")
         for slot in SLOTS:
             initial = {f: current.get(f"{slot}_{f}") for f in CMD_FIELDS}
-            self.enter_editors.append(SlotEditor(table, slot, initial))
+            self.enter_editors.append(SlotEditor(table, slot, initial, types=ENTER_COMMAND_TYPES))
 
     def apply_bank_enter_changes(self):
         if not self.enter_editors or self.df_enter is None:
