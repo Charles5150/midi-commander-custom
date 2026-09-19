@@ -1238,6 +1238,53 @@ class BankClipboardTest(unittest.TestCase):
         self.assertEqual(after, self.before)
 
 
+class WaitTest(unittest.TestCase):
+    """Wait command: a pause before the rest of the button's commands."""
+
+    @staticmethod
+    def pack(ms):
+        row = {f"A_{f}": "" for f in unpacker.CMD_FIELDS}
+        row["A_CommandType"] = "Wait"
+        row["A_Duration_(Note/PB)"] = ms
+        row["A_KeyMode_(Key)"] = ""
+        return bytes(cbp.pack_row(pd.Series(row)))[:4]
+
+    def test_encoding(self):
+        """Byte 0 marks the pause, byte 2 holds it in steps of 10 ms."""
+        self.assertEqual(list(self.pack("200")), [0x01, 0, 20, 0])
+        self.assertEqual(list(self.pack("10")), [0x01, 0, 1, 0])
+        self.assertEqual(list(self.pack("2550")), [0x01, 0, 255, 0])
+
+    def test_rounded_and_clamped(self):
+        self.assertEqual(list(self.pack("204")), [0x01, 0, 20, 0])
+        self.assertEqual(list(self.pack("9999")), [0x01, 0, 255, 0])
+        self.assertEqual(list(self.pack("")), [0x01, 0, 0, 0])
+
+    def test_round_trip(self):
+        for ms in ("10", "200", "1000", "2550"):
+            decoded = unpacker.unpack_command(self.pack(ms))
+            self.assertEqual(decoded["CommandType"], "Wait")
+            self.assertEqual(decoded["Duration_(Note/PB)"], ms)
+
+    def test_empty_command_is_still_empty(self):
+        """Only the low nibble tells a pause from an unused command slot."""
+        self.assertEqual(unpacker.unpack_command(bytes(4))["CommandType"], "")
+        self.assertEqual(unpacker.unpack_command(b"\xff\xff\xff\xff")["CommandType"], "")
+
+    def test_wait_cannot_look_like_a_toggle(self):
+        """Byte 1 stays clear: its top bit is what marks a toggling command."""
+        self.assertEqual(self.pack("2550")[1] & 0x80, 0)
+
+    def test_demo_pause_between_pc_and_cc(self):
+        packed = packer.pack_config(read_config_csv(DEMO_CSV))
+        buttons = unpacker.unpack_config(packed)[2]
+        row = buttons[(buttons["Bank_Number"].astype(str) == "11")
+                      & (buttons["Button_Identifier"].astype(str) == "B")].iloc[0]
+        self.assertEqual(row["A_CommandType"], "PC")
+        self.assertEqual((row["B_CommandType"], row["B_Duration_(Note/PB)"]), ("Wait", "200"))
+        self.assertEqual(row["C_CommandType"], "CC")
+
+
 class SceneTest(unittest.TestCase):
     """Scene command: which toggle buttons to set, and to what."""
 

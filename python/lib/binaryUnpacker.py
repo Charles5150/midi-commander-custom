@@ -17,6 +17,8 @@ Memory layout (see firmware/Core/Src/flash_midi_settings.c):
 import pandas as pd
 
 from lib.cmdBinaryPacker import (
+    CMD_NO_CMD_NIBBLE,
+    CMD_WAIT_MODE,
     CMD_CC_NIBBLE,
     CMD_BANK_NIBBLE,
     CMD_CCINC_NIBBLE,
@@ -173,7 +175,10 @@ def unpack_command(raw: bytes) -> dict:
     channel = str((b0 & 0x0F) + 1)
     toggle = "Y" if b1 & 0x80 else "N"
 
-    if cmd_type == CMD_PC_NIBBLE:
+    if cmd_type == CMD_NO_CMD_NIBBLE and (b0 & 0x0F) == CMD_WAIT_MODE:
+        cmd["CommandType"] = "Wait"
+        cmd["Duration_(Note/PB)"] = str(b2 * 10)
+    elif cmd_type == CMD_PC_NIBBLE:
         cmd["CommandType"] = "PC"
         cmd["Channel_(PC/CC/Note/PB)"] = channel
         cmd["Number_(PC/CC/Note)"] = str(b1 & 0x7F)

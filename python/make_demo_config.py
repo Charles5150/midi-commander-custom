@@ -278,7 +278,7 @@ def build() -> Demo:
     d.key(4, "C", "HOLD", "0", "a", toggle="Y")       # held until next press
     # Down then Up on two slots of one button: a combination built by hand
     d.key(4, "D", "SHFT", "2", "a", mode="Down")
-    d.key(4, "D", "", "2", "a", mode="Up", duration="20", slot="B")
+    d.key(4, "D", None, "2", "a", mode="Up", duration="20", slot="B")
 
     # --- bank 5: media keys ------------------------------------------------
     for btn, name, label in (
@@ -349,10 +349,10 @@ def build() -> Demo:
     # --- bank 11: several commands on one button ------------------------------
     # One press fires a chain: PC, two CCs, a note and a key
     d.pc(11, "1", "ALL5", "5")
-    d.cc(11, "1", "", "50", slot="B")
-    d.cc(11, "1", "", "51", on="64", slot="C")
-    d.note(11, "1", "", "60", duration="10", slot="D")
-    d.key(11, "1", "", "0", "1", slot="E")
+    d.cc(11, "1", None, "50", slot="B")
+    d.cc(11, "1", None, "51", on="64", slot="C")
+    d.note(11, "1", None, "60", duration="10", slot="D")
+    d.key(11, "1", None, "0", "1", slot="E")
     # Short press versus long press on the same button
     d.cc(11, "2", "S/L", "52")
     d.long_press(11, "2", CommandType="CC",
@@ -366,7 +366,11 @@ def build() -> Demo:
                     "Toggle_(CC/PB/Note)": "Y"})
     d.cc(11, "4", "MULT", "56", toggle="Y", light="AlwaysOn")
     d.media(11, "A", "PLAY", "play_pause")
-    d.tap(11, "B", "TAP", "Tap")
+    # A pause in the middle of a list: the program change goes out, and the CC
+    # follows 200 ms later, once the device has finished loading the patch
+    d.pc(11, "B", "WAIT", "6")
+    d.button(11, "B", slot="B", CommandType="Wait", **{"Duration_(Note/PB)": "200"})
+    d.cc(11, "B", None, "58", slot="C")   # None: keep the label the first slot set
     d.ccinc(11, "C", "NUDG", "57", "Up", 4, 0, wrap="Y")
     d.sysex_cmd(11, "D", "SYX", 0)
 

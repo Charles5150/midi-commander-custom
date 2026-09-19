@@ -17,6 +17,9 @@ CMD_TAP_NIBBLE = 0x70
 CMD_SYSEX_NIBBLE = 0x60
 CMD_PANIC_NIBBLE = 0x80
 CMD_SCENE_NIBBLE = 0xA0
+# A pause shares the empty command type, marked by its low nibble, so a command
+# of all zeroes stays an empty command. Byte 2 holds the pause in 10 ms units.
+CMD_WAIT_MODE = 1
 # Button order of a scene string, one character each: + on, - off, . leave
 SCENE_BUTTONS = "1234ABCD"
 
@@ -373,6 +376,16 @@ def cmd_scene(cmd):
     return [CMD_SCENE_NIBBLE, mask, states, 0]
 
 
+def cmd_wait(cmd):
+    """Pause before the rest of the button's commands.
+
+    Duration is the pause in milliseconds, stored in steps of 10 ms, so the
+    longest pause is 2550 ms.
+    """
+    ms = safe_int(cmd.get("Duration_(Note/PB)", 0))
+    return [CMD_NO_CMD_NIBBLE | CMD_WAIT_MODE, 0, max(0, min(255, round(ms / 10))), 0]
+
+
 def cmd_none(cmd):
     return [0, 0, 0, 0]
 
@@ -392,6 +405,7 @@ cmd_route_table = {
     "CCInc": cmd_ccinc,
     "Tap": cmd_tap,
     "SysEx": cmd_sysex,
+    "Wait": cmd_wait,
 }
 
 

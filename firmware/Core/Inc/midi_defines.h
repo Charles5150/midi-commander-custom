@@ -63,6 +63,10 @@
 #define SYSEX_END	(0xF7)
 
 #define CMD_NO_CMD_NIBBLE	(0x00)
+// Wait: shares the empty command type, low nibble 1. Byte 2 holds the pause in
+// 10ms units, so an all zero (empty) command stays an empty command. Byte 1 is
+// left at 0 because its top bit is what marks a command as toggling.
+#define CMD_WAIT_MODE		(1)
 #define CMD_PC_NIBBLE		(0xC0)
 #define CMD_CC_NIBBLE		(0xB0)
 #define CMD_PB_NIBBLE		(0xE0)

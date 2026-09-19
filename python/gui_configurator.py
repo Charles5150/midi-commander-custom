@@ -147,7 +147,7 @@ DEFAULT_CSV = os.path.join(HERE, "demo-all-features.csv")
 LED_MODES = ["Normal", "Reverse", "AlwaysOn"]
 CHANNELS = [str(i) for i in range(1, 17)]
 NO_COMMAND = "(none)"
-COMMAND_TYPES = [NO_COMMAND, "PC", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "Panic", "Scene"]
+COMMAND_TYPES = [NO_COMMAND, "PC", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "Panic", "Scene", "Wait"]
 TAP_MODES = ["Tap", "Clock"]
 # A scene leaves a button alone, or switches it on or off
 SCENE_STATES = ["-", "On", "Off"]
@@ -524,6 +524,13 @@ class SlotEditor:
                 w = Option(self.params, SCENE_STATES, names.get(ch, SCENE_STATES[0]), width=62)
                 w.pack(side="left")
                 self.widgets[f"scene_{i}"] = w
+        elif cmd_type == "Wait":
+            self._int("duration", "ms", "Duration_(Note/PB)", 0, 2550, width=65)
+            ctk.CTkLabel(
+                self.params,
+                text="(pauses the commands below it, in steps of 10 ms)",
+                text_color=MUTED,
+            ).pack(side="left", padx=8)
         # Start, Stop, Panic and (none) have no parameters
 
     # Read back ------------------------------------------------------------
