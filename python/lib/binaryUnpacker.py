@@ -19,6 +19,7 @@ import pandas as pd
 from lib.cmdBinaryPacker import (
     CMD_NO_CMD_NIBBLE,
     CMD_WAIT_MODE,
+    CMD_RAMP_MODE,
     PC_REL_UP,
     PC_REL_DOWN,
     CMD_CC_NIBBLE,
@@ -192,6 +193,9 @@ def unpack_command(raw: bytes) -> dict:
     if cmd_type == CMD_NO_CMD_NIBBLE and (b0 & 0x0F) == CMD_WAIT_MODE:
         cmd["CommandType"] = "Wait"
         cmd["Duration_(Note/PB)"] = str(b2 * 10)
+    elif cmd_type == CMD_NO_CMD_NIBBLE and (b0 & 0x0F) == CMD_RAMP_MODE:
+        cmd["CommandType"] = "Ramp"
+        cmd["Duration_(Note/PB)"] = str((b2 | (b3 << 8)) * 10)
     elif cmd_type == CMD_PC_NIBBLE and b2 in (PC_REL_UP, PC_REL_DOWN):
         cmd["CommandType"] = "PCInc"
         cmd["Channel_(PC/CC/Note/PB)"] = channel

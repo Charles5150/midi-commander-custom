@@ -67,6 +67,9 @@
 // 10ms units, so an all zero (empty) command stays an empty command. Byte 1 is
 // left at 0 because its top bit is what marks a command as toggling.
 #define CMD_WAIT_MODE		(1)
+// Ramp: same empty command type, low nibble 2. Turns the CC command right
+// below it into a ramp: bytes 2 (low) and 3 (high) hold its time in 10ms units.
+#define CMD_RAMP_MODE		(2)
 #define CMD_PC_NIBBLE		(0xC0)
 // Relative Program Change: a PC whose byte 2 (the Bank Select MSB, 0x80 and up
 // meaning none) holds one of these markers. Byte 1 is the step, byte 3 the last

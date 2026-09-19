@@ -36,6 +36,7 @@ static bool pending_defer_release(uint8_t owner);
 static void pending_flush_owner(uint8_t owner);
 static bool pending_any(void);
 static void pending_clear(void);
+static void ramp_stop_all(void);
 
 /*
  * Creating some constant arrays for the switches that can be scanned and handled
@@ -694,6 +695,7 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 		status = midiCmd_send_stop_command();
 		break;
 	case CMD_PANIC_NIBBLE:
+		ramp_stop_all();	// or a ramp would bring the sound back
 		status = midiCmd_send_panic();
 		break;
 	case CMD_SCENE_NIBBLE:
@@ -925,20 +927,146 @@ static void pending_task(void){
 }
 
 /*
+ * Ramp: a command that sends nothing itself but turns the CC command right
+ * below it into a ramp. Instead of jumping to its value, the CC walks there
+ * over the ramp's time: on the way to On when the button is pressed (or a
+ * toggle switched on), on the way to Off when it is released (or switched
+ * off). Like a Wait, the pedal does not stop while it runs; ramp_task sends
+ * the steps from the main loop.
+ *
+ * A ramp starts from the other end of the command, Off on the way to On and
+ * the other way round, so a swell always sounds the same. A ramp started on a
+ * channel and CC already ramping starts where that one got to instead, so
+ * pressing again halfway turns it round without a jump.
+ */
+#define RAMP_SLOTS		(8)
+#define RAMP_STEP_MS	(5)	// at most one message per ramp this often
+
+typedef struct {
+	uint32_t start;		// HAL tick the ramp started
+	uint32_t ms;		// its whole time
+	uint32_t last_tick;	// when the last step went out
+	uint8_t channel;
+	uint8_t cc;
+	uint8_t from;
+	uint8_t to;
+	uint8_t value;		// last value sent
+	bool active;
+} ramp_t;
+
+static ramp_t ramps[RAMP_SLOTS];
+
+static inline bool cmd_is_ramp(const uint8_t *pRom){
+	return (pRom[0] & 0xF0) == CMD_NO_CMD_NIBBLE && (pRom[0] & 0x0F) == CMD_RAMP_MODE;
+}
+
+static uint32_t ramp_time_ms(const uint8_t *pRom){
+	return ((uint32_t)pRom[2] | ((uint32_t)pRom[3] << 8)) * 10;
+}
+
+static void ramp_stop_all(void){
+	for(uint8_t i=0; i<RAMP_SLOTS; i++) ramps[i].active = false;
+}
+
+static uint8_t ramp_value_at(const ramp_t *r, uint32_t now){
+	uint32_t elapsed = now - r->start;
+	if(elapsed >= r->ms) return r->to;
+	int32_t span = (int32_t)r->to - (int32_t)r->from;
+	int32_t step = (span * (int32_t)elapsed * 2 + (span >= 0 ? (int32_t)r->ms : -(int32_t)r->ms))
+			/ (2 * (int32_t)r->ms);	// rounded to the nearest value
+	return (uint8_t)((int32_t)r->from + step);
+}
+
+/*
+ * The CC command pRom, on its way to On (on = 1) or Off, as a ramp of ms.
+ * Off above 127 means the command has no off value: nothing to ramp to, and
+ * on the way to On such a command starts from 0.
+ */
+static void ramp_cc(const uint8_t *pRom, uint8_t on, uint32_t ms){
+	uint8_t channel = pRom[0] & 0x0F;
+	uint8_t cc = pRom[1] & 0x7F;
+	bool has_off = pRom[3] <= 0x7F;
+	if(!on && !has_off) return;
+	uint8_t to = on ? (pRom[2] & 0x7F) : pRom[3];
+	uint8_t from = on ? (has_off ? pRom[3] : 0) : (pRom[2] & 0x7F);
+
+	uint32_t now = HAL_GetTick();
+	ramp_t *r = NULL;
+	bool running = false;
+	for(uint8_t i=0; i<RAMP_SLOTS; i++){
+		if(ramps[i].active && ramps[i].channel == channel && ramps[i].cc == cc){
+			r = &ramps[i];
+			running = true;
+			from = r->value;	// carry on from where it got to
+			break;
+		}
+	}
+	for(uint8_t i=0; r == NULL && i<RAMP_SLOTS; i++){
+		if(!ramps[i].active) r = &ramps[i];
+	}
+
+	if(r == NULL || ms == 0 || from == to){
+		// No time, nowhere to go or every slot busy: straight to the value
+		if(r != NULL && running) r->active = false;
+		midiCmd_send_cc(channel, cc, to);
+		return;
+	}
+
+	r->start = now;
+	r->ms = ms;
+	r->last_tick = now;
+	r->channel = channel;
+	r->cc = cc;
+	r->from = from;
+	r->to = to;
+	r->value = from;
+	r->active = true;
+	if(!running) midiCmd_send_cc(channel, cc, from);	// the device may be elsewhere
+}
+
+static void ramp_task(void){
+	uint32_t now = HAL_GetTick();
+	for(uint8_t i=0; i<RAMP_SLOTS; i++){
+		ramp_t *r = &ramps[i];
+		if(!r->active) continue;
+		bool done = (now - r->start) >= r->ms;
+		if(!done && (now - r->last_tick) < RAMP_STEP_MS) continue;
+		uint8_t v = ramp_value_at(r, now);
+		if(v != r->value){
+			midiCmd_send_cc(r->channel, r->cc, v);
+			r->value = v;
+			r->last_tick = now;
+		}
+		if(done) r->active = false;
+	}
+}
+
+/*
  * One command list, from command `start` on. Returns false when it stopped at
  * a Wait and left the rest to pending_task.
  */
 static bool run_cmd_list(uint8_t *base, uint8_t start, uint8_t toggle, uint8_t owner,
 		uint8_t flags, bool allow_wait){
+	uint32_t ramp = 0;	// time of a Ramp just above the command, 0 for none
 	for(uint8_t j=start; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
 		uint8_t *pRom = base + j * MIDI_ROM_CMD_SIZE;
 		if((flags & LIST_SKIP_BANK) && (*pRom & 0xF0) == CMD_BANK_NIBBLE) continue;
+		uint32_t ramp_ms = ramp;
+		ramp = 0;	// a Ramp only reaches the command right below it
+		if(cmd_is_ramp(pRom)){
+			ramp = ramp_time_ms(pRom);
+			continue;
+		}
 		if(cmd_is_wait(pRom)){
 			uint32_t ms = (uint32_t)pRom[2] * 10;
 			if(allow_wait && ms &&
 					pending_schedule(base, (uint8_t)(j + 1), toggle, owner, flags, ms)){
 				return false;
 			}
+			continue;
+		}
+		if(ramp_ms && (*pRom & 0xF0) == CMD_CC_NIBBLE){
+			ramp_cc(pRom, midiCmd_get_cmd_toggle(pRom) ? toggle : MIDI_CONTROL_ON, ramp_ms);
 			continue;
 		}
 		handle_cmd_sw_down(pRom, toggle);
@@ -956,9 +1084,17 @@ static bool run_cmd_list(uint8_t *base, uint8_t start, uint8_t toggle, uint8_t o
 // The release pass of a list. Pauses belong to the press, so this one runs
 // straight through.
 static void run_list_up(uint8_t *base, uint8_t toggle, uint8_t flags){
+	uint32_t ramp = 0;
 	for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
 		uint8_t *pRom = base + j * MIDI_ROM_CMD_SIZE;
+		uint32_t ramp_ms = ramp;
+		ramp = cmd_is_ramp(pRom) ? ramp_time_ms(pRom) : 0;
 		if((flags & LIST_SKIP_BANK) && (*pRom & 0xF0) == CMD_BANK_NIBBLE) continue;
+		if(ramp_ms && (*pRom & 0xF0) == CMD_CC_NIBBLE){
+			// A momentary CC ramps back to Off; a toggle one moves on the press only
+			if(!midiCmd_get_cmd_toggle(pRom)) ramp_cc(pRom, MIDI_CONTROL_OFF, ramp_ms);
+			continue;
+		}
 		handle_cmd_sw_up(pRom, toggle);
 	}
 }
@@ -1479,6 +1615,7 @@ void handle_switches(void){
 
 	feedback_task();
 	pending_task();	// lists left half way by a Wait
+	ramp_task();	// CC ramps under way
 
 	// The Command switches
 	uint32_t now = HAL_GetTick();

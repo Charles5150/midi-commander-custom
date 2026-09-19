@@ -40,7 +40,7 @@ BANKS = {
     4: ("KEYS", "keyboard"),
     5: ("MEDI", "media"),
     6: ("TMPO", "tap+clock"),
-    7: ("KNOB", "cc inc"),
+    7: ("KNOB", "cc+ramp"),
     8: ("SYX", "sysex"),
     9: ("NOTE", "note+bend"),
     10: ("NAV", "bank jump"),
@@ -314,15 +314,20 @@ def build() -> Demo:
     # Hold STOP for panic: every sound and note off, on every channel
     d.long_press(6, "4", CommandType="Panic")
 
-    # --- bank 7: relative CC ------------------------------------------------
+    # --- bank 7: relative CC and ramps ---------------------------------------
     d.ccinc(7, "1", "VOL+", "7", "Up", 5, 64)
     d.ccinc(7, "2", "VOL-", "7", "Down", 5, 64)
     d.ccinc(7, "3", "PAN+", "10", "Up", 8, 64)
     d.ccinc(7, "4", "PAN-", "10", "Down", 8, 64)
     d.ccinc(7, "A", "WRP+", "11", "Up", 16, 0, wrap="Y")   # wraps past 127
     d.ccinc(7, "B", "WRP-", "11", "Down", 16, 0, wrap="Y")
-    d.ccinc(7, "C", "FINE", "12", "Up", 1, 0)
-    d.ccinc(7, "D", "JUMP", "12", "Up", 32, 0)
+    # Ramps: a toggle that swells CC 12 up to 127 over 2 s and fades it back
+    # down when switched off, and a momentary CC 13 that rises in half a
+    # second while held and falls back when let go
+    d.button(7, "C", "SWEL", slot="A", CommandType="Ramp", **{"Duration_(Note/PB)": "2000"})
+    d.cc(7, "C", None, "12", toggle="Y", slot="B")
+    d.button(7, "D", "RISE", slot="A", CommandType="Ramp", **{"Duration_(Note/PB)": "500"})
+    d.cc(7, "D", None, "13", slot="B")
 
     # --- bank 8: stored SysEx ----------------------------------------------
     d.sysex.loc[0, "Bytes"] = "7E 7F 06 01"            # universal device inquiry

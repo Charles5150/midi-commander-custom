@@ -21,7 +21,7 @@ import pandas as pd
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-from lib.cmdBinaryPacker import HID_SPECIAL_KEYS, MEDIA_KEYS  # noqa: E402
+from lib.cmdBinaryPacker import HID_SPECIAL_KEYS, MEDIA_KEYS, RAMP_MAX_MS  # noqa: E402
 from lib.configCsv import read_config_csv, write_config_csv  # noqa: E402
 from lib.configPacker import NUM_BANKS, BUTTON_IDS  # noqa: E402
 from lib.configPacker import (  # noqa: E402
@@ -151,7 +151,7 @@ LED_MODES = ["Normal", "Reverse", "AlwaysOn"]
 BUTTON_GROUPS = ["None", "1", "2", "3", "4"]
 CHANNELS = [str(i) for i in range(1, 17)]
 NO_COMMAND = "(none)"
-COMMAND_TYPES = [NO_COMMAND, "PC", "PCInc", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "Panic", "Scene", "Wait"]
+COMMAND_TYPES = [NO_COMMAND, "PC", "PCInc", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "Panic", "Scene", "Wait", "Ramp"]
 TAP_MODES = ["Tap", "Clock"]
 # A scene leaves a button alone, or switches it on or off
 SCENE_STATES = ["-", "On", "Off"]
@@ -545,6 +545,13 @@ class SlotEditor:
             ctk.CTkLabel(
                 self.params,
                 text="(pauses the commands below it, in steps of 10 ms)",
+                text_color=MUTED,
+            ).pack(side="left", padx=8)
+        elif cmd_type == "Ramp":
+            self._int("duration", "ms", "Duration_(Note/PB)", 0, RAMP_MAX_MS, width=75)
+            ctk.CTkLabel(
+                self.params,
+                text="(the CC right below walks to its value over this time)",
                 text_color=MUTED,
             ).pack(side="left", padx=8)
         # Start, Stop, Panic and (none) have no parameters

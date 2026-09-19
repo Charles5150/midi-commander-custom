@@ -1467,6 +1467,54 @@ class WaitTest(unittest.TestCase):
         self.assertEqual(row["C_CommandType"], "CC")
 
 
+class RampTest(unittest.TestCase):
+    """Ramp command: the CC right below walks to its value over a time."""
+
+    @staticmethod
+    def pack(ms):
+        row = {f"A_{f}": "" for f in unpacker.CMD_FIELDS}
+        row["A_CommandType"] = "Ramp"
+        row["A_Duration_(Note/PB)"] = ms
+        row["A_KeyMode_(Key)"] = ""
+        return bytes(cbp.pack_row(pd.Series(row)))[:4]
+
+    def test_encoding(self):
+        """Byte 0 marks the ramp, bytes 2 and 3 hold its time in steps of 10 ms."""
+        self.assertEqual(list(self.pack("500")), [0x02, 0, 50, 0])
+        self.assertEqual(list(self.pack("2000")), [0x02, 0, 200, 0])
+        self.assertEqual(list(self.pack("60000")), [0x02, 0, 6000 & 0xFF, 6000 >> 8])
+
+    def test_rounded_and_clamped(self):
+        self.assertEqual(list(self.pack("504")), [0x02, 0, 50, 0])
+        self.assertEqual(list(self.pack("9999999")), [0x02, 0, 0xFF, 0xFF])
+        self.assertEqual(list(self.pack("")), [0x02, 0, 0, 0])
+
+    def test_round_trip(self):
+        for ms in ("10", "500", "2550", "2560", "60000", str(cbp.RAMP_MAX_MS)):
+            decoded = unpacker.unpack_command(self.pack(ms))
+            self.assertEqual(decoded["CommandType"], "Ramp")
+            self.assertEqual(decoded["Duration_(Note/PB)"], ms)
+
+    def test_ramp_cannot_look_like_a_toggle(self):
+        """Byte 1 stays clear: its top bit is what marks a toggling command."""
+        self.assertEqual(self.pack(str(cbp.RAMP_MAX_MS))[1] & 0x80, 0)
+
+    def test_demo_ramps(self):
+        packed = packer.pack_config(read_config_csv(DEMO_CSV))
+        buttons = unpacker.unpack_config(packed)[2]
+
+        def row(b):
+            return buttons[(buttons["Bank_Number"].astype(str) == "7")
+                           & (buttons["Button_Identifier"].astype(str) == b)].iloc[0]
+        swell, rise = row("C"), row("D")
+        self.assertEqual((swell["A_CommandType"], swell["A_Duration_(Note/PB)"]), ("Ramp", "2000"))
+        self.assertEqual((swell["B_CommandType"], swell["B_Number_(PC/CC/Note)"],
+                          swell["B_Toggle_(CC/PB/Note)"]), ("CC", "12", "Y"))
+        self.assertEqual((rise["A_CommandType"], rise["A_Duration_(Note/PB)"]), ("Ramp", "500"))
+        self.assertEqual((rise["B_CommandType"], rise["B_Number_(PC/CC/Note)"],
+                          rise["B_Toggle_(CC/PB/Note)"]), ("CC", "13", "N"))
+
+
 class SceneTest(unittest.TestCase):
     """Scene command: which toggle buttons to set, and to what."""
 

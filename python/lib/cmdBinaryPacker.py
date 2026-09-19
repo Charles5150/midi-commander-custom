@@ -20,6 +20,10 @@ CMD_SCENE_NIBBLE = 0xA0
 # A pause shares the empty command type, marked by its low nibble, so a command
 # of all zeroes stays an empty command. Byte 2 holds the pause in 10 ms units.
 CMD_WAIT_MODE = 1
+# A ramp too: it turns the CC command right below it into a ramp. Bytes 2 (low)
+# and 3 (high) hold its time in 10 ms units.
+CMD_RAMP_MODE = 2
+RAMP_MAX_MS = 0xFFFF * 10
 # A relative Program Change is a PC whose Bank Select MSB byte, where 0x80 and
 # above already meant "none", holds one of these markers
 PC_REL_UP = 0x81
@@ -409,6 +413,19 @@ def cmd_wait(cmd):
     return [CMD_NO_CMD_NIBBLE | CMD_WAIT_MODE, 0, max(0, min(255, round(ms / 10))), 0]
 
 
+def cmd_ramp(cmd):
+    """Turn the CC command right below into a ramp.
+
+    Duration is the ramp time in milliseconds, stored in steps of 10 ms, so the
+    longest ramp is RAMP_MAX_MS. The CC walks to its On value over that time on
+    the press, and back to its Off value on the release or when a toggle is
+    switched off.
+    """
+    ms = max(0, min(RAMP_MAX_MS, safe_int(cmd.get("Duration_(Note/PB)", 0))))
+    steps = round(ms / 10)
+    return [CMD_NO_CMD_NIBBLE | CMD_RAMP_MODE, 0, steps & 0xFF, (steps >> 8) & 0xFF]
+
+
 def cmd_none(cmd):
     return [0, 0, 0, 0]
 
@@ -430,6 +447,7 @@ cmd_route_table = {
     "Tap": cmd_tap,
     "SysEx": cmd_sysex,
     "Wait": cmd_wait,
+    "Ramp": cmd_ramp,
 }
 
 

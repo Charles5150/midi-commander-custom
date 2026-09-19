@@ -30,6 +30,7 @@ The firmware replaces the stock MeloAudio one but never touches its bootloader, 
 - **Up to 10 commands per button press**, sent in order. Any mix of Program Change (with optional Bank Select), Control Change, Note, Pitch Bend, Start, Stop, USB keyboard keys and media keys, each MIDI command on its own channel.
 - **Long press.** A second set of up to 10 commands fires when a button is held past a configurable time (default 500 ms). Buttons without long press commands react instantly, as before.
 - **Pauses between commands.** A `Wait` command spaces out the commands of a button, for the device that drops a Control Change arriving right behind a Program Change. The pedal keeps reading switches and pedals while it waits.
+- **CC ramps.** A `Ramp` command makes the Control Change below it walk to its value over a time, up to about 11 minutes, instead of jumping: a volume swell or a slow filter sweep from a single press, and back again on the release or when a toggle is switched off.
 - **Momentary or toggle** behaviour per command, and timed auto-release (up to 1.27 s) for Notes, Pitch Bend and keys.
 - **Button labels on the display.** Each button has a 4 character label; the screen shows the current bank and a 2×4 grid mirroring the pedal, with toggle buttons drawn inverted while on.
 - **LED modes** per button: Normal, Reverse (lit when off) or AlwaysOn (blinks while active). The Bank Up / Down LEDs have the same options. Global brightness for lit LEDs and, separately, for LEDs lit at rest, so an active button stands out from an idle one.
@@ -168,7 +169,7 @@ A configuration is a CSV with several sections, each introduced by a line starti
 | 4 | Keyboard keys: plain, with modifiers, held, and a Down/Up combination |
 | 5 | Media keys |
 | 6 | Tap tempo, clock start/stop, and transport |
-| 7 | Relative CC, up and down, with and without wrapping |
+| 7 | Relative CC, up and down, with and without wrapping, and two CC ramps: a toggle swell and a momentary rise |
 | 8 | Stored SysEx messages, including an empty entry that sends nothing |
 | 9 | Notes and pitch bend, with durations and toggles |
 | 10 | Bank navigation from buttons, absolute and relative |
@@ -224,7 +225,7 @@ One row per button, 256 rows in bank order and, within a bank, in the order `1, 
 
 | Field | PC | CC | Note | PB | Key | Meaning |
 |---|---|---|---|---|---|---|
-| `CommandType` | | | | | | `PC`, `PCInc`, `CC`, `CCInc`, `Note`, `PB`, `Key`, `Media`, `Bank`, `SysEx`, `Tap`, `Start`, `Stop`, `Panic`, `Scene`, `Wait`, or empty for none |
+| `CommandType` | | | | | | `PC`, `PCInc`, `CC`, `CCInc`, `Note`, `PB`, `Key`, `Media`, `Bank`, `SysEx`, `Tap`, `Start`, `Stop`, `Panic`, `Scene`, `Wait`, `Ramp`, or empty for none |
 | `Channel_(PC/CC/Note/PB)` | ✓ | ✓ | ✓ | ✓ | | MIDI channel 1–16 |
 | `Number_(PC/CC/Note)` | ✓ | ✓ | ✓ | | ✓ | PC: program 0–127. CC: controller number. Note: note number. Key: modifier mask |
 | `OnValue_(CC/PB)` | | ✓ | | ✓ | ✓ | CC: value on press (0–127). PB: −8192..8191. Key: key name. Media: media key name |
@@ -233,7 +234,7 @@ One row per button, 256 rows in bank order and, within a bank, in the order `1, 
 | `BankSelectHighByte_(PC)` | ✓ | | | | | Y: also send CC#0 (MSB) |
 | `Toggle_(CC/PB/Note)` | | ✓ | ✓ | ✓ | ✓ | Y: alternate on / off on successive presses. Key / Media: hold until the next press |
 | `Velocity_(Note)` | | | ✓ | | | 0–127 |
-| `Duration_(Note/PB)` | | | ✓ | ✓ | ✓ | In 10 ms steps, 0–127 (max 1.27 s). Media: same as Key. Wait: the pause in milliseconds, up to 2550 |
+| `Duration_(Note/PB)` | | | ✓ | ✓ | ✓ | In 10 ms steps, 0–127 (max 1.27 s). Media: same as Key. Wait: the pause in milliseconds, up to 2550. Ramp: its time in milliseconds, up to 655350 |
 | `KeyMode_(Key)` | | | | | ✓ | Normal / Down / Up |
 
 `Start` and `Stop` take no parameters; they send MIDI Start (0xFA) / Stop (0xFC) over USB and DIN.
@@ -263,6 +264,8 @@ One row per button, 256 rows in bank order and, within a bank, in the order `1, 
 **Panic.** `CommandType` `Panic` sends All Sound Off (CC 120) and All Notes Off (CC 123) on all sixteen channels, to both USB and the DIN output. It takes no parameters. The 32 messages go out packed into two USB packets and two serial buffers, so a panic cannot itself run out of transmit buffers. It does not reset toggle states or controllers. A long press is a good place for it, where it cannot be hit by accident; the demo puts it on a long press of STOP in the tempo bank.
 
 **Pauses.** `CommandType` `Wait` sends nothing: it pauses the commands that follow it in the list. `Duration` is the pause in milliseconds, in steps of 10 and up to 2550. It is what a device that drops a Control Change arriving right behind a Program Change needs, and it also spaces out a chain the other end cannot swallow at once. The pedal does not stop to count: the rest of the list is picked up once the time is up, so other buttons, the expression pedals and the display keep working meanwhile. A button released while its list is still waiting has its release, the note off or the momentary off, held back until the list finishes, so nothing is switched off before it has been sent; pressing the same button again first sends whatever was left, without its pauses. Pauses work in every list: short, long and double press, bank enter and the bank switches. Four lists can be waiting at once, which is more than a foot can start; beyond that the pauses are skipped rather than queued. Needs firmware 0.30; older firmware sends the rest of the list without pausing.
+
+**CC ramps.** `CommandType` `Ramp` sends nothing itself: it turns the `CC` command right below it into a ramp. Instead of jumping to its value, that CC walks there over `Duration` milliseconds, in steps of 10 and up to 655350 (almost 11 minutes). On the press it walks to `OnValue`; on the release, or on the press that switches a toggle off, it walks back to `OffValue`. A ramp starts from the command's other end, `OffValue` on the way up and `OnValue` on the way down, so a swell sounds the same every time; a command whose `OffValue` is above 127, and so has no off value, starts from 0 and stays where it got to on the release. Starting a ramp on a channel and CC that is still ramping picks up from where that one got to, so pressing a toggle again halfway turns it round without a jump. The pedal does not stop while a ramp runs: switches, expression pedals and other ramps keep working, and a `Wait` below the CC can hold the rest of the list back until the ramp has finished. A ramp sends a message at most every 5 ms and only when the value changes, and always ends on the exact value. Eight ramps can run at once; beyond that a CC goes straight to its value. `Panic` stops every ramp. A `Ramp` above anything but a CC is ignored. Needs firmware 0.34; older firmware ignores the `Ramp` and sends the CC as usual.
 
 **Custom SysEx.** `CommandType` `SysEx` sends one of the messages stored in the `SysEx_Strings` section; `Number` selects which, 0 to 15. Nothing else in the command is used. The message goes to both USB and the DIN output.
 
@@ -405,6 +408,7 @@ Hardware notes (MCU, pinout, I²C addresses) are in `HardwareNotes.txt`; `backup
 
 Firmware versions are shown on the display at boot and reported by the tools.
 
+- **0.34 — CC ramps.** New `Ramp` command type: the `CC` command right below it walks to its value over `Duration` milliseconds instead of jumping, to `OnValue` on the press and back to `OffValue` on the release or when a toggle is switched off, starting from the other end or from wherever a ramp still running on the same channel and CC got to. Like `Wait`, a ramp is marked by the low nibble of the empty command type, low nibble 2, with its time in 10 ms units in bytes 2 and 3; byte 1 stays clear, so it never reads as a toggling command. The steps go out from the main loop, at most one every 5 ms per ramp, eight ramps at once, so nothing else stops meanwhile; `Panic` stops them all. `Ramp` in the configurator's command list. The demo's KNOB bank swaps FINE and JUMP for SWEL, a 2 s toggle swell, and RISE, a half second momentary rise. The configuration layout is unchanged.
 - **0.33 — Expression output range.** New `Out_Min` and `Out_Max` columns in `Expression_Settings`, stored in bytes 11 and 12 of each pedal's record, which older tools left at zero and the firmware reads as the full range when both are. New `Exp1_Min`, `Exp1_Max`, `Exp2_Min` and `Exp2_Max` columns in `BankExpression_Settings`, stored in a new table of four bytes per bank after the CC and channel one, erased (`0xFF`) to keep the pedal's own. The ends map exactly and a range can run backwards; toe and heel levels still follow the pedal's position. Output range fields in the configurator's Expression tab and Min / Max columns in its Banks tab. The demo's FX and KNOB banks use it.
 - **0.32 — Exclusive groups.** New `Group` column in `Button_Settings`: switching on a toggle button of a group first switches off, by pressing them as if by foot, the other buttons of the group in the bank that are on. Stored in bits 4–6 of the button's LED mode byte, whose low nibble keeps the mode and which older configurations always left at zero, so the layout is unchanged and a CSV without the column packs exactly as before. Exclusive group drop-down beside the LED mode in the configurator's button editor, carried by Copy / Paste bank. The demo's looper bank groups TRK1 to TRK4.
 - **Back up all slots.** `Backup_Slots.py` and the configurator's **Back Up All Slots** and **Restore Backup** copy every configuration slot to a folder, one CSV per slot, and write them back, validating every file first and restarting the pedal once. The slot reading and writing that `Flash_to_CSV.py` and `CSV_to_Flash.py` each did on their own now lives in `python/lib/slotIO.py`, shared by all three. Tested against a simulated pedal in the test suite, byte for byte, and on an MP-100. No firmware change.
