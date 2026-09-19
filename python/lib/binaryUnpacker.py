@@ -459,6 +459,8 @@ def unpack_expression_settings(data: bytes) -> pd.DataFrame:
                 "Heel_Level": str(p[10] if p[10] <= 127 else 7),
                 "Out_Min": str(out_min),
                 "Out_Max": str(out_max),
+                "Auto_Button": EXP_BUTTON_IDS[p[13] - 1] if 1 <= p[13] <= 8 else "None",
+                "Auto_Off_ms": str(p[14] * 10 if p[14] not in (0, 0xFF) else 500),
             }
         )
     return pd.DataFrame(rows)

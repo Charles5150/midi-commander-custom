@@ -47,6 +47,7 @@ The firmware replaces the stock MeloAudio one but never touches its bootloader, 
 - **USB keyboard and media keys (HID).** A command can press a key with Ctrl / Shift / Alt / Cmd modifiers, tap it, hold it or release it, or send a media key (play/pause, next, previous, stop, volume, mute, record) to the computer.
 - **Two expression pedals** with per-pedal CC number, MIDI channel, calibrated end points, response curve and direction, calibrated live from the configurator. Each can also act as a switch: reaching the toe, or returning to the heel, taps a button of the current bank.
 - **Expression per bank.** Each bank can give each expression pedal its own CC and channel, or silence it, so the same pedal is a wah in one bank and a volume in another.
+- **Auto-engage wah.** Moving an expression pedal up from the heel switches a button on, and resting at the heel for a moment switches it off again, like the auto-engage wahs of Fractal and Line 6: no stomping on the wah before using it.
 - **Expression output range.** A pedal can send only part of the range, 40 to 127 for a volume that never drops to silence for instance, or run backwards; per pedal, and per bank on top of that.
 - **Virtual pedal.** The configurator draws the pedal as it is built, and lets you press its switches with the mouse, tap, hold or double click, while its screen, pixel for pixel, and its LEDs are read back from the pedal, so a configuration can be tried without standing on it.
 - **Double press.** A third command list per button, fired by two quick presses, alongside the short and the long press.
@@ -145,7 +146,7 @@ The tabs follow the order a configuration is usually built in. Each starts with 
 
 **Setlist** — the order Bank Up / Down follow when **Follow the setlist** (`Setlist_Mode`) is on, one drop-down per position listing every bank by number and name. The list ends at the first empty row.
 
-**Expression** — per pedal: end points, response curve, invert, channel, the toe and heel switches and the output range. **Connect live view** shows the pedal position and the CC being sent, read from the pedal in real time. To calibrate: press **Calibrate**, sweep the pedal slowly from heel to toe and back a couple of times, press **Done**; the end points are filled in with a small margin so 0 and 127 are always reached.
+**Expression** — per pedal: end points, response curve, invert, channel, the toe and heel switches, the output range and auto-engage. **Connect live view** shows the pedal position and the CC being sent, read from the pedal in real time. To calibrate: press **Calibrate**, sweep the pedal slowly from heel to toe and back a couple of times, press **Done**; the end points are filled in with a small margin so 0 and 127 are always reached.
 
 **SysEx** — the sixteen stored SysEx messages, with the byte count or a parse warning as you type.
 
@@ -173,13 +174,13 @@ A configuration is a CSV with several sections, each introduced by a line starti
 | 5 | Media keys |
 | 6 | Tap tempo, clock start/stop, transport, and BPM up/down (hold SYNC for 120 BPM) |
 | 7 | Relative CC, up and down, with and without wrapping, VOL+ and VOL- repeating while held, and two CC ramps: a toggle swell and a momentary rise |
-| 8 | Stored SysEx messages, including an empty entry that sends nothing |
+| 8 | Stored SysEx messages, including an empty entry that sends nothing, and a WAH on D that pedal 1 switches on and off by itself |
 | 9 | Notes and pitch bend, with durations and toggles |
 | 10 | Bank navigation from buttons, absolute and relative |
 | 11 | Several commands chained on one button, short versus long press, and a cycle button stepping through four amp channels (D), and a boost that latches on a tap and is momentary when held (4). Entering the bank sends CC 59 127 and leaving it CC 59 0 |
 | 12–31 | A setlist: each bank selects its patch on entry and has looper controls |
 
-Both expression pedals are configured, one linear and one logarithmic and inverted, with the toe and heel acting as switches. Bank 2 turns pedal 1 into a modulation wheel held between 20 and 100, and bank 7 silences it and makes pedal 2 a volume on channel 2 that never drops below 40. Regenerate the file with `python3 python/make_demo_config.py` after adding a feature, so it keeps covering everything.
+Both expression pedals are configured, one linear and one logarithmic and inverted, with the toe and heel acting as switches. Pedal 1 auto-engages button D, the WAH in bank 8 (and TRK4 in bank 1), switching it off after 600 ms at the heel. Bank 2 turns pedal 1 into a modulation wheel held between 20 and 100, and bank 7 silences it and makes pedal 2 a volume on channel 2 that never drops below 40. Regenerate the file with `python3 python/make_demo_config.py` after adding a feature, so it keeps covering everything.
 
 (`python/MeloConfig_10_Cmds - RC-600.csv` is a real-world configuration for a Boss RC-600. The original project's Google Sheets template is no longer online, and it predated several columns anyway; start from one of the CSVs instead.)
 
@@ -361,8 +362,12 @@ Optional; two rows, `Pedal` 1 and 2.
 | `Heel_Button` | None or 1–4, A–D | Button tapped when the pedal returns to the heel. |
 | `Heel_Level` | 0–127 | Value it must fall to for that. Default 7. |
 | `Out_Min`, `Out_Max` | 0–127 | Values sent at the heel and at the toe. Defaults 0 and 127. |
+| `Auto_Button` | None or 1–4, A–D | Button switched on as the pedal leaves the heel and off after resting there (auto-engage). |
+| `Auto_Off_ms` | 10–2540 | How long the pedal must rest at the heel before that button goes off. Default 500. |
 
 **Output range.** The pedal's travel, after the curve and `Invert`, is spread between `Out_Min` at the heel and `Out_Max` at the toe, so 40 and 127 make a volume pedal that never goes silent, and 127 and 0 turn it round without touching `Invert`. The ends are always reached exactly. `Toe_Level` and `Heel_Level` still refer to the pedal's position, 0 to 127, whatever it sends. A bank can override either end in `BankExpression_Settings`. Stored in two bytes that were reserved in each pedal's record, where older tools wrote zeros: firmware 0.33 reads 0 and 0 as the full range, so older configurations are unchanged. Firmware before 0.33 ignores the range.
+
+**Auto-engage.** For a wah that switches itself on and off, as on Fractal and Line 6 units: put the wah's on and off commands on a toggle button and name that button in `Auto_Button`. Moving the pedal up past `Heel_Level` switches the button on, just before the pedal's first value is sent, and resting at or below `Heel_Level` for `Auto_Off_ms` switches it off. The button is pressed as if by foot, so its commands, LED and display cell follow, and it can still be pressed by hand: both directions act only on the moment the pedal leaves the heel or has rested there long enough, so a wah switched off by hand with the pedal up, or on by hand at the heel, stays as it was left. The button is the same in every bank, and nothing happens in a bank where it is not a toggle, so put the wah on the same button in the banks that need it. It works when a bank silences the pedal too. Stored in bytes 13 and 14 of each pedal's record, the button plus one and the delay in 10 ms steps, where older tools wrote zeros, which mean no auto-engage. Firmware before 0.41 ignores it.
 
 Used as a switch, the pedal taps a button of the **current bank**, sending whatever that button is configured to send, including its toggle state and LED. Each direction re-arms only after the pedal moves back past its level by a margin, so resting on the edge does not retrigger.
 
@@ -449,6 +454,7 @@ Hardware notes (MCU, pinout, I²C addresses) are in `HardwareNotes.txt`; `backup
 
 Firmware versions are shown on the display at boot and reported by the tools.
 
+- **0.41 — Auto-engage from the expression pedal.** New `Auto_Button` and `Auto_Off_ms` columns in `Expression_Settings`, stored in bytes 13 and 14 of each pedal's record, which older tools left at zero, meaning none. Leaving the heel switches the toggle button on, resting at the heel for the delay (default 500 ms) switches it off, each only on that edge so the button can still be pressed by hand. The threshold is `Heel_Level`. Auto-engage fields in the configurator's Expression tab. The demo's bank 8 has a WAH on D that pedal 1 drives.
 - **0.40 — Commands on leaving a bank.** New `Leave` command type for a bank's enter list: the commands below it are sent on leaving the bank, just before the next bank's, and on changing configuration, straight through without pauses. Marked by the low nibble of the empty command type, 4, so the layout is unchanged. `Leave` in the configurator's Bank Enter command list. The demo's bank 11 switches CC 59 on as it is entered and off as it is left.
 - **0.39 — Latch or momentary.** New `Momentary_Hold` column in `Button_Settings`: a toggle button with it set latches on a tap, and held past `Long_Press_ms` goes back to its previous state on release. Stored in bit 7 of the button's LED mode byte, so the layout is unchanged and a CSV without the column packs exactly as before. "Momentary when held" box in the configurator's button editor. The demo's bank 11 button 4 becomes BOST, a boost using it.
 - **0.38 — Cycle buttons.** New `Cycle` command type: in a button's short press list, each `Cycle` starts a new state, and every press sends the next state's commands, round and round, with the state's label on the display. The labels live in a new table of 48 four character labels at the end of the configuration, in space the slot already had, so nothing moves; the tools read and write it, and read older dumps without it. The virtual pedal and `GET_STATE` report the label shown. `Cycle` in the configurator's short press command list, with a field for its label. The demo's bank 11 D becomes a cycle button through four amp channels, in place of a second SysEx button.

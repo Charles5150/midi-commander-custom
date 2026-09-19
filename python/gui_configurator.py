@@ -935,7 +935,7 @@ class MidiCommanderGUI(ctk.CTk):
                 if EXPRESSION_SECTION in data
                 else empty_expression_settings()
             )
-            for col, default in (("Out_Min", "0"), ("Out_Max", "127")):
+            for col, default in (("Out_Min", "0"), ("Out_Max", "127"), ("Auto_Button", "None"), ("Auto_Off_ms", "500")):
                 if col not in self.df_exp.columns:
                     self.df_exp[col] = default
             self.populate_expression()
@@ -1522,6 +1522,16 @@ class MidiCommanderGUI(ctk.CTk):
             w["out_max"].pack(side="left", padx=(6, 2))
             ctk.CTkLabel(out, text="at the toe").pack(side="left", padx=(6, 2))
 
+            auto = ctk.CTkFrame(box, fg_color="transparent")
+            auto.pack(fill="x", padx=8, pady=(0, 8))
+            ctk.CTkLabel(auto, text="Auto-engage: leaving the heel switches on").pack(side="left")
+            w["auto_button"] = Option(auto, ["None"] + BUTTON_IDS, clean(r.get("Auto_Button")) or "None", width=75)
+            w["auto_button"].pack(side="left", padx=(6, 2))
+            ctk.CTkLabel(auto, text=", off after resting at the heel for").pack(side="left", padx=(6, 2))
+            w["auto_off"] = IntEntry(auto, 10, 2540, clean(r.get("Auto_Off_ms")) or "500", width=65)
+            w["auto_off"].pack(side="left", padx=(6, 2))
+            ctk.CTkLabel(auto, text="ms").pack(side="left", padx=(2, 2))
+
             self.exp_widgets[i] = w
 
         Help(
@@ -1534,7 +1544,10 @@ class MidiCommanderGUI(ctk.CTk):
             "range in the Banks tab.\n"
             "As a switch, reaching the toe or returning to the heel taps a button of the current "
             "bank, sending whatever that button is configured to send. Each direction re-arms only "
-            "after the pedal moves back past the level, so resting on the edge does not retrigger.",
+            "after the pedal moves back past the level, so resting on the edge does not retrigger.\n"
+            "Auto-engage, for a wah: moving the pedal up past the heel level switches a toggle "
+            "button of the current bank on, and resting at or below it for the time given switches "
+            "it off again. The button can still be pressed by hand.",
         ).pack(anchor="w", pady=(6, 0))
 
     def _live_toggle(self):
@@ -2014,6 +2027,8 @@ class MidiCommanderGUI(ctk.CTk):
             self.df_exp.at[i, "Heel_Level"] = w["heel_level"].value() or "7"
             self.df_exp.at[i, "Out_Min"] = w["out_min"].value() or "0"
             self.df_exp.at[i, "Out_Max"] = w["out_max"].value() or "127"
+            self.df_exp.at[i, "Auto_Button"] = w["auto_button"].value()
+            self.df_exp.at[i, "Auto_Off_ms"] = w["auto_off"].value() or "500"
 
     def apply_bank_changes(self):
         """Bank names and per bank expression settings back into their frames."""

@@ -1170,9 +1170,9 @@ class ExpressionRangeTest(unittest.TestCase):
         exp = unpacker.unpack_config(packed)[4]
         self.assertEqual(list(exp["Out_Min"]), ["40", "100"])
         self.assertEqual(list(exp["Out_Max"]), ["127", "10"])
-        # Nothing else in the record moves
+        # Nothing else in the record moves: no auto-engage, default delay
         base = unpacker.EXP_OFFSET
-        self.assertEqual(list(packed[base + 13 : base + 16]), [0, 0, 0])
+        self.assertEqual(list(packed[base + 13 : base + 16]), [0, 50, 0])
 
     def test_older_records_have_the_full_range(self):
         """Older tools wrote zeros after byte 10, blank flash is 0xFF."""
@@ -1214,6 +1214,55 @@ class ExpressionRangeTest(unittest.TestCase):
         packed = packer.pack_config(self.sections)[: unpacker.BANK_EXP_RANGE_OFFSET]
         df = unpacker.unpack_bank_expression_settings(packed)
         self.assertTrue((df[["Exp1_Min", "Exp1_Max", "Exp2_Min", "Exp2_Max"]] == "").all().all())
+
+
+class AutoEngageTest(unittest.TestCase):
+    """Auto-engage from the expression pedal, bytes 13 and 14 of its record (firmware 0.41)."""
+
+    def setUp(self):
+        self.sections = read_config_csv(DEMO_CSV)
+
+    def auto_bytes(self, packed, pedal):
+        base = unpacker.EXP_OFFSET + pedal * unpacker.EXP_STRIDE
+        return list(packed[base + 13 : base + 16])
+
+    def test_demo(self):
+        packed = packer.pack_config(self.sections)
+        # Pedal 1 switches D (index 7, stored + 1) and waits 600 ms; pedal 2 has none
+        self.assertEqual(self.auto_bytes(packed, 0), [8, 60, 0])
+        self.assertEqual(self.auto_bytes(packed, 1), [0, 50, 0])
+        exp = unpacker.unpack_config(packed)[4]
+        self.assertEqual(list(exp["Auto_Button"]), ["D", "None"])
+        self.assertEqual(list(exp["Auto_Off_ms"]), ["600", "500"])
+
+    def test_every_button_and_the_delay_limits(self):
+        from lib.configPacker import empty_expression_settings
+
+        for idx, name in enumerate(packer.EXP_BUTTON_IDS):
+            df = empty_expression_settings()
+            df.loc[0, ["Auto_Button", "Auto_Off_ms"]] = [name, "5"]
+            df.loc[1, ["Auto_Button", "Auto_Off_ms"]] = ["None", "99999"]
+            packed = packer.pack_config({**self.sections, packer.EXPRESSION_SECTION: df})
+            self.assertEqual(self.auto_bytes(packed, 0), [idx + 1, 1, 0])
+            self.assertEqual(self.auto_bytes(packed, 1), [0, 254, 0])
+            exp = unpacker.unpack_config(packed)[4]
+            self.assertEqual(list(exp["Auto_Button"]), [name, "None"])
+            self.assertEqual(list(exp["Auto_Off_ms"]), ["10", "2540"])
+
+    def test_older_records_have_none(self):
+        """Older tools wrote zeros after byte 12, blank flash is 0xFF."""
+        packed = bytearray(packer.pack_config(self.sections))
+        base = unpacker.EXP_OFFSET
+        packed[base + 13 : base + 15] = b"\x00\x00"
+        packed[base + 16 + 13 : base + 16 + 15] = b"\xff\xff"
+        exp = unpacker.unpack_config(bytes(packed))[4]
+        self.assertEqual(list(exp["Auto_Button"]), ["None", "None"])
+        self.assertEqual(list(exp["Auto_Off_ms"]), ["500", "500"])
+
+    def test_csv_without_the_columns(self):
+        df = self.sections[packer.EXPRESSION_SECTION].drop(columns=["Auto_Button", "Auto_Off_ms"])
+        packed = packer.pack_config({**self.sections, packer.EXPRESSION_SECTION: df})
+        self.assertEqual(self.auto_bytes(packed, 0), [0, 50, 0])
 
 
 class PanicTest(unittest.TestCase):

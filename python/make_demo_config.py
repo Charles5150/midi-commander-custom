@@ -348,7 +348,8 @@ def build() -> Demo:
     d.cc(8, "A", "CC30", "30")
     d.cc(8, "B", "CC31", "31")
     d.cc(8, "C", "CC32", "32")
-    d.cc(8, "D", "CC33", "33")
+    # A wah switched by pedal 1 itself (auto-engage, see the pedals below)
+    d.cc(8, "D", "WAH", "33", toggle="Y")
 
     # --- bank 9: notes and pitch bend ---------------------------------------
     d.note(9, "1", "C3", "60")
@@ -440,6 +441,10 @@ def build() -> Demo:
     # An unused direction is left empty: "None" would come back as a null when
     # the CSV is read again, since pandas treats that word as one.
     d.exp.loc[0, ["Toe_Button", "Toe_Level", "Heel_Button", "Heel_Level"]] = ["1", "115", "", "7"]
+    # Auto-engage: leaving the heel switches D on, where it is a toggle (WAH in
+    # bank 8, TRK4 in bank 1), and 600 ms resting at the heel switches it off
+    d.exp.loc[0, ["Auto_Button", "Auto_Off_ms"]] = ["D", "600"]
+    d.exp.loc[1, ["Auto_Button", "Auto_Off_ms"]] = ["", "500"]
     # Pedal 2: logarithmic and inverted, with both switch directions in use
     d.exp.loc[1, ["Min_ADC", "Max_ADC", "Curve", "Invert", "Channel"]] = ["100", "3900", "Log", "Y", "2"]
     d.exp.loc[1, ["Toe_Button", "Toe_Level", "Heel_Button", "Heel_Level"]] = ["C", "110", "D", "5"]

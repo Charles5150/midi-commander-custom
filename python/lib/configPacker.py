@@ -45,6 +45,7 @@ EXP_DEFAULTS = {
     "Min_ADC": "80", "Max_ADC": "3900", "Curve": "Linear", "Invert": "N",
     "Channel": "Global", "Toe_Button": "None", "Heel_Button": "None",
     "Toe_Level": "120", "Heel_Level": "7", "Out_Min": "0", "Out_Max": "127",
+    "Auto_Button": "None", "Auto_Off_ms": "500",
 }
 EXP_BUTTON_IDS = ["1", "2", "3", "4", "A", "B", "C", "D"]
 
@@ -210,7 +211,8 @@ def _to_int(value, default):
 
 def pack_expression_settings(df) -> bytes:
     """Two 16 byte records: min/max ADC (LE), curve, invert, channel, toe and
-    heel buttons and levels, output range, zeros."""
+    heel buttons and levels, output range, auto-engage button and off delay,
+    zeros."""
     rows = {}
     if df is not None:
         for _, row in df.iterrows():
@@ -243,10 +245,16 @@ def pack_expression_settings(df) -> bytes:
         # tools wrote zeros there
         out_min = max(0, min(127, _to_int(get("Out_Min"), 0)))
         out_max = max(0, min(127, _to_int(get("Out_Max"), 127)))
+        # Auto-engage: the button + 1, so the zeros older tools wrote mean none,
+        # and the rest at the heel before it goes off, in 10 ms steps (0xFF is
+        # erased flash)
+        auto_btn = button("Auto_Button")
+        auto_btn = 0 if auto_btn == 0xFF else auto_btn + 1
+        auto_off = max(1, min(254, round(_to_int(get("Auto_Off_ms"), 500) / 10)))
 
         out += bytes([lo & 0xFF, lo >> 8, hi & 0xFF, hi >> 8, curve, invert, channel,
                       toe_btn, heel_btn, toe_level, heel_level,
-                      out_min, out_max]) + bytes(EXP_STRIDE - 13)
+                      out_min, out_max, auto_btn, auto_off]) + bytes(EXP_STRIDE - 15)
     return out
 
 

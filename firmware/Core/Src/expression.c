@@ -22,6 +22,10 @@
  * back down through the heel threshold, taps a button of the current bank. Each
  * direction re-arms only once the pedal has moved back out of the threshold by
  * a margin, so resting on the edge does not retrigger.
+ *
+ * And a pedal can switch a wah on and off by itself (auto-engage): leaving the
+ * heel switches its button on, resting at the heel for a moment switches it
+ * off. See auto_engage.
  */
 
 #include "expression.h"
@@ -73,6 +77,8 @@ static const uint8_t kEnabled[EXP_PEDAL_COUNT] = {ENABLE_EXP_PEDAL_1, ENABLE_EXP
 #define TOE_DEFAULT       (120U)
 #define HEEL_DEFAULT      (7U)
 #define NO_BUTTON         (0xFFU)
+#define AUTO_OFF_DEFAULT_MS (500U)
+#define AUTO_OFF_UNIT_MS    (10U)   // byte 14 counts in these
 
 typedef struct {
   uint16_t min_adc;
@@ -87,6 +93,8 @@ typedef struct {
   uint8_t heel_level;
   uint8_t out_min;      // value sent at the heel
   uint8_t out_max;      // value sent at the toe
+  uint8_t auto_button;  // auto-engage button, NO_BUTTON when unused
+  uint16_t auto_off_ms; // rest at the heel before switching it off
 } exp_cal_t;
 
 typedef struct {
@@ -104,6 +112,10 @@ typedef struct {
   uint8_t target_channel;
   uint8_t target_min;
   uint8_t target_max;
+  bool auto_primed;      // auto-engage has seen a first reading
+  bool auto_at_heel;     // at or below the heel level
+  bool auto_off_done;    // this rest at the heel has been dealt with
+  uint32_t auto_heel_tick; // when the pedal came to rest at the heel
 } exp_pedal_t;
 
 static exp_pedal_t pedals[EXP_PEDAL_COUNT];
@@ -198,6 +210,10 @@ static void load_calibration(uint32_t i)
   c->out_min = (p[11] <= 127) ? p[11] : 0U;
   c->out_max = (p[12] <= 127) ? p[12] : 127U;
   if(p[11] == 0 && p[12] == 0) c->out_max = 127U;
+
+  // Auto-engage: button + 1, so the zeros older tools wrote here mean none
+  c->auto_button = (p[13] >= 1 && p[13] <= MIDI_NUM_SWITCHES) ? p[13] - 1U : NO_BUTTON;
+  c->auto_off_ms = (p[14] != 0 && p[14] != 0xFF) ? p[14] * AUTO_OFF_UNIT_MS : AUTO_OFF_DEFAULT_MS;
 }
 
 static uint8_t adc_to_midi(const exp_cal_t *c, uint32_t sample)
@@ -288,6 +304,7 @@ void expression_init(void)
     pedals[i].target_channel = 0xFFU;
     pedals[i].target_min = 0xFFU;
     pedals[i].target_max = 0xFFU;
+    pedals[i].auto_primed = false;
     set_pin_pulldown(kExpChannels[i]);   // never leave the pin floating
   }
   next_process_tick = 0U;
@@ -304,6 +321,56 @@ uint8_t expression_get_midi(uint8_t pedal)
   if (pedal >= EXP_PEDAL_COUNT) return 0;
   uint8_t v = pedals[pedal].last_sent_midi;
   return (v == 0xFFU) ? 0 : v;
+}
+
+/*
+ * Auto-engage, like the auto-engage wahs of Fractal and Line 6: moving the
+ * pedal up from the heel switches its button on, and resting at or below the
+ * heel level for auto_off_ms switches it off. The button must be a toggle in
+ * the current bank; it is pressed as if by foot, so its own on and off
+ * commands, LED and display cell follow, and it can still be pressed by hand.
+ *
+ * Both work on edges, not levels: the button is only switched on as the pedal
+ * leaves the heel and only switched off once per rest at the heel, so a wah
+ * switched off by hand with the pedal up, or on by hand at the heel, stays as
+ * it was left. Nothing fires on the first reading.
+ */
+static void auto_engage(exp_pedal_t *p, uint8_t midi_value)
+{
+  const exp_cal_t *c = &p->cal;
+  if (c->auto_button == NO_BUTTON) return;
+
+  bool at_heel = (midi_value <= c->heel_level);
+  uint32_t now = HAL_GetTick();
+  if (!p->auto_primed) {
+      p->auto_primed = true;
+      p->auto_at_heel = at_heel;
+      p->auto_off_done = false;
+      p->auto_heel_tick = now;
+      return;
+  }
+
+  uint8_t page = sw_get_current_page();
+  bool usable = sw_button_is_toggle(page, c->auto_button);
+  bool on = usable && sw_get_toggle_state(page, c->auto_button);
+
+  if (!at_heel) {
+      if (p->auto_at_heel && usable && !on) {
+          sw_trigger_button(c->auto_button);
+      }
+      p->auto_at_heel = false;
+      return;
+  }
+
+  if (!p->auto_at_heel) {
+      p->auto_at_heel = true;
+      p->auto_off_done = false;
+      p->auto_heel_tick = now;
+  }
+  if (!p->auto_off_done && now - p->auto_heel_tick >= c->auto_off_ms) {
+      p->auto_off_done = true;
+      if (on) sw_trigger_button(c->auto_button);
+  }
 }
 
 static void process_pedal(uint32_t i)
@@ -351,6 +418,9 @@ static void process_pedal(uint32_t i)
           sleep_note_activity();
       }
   }
+
+  // The wah goes on before the first position reaches it
+  auto_engage(p, midi_value);
 
   // A bank change can move the pedal to another CC, channel or range, or
   // silence it. The new target is not sent the old position: it follows the
