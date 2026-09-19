@@ -90,6 +90,22 @@
 #define CMD_EXP_MODE		(5)
 #define EXP_TARGET_OFF		(0x80)
 #define EXP_TARGET_RESET	(0x81)
+// LFO: same empty command type, low nibble 6. Like a Ramp, turns the CC
+// command right below it into an LFO that swings between its Off and On
+// values, locked to the tempo. Byte 2 is the length of one cycle, an index
+// into the LFO_DIV_ table below, byte 3 the shape, one of the LFO_SHAPE_ values.
+#define CMD_LFO_MODE		(6)
+// Cycle lengths in 24ths of a beat (MIDI clocks), shortest first:
+// 1/16T 1/16 1/8T 1/8 1/4T 1/8. 1/4 1/2T 1/4. 1/2 1/2. 1/1 2/1 4/1
+#define LFO_DIV_TICKS		{4, 6, 8, 12, 16, 18, 24, 32, 36, 48, 72, 96, 192, 384}
+#define LFO_DIV_COUNT		(14)
+#define LFO_SHAPE_SINE		(0)
+#define LFO_SHAPE_TRIANGLE	(1)
+#define LFO_SHAPE_SAW_UP	(2)
+#define LFO_SHAPE_SAW_DOWN	(3)
+#define LFO_SHAPE_SQUARE	(4)
+#define LFO_SHAPE_RANDOM	(5)
+#define LFO_SHAPE_COUNT		(6)
 #define CMD_PC_NIBBLE		(0xC0)
 // Relative Program Change: a PC whose byte 2 (the Bank Select MSB, 0x80 and up
 // meaning none) holds one of these markers. Byte 1 is the step, byte 3 the last

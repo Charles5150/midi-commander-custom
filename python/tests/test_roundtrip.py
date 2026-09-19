@@ -1869,6 +1869,64 @@ class ExpCommandTest(unittest.TestCase):
             self.assertEqual(int(m.group(1), 0), value, name)
 
 
+class LfoCommandTest(unittest.TestCase):
+    """LFO commands, which turn the CC below into an LFO locked to the tempo."""
+
+    def pack(self, **fields):
+        row = pd.Series({"A_CommandType": "LFO", **{f"A_{k}": v for k, v in fields.items()}})
+        return cbp.pack_row(row)[:4]
+
+    def test_encoding(self):
+        self.assertEqual(self.pack(), [0x06, 0, cbp.LFO_DIVISIONS.index("1/4"), 0])
+        self.assertEqual(self.pack(**{"OnValue_(CC/PB)": "1/16T", "KeyMode_(Key)": "Random"}),
+                         [0x06, 0, 0, 5])
+        self.assertEqual(self.pack(**{"OnValue_(CC/PB)": "4/1", "KeyMode_(Key)": "sawdown"}),
+                         [0x06, 0, 13, 3])
+
+    def test_bad_values(self):
+        for fields in ({"OnValue_(CC/PB)": "1/3"}, {"KeyMode_(Key)": "Wobble"}):
+            with self.assertRaises(ValueError, msg=fields):
+                self.pack(**fields)
+
+    def test_round_trip(self):
+        for div in range(len(cbp.LFO_DIVISIONS)):
+            for shape in range(len(cbp.LFO_SHAPES)):
+                raw = [0x06, 0, div, shape]
+                cmd = unpacker.unpack_command(bytes(raw))
+                row = pd.Series({f"A_{k}": v for k, v in cmd.items()})
+                self.assertEqual(cbp.pack_row(row)[:4], raw, cmd)
+
+    def test_divisions_are_note_lengths(self):
+        # 24 clocks a quarter note; a dot adds half, a triplet takes a third off
+        whole = {"1/1": 96, "1/2": 48, "1/4": 24, "1/8": 12, "1/16": 6, "2/1": 192, "4/1": 384}
+        for name, ticks in zip(cbp.LFO_DIVISIONS, cbp.LFO_DIV_TICKS):
+            base = whole[name.rstrip(".T")]
+            want = base * 3 // 2 if name.endswith(".") else base * 2 // 3 if name.endswith("T") else base
+            self.assertEqual(ticks, want, name)
+        self.assertEqual(cbp.LFO_DIV_TICKS, sorted(cbp.LFO_DIV_TICKS))
+
+    def test_demo(self):
+        packed = packer.pack_config(read_config_csv(DEMO_CSV))
+        at = unpacker.COMMANDS_OFFSET + (6 * 8 + 4) * unpacker.BUTTON_STRIDE
+        self.assertEqual(packed[at : at + 4], bytes([0x06, 0, cbp.LFO_DIVISIONS.index("1/8"), 0]))
+        self.assertEqual(packed[at + 4 : at + 8], bytes([0xB0, 0x80 | 14, 127, 40]))
+
+    def test_firmware_values_match(self):
+        import re
+        path = os.path.join(os.path.dirname(__file__), "..", "..", "firmware", "Core", "Inc",
+                            "midi_defines.h")
+        with open(path) as handle:
+            header = handle.read()
+        m = re.search(r"#define\s+CMD_LFO_MODE\s+\((\d+)\)", header)
+        self.assertEqual(int(m.group(1)), cbp.CMD_LFO_MODE)
+        m = re.search(r"#define\s+LFO_DIV_TICKS\s+\{([^}]*)\}", header)
+        self.assertEqual([int(v) for v in m.group(1).split(",")], cbp.LFO_DIV_TICKS)
+        for i, name in enumerate(("SINE", "TRIANGLE", "SAW_UP", "SAW_DOWN", "SQUARE", "RANDOM")):
+            m = re.search(rf"#define\s+LFO_SHAPE_{name}\s+\((\d+)\)", header)
+            self.assertEqual(int(m.group(1)), i, name)
+            self.assertEqual(cbp.LFO_SHAPES[i].upper().replace("SAW", "SAW_"), name)
+
+
 class Fm3TemplateTest(unittest.TestCase):
     """The FM3 template packs and reads back as the template describes."""
 

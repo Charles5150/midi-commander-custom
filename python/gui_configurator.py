@@ -21,7 +21,7 @@ import pandas as pd
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-from lib.cmdBinaryPacker import EXP_TARGETS, HID_SPECIAL_KEYS, MEDIA_KEYS, RAMP_MAX_MS  # noqa: E402
+from lib.cmdBinaryPacker import EXP_TARGETS, HID_SPECIAL_KEYS, LFO_DIVISIONS, LFO_SHAPES, MEDIA_KEYS, RAMP_MAX_MS  # noqa: E402
 from lib.configCsv import read_config_csv, write_config_csv  # noqa: E402
 from lib.configPacker import NUM_BANKS, BUTTON_IDS  # noqa: E402
 from lib.configPacker import (  # noqa: E402
@@ -151,7 +151,7 @@ LED_MODES = ["Normal", "Reverse", "AlwaysOn"]
 BUTTON_GROUPS = ["None", "1", "2", "3", "4"]
 CHANNELS = [str(i) for i in range(1, 17)]
 NO_COMMAND = "(none)"
-COMMAND_TYPES = [NO_COMMAND, "PC", "PCInc", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "Panic", "Scene", "Wait", "Ramp", "Exp"]
+COMMAND_TYPES = [NO_COMMAND, "PC", "PCInc", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "Panic", "Scene", "Wait", "Ramp", "LFO", "Exp"]
 # Cycle splits a button's short press list into states, so only that list offers it
 SHORT_COMMAND_TYPES = COMMAND_TYPES + ["Cycle"]
 # Leave splits a bank's enter list into the commands on entering and on leaving
@@ -592,6 +592,20 @@ class SlotEditor:
                 text="(the CC right below walks to its value over this time)",
                 text_color=MUTED,
             ).pack(side="left", padx=8)
+        elif cmd_type == "LFO":
+            self._label("Every")
+            w = Option(self.params, LFO_DIVISIONS, clean(self.initial.get("OnValue_(CC/PB)")) or "1/4", width=70)
+            w.pack(side="left")
+            self.widgets["lfodiv"] = w
+            self._label("Shape")
+            w = Option(self.params, LFO_SHAPES, clean(self.initial.get("KeyMode_(Key)")) or "Sine", width=90)
+            w.pack(side="left")
+            self.widgets["lfoshape"] = w
+            ctk.CTkLabel(
+                self.params,
+                text="(the CC right below swings between Off and On, locked to the tempo)",
+                text_color=MUTED,
+            ).pack(side="left", padx=8)
         elif cmd_type == "Exp":
             self._label("Pedal")
             w = Option(self.params, ["1", "2"], self.initial.get("OnValue_(CC/PB)"), width=50)
@@ -667,6 +681,9 @@ class SlotEditor:
                 out["OffValue_(CC)"] = w["step"].value()
         if cmd_type == "Cycle":
             out["OnValue_(CC/PB)"] = w["cyclelabel"].value().strip()
+        if cmd_type == "LFO":
+            out["OnValue_(CC/PB)"] = w["lfodiv"].value()
+            out["KeyMode_(Key)"] = w["lfoshape"].value()
         if cmd_type == "Exp":
             out["OnValue_(CC/PB)"] = w["exppedal"].value()
             out["KeyMode_(Key)"] = w["exptarget"].value()

@@ -310,7 +310,11 @@ def build() -> Demo:
     d.tap(6, "2", "CLK", "Clock")
     d.transport(6, "3", "STRT", "Start")
     d.transport(6, "4", "STOP", "Stop")
-    d.tap(6, "A", "TAP2", "Tap")
+    # An LFO locked to the tempo: while TREM is on, CC 14 swings between 127
+    # and 40 once every eighth note, a tremolo that follows TAP and the clock
+    d.button(6, "A", "TREM", slot="A", CommandType="LFO",
+             **{"OnValue_(CC/PB)": "1/8", "KeyMode_(Key)": "Sine"})
+    d.cc(6, "A", None, "14", on="127", off="40", toggle="Y", slot="B")
     d.cc(6, "B", "SYNC", "20", toggle="Y")
     # The tempo a BPM at a time, faster while held; hold SYNC for 120 BPM
     d.button(6, "C", "BPM+", None, "A", CommandType="Tap",

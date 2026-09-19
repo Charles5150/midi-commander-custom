@@ -38,9 +38,11 @@ static uint8_t interval_next = 0;
 #define FLASH_MAX_MS	(100)	// length of the flash, at most a quarter beat
 
 static volatile uint32_t int_beat_tick = 0;
+static volatile uint32_t int_beat_num = 0;	// beats so far, for the LFOs
 static volatile uint8_t clock_beat_count = 0;	// clocks sent since the last beat
 static volatile uint32_t free_acc_us = 0;
 static volatile uint32_t ext_beat_tick = 0;
+static volatile uint32_t ext_beat_num = 0;
 static volatile uint8_t ext_beat_count = 0;
 
 // External clock following
@@ -72,11 +74,15 @@ void tempo_external_clock(void){
 		ext_last_clock_tick = now;
 		ext_seen = true;
 		ext_beat_tick = now;
+		ext_beat_num++;
 		ext_beat_count = 1;
 		return;
 	}
 	ext_last_clock_tick = now;
-	if(ext_beat_count == 0) ext_beat_tick = now;
+	if(ext_beat_count == 0){
+		ext_beat_tick = now;
+		ext_beat_num++;
+	}
 	ext_beat_count = (uint8_t)((ext_beat_count + 1) % CLOCKS_PER_BEAT);
 	if(++ext_clock_count >= CLOCKS_PER_BEAT * EXT_BEATS_MEASURED){
 		uint32_t ms = now - ext_window_start;
@@ -141,6 +147,7 @@ uint16_t tempo_tap(void){
 		__disable_irq();
 		free_acc_us = 0;
 		int_beat_tick = now;
+		int_beat_num++;
 		__enable_irq();
 	}
 
@@ -213,7 +220,10 @@ void tempo_tick_1ms(void){
 		while(clock_acc_us >= clock_interval_us){
 			clock_acc_us -= clock_interval_us;
 			if(clocks_due < 8) clocks_due++;   // cap: never queue a burst
-			if(clock_beat_count == 0) int_beat_tick = HAL_GetTick();
+			if(clock_beat_count == 0){
+				int_beat_tick = HAL_GetTick();
+				int_beat_num++;
+			}
 			clock_beat_count = (uint8_t)((clock_beat_count + 1) % CLOCKS_PER_BEAT);
 		}
 	} else {
@@ -223,6 +233,7 @@ void tempo_tick_1ms(void){
 			free_acc_us -= beat_us;
 			if(free_acc_us >= beat_us) free_acc_us = 0;	// tempo just got faster
 			int_beat_tick = HAL_GetTick();
+			int_beat_num++;
 		}
 	}
 }
@@ -232,6 +243,15 @@ bool tempo_beat_flash(void){
 	uint32_t flash = 60000UL / (bpm ? bpm : 120) / 4;
 	if(flash > FLASH_MAX_MS) flash = FLASH_MAX_MS;
 	return (HAL_GetTick() - beat) < flash;
+}
+
+void tempo_beat_now(uint32_t *beat, uint32_t *ms_since){
+	bool ext = tempo_external_present();
+	__disable_irq();
+	uint32_t tick = ext ? ext_beat_tick : int_beat_tick;
+	*beat = ext ? ext_beat_num : int_beat_num;
+	__enable_irq();
+	*ms_since = HAL_GetTick() - tick;
 }
 
 void tempo_task(void){

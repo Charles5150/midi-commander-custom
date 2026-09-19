@@ -44,6 +44,14 @@ CMD_EXP_MODE = 5
 EXP_TARGET_OFF = 0x80
 EXP_TARGET_OWN = 0x81
 EXP_TARGETS = ["CC", "Off", "Own"]
+# And an LFO: turns the CC command right below it into an LFO locked to the
+# tempo, swinging between its Off and On values. Byte 2 is the cycle length,
+# an index into LFO_DIVISIONS, byte 3 the shape, an index into LFO_SHAPES.
+CMD_LFO_MODE = 6
+LFO_DIVISIONS = ["1/16T", "1/16", "1/8T", "1/8", "1/4T", "1/8.", "1/4", "1/2T",
+                 "1/4.", "1/2", "1/2.", "1/1", "2/1", "4/1"]
+LFO_DIV_TICKS = [4, 6, 8, 12, 16, 18, 24, 32, 36, 48, 72, 96, 192, 384]
+LFO_SHAPES = ["Sine", "Triangle", "SawUp", "SawDown", "Square", "Random"]
 # A relative Program Change is a PC whose Bank Select MSB byte, where 0x80 and
 # above already meant "none", holds one of these markers
 PC_REL_UP = 0x81
@@ -478,6 +486,26 @@ def cmd_ramp(cmd):
     return [CMD_NO_CMD_NIBBLE | CMD_RAMP_MODE, 0, steps & 0xFF, (steps >> 8) & 0xFF]
 
 
+def cmd_lfo(cmd):
+    """Turn the CC command right below into an LFO locked to the tempo.
+
+    OnValue is the length of one cycle as a note division (LFO_DIVISIONS, "1/4"
+    when empty), KeyMode the shape (LFO_SHAPES, Sine when empty).
+    """
+    div = str(cmd.get("OnValue_(CC/PB)", "")).strip()
+    if div in ("", "nan"):
+        div = "1/4"
+    if div not in LFO_DIVISIONS:
+        raise ValueError(f"LFO division must be one of {', '.join(LFO_DIVISIONS)}, not {div!r}")
+    shape = str(cmd.get("KeyMode_(Key)", "")).strip()
+    if shape in ("", "nan"):
+        shape = "Sine"
+    shapes = {s.upper(): i for i, s in enumerate(LFO_SHAPES)}
+    if shape.upper() not in shapes:
+        raise ValueError(f"LFO shape must be one of {', '.join(LFO_SHAPES)}, not {shape!r}")
+    return [CMD_NO_CMD_NIBBLE | CMD_LFO_MODE, 0, LFO_DIVISIONS.index(div), shapes[shape.upper()]]
+
+
 def cmd_exp(cmd):
     """Point an expression pedal somewhere else.
 
@@ -565,6 +593,7 @@ cmd_route_table = {
     "Wait": cmd_wait,
     "Ramp": cmd_ramp,
     "Exp": cmd_exp,
+    "LFO": cmd_lfo,
 }
 
 

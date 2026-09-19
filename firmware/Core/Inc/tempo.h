@@ -51,6 +51,10 @@ void tempo_task(void);
  */
 bool tempo_beat_flash(void);
 
+// The same beat, for the LFOs: how many beats so far (from any start, it only
+// counts up) and how long ago the last one was.
+void tempo_beat_now(uint32_t *beat, uint32_t *ms_since);
+
 /*
  * Following an external clock (Clock_Follow). The USB receive path reports
  * every clock byte and Start/Continue; the tempo is measured over two beats.

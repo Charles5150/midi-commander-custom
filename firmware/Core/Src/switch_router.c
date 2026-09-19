@@ -39,6 +39,10 @@ static void pending_flush_owner(uint8_t owner);
 static bool pending_any(void);
 static void pending_clear(void);
 static void ramp_stop_all(void);
+static void ramp_stop(uint8_t channel, uint8_t cc);
+static void lfo_stop(uint8_t channel, uint8_t cc);
+static void lfo_stop_all(void);
+static void lfo_restart_all(void);
 
 /*
  * Creating some constant arrays for the switches that can be scanned and handled
@@ -866,7 +870,8 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 		status = midiCmd_send_stop_command();
 		break;
 	case CMD_PANIC_NIBBLE:
-		ramp_stop_all();	// or a ramp would bring the sound back
+		ramp_stop_all();	// or a ramp or LFO would bring the sound back
+		lfo_stop_all();
 		status = midiCmd_send_panic();
 		break;
 	case CMD_SCENE_NIBBLE:
@@ -1166,6 +1171,12 @@ static void ramp_stop_all(void){
 	for(uint8_t i=0; i<RAMP_SLOTS; i++) ramps[i].active = false;
 }
 
+static void ramp_stop(uint8_t channel, uint8_t cc){
+	for(uint8_t i=0; i<RAMP_SLOTS; i++){
+		if(ramps[i].channel == channel && ramps[i].cc == cc) ramps[i].active = false;
+	}
+}
+
 static uint8_t ramp_value_at(const ramp_t *r, uint32_t now){
 	uint32_t elapsed = now - r->start;
 	if(elapsed >= r->ms) return r->to;
@@ -1185,6 +1196,7 @@ static void ramp_cc(const uint8_t *pRom, uint8_t on, uint32_t ms){
 	uint8_t cc = pRom[1] & 0x7F;
 	bool has_off = pRom[3] <= 0x7F;
 	if(!on && !has_off) return;
+	lfo_stop(channel, cc);	// the ramp takes over the CC
 	uint8_t to = on ? (pRom[2] & 0x7F) : pRom[3];
 	uint8_t from = on ? (has_off ? pRom[3] : 0) : (pRom[2] & 0x7F);
 
@@ -1240,6 +1252,192 @@ static void ramp_task(void){
 }
 
 /*
+ * LFO: like a Ramp, a command that sends nothing itself but turns the CC
+ * command right below it into an LFO: while the button is held (or the toggle
+ * is on) the CC swings between its Off and On values by itself, one cycle per
+ * note division of the tempo, and on release (or switched off) it stops and
+ * the CC gets its Off value as usual. A CC with no Off value swings from 0.
+ *
+ * The LFO is locked to the beat the tap LED shows, the host's clock while it
+ * is followed: every cycle starts on a beat, counted from the beat of the
+ * press, so a new tap or tempo is followed straight away. The shapes start
+ * from the bottom (Sine, Triangle, Saw up), the top (Saw down, Square) or a
+ * random value, which changes once a cycle.
+ *
+ * An LFO keeps running when the bank changes, like any CC the button left on,
+ * and the toggled ones start again after a power cycle.
+ */
+#define LFO_SLOTS		(8)
+#define LFO_STEP_MS		(5)		// at most one message per LFO this often
+#define LFO_SHAPE_MAX	(1000)	// full swing of a shape
+
+typedef struct {
+	uint32_t start_beat;	// beat the LFO started on
+	uint32_t last_tick;		// when the last step went out
+	uint32_t last_pos;		// position in the cycle at the last step
+	uint16_t div;			// cycle length, in 24ths of a beat
+	uint8_t channel;
+	uint8_t cc;
+	uint8_t lo;				// value at the bottom of the shape
+	uint8_t hi;				// and at the top
+	uint8_t shape;
+	uint8_t value;			// last value sent
+	uint16_t random;		// the Random shape's value for this cycle
+	bool active;
+} lfo_t;
+
+static lfo_t lfos[LFO_SLOTS];
+static const uint16_t lfo_div_ticks[LFO_DIV_COUNT] = LFO_DIV_TICKS;
+
+// sin^2 over half a cycle, the bottom-to-top half of the Sine shape
+static const uint16_t lfo_sine[33] = {
+	0, 2, 10, 22, 38, 59, 84, 113, 146, 183, 222, 264, 309, 355, 402, 451,
+	500, 549, 598, 645, 691, 736, 778, 817, 854, 887, 916, 941, 962, 978, 990, 998, 1000
+};
+
+static uint16_t lfo_rand(void){
+	static uint32_t x = 2463534242UL;
+	x ^= x << 13;
+	x ^= x >> 17;
+	x ^= x << 5;
+	return (uint16_t)(x % (LFO_SHAPE_MAX + 1));
+}
+
+static inline bool cmd_is_lfo(const uint8_t *pRom){
+	return (pRom[0] & 0xF0) == CMD_NO_CMD_NIBBLE && (pRom[0] & 0x0F) == CMD_LFO_MODE;
+}
+
+// Where the LFO is in its cycle, in thousandths of a clock (24th of a beat)
+static uint32_t lfo_pos(const lfo_t *l){
+	uint32_t beat, ms;
+	tempo_beat_now(&beat, &ms);
+	if(ms > 60000) ms = 60000;
+	uint32_t frac = ms * tempo_get_bpm() * 2 / 5;	// ms * bpm * 24000 / 60000
+	if(frac > 23999) frac = 23999;	// a late beat: wait for it at the end
+	uint32_t pos = ((beat - l->start_beat) % l->div) * 24000 + frac;
+	return pos % ((uint32_t)l->div * 1000);
+}
+
+// The shape at pos, 0 at the bottom to LFO_SHAPE_MAX at the top
+static uint16_t lfo_shape_at(const lfo_t *l, uint32_t pos){
+	uint32_t period = (uint32_t)l->div * 1000;
+	uint32_t x = pos * 1024 / period;	// 0-1023 through the cycle
+	switch(l->shape){
+	case LFO_SHAPE_SINE: {
+		uint32_t h = x < 512 ? x : 1023 - x;	// mirrored halves, 0-511
+		uint32_t i = h >> 4, f = h & 15;
+		return (uint16_t)(lfo_sine[i] + ((lfo_sine[i + 1] - lfo_sine[i]) * f + 8) / 16);
+	}
+	case LFO_SHAPE_TRIANGLE:
+		return (uint16_t)((x < 512 ? x : 1023 - x) * LFO_SHAPE_MAX / 511);
+	case LFO_SHAPE_SAW_UP:
+		return (uint16_t)(x * LFO_SHAPE_MAX / 1023);
+	case LFO_SHAPE_SAW_DOWN:
+		return (uint16_t)(LFO_SHAPE_MAX - x * LFO_SHAPE_MAX / 1023);
+	case LFO_SHAPE_SQUARE:
+		return x < 512 ? LFO_SHAPE_MAX : 0;
+	case LFO_SHAPE_RANDOM:
+	default:
+		return l->random;
+	}
+}
+
+static uint8_t lfo_value(const lfo_t *l, uint32_t pos){
+	int32_t span = (int32_t)l->hi - (int32_t)l->lo;
+	int32_t v = span * lfo_shape_at(l, pos);
+	v = (v + (v >= 0 ? LFO_SHAPE_MAX / 2 : -LFO_SHAPE_MAX / 2)) / LFO_SHAPE_MAX;
+	return (uint8_t)((int32_t)l->lo + v);
+}
+
+static void lfo_send(lfo_t *l, uint32_t pos){
+	uint8_t v = lfo_value(l, pos);
+	if(v != l->value){
+		midiCmd_send_cc(l->channel, l->cc, v);
+		l->value = v;
+	}
+	l->last_pos = pos;
+	l->last_tick = HAL_GetTick();
+}
+
+// The CC command pRom as an LFO, with the division and shape of the LFO lfo
+static void lfo_start(const uint8_t *lfo, const uint8_t *pRom){
+	uint8_t channel = pRom[0] & 0x0F;
+	uint8_t cc = pRom[1] & 0x7F;
+	lfo_t *l = NULL;
+	for(uint8_t i=0; i<LFO_SLOTS; i++){
+		if(lfos[i].active && lfos[i].channel == channel && lfos[i].cc == cc){
+			l = &lfos[i];	// the same CC again: start over
+			break;
+		}
+	}
+	for(uint8_t i=0; l == NULL && i<LFO_SLOTS; i++){
+		if(!lfos[i].active) l = &lfos[i];
+	}
+	if(l == NULL){
+		// Every slot busy: an ordinary CC
+		midiCmd_send_cc(channel, cc, pRom[2] & 0x7F);
+		return;
+	}
+	ramp_stop(channel, cc);
+
+	uint32_t ms;
+	tempo_beat_now(&l->start_beat, &ms);
+	l->div = lfo_div_ticks[lfo[2] < LFO_DIV_COUNT ? lfo[2] : LFO_DIV_COUNT - 1];
+	l->channel = channel;
+	l->cc = cc;
+	l->hi = pRom[2] & 0x7F;
+	l->lo = pRom[3] <= 0x7F ? pRom[3] : 0;
+	l->shape = lfo[3] < LFO_SHAPE_COUNT ? lfo[3] : LFO_SHAPE_SINE;
+	l->random = lfo_rand();
+	l->value = 0xFF;	// the first value always goes out
+	l->active = true;
+	lfo_send(l, lfo_pos(l));
+}
+
+static void lfo_stop(uint8_t channel, uint8_t cc){
+	for(uint8_t i=0; i<LFO_SLOTS; i++){
+		if(lfos[i].channel == channel && lfos[i].cc == cc) lfos[i].active = false;
+	}
+}
+
+static void lfo_stop_all(void){
+	for(uint8_t i=0; i<LFO_SLOTS; i++) lfos[i].active = false;
+}
+
+static void lfo_task(void){
+	uint32_t now = HAL_GetTick();
+	for(uint8_t i=0; i<LFO_SLOTS; i++){
+		lfo_t *l = &lfos[i];
+		if(!l->active || (now - l->last_tick) < LFO_STEP_MS) continue;
+		uint32_t pos = lfo_pos(l);
+		if(pos < l->last_pos) l->random = lfo_rand();	// a new cycle
+		lfo_send(l, pos);
+	}
+}
+
+/*
+ * After a power cycle: the LFOs of the toggle buttons that are on, in every
+ * bank, run again, so the sound matches the LEDs.
+ */
+static void lfo_restart_all(void){
+	lfo_stop_all();
+	for(uint8_t b=0; b<MIDI_NUM_BANKS; b++){
+		for(uint8_t i=0; i<MIDI_NUM_SWITCHES; i++){
+			if(!sw_button_is_toggle(b, i) || !sw_get_toggle_state(b, i)) continue;
+			const uint8_t *prev = NULL;
+			for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
+				uint8_t *pRom = get_rom_pointer(b, i, j);
+				if(cmd_is_cycle(pRom)) break;
+				if(prev && (*pRom & 0xF0) == CMD_CC_NIBBLE && midiCmd_get_cmd_toggle(pRom)){
+					lfo_start(prev, pRom);
+				}
+				prev = cmd_is_lfo(pRom) ? pRom : NULL;
+			}
+		}
+	}
+}
+
+/*
  * One command list, from command `start` on, up to the end of the list or the
  * next Cycle command. `first` is where the part of the list that fired begins,
  * the state of a cycle button, which is where its release pass starts. Returns
@@ -1248,15 +1446,22 @@ static void ramp_task(void){
 static bool run_cmd_list(uint8_t *base, uint8_t first, uint8_t start, uint8_t toggle,
 		uint8_t owner, uint8_t flags, bool allow_wait){
 	uint32_t ramp = 0;	// time of a Ramp just above the command, 0 for none
+	const uint8_t *lfo = NULL;	// an LFO just above the command
 	for(uint8_t j=start; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
 		uint8_t *pRom = base + j * MIDI_ROM_CMD_SIZE;
 		if(cmd_is_cycle(pRom)) break;	// the next state
 		if(cmd_is_leave(pRom)) break;	// a bank's commands on leaving it
 		if((flags & LIST_SKIP_BANK) && (*pRom & 0xF0) == CMD_BANK_NIBBLE) continue;
 		uint32_t ramp_ms = ramp;
-		ramp = 0;	// a Ramp only reaches the command right below it
+		const uint8_t *lfo_cmd = lfo;
+		ramp = 0;	// a Ramp or LFO only reaches the command right below it
+		lfo = NULL;
 		if(cmd_is_ramp(pRom)){
 			ramp = ramp_time_ms(pRom);
+			continue;
+		}
+		if(cmd_is_lfo(pRom)){
+			lfo = pRom;
 			continue;
 		}
 		if(cmd_is_wait(pRom)){
@@ -1270,6 +1475,13 @@ static bool run_cmd_list(uint8_t *base, uint8_t first, uint8_t start, uint8_t to
 		if(ramp_ms && (*pRom & 0xF0) == CMD_CC_NIBBLE){
 			ramp_cc(pRom, midiCmd_get_cmd_toggle(pRom) ? toggle : MIDI_CONTROL_ON, ramp_ms);
 			continue;
+		}
+		if(lfo_cmd && (*pRom & 0xF0) == CMD_CC_NIBBLE){
+			if(!midiCmd_get_cmd_toggle(pRom) || toggle){
+				lfo_start(lfo_cmd, pRom);
+				continue;
+			}
+			lfo_stop(pRom[0] & 0x0F, pRom[1] & 0x7F);	// switched off: then its Off value
 		}
 		handle_cmd_sw_down(pRom, toggle);
 	}
@@ -1287,11 +1499,17 @@ static bool run_cmd_list(uint8_t *base, uint8_t first, uint8_t start, uint8_t to
 // straight through.
 static void run_list_up(uint8_t *base, uint8_t first, uint8_t toggle, uint8_t flags){
 	uint32_t ramp = 0;
+	bool lfo = false;
 	for(uint8_t j=first; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
 		uint8_t *pRom = base + j * MIDI_ROM_CMD_SIZE;
 		if(cmd_is_cycle(pRom)) break;
 		uint32_t ramp_ms = ramp;
+		bool lfo_above = lfo;
 		ramp = cmd_is_ramp(pRom) ? ramp_time_ms(pRom) : 0;
+		lfo = cmd_is_lfo(pRom);
+		if(lfo_above && (*pRom & 0xF0) == CMD_CC_NIBBLE && !midiCmd_get_cmd_toggle(pRom)){
+			lfo_stop(pRom[0] & 0x0F, pRom[1] & 0x7F);	// released: then its Off value
+		}
 		if((flags & LIST_SKIP_BANK) && (*pRom & 0xF0) == CMD_BANK_NIBBLE) continue;
 		if(ramp_ms && (*pRom & 0xF0) == CMD_CC_NIBBLE){
 			// A momentary CC ramps back to Off; a toggle one moves on the press only
@@ -1609,6 +1827,7 @@ static void switch_config(uint8_t target){
 	sw_led_init();
 	expression_init();
 	expression_clear_targets();
+	lfo_stop_all();
 
 	display_setBankName(0);
 	display_show_config(slot);
@@ -1914,6 +2133,7 @@ void handle_switches(void){
 	feedback_task();
 	pending_task();	// lists left half way by a Wait
 	ramp_task();	// CC ramps under way
+	lfo_task();		// and LFOs
 
 	// The Command switches
 	uint32_t now = HAL_GetTick();
@@ -2118,6 +2338,7 @@ void sw_restore_state(uint8_t page, const uint32_t toggles[8], const uint32_t lo
 		a_sw_obj[i].long_toggle_state = long_toggles[i];
 	}
 	exp_targets_for_bank();
+	lfo_restart_all();
 	update_leds_on_bank_change();
 }
 

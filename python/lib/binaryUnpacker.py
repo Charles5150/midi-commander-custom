@@ -23,6 +23,9 @@ from lib.cmdBinaryPacker import (
     CMD_CYCLE_MODE,
     CMD_LEAVE_MODE,
     CMD_EXP_MODE,
+    CMD_LFO_MODE,
+    LFO_DIVISIONS,
+    LFO_SHAPES,
     EXP_TARGET_OFF,
     CYCLE_LABEL_COUNT,
     CYCLE_LABEL_LEN,
@@ -234,6 +237,10 @@ def unpack_command(raw: bytes, cycle_labels=None) -> dict:
                 cmd["Channel_(PC/CC/Note/PB)"] = str(b3)
         else:
             cmd["KeyMode_(Key)"] = "Own"
+    elif cmd_type == CMD_NO_CMD_NIBBLE and (b0 & 0x0F) == CMD_LFO_MODE:
+        cmd["CommandType"] = "LFO"
+        cmd["OnValue_(CC/PB)"] = LFO_DIVISIONS[min(b2, len(LFO_DIVISIONS) - 1)]
+        cmd["KeyMode_(Key)"] = LFO_SHAPES[b3] if b3 < len(LFO_SHAPES) else LFO_SHAPES[0]
     elif cmd_type == CMD_PC_NIBBLE and b2 in PC_REL_MARKERS:
         cmd["CommandType"] = "PCInc"
         cmd["Channel_(PC/CC/Note/PB)"] = channel
