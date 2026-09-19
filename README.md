@@ -71,6 +71,7 @@ The firmware replaces the stock MeloAudio one but never touches its bootloader, 
 - **Works without a computer.** On a USB charger or a power bank the pedal runs normally and drives your gear over the DIN output.
 - **Sleep mode.** When the computer the pedal is connected to suspends, LEDs and display switch off; they come back when it wakes.
 - **Ready for the Fractal FM3.** A template that loads a preset per bank and puts scenes, tuner, tap tempo, the looper and block bypass under your feet; see [the FM3 template](#fractal-audio-fm3-template).
+- **Ready for the Line 6 HX Stomp.** A template with a preset per bank, snapshots, footswitches FS1–FS5, tuner, tap tempo and the looper, using the HX Stomp's own MIDI map so there is nothing to assign; see [the HX Stomp template](#line-6-hx-stomp-template).
 - **Configuration over USB.** Flash a configuration to the pedal and read it back, from the GUI or the command line, over ordinary USB MIDI SysEx. No special driver.
 - **Backups.** Copy all four configuration slots to a folder in one go, one editable CSV each, and put them all back just as easily.
 - Firmware updates through the stock DFU bootloader with `dfu-util`.
@@ -217,6 +218,33 @@ The FM3 comes with no MIDI CC assigned, so on the FM3, under **SETUP > MIDI/Remo
 | Bypass | Drive 1, Compressor 1, Phaser 1, Chorus 1, Delay 1, Reverb 1, Wah 1, Pitch 1 | 40–47 |
 
 To use other numbers, or another channel, change the constants at the top of `python/make_fm3_template.py` and run it again, or edit the buttons in the configurator. Presets above 29, or in the FM3's banks B to D, take a Program Change with `BankSelect_(PC)` set to 128 times the FM3 bank and `BankSelectHighByte_(PC)` to `Y`, so that CC#0 carries the bank.
+
+### Line 6 HX Stomp template
+
+**`python/templates/HX_Stomp.csv`** is ready to flash for a Line 6 HX Stomp driven over the DIN output. Connect the pedal's MIDI OUT to the HX Stomp's MIDI IN and power the pedal over USB.
+
+| Banks | Buttons |
+|---|---|
+| 0–29, `01A`–`10C` | Entering the bank loads the HX Stomp preset with the same name, 01A to 10C. 1 2 3 are snapshots 1–3, 4 opens and closes the tuner, A B C press FS1–FS3 and D taps the tempo |
+| 30, `LOOP` | Looper: Record, Overdub, Play/Stop, Half Speed, Play Once, Undo, Reverse, then tap |
+| 31, `FS` | FS1–FS5, previous and next snapshot, and the tuner |
+
+Bank Up / Down step through the presets, and a long press jumps ten. The snapshot buttons are an exclusive group, so the LED and the display show the snapshot last picked; pressing the lit one again darkens it without sending anything. FS1–FS5 act as if you stepped on the HX Stomp's footswitch in Stomp mode, so they switch whatever is assigned to it, and the expression pedals move the HX Stomp's EXP 1 and EXP 2 controllers.
+
+The HX Stomp has a fixed MIDI map, so it needs no assignments: under **Global Settings > MIDI/Tempo**, set the MIDI Base Channel to 1 and turn MIDI PC Receive on. The template sends:
+
+| Function | CC | Values |
+|---|---|---|
+| EXP 1, EXP 2 | 1, 2 | the pedals |
+| FS1–FS5 | 49–53 | 127 and 0, each one a press |
+| Looper Record / Overdub | 60 | 127 records, 0 overdubs |
+| Looper Play / Stop, Play Once, Undo | 61, 62, 63 | |
+| Tap Tempo | 64 | 127, on the press only |
+| Looper Reverse, Half Speed | 65, 66 | |
+| Tuner | 68 | |
+| Snapshot | 69 | 0–2 snapshots 1–3, 8 next, 9 previous |
+
+To use another channel, change `CHANNEL` at the top of `python/make_hx_stomp_template.py` and run it again, or edit the buttons in the configurator. Presets above 10C take a Program Change with the preset number, 0 to 125.
 
 ### Global_Settings
 
