@@ -457,9 +457,34 @@ def led_mode_value(name) -> int:
     return LED_MODE_VALUES.get(s, 0)
 
 
-def pack_button_led_modes(light_modes) -> list:
-    """Pack one LED mode byte per button from an iterable of mode names."""
-    return [led_mode_value(m) for m in light_modes]
+# The top bits of the same byte hold the button's exclusive group, 0 for none:
+# switching on a toggle button of a group switches off the others of the group
+# in its bank. Older configurations always left them at zero.
+BUTTON_GROUP_SHIFT = 4
+BUTTON_GROUP_MAX = 4
+
+
+def button_group_value(value) -> int:
+    """Group number 1..BUTTON_GROUP_MAX from a CSV cell; empty or None is 0."""
+    s = str(value).strip().upper()
+    if s in ("", "NAN", "NONE", "0"):
+        return 0
+    try:
+        g = int(float(s))
+    except ValueError:
+        raise ValueError(f"Group must be empty or 1-{BUTTON_GROUP_MAX}, not {value!r}")
+    if not 0 <= g <= BUTTON_GROUP_MAX:
+        raise ValueError(f"Group must be empty or 1-{BUTTON_GROUP_MAX}, not {value!r}")
+    return g
+
+
+def pack_button_led_modes(light_modes, groups=None) -> list:
+    """Pack one LED mode byte per button from an iterable of mode names, with
+    the exclusive group of each button, if given, in the top bits."""
+    modes = [led_mode_value(m) for m in light_modes]
+    if groups is None:
+        return modes
+    return [m | (button_group_value(g) << BUTTON_GROUP_SHIFT) for m, g in zip(modes, groups)]
 
 
 def pack_row(row):

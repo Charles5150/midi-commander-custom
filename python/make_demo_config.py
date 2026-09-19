@@ -57,7 +57,7 @@ def blank_button_rows():
     columns = ["Bank_Number", "Button_Identifier", "Label"]
     for slot in SLOT_NAMES:
         columns += [f"{slot}_{f}" for f in CMD_FIELDS]
-    columns.append("Light_Mode")
+    columns += ["Light_Mode", "Group"]
     columns += [f"{slot}_KeyMode_(Key)" for slot in SLOT_NAMES]
 
     rows = []
@@ -141,6 +141,9 @@ class Demo:
             self.enter.at[i, f"{slot}_{key}"] = value
 
     # --- shorthands for each command type --------------------------------
+    def group(self, bank, btn, group):
+        self.buttons.at[self._index(self.buttons, bank, btn), "Group"] = str(group)
+
     def cc(self, bank, btn, label, number, on="127", off="0", toggle="N", ch="1", light=None, slot="A"):
         self.button(bank, btn, label, light, slot, CommandType="CC",
                     **{"Channel_(PC/CC/Note/PB)": ch, "Number_(PC/CC/Note)": number,
@@ -229,6 +232,9 @@ def build() -> Demo:
                     "OnValue_(CC/PB)": "127", "OffValue_(CC)": "0"})
     for btn, number, label in (("A", 6, "TRK1"), ("B", 7, "TRK2"), ("C", 8, "TRK3"), ("D", 9, "TRK4")):
         d.cc(1, btn, label, str(number), toggle="Y")
+        # One track at a time: an exclusive group, so selecting a track
+        # switches the previous one off
+        d.group(1, btn, 1)
 
     # --- bank 2: the three LED modes, side by side -----------------------
     d.cc(2, "1", "NORM", "10", toggle="Y", light="Normal")

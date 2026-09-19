@@ -118,6 +118,15 @@ def _led_mode_name(value: int) -> str:
     return LED_MODE_NAMES.get(value, "Normal")
 
 
+def _button_led_byte(value: int) -> tuple:
+    """(Light_Mode, Group) from a button's LED mode byte: the mode in the low
+    nibble, the exclusive group in bits 4-6. Erased flash is Normal, no group."""
+    if value == 0xFF:
+        return "Normal", ""
+    group = (value >> 4) & 0x07
+    return _led_mode_name(value & 0x0F), str(group) if group else ""
+
+
 def unpack_global_settings(data: bytes) -> pd.DataFrame:
     g = data[:GLOBAL_SIZE]
     exp1 = g[2] if 0 < g[2] <= 127 else 11
@@ -281,7 +290,7 @@ def unpack_button_settings(data: bytes) -> pd.DataFrame:
     columns = ["Bank_Number", "Button_Identifier", "Label"]
     for slot in SLOT_NAMES:
         columns += [f"{slot}_{f}" for f in CMD_FIELDS]
-    columns.append("Light_Mode")
+    columns += ["Light_Mode", "Group"]
     columns += [f"{slot}_KeyMode_(Key)" for slot in SLOT_NAMES]
 
     rows = []
@@ -302,7 +311,7 @@ def unpack_button_settings(data: bytes) -> pd.DataFrame:
                 for f in CMD_FIELDS:
                     row[f"{slot}_{f}"] = cmd[f]
                 row[f"{slot}_KeyMode_(Key)"] = cmd["KeyMode_(Key)"]
-            row["Light_Mode"] = _led_mode_name(data[LED_MODES_OFFSET + button_number])
+            row["Light_Mode"], row["Group"] = _button_led_byte(data[LED_MODES_OFFSET + button_number])
             rows.append(row)
 
     return pd.DataFrame(rows, columns=columns)

@@ -147,6 +147,7 @@ DEFAULT_CSV = os.path.join(HERE, "demo-all-features.csv")
 
 # --- Value sets -------------------------------------------------------------
 LED_MODES = ["Normal", "Reverse", "AlwaysOn"]
+BUTTON_GROUPS = ["None", "1", "2", "3", "4"]
 CHANNELS = [str(i) for i in range(1, 17)]
 NO_COMMAND = "(none)"
 COMMAND_TYPES = [NO_COMMAND, "PC", "PCInc", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "Panic", "Scene", "Wait"]
@@ -821,6 +822,10 @@ class MidiCommanderGUI(ctk.CTk):
                 df["Light_Mode"] = "Normal"
             else:
                 df["Light_Mode"] = df["Light_Mode"].fillna("Normal")
+            if "Group" not in df.columns:
+                df.insert(df.columns.get_loc("Light_Mode") + 1, "Group", "")
+            else:
+                df["Group"] = df["Group"].fillna("")
             missing = [
                 f"{slot}_{field}"
                 for slot in SLOTS
@@ -974,7 +979,7 @@ class MidiCommanderGUI(ctk.CTk):
         for slot in SLOTS:
             columns += [f"{slot}_{f}" for f in CMD_FIELDS]
         if with_extras:
-            columns += ["Light_Mode"]
+            columns += ["Light_Mode", "Group"]
 
         out = []
         for b in range(NUM_BANKS):
@@ -985,6 +990,7 @@ class MidiCommanderGUI(ctk.CTk):
                 if with_extras:
                     row["Label"] = ""
                     row["Light_Mode"] = "Normal"
+                    row["Group"] = ""
                 if src is not None:
                     for c in columns:
                         if c in src.index and c not in ("Bank_Number", "Button_Identifier"):
@@ -1231,6 +1237,7 @@ class MidiCommanderGUI(ctk.CTk):
         self._highlight_button(clean(btn_id).upper())
         self.label_entry = None
         self.light_mode = None
+        self.group = None
         long_mode = self.press_mode == "Long press"
         double_mode = self.press_mode == "Double press"
 
@@ -1251,6 +1258,20 @@ class MidiCommanderGUI(ctk.CTk):
             ctk.CTkLabel(light_frame, text="LED light mode:", font=BOLD).pack(side="left")
             self.light_mode = Option(light_frame, LED_MODES, current.get("Light_Mode"), width=110)
             self.light_mode.pack(side="left", padx=8)
+            ctk.CTkLabel(light_frame, text="Exclusive group:", font=BOLD).pack(side="left", padx=(12, 0))
+            group = clean(current.get("Group"))
+            group = str(int(float(group))) if group not in ("", "0") else "None"
+            self.group = Option(light_frame, BUTTON_GROUPS, group, width=80)
+            self.group.pack(side="left", padx=8)
+            Help(
+                self.cmd_editor,
+                "Exclusive group: switching this button on switches off the others of its group "
+                "in this bank.",
+                "They are pressed for you, so they send their off commands and their LEDs go out, "
+                "like the radio buttons of an amp's channels. Pressing the lit one switches it off "
+                "as usual. Only buttons with a toggle command take part.",
+                wraplength=720,
+            ).pack(anchor="w", padx=10, pady=(0, 8))
 
         mode_frame = ctk.CTkFrame(self.cmd_editor, fg_color="transparent")
         mode_frame.pack(anchor="w", padx=10, pady=(0, 4))
@@ -1314,6 +1335,9 @@ class MidiCommanderGUI(ctk.CTk):
                 df.at[idx, f"{editor.slot}_{field}"] = val if val != "" else float("nan")
         if self.light_mode is not None:
             self.df_buttons.at[idx, "Light_Mode"] = self.light_mode.value()
+        if self.group is not None:
+            g = self.group.value()
+            self.df_buttons.at[idx, "Group"] = "" if g == "None" else g
         if self.label_entry is not None:
             self.df_buttons.at[idx, "Label"] = self.label_entry.value().strip()
 

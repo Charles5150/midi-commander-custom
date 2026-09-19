@@ -62,10 +62,14 @@ extern uint8_t *pBankExpSettings;	// Expression pedal CC and channel per bank, C
 #define BUTTON_LABEL_LEN		(4)
 
 // Button LED modes, one byte per button indexed by (bank * 8 + switch).
-// 0 = Normal, 1 = Reverse, 2 = AlwaysOn. Erased flash (0xFF) reads as Normal.
+// Low nibble: 0 = Normal, 1 = Reverse, 2 = AlwaysOn. Bits 4-6: exclusive
+// group, 0 for none. Erased flash (0xFF) reads as Normal with no group.
 #define LED_MODE_NORMAL		(0)
 #define LED_MODE_REVERSE	(1)
 #define LED_MODE_ALWAYS_ON	(2)
+#define LED_MODE_MASK		(0x0F)
+#define BUTTON_GROUP_SHIFT	(4)
+#define BUTTON_GROUP_MASK	(0x07)
 
 
 // Number of flash pages reserved for the settings. Pages are 2 kB on the

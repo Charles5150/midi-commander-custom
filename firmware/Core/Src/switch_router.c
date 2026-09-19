@@ -22,6 +22,7 @@
 void update_leds_on_bank_change(void);
 static void fire_bank_enter_cmds(uint8_t bank);
 static void apply_scene(uint8_t mask, uint8_t states);
+static void release_group(uint8_t i);
 uint8_t sw_button_is_toggle(uint8_t bank, uint8_t sw);
 static bool switch_down(GPIO_TypeDef *port, uint16_t pin);
 
@@ -429,7 +430,17 @@ static inline uint8_t sanitize_led_mode(uint8_t mode){
 
 // 0=Normal, 1=Reverse, 2=AlwaysOn(Blink), read from the per-button LED mode table
 uint8_t get_button_led_mode(uint8_t sw){
-	return sanitize_led_mode(pButtonLedModes[switch_current_page * MIDI_NUM_SWITCHES + sw]);
+	uint8_t v = pButtonLedModes[switch_current_page * MIDI_NUM_SWITCHES + sw];
+	if(v == 0xFF) return LED_MODE_NORMAL;
+	return sanitize_led_mode(v & LED_MODE_MASK);
+}
+
+// Exclusive group of a button of the current bank, 0 for none. Shares the
+// LED mode byte, whose top bits older configurations always left at zero.
+static uint8_t get_button_group(uint8_t sw){
+	uint8_t v = pButtonLedModes[switch_current_page * MIDI_NUM_SWITCHES + sw];
+	if(v == 0xFF) return 0;
+	return (v >> BUTTON_GROUP_SHIFT) & BUTTON_GROUP_MASK;
 }
 
 uint8_t get_bank_down_led_mode(){ // SW_E is Bank Down
@@ -961,9 +972,31 @@ static void set_momentary_led(uint8_t i, uint8_t pressed){
 	}
 }
 
+/*
+ * Exclusive groups: a toggle button of a group about to be switched on first
+ * switches off every other button of its group in the current bank, each
+ * pressed as if by foot so its off commands, LED and display cell follow.
+ * They go first so that, when the group's buttons drive the same parameter,
+ * the button just pressed is the one the device ends up on. Only switching
+ * on triggers this, so the buttons switched off cannot cascade, and pressing
+ * the lit button of a group switches it off like any toggle.
+ */
+static void release_group(uint8_t i){
+	uint8_t group = get_button_group(i);
+	if(group == 0) return;
+	if(!sw_button_is_toggle(switch_current_page, i)) return;
+	if(get_sw_toggle_state(&a_sw_obj[i])) return;	// switching off
+	for(uint8_t j=0; j<MIDI_NUM_SWITCHES; j++){
+		if(j == i || get_button_group(j) != group) continue;
+		if(!sw_button_is_toggle(switch_current_page, j)) continue;
+		if(get_sw_toggle_state(&a_sw_obj[j])) sw_trigger_button(j);
+	}
+}
+
 static void fire_short_down(uint8_t i){
 	sw_t *sw = &a_sw_obj[i];
 	pending_flush_owner(i);
+	release_group(i);
 	toggle_sw_state(sw);
 
 	// Either toggle the LED, or set it if not toggling

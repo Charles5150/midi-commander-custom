@@ -1238,6 +1238,56 @@ class BankClipboardTest(unittest.TestCase):
         self.assertEqual(after, self.before)
 
 
+class ButtonGroupTest(unittest.TestCase):
+    """Exclusive groups, stored in the top bits of each button's LED mode byte."""
+
+    def test_packs_in_the_led_byte(self):
+        sections = read_config_csv(DEMO_CSV)
+        df = sections["Button_Settings"].copy()
+        df["Group"] = ""
+        i = df.index[(df["Bank_Number"].astype(str) == "5") & (df["Button_Identifier"] == "B")][0]
+        df.at[i, "Light_Mode"] = "AlwaysOn"
+        df.at[i, "Group"] = "3"
+        base = pack_config({**sections, "Button_Settings": df.assign(Group="")})
+        packed = pack_config({**sections, "Button_Settings": df})
+        at = unpacker.LED_MODES_OFFSET + 5 * 8 + unpacker.BUTTON_IDS.index("B")
+        self.assertEqual(packed[at], 0x32)
+        # Nothing else moves
+        self.assertEqual(packed[:at] + packed[at + 1:], base[:at] + base[at + 1:])
+
+    def test_round_trip(self):
+        sections = read_config_csv(DEMO_CSV)
+        _, _, decoded, *_ = unpacker.unpack_config(pack_config(sections))
+        df = sections["Button_Settings"]
+        for bank, btn in (("1", "A"), ("1", "D")):
+            row = decoded[(decoded["Bank_Number"] == bank) & (decoded["Button_Identifier"] == btn)]
+            self.assertEqual(row["Group"].iloc[0], "1")
+        self.assertEqual((decoded["Group"] != "").sum(), (df["Group"].map(norm) != "").sum())
+
+    def test_older_configurations_have_no_group(self):
+        """A CSV without the column packs exactly as before, all zero on top."""
+        sections = read_config_csv(SAMPLE_CSV)
+        self.assertNotIn("Group", sections["Button_Settings"].columns)
+        packed = pack_config(sections)
+        table = packed[unpacker.LED_MODES_OFFSET : unpacker.LABELS_OFFSET]
+        self.assertTrue(all(b < 0x10 for b in table))
+        _, _, decoded, *_ = unpacker.unpack_config(packed)
+        self.assertTrue((decoded["Group"] == "").all())
+
+    def test_erased_flash_has_no_group(self):
+        blank = bytes([0xFF]) * unpacker.CONFIG_SIZE
+        _, _, df, *_ = unpacker.unpack_config(blank)
+        self.assertTrue((df["Group"] == "").all())
+        self.assertTrue((df["Light_Mode"] == "Normal").all())
+
+    def test_values(self):
+        for cell, want in (("", 0), (float("nan"), 0), ("None", 0), ("0", 0), ("1", 1), ("4.0", 4)):
+            self.assertEqual(cbp.button_group_value(cell), want, cell)
+        for cell in ("5", "-1", "x"):
+            with self.assertRaises(ValueError):
+                cbp.button_group_value(cell)
+
+
 class PcIncTest(unittest.TestCase):
     """Relative Program Change: next and previous preset."""
 

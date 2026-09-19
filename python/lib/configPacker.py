@@ -369,6 +369,7 @@ def pack_config(sections: dict) -> bytes:
         button_rows[_key(row["Bank_Number"], row["Button_Identifier"])] = row
 
     light_modes = []
+    groups = []
     labels = b""
     for bank in range(NUM_BANKS):
         for btn in BUTTON_IDS:
@@ -376,12 +377,14 @@ def pack_config(sections: dict) -> bytes:
             if row is None:
                 out += [0] * (cbp.MIDI_NUM_COMMANDS_PER_SWITCH * 4)
                 light_modes.append("Normal")
+                groups.append("")
                 labels += pack_label("")
             else:
                 out += cbp.pack_row(row)
                 light_modes.append(row.get("Light_Mode", "Normal"))
+                groups.append(row.get("Group", ""))
                 labels += pack_label(row.get("Label", ""))
-    out += cbp.pack_button_led_modes(light_modes)
+    out += cbp.pack_button_led_modes(light_modes, groups)
     out += list(labels)
 
     # Long press command sets: rows are optional and may come in any order,
