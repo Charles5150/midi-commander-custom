@@ -46,7 +46,8 @@ BANKS = {
     10: ("NAV", "bank jump"),
     11: ("MIX", "mixed"),
 }
-SETLIST_FROM = 12   # banks 12..31 are "songs"
+SETLIST_FROM = 12   # banks 12..30 are "songs"
+PAGE_BANK = 31      # the second page of the first song
 # The order Bank Up/Down follow with Setlist_Mode on: home, then songs out of
 # numeric order, which is the point of having a setlist at all
 DEMO_SETLIST = [0, 12, 15, 13, 14, 18, 16, 17, 19, 20]
@@ -377,7 +378,7 @@ def build() -> Demo:
     d.bank_cmd(10, "3", "DN 1", "Down", 1)
     d.bank_cmd(10, "4", "UP 8", "Up", 8)
     d.bank_cmd(10, "A", "DN 8", "Down", 8)
-    d.bank_cmd(10, "B", "LAST", "GoTo", 31)
+    d.bank_cmd(10, "B", "LAST", "GoTo", PAGE_BANK - 1)
     d.bank_cmd(10, "C", "SONG", "GoTo", SETLIST_FROM)
     # A button that sends MIDI and then changes bank: the order matters
     d.cc(10, "D", "GO+C", "40")
@@ -430,7 +431,7 @@ def build() -> Demo:
                   "OnValue_(CC/PB)": "0", "OffValue_(CC)": "0"})
 
     # --- banks 12..31: a setlist, each selecting its patch on entry ----------
-    for bank in range(SETLIST_FROM, NUM_BANKS):
+    for bank in range(SETLIST_FROM, PAGE_BANK):
         n = bank - SETLIST_FROM + 1
         BANKS[bank] = (f"S{n:02d}", f"song {n}")
         d.on_enter(bank, CommandType="PC",
@@ -444,6 +445,22 @@ def build() -> Demo:
         d.bank_cmd(bank, "B", "PREV", "Down", 1)
         d.bank_cmd(bank, "C", "NEXT", "Up", 1)
         d.tap(bank, "D", "TAP", "Tap")
+
+    # --- bank 31: the first song's second page --------------------------------
+    # D on song 1 shows bank 31's buttons in its place, and D there goes back.
+    # Entering the page switches CC 70 on and going back switches it off.
+    d.bank_cmd(SETLIST_FROM, "D", "PG 2", "Page", PAGE_BANK)
+    BANKS[PAGE_BANK] = ("S01", "page 2")
+    for btn, number in zip(("1", "2", "3", "4", "A", "B", "C"), range(60, 67)):
+        d.cc(PAGE_BANK, btn, f"FX{number - 59}", str(number), toggle="Y")
+    d.bank_cmd(PAGE_BANK, "D", "BACK", "Page", SETLIST_FROM)
+    d.on_enter(PAGE_BANK, CommandType="CC",
+               **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": "70",
+                  "OnValue_(CC/PB)": "127", "OffValue_(CC)": "0"})
+    d.on_enter(PAGE_BANK, slot="B", CommandType="Leave")
+    d.on_enter(PAGE_BANK, slot="C", CommandType="CC",
+               **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": "70",
+                  "OnValue_(CC/PB)": "0", "OffValue_(CC)": "0"})
 
     # --- expression pedals ----------------------------------------------------
     # Pedal 1: plain sweep, and the toe stomps the looper's REC button

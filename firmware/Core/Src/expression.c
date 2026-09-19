@@ -346,7 +346,7 @@ static bool pedal_target(uint32_t i, uint8_t *cc, uint8_t *channel,
                          uint8_t *lo, uint8_t *hi, bool *own)
 {
   const exp_cal_t *c = &pedals[i].cal;
-  uint8_t page = sw_get_current_page();
+  uint8_t page = sw_get_home_bank();	// a page keeps its bank's pedals
   const uint8_t *b = pBankExpSettings + page * CFG_BANK_EXP_STRIDE + i * 2U;
   const uint8_t *r = pBankExpRange + page * CFG_BANK_EXP_RANGE_STRIDE + i * 2U;
   *cc = c->cc_number;

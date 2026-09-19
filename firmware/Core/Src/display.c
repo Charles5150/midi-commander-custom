@@ -184,6 +184,11 @@ static void draw_top(uint8_t bank, uint8_t over_place, const char *override){
 	}
 }
 
+void display_showPage(uint8_t bankNumber){
+	current_bank = bankNumber;	// same bank for the song: nothing is dropped
+	display_setBankName(bankNumber);
+}
+
 void display_setBankName(uint8_t bankNumber){
 	// Cleared first, so a refresh asked for while drawing is not lost
 	refresh_pending = 0;

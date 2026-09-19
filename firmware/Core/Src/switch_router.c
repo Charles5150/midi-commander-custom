@@ -477,6 +477,15 @@ static uint8_t pending_bank = 0xFF;
 // A configuration switch asked for by a Bank command: a slot, CONFIG_NEXT, or
 // 0xFF for none. Applied once every button is released, see handle_switches.
 static uint8_t pending_config = 0xFF;
+// A Page command waiting for its list to finish: the bank holding the page, or
+// 0xFF for none. See toggle_page().
+static uint8_t pending_page = 0xFF;
+/*
+ * Second page of a bank: another bank shown in its place while the bank stays
+ * the one the song is in. page_home is that bank while a page is shown, 0xFF
+ * otherwise.
+ */
+static uint8_t page_home = 0xFF;
 
 // Commands stored for "entering this bank"
 static uint8_t* get_bank_enter_pointer(uint8_t bank, uint8_t cmd){
@@ -519,8 +528,20 @@ static void exp_targets_for_bank(void){
 	}
 }
 
+// The bank the song is in: the one shown, or the one whose page is shown
+static uint8_t home_bank(void){
+	return (page_home != 0xFF) ? page_home : switch_current_page;
+}
+
 static void goto_bank(uint8_t bank){
-	if(bank >= MIDI_NUM_BANKS || bank == switch_current_page) return;
+	if(bank >= MIDI_NUM_BANKS) return;
+	if(page_home == 0xFF && bank == switch_current_page) return;
+	if(page_home != 0xFF){
+		// Leaving the bank from its page leaves the page first
+		fire_bank_leave_cmds(switch_current_page);
+		switch_current_page = page_home;
+		page_home = 0xFF;
+	}
 	fire_bank_leave_cmds(switch_current_page);
 	switch_current_page = bank;
 	exp_targets_for_bank();
@@ -528,6 +549,34 @@ static void goto_bank(uint8_t bank){
 	display_setBankName(switch_current_page);
 	state_store_mark_dirty();
 	fire_bank_enter_cmds(bank);
+}
+
+static void show_page(uint8_t bank){
+	switch_current_page = bank;
+	update_leds_on_bank_change();
+	display_showPage(bank);
+	state_store_mark_dirty();
+}
+
+/*
+ * Page: show another bank's buttons, names and labels in place of this one's,
+ * and back again. It is not a bank change: the pedals keep what Exp commands
+ * set, what the computer wrote stays on the display, Bank Up and Down move on
+ * from the bank itself, and it is the bank that power on comes back to. Going
+ * to the page sends its bank's enter commands, and coming back its leave
+ * commands, so a page can switch something on the device and back.
+ */
+static void toggle_page(uint8_t target){
+	if(page_home != 0xFF){
+		uint8_t home = page_home;
+		fire_bank_leave_cmds(switch_current_page);
+		page_home = 0xFF;
+		show_page(home);
+	} else if(target < MIDI_NUM_BANKS && target != switch_current_page){
+		page_home = switch_current_page;
+		show_page(target);
+		fire_bank_enter_cmds(target);
+	}
 }
 
 // Requested from interrupt context; applied at the top of handle_switches.
@@ -553,7 +602,7 @@ static uint8_t setlist_len(void){
 static uint8_t setlist_step(uint8_t n, int16_t delta){
 	int16_t idx = -1;
 	for(uint8_t i=0; i<n; i++){
-		if(pSetlist[i] == switch_current_page){ idx = i; break; }
+		if(pSetlist[i] == home_bank()){ idx = i; break; }
 	}
 	// Off the list: Up enters at the start, Down at the end
 	if(idx < 0) return pSetlist[(delta >= 0) ? 0 : n - 1];
@@ -568,7 +617,7 @@ static uint8_t bank_step(int16_t delta){
 	uint8_t n = setlist_len();
 	if(n) return setlist_step(n, delta);
 
-	int16_t b = (int16_t)switch_current_page + delta;
+	int16_t b = (int16_t)home_bank() + delta;
 	while(b < 0) b += MIDI_NUM_BANKS;
 	while(b >= MIDI_NUM_BANKS) b -= MIDI_NUM_BANKS;
 	return (uint8_t)b;
@@ -860,6 +909,7 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 		case 2:  pending_bank = bank_step(-(int16_t)pRom[1]); break;
 		case BANK_MODE_CONFIG:      pending_config = (pRom[1] < CONFIG_SLOTS) ? pRom[1] : 0xFF; break;
 		case BANK_MODE_NEXT_CONFIG: pending_config = CONFIG_NEXT; break;
+		case BANK_MODE_PAGE:        pending_page = pRom[1] & 0x7F; break;
 		default: pending_bank = (pRom[1] < MIDI_NUM_BANKS) ? pRom[1] : 0xFF; break;
 		}
 		break;
@@ -957,6 +1007,16 @@ void set_led(uint8_t sw_no, uint8_t level){
 	leds_set(sw_no, level);
 }
 
+// The button that goes back from a page stays lit while the page is shown
+static uint8_t page_led_on(uint8_t i){
+	if(page_home == 0xFF) return 0;
+	for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
+		const uint8_t *pRom = get_rom_pointer(switch_current_page, i, j);
+		if(pRom[0] == (CMD_BANK_NIBBLE | BANK_MODE_PAGE)) return 1;
+	}
+	return 0;
+}
+
 void update_leds_on_bank_change(void){
 	for(int i=0; i<8; i++){
 		if(a_sw_obj[i].led_cmd_toggle & (1UL<<switch_current_page)){
@@ -969,7 +1029,7 @@ void update_leds_on_bank_change(void){
 			uint8_t mode = get_button_led_mode(i);
 			// For update, we assume Not Pressed. 
 			// If AlwaysOn -> ON. If Reverse -> ON. Normal -> OFF.
-			uint8_t state = calculate_led_state(0, mode);
+			uint8_t state = calculate_led_state(page_led_on(i), mode);
 			set_led(i, state);
 		}
 	}
@@ -1022,6 +1082,11 @@ static void fire_bank_leave_cmds(uint8_t bank){
 }
 
 static void apply_pending_bank(void){
+	if(pending_page != 0xFF){
+		uint8_t target = pending_page;
+		pending_page = 0xFF;
+		if(pending_bank == 0xFF) toggle_page(target);	// a bank change wins
+	}
 	if(pending_bank != 0xFF){
 		uint8_t target = pending_bank;
 		pending_bank = 0xFF;
@@ -1488,6 +1553,7 @@ static bool run_cmd_list(uint8_t *base, uint8_t first, uint8_t start, uint8_t to
 
 	if(flags & LIST_SKIP_BANK){
 		pending_bank = 0xFF;	// nothing in this list may change the bank
+		pending_page = 0xFF;
 	} else {
 		apply_pending_bank();
 	}
@@ -1596,6 +1662,7 @@ static void repeat_task(sw_t *sw, uint32_t now){
 // LED of a momentary (non toggle) button following the physical press
 static void set_momentary_led(uint8_t i, uint8_t pressed){
 	if(!(a_sw_obj[i].led_cmd_toggle & (1UL<<switch_current_page))){
+		if(page_led_on(i)) pressed = 1;
 		uint8_t mode = get_button_led_mode(i);
 		uint8_t state = calculate_led_state(pressed, mode);
 		set_led(i, state);
@@ -1807,13 +1874,15 @@ static void switch_config(uint8_t target){
 		return;
 	}
 
-	fire_bank_leave_cmds(switch_current_page);
+	if(page_home != 0xFF) fire_bank_leave_cmds(switch_current_page);
+	fire_bank_leave_cmds(home_bank());
 	flush_delayed_cmds();
 	pending_clear();	// their commands live in the configuration we are leaving
 	flash_settings_select(slot);
 
 	// A different configuration starts from its first bank with nothing on
 	switch_current_page = 0;
+	page_home = 0xFF;
 	for(int i=0; i<MIDI_NUM_SWITCHES; i++){
 		a_sw_obj[i].switch_toggle_state = 0;
 		a_sw_obj[i].long_toggle_state = 0;
@@ -1821,6 +1890,7 @@ static void switch_config(uint8_t target){
 	}
 	memset(cycle_pos, CYCLE_NONE, sizeof(cycle_pos));
 	pending_bank = 0xFF;
+	pending_page = 0xFF;
 
 	// Rebuild everything derived from the configuration
 	leds_init();
@@ -2314,6 +2384,10 @@ uint8_t sw_get_current_page(void){
 	return switch_current_page;
 }
 
+uint8_t sw_get_home_bank(void){
+	return home_bank();
+}
+
 uint8_t sw_button_is_toggle(uint8_t bank, uint8_t sw){
 	if(sw >= MIDI_NUM_SWITCHES || bank >= MIDI_NUM_BANKS) return 0;
 	return (a_sw_obj[sw].led_cmd_toggle >> bank) & 1;
@@ -2339,6 +2413,7 @@ void sw_get_long_toggle_states(uint32_t out[8]){
 void sw_restore_state(uint8_t page, const uint32_t toggles[8], const uint32_t long_toggles[8]){
 	if(page < MIDI_NUM_BANKS){
 		switch_current_page = page;
+		page_home = 0xFF;
 	}
 	for(int i=0; i<8; i++){
 		a_sw_obj[i].switch_toggle_state = toggles[i];

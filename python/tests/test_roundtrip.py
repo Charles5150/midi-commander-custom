@@ -2239,6 +2239,48 @@ class ConfigSlotCommandTest(unittest.TestCase):
         self.assertEqual((row["A_CommandType"], row["A_KeyMode_(Key)"]), ("Bank", "NextConfig"))
 
 
+
+class PageCommandTest(unittest.TestCase):
+    """Bank command mode Page: a second page of a bank (firmware 0.47)."""
+
+    pack = staticmethod(ConfigSlotCommandTest.pack)
+
+    def test_mode_matches_firmware(self):
+        import re
+
+        path = os.path.join(os.path.dirname(__file__), "..", "..", "firmware", "Core", "Inc", "midi_defines.h")
+        with open(path) as handle:
+            value = re.search(r"^#define\s+BANK_MODE_PAGE\s+\((\d+)\)", handle.read(), re.M).group(1)
+        self.assertEqual(list(self.pack("Page", "31"))[0], 0x40 | int(value))
+
+    def test_round_trip(self):
+        for bank in (0, 12, 31):
+            packed = self.pack("Page", str(bank))
+            self.assertEqual(list(packed), [0x45, bank, 0, 0])
+            back = unpacker.unpack_command(packed)
+            self.assertEqual((back["KeyMode_(Key)"], back["OnValue_(CC/PB)"]), ("Page", str(bank)))
+
+    def test_bank_clamped(self):
+        self.assertEqual(list(self.pack("Page", "40")), [0x45, 31, 0, 0])
+        self.assertEqual(list(self.pack("Page", "")), [0x45, 0, 0, 0])
+
+    def test_demo_song_has_a_page(self):
+        """D on song 1 (bank 12) shows bank 31, and D there goes back."""
+        packed = packer.pack_config(read_config_csv(DEMO_CSV))
+        frames = unpacker.unpack_config(packed)
+        buttons = next(f for f in frames if "A_CommandType" in f.columns and "Label" in f.columns)
+
+        def row(bank, btn):
+            return buttons[(buttons["Bank_Number"].astype(str) == str(bank))
+                           & (buttons["Button_Identifier"].astype(str) == btn)].iloc[0]
+
+        there, back = row(12, "D"), row(31, "D")
+        self.assertEqual((there["A_CommandType"], there["A_KeyMode_(Key)"], str(there["A_OnValue_(CC/PB)"])),
+                         ("Bank", "Page", "31"))
+        self.assertEqual((back["A_CommandType"], back["A_KeyMode_(Key)"], str(back["A_OnValue_(CC/PB)"])),
+                         ("Bank", "Page", "12"))
+
+
 class FakePedal:
     """A pedal in memory that answers the SysEx the slot tools use: four slots
     of flash, a target selected with SELECT_SLOT, erase, write and read."""

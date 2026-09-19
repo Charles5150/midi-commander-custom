@@ -15,6 +15,8 @@ void display_setConfigName(void);
 
 // Draw the bank name and the 2x4 grid of button labels for a bank
 void display_setBankName(uint8_t bankNumber);
+// A page of the bank: redraw as another bank, keeping what the computer wrote
+void display_showPage(uint8_t bankNumber);
 
 // Show the current tempo (and whether the clock runs) for a moment, then
 // fall back to the bank screen.

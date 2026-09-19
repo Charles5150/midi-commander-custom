@@ -18,6 +18,8 @@ void setIsSuspended(uint8_t suspended);
 
 // Current bank and per-button toggle bitmasks, for persisting/restoring state
 uint8_t sw_get_current_page(void);
+// The bank the song is in: the one shown, or the one whose page is shown
+uint8_t sw_get_home_bank(void);
 void sw_get_toggle_states(uint32_t out[8]);
 void sw_get_long_toggle_states(uint32_t out[8]);
 void sw_restore_state(uint8_t page, const uint32_t toggles[8], const uint32_t long_toggles[8]);

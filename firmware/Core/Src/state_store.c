@@ -199,7 +199,7 @@ void state_store_task(void){
 	}
 	dirty = 0;
 
-	uint8_t bank = sw_get_current_page();
+	uint8_t bank = sw_get_home_bank();	// never a page: power on comes back to the bank
 	uint32_t toggles[MIDI_NUM_SWITCHES], long_toggles[MIDI_NUM_SWITCHES];
 	sw_get_toggle_states(toggles);
 	sw_get_long_toggle_states(long_toggles);

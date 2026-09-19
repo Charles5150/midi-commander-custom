@@ -142,6 +142,7 @@
 #define CMD_PANIC_NIBBLE	(0x80)	// All Sound Off and All Notes Off on every channel
 #define BANK_MODE_CONFIG	(3)	// Bank command low nibble: switch to configuration slot byte 1
 #define BANK_MODE_NEXT_CONFIG	(4)	// Bank command low nibble: switch to the next slot holding one
+#define BANK_MODE_PAGE		(5)	// Bank command low nibble: show bank byte 1 as this bank's second page, or go back
 #define CONFIG_NEXT		(0x80)
 #define CMD_SCENE_NIBBLE	(0xA0)	// Scene: byte1 = buttons affected (bit 0 = button 1 .. bit 7 = D), byte2 = wanted states
 

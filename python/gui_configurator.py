@@ -162,7 +162,7 @@ SCENE_STATES = ["-", "On", "Off"]
 BANK_SWITCH_MODES = ["Bank", "Bank+MIDI", "MIDI only"]
 BANK_SWITCH_CHOICES = [f"{sw} / {pr}" for sw, pr in BANK_SWITCH_LISTS]
 CCINC_DIRECTIONS = ["Up", "Down", "Up Repeat", "Down Repeat"]
-BANK_MODES = ["GoTo", "Up", "Down", "Config", "NextConfig"]
+BANK_MODES = ["GoTo", "Up", "Down", "Config", "NextConfig", "Page"]
 CONFIG_SLOT_NAMES = ["1", "2", "3", "4"]
 # Which configuration slot Read and Flash use; "Active" lets the pedal decide
 SLOT_TARGETS = ["Active"] + CONFIG_SLOT_NAMES
@@ -534,7 +534,7 @@ class SlotEditor:
             self.widgets["bankmode"] = w
             mode = w.get()
             v = None
-            if mode == "GoTo":
+            if mode in ("GoTo", "Page"):
                 self._label("Bank")
                 v = Option(self.params, BANKS, self.initial.get("OnValue_(CC/PB)"), width=70)
             elif mode == "Config":
