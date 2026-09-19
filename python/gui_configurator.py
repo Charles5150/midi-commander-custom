@@ -35,6 +35,7 @@ from lib.configPacker import (  # noqa: E402
     SETLIST_SECTION,
     SETLIST_MAX,
     BANK_EXPRESSION_SECTION,
+    BANK_EXP_COLUMNS,
     empty_bank_expression_settings,
     empty_setlist,
     empty_sysex_strings,
@@ -618,7 +619,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.df_bank_switch = None
         self.df_setlist = None
         self.df_bank_exp = None
-        self.bank_exp_widgets = {}  # df index -> (cc1, channel1, cc2, channel2)
+        self.bank_exp_widgets = {}  # df index -> {column: widget}
         self.setlist_widgets = []
         self.bank_switch_editors = []
         self.bank_switch_row = None
@@ -705,8 +706,9 @@ class MidiCommanderGUI(ctk.CTk):
             "Each bank's name, and where the expression pedals send while it is selected.",
             "Pedal CC and channel: Default keeps the pedal's own (Expression and Global tabs), "
             "a number replaces it in this bank, and Off silences the pedal here while its toe and "
-            "heel switches keep working. After a bank change the pedal sends to the new target "
-            "as soon as it moves.",
+            "heel switches keep working. Min and Max, the values sent at the heel and at the toe, "
+            "are left empty to keep the pedal's own range. After a bank change the pedal sends "
+            "to the new target as soon as it moves.",
         ).pack(anchor="w", padx=10, pady=(10, 6))
         self.bank_scroll = ctk.CTkScrollableFrame(self.tabview.tab("Banks"))
         self.bank_scroll.pack(fill="both", expand=True)
@@ -878,6 +880,9 @@ class MidiCommanderGUI(ctk.CTk):
                 if EXPRESSION_SECTION in data
                 else empty_expression_settings()
             )
+            for col, default in (("Out_Min", "0"), ("Out_Max", "127")):
+                if col not in self.df_exp.columns:
+                    self.df_exp[col] = default
             self.populate_expression()
 
             self.df_enter = (
@@ -947,10 +952,10 @@ class MidiCommanderGUI(ctk.CTk):
         for b in range(NUM_BANKS):
             r = rows.get(str(b))
             row = {"Bank_Number": str(b)}
-            for col in ("Exp1_CC", "Exp1_Channel", "Exp2_CC", "Exp2_Channel"):
+            for col in BANK_EXP_COLUMNS[1:]:
                 row[col] = clean(r.get(col)) if r is not None else ""
             out.append(row)
-        return pd.DataFrame(out, columns=["Bank_Number", "Exp1_CC", "Exp1_Channel", "Exp2_CC", "Exp2_Channel"])
+        return pd.DataFrame(out, columns=BANK_EXP_COLUMNS)
 
     def _pad_banks(self, df):
         """Ensure one Bank_Naming row per bank, in order."""
@@ -1071,7 +1076,8 @@ class MidiCommanderGUI(ctk.CTk):
         self.bank_exp_widgets = {}
 
         for col, text in enumerate(("BANK", "NAME \u00b7 4 LARGE", "INFO \u00b7 8 SMALL",
-                                    "PEDAL 1 CC", "CHANNEL", "PEDAL 2 CC", "CHANNEL")):
+                                    "PEDAL 1 CC", "CHANNEL", "MIN", "MAX",
+                                    "PEDAL 2 CC", "CHANNEL", "MIN", "MAX")):
             ctk.CTkLabel(self.bank_scroll, text=text, font=FONT_SECTION, text_color=MUTED).grid(
                 row=0, column=col, padx=(10, 16), pady=(8, 6), sticky="w")
 
@@ -1088,18 +1094,18 @@ class MidiCommanderGUI(ctk.CTk):
             # Where the expression pedals send in this bank
             if self.df_bank_exp is not None and row - 1 < len(self.df_bank_exp):
                 e = self.df_bank_exp.iloc[row - 1]
-                widgets = []
-                for col, (field, is_cc) in enumerate(
-                        (("Exp1_CC", True), ("Exp1_Channel", False), ("Exp2_CC", True), ("Exp2_Channel", False)),
-                        start=3):
-                    value = clean(e.get(field)) or "Default"
-                    if is_cc:
-                        w = Combo(self.bank_scroll, ["Default", "Off"], value, width=100)
-                    else:
-                        w = Option(self.bank_scroll, ["Default"] + CHANNELS, value, width=100)
-                    w.grid(row=row, column=col, padx=(16 if col in (3, 5) else 5, 5), pady=2)
-                    widgets.append(w)
-                self.bank_exp_widgets[self.df_bank_exp.index[row - 1]] = tuple(widgets)
+                widgets = {}
+                for col, field in enumerate(BANK_EXP_COLUMNS[1:], start=3):
+                    kind = field.split("_")[1]
+                    if kind == "CC":
+                        w = Combo(self.bank_scroll, ["Default", "Off"], clean(e.get(field)) or "Default", width=100)
+                    elif kind == "Channel":
+                        w = Option(self.bank_scroll, ["Default"] + CHANNELS, clean(e.get(field)) or "Default", width=100)
+                    else:  # output range, empty keeps the pedal's own
+                        w = IntEntry(self.bank_scroll, 0, 127, e.get(field), width=50)
+                    w.grid(row=row, column=col, padx=(16 if kind == "CC" else 5, 5), pady=2)
+                    widgets[field] = w
+                self.bank_exp_widgets[self.df_bank_exp.index[row - 1]] = widgets
 
     # --- Button tab -------------------------------------------------------------
     def on_bank_change(self, bank_val):
@@ -1422,6 +1428,16 @@ class MidiCommanderGUI(ctk.CTk):
             w["heel_level"] = IntEntry(sw, 0, 127, r.get("Heel_Level") or "7", width=55)
             w["heel_level"].pack(side="left")
 
+            out = ctk.CTkFrame(box, fg_color="transparent")
+            out.pack(fill="x", padx=8, pady=(0, 8))
+            ctk.CTkLabel(out, text="Sends from").pack(side="left")
+            w["out_min"] = IntEntry(out, 0, 127, clean(r.get("Out_Min")) or "0", width=55)
+            w["out_min"].pack(side="left", padx=(6, 2))
+            ctk.CTkLabel(out, text="at the heel to").pack(side="left", padx=(6, 2))
+            w["out_max"] = IntEntry(out, 0, 127, clean(r.get("Out_Max")) or "127", width=55)
+            w["out_max"].pack(side="left", padx=(6, 2))
+            ctk.CTkLabel(out, text="at the toe").pack(side="left", padx=(6, 2))
+
             self.exp_widgets[i] = w
 
         Help(
@@ -1429,6 +1445,9 @@ class MidiCommanderGUI(ctk.CTk):
             "How curves, channels and the toe and heel switches work.",
             "Curve: Linear = proportional, Log = fast at the start, Exp = slow at the start. "
             "Channel Global = MIDI channel from the Global tab. CC numbers are set in the Global tab.\n"
+            "The pedal sends values between the two ends of its range, e.g. 40 to 127 so a volume "
+            "never drops to silence; the heel value can be the higher one. A bank can set its own "
+            "range in the Banks tab.\n"
             "As a switch, reaching the toe or returning to the heel taps a button of the current "
             "bank, sending whatever that button is configured to send. Each direction re-arms only "
             "after the pedal moves back past the level, so resting on the edge does not retrigger.",
@@ -1905,6 +1924,8 @@ class MidiCommanderGUI(ctk.CTk):
             self.df_exp.at[i, "Heel_Button"] = w["heel_button"].value()
             self.df_exp.at[i, "Toe_Level"] = w["toe_level"].value() or "120"
             self.df_exp.at[i, "Heel_Level"] = w["heel_level"].value() or "7"
+            self.df_exp.at[i, "Out_Min"] = w["out_min"].value() or "0"
+            self.df_exp.at[i, "Out_Max"] = w["out_max"].value() or "127"
 
     def apply_bank_changes(self):
         """Bank names and per bank expression settings back into their frames."""
@@ -1926,11 +1947,15 @@ class MidiCommanderGUI(ctk.CTk):
         def channel(text):
             return "" if text in ("", "Default") else text
 
-        for idx, (cc1, ch1, cc2, ch2) in self.bank_exp_widgets.items():
-            self.df_bank_exp.at[idx, "Exp1_CC"] = cc(cc1.value())
-            self.df_bank_exp.at[idx, "Exp1_Channel"] = channel(ch1.value())
-            self.df_bank_exp.at[idx, "Exp2_CC"] = cc(cc2.value())
-            self.df_bank_exp.at[idx, "Exp2_Channel"] = channel(ch2.value())
+        for idx, widgets in self.bank_exp_widgets.items():
+            for field, w in widgets.items():
+                kind = field.split("_")[1]
+                text = w.value()
+                if kind == "CC":
+                    text = cc(text)
+                elif kind == "Channel":
+                    text = channel(text)
+                self.df_bank_exp.at[idx, field] = text
 
     def save_csv(self):
         if not self.current_csv_path:

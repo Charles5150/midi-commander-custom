@@ -68,7 +68,10 @@ SETLIST_MAX = 32
 BANK_EXP_OFFSET = SETLIST_OFFSET + SETLIST_MAX
 BANK_EXP_STRIDE = 4
 BANK_EXP_CC_OFF = 0x80
-CONFIG_SIZE = BANK_EXP_OFFSET + NUM_BANKS * BANK_EXP_STRIDE
+# Expression pedal output range per bank (firmware 0.33), 4 bytes per bank
+BANK_EXP_RANGE_OFFSET = BANK_EXP_OFFSET + NUM_BANKS * BANK_EXP_STRIDE
+BANK_EXP_RANGE_STRIDE = 4
+CONFIG_SIZE = BANK_EXP_RANGE_OFFSET + NUM_BANKS * BANK_EXP_RANGE_STRIDE
 # Double press commands follow the slot's 12 pages, in the extension area the
 # firmware maps there (firmware 0.26). Same shape as the long press commands.
 FLASH_PAGE_SIZE = 2048
@@ -354,7 +357,8 @@ def _unpack_button_lists(data: bytes, base: int) -> pd.DataFrame:
 
 
 def unpack_bank_expression_settings(data: bytes) -> pd.DataFrame:
-    """Per bank CC and channel of each expression pedal; empty cells keep the pedal's own."""
+    """Per bank CC, channel and output range of each expression pedal; empty
+    cells keep the pedal's own."""
     def cc_text(b):
         if b == BANK_EXP_CC_OFF:
             return "Off"
@@ -363,19 +367,30 @@ def unpack_bank_expression_settings(data: bytes) -> pd.DataFrame:
     def channel_text(b):
         return str(b) if 1 <= b <= 16 else ""
 
+    def range_text(b):
+        return str(b) if b <= 127 else ""
+
+    def chunk_at(offset, stride):
+        chunk = bytes(data[offset : offset + stride])
+        return chunk + b"\xff" * (stride - len(chunk))
+
     rows = []
     for bank in range(NUM_BANKS):
-        base = BANK_EXP_OFFSET + bank * BANK_EXP_STRIDE
-        chunk = data[base : base + BANK_EXP_STRIDE]
-        chunk = bytes(chunk) + b"\xff" * (BANK_EXP_STRIDE - len(chunk))
+        chunk = chunk_at(BANK_EXP_OFFSET + bank * BANK_EXP_STRIDE, BANK_EXP_STRIDE)
+        rng = chunk_at(BANK_EXP_RANGE_OFFSET + bank * BANK_EXP_RANGE_STRIDE, BANK_EXP_RANGE_STRIDE)
         rows.append({
             "Bank_Number": str(bank),
             "Exp1_CC": cc_text(chunk[0]),
             "Exp1_Channel": channel_text(chunk[1]),
+            "Exp1_Min": range_text(rng[0]),
+            "Exp1_Max": range_text(rng[1]),
             "Exp2_CC": cc_text(chunk[2]),
             "Exp2_Channel": channel_text(chunk[3]),
+            "Exp2_Min": range_text(rng[2]),
+            "Exp2_Max": range_text(rng[3]),
         })
-    return pd.DataFrame(rows, columns=["Bank_Number", "Exp1_CC", "Exp1_Channel", "Exp2_CC", "Exp2_Channel"])
+    return pd.DataFrame(rows, columns=["Bank_Number", "Exp1_CC", "Exp1_Channel", "Exp1_Min", "Exp1_Max",
+                                       "Exp2_CC", "Exp2_Channel", "Exp2_Min", "Exp2_Max"])
 
 
 def unpack_expression_settings(data: bytes) -> pd.DataFrame:
@@ -386,6 +401,11 @@ def unpack_expression_settings(data: bytes) -> pd.DataFrame:
         hi = p[2] | (p[3] << 8)
         if lo > 4095 or hi > 4095 or lo + 100 > hi:
             lo, hi = 80, 3900  # blank or invalid: firmware falls back to defaults
+        # Output range, read as the firmware does: older tools wrote zeros
+        out_min = p[11] if p[11] <= 127 else 0
+        out_max = p[12] if p[12] <= 127 else 127
+        if p[11] == 0 and p[12] == 0:
+            out_max = 127
         rows.append(
             {
                 "Pedal": str(i + 1),
@@ -398,6 +418,8 @@ def unpack_expression_settings(data: bytes) -> pd.DataFrame:
                 "Heel_Button": EXP_BUTTON_IDS[p[8]] if p[8] < 8 else "None",
                 "Toe_Level": str(p[9] if 0 < p[9] <= 127 else 120),
                 "Heel_Level": str(p[10] if p[10] <= 127 else 7),
+                "Out_Min": str(out_min),
+                "Out_Max": str(out_max),
             }
         )
     return pd.DataFrame(rows)

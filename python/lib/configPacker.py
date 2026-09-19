@@ -31,7 +31,8 @@ SYSEX_SECTION = "SysEx_Strings"
 BANK_SWITCH_SECTION = "BankSwitch_Settings"
 SETLIST_SECTION = "Setlist"
 BANK_EXPRESSION_SECTION = "BankExpression_Settings"
-BANK_EXP_COLUMNS = ["Bank_Number", "Exp1_CC", "Exp1_Channel", "Exp2_CC", "Exp2_Channel"]
+BANK_EXP_COLUMNS = ["Bank_Number", "Exp1_CC", "Exp1_Channel", "Exp1_Min", "Exp1_Max",
+                    "Exp2_CC", "Exp2_Channel", "Exp2_Min", "Exp2_Max"]
 BANK_EXP_CC_OFF = 0x80
 SETLIST_MAX = 32
 BANK_SWITCH_LISTS = [("Down", "Short"), ("Down", "Long"), ("Up", "Short"), ("Up", "Long")]
@@ -43,7 +44,7 @@ EXP_CURVES = {"LINEAR": 0, "LOG": 1, "EXP": 2}
 EXP_DEFAULTS = {
     "Min_ADC": "80", "Max_ADC": "3900", "Curve": "Linear", "Invert": "N",
     "Channel": "Global", "Toe_Button": "None", "Heel_Button": "None",
-    "Toe_Level": "120", "Heel_Level": "7",
+    "Toe_Level": "120", "Heel_Level": "7", "Out_Min": "0", "Out_Max": "127",
 }
 EXP_BUTTON_IDS = ["1", "2", "3", "4", "A", "B", "C", "D"]
 
@@ -208,7 +209,8 @@ def _to_int(value, default):
 
 
 def pack_expression_settings(df) -> bytes:
-    """Two 16 byte records: min/max ADC (LE), curve, invert, channel, zeros."""
+    """Two 16 byte records: min/max ADC (LE), curve, invert, channel, toe and
+    heel buttons and levels, output range, zeros."""
     rows = {}
     if df is not None:
         for _, row in df.iterrows():
@@ -237,9 +239,14 @@ def pack_expression_settings(df) -> bytes:
         toe_btn, heel_btn = button("Toe_Button"), button("Heel_Button")
         toe_level = max(1, min(127, _to_int(get("Toe_Level"), 120)))
         heel_level = max(0, min(127, _to_int(get("Heel_Level"), 7)))
+        # Output range; the firmware reads 0 to 0 as the full range, as older
+        # tools wrote zeros there
+        out_min = max(0, min(127, _to_int(get("Out_Min"), 0)))
+        out_max = max(0, min(127, _to_int(get("Out_Max"), 127)))
 
         out += bytes([lo & 0xFF, lo >> 8, hi & 0xFF, hi >> 8, curve, invert, channel,
-                      toe_btn, heel_btn, toe_level, heel_level]) + bytes(EXP_STRIDE - 11)
+                      toe_btn, heel_btn, toe_level, heel_level,
+                      out_min, out_max]) + bytes(EXP_STRIDE - 13)
     return out
 
 
@@ -256,7 +263,7 @@ def empty_bank_expression_settings(num_banks=NUM_BANKS):
     """A BankExpression_Settings frame: every bank keeps the pedals' own settings."""
     import pandas as pd
 
-    rows = [{"Bank_Number": str(b), "Exp1_CC": "", "Exp1_Channel": "", "Exp2_CC": "", "Exp2_Channel": ""}
+    rows = [{"Bank_Number": str(b), **{c: "" for c in BANK_EXP_COLUMNS[1:]}}
             for b in range(num_banks)]
     return pd.DataFrame(rows, columns=BANK_EXP_COLUMNS)
 
@@ -289,19 +296,44 @@ def bank_exp_channel_byte(value) -> int:
     return channel if 1 <= channel <= 16 else 0xFF
 
 
+def bank_exp_range_byte(value) -> int:
+    """CSV cell -> stored byte: empty/Default 0xFF, otherwise a value 0-127."""
+    text = _cell(value)
+    try:
+        return max(0, min(127, int(float(text))))
+    except ValueError:
+        return 0xFF
+
+
+def _bank_rows(df):
+    """(bank, row) for each row of a per bank frame with a valid Bank_Number."""
+    if df is None:
+        return
+    for _, row in df.iterrows():
+        try:
+            bank = int(float(_cell(row.get("Bank_Number"))))
+        except ValueError:
+            continue
+        if 0 <= bank < NUM_BANKS:
+            yield bank, row
+
+
+def pack_bank_expression_range(df) -> bytes:
+    """Four bytes per bank: pedal 1 lowest, highest, pedal 2 lowest, highest (0xFF = the pedal's own)."""
+    out = bytearray(b"\xff" * (NUM_BANKS * 4))
+    for bank, row in _bank_rows(df):
+        base = bank * 4
+        out[base] = bank_exp_range_byte(row.get("Exp1_Min"))
+        out[base + 1] = bank_exp_range_byte(row.get("Exp1_Max"))
+        out[base + 2] = bank_exp_range_byte(row.get("Exp2_Min"))
+        out[base + 3] = bank_exp_range_byte(row.get("Exp2_Max"))
+    return bytes(out)
+
+
 def pack_bank_expression(df) -> bytes:
     """Four bytes per bank: pedal 1 CC, channel, pedal 2 CC, channel (0xFF = default)."""
     out = bytearray(b"\xff" * (NUM_BANKS * 4))
-    if df is None:
-        return bytes(out)
-    for _, row in df.iterrows():
-        key = _cell(row.get("Bank_Number"))
-        try:
-            bank = int(float(key))
-        except ValueError:
-            continue
-        if not 0 <= bank < NUM_BANKS:
-            continue
+    for bank, row in _bank_rows(df):
         base = bank * 4
         out[base] = bank_exp_cc_byte(row.get("Exp1_CC"))
         out[base + 1] = bank_exp_channel_byte(row.get("Exp1_Channel"))
@@ -436,5 +468,6 @@ def pack_config(sections: dict) -> bytes:
 
     out += list(pack_setlist(sections.get(SETLIST_SECTION)))
     out += list(pack_bank_expression(sections.get(BANK_EXPRESSION_SECTION)))
+    out += list(pack_bank_expression_range(sections.get(BANK_EXPRESSION_SECTION)))
 
     return bytes(out)

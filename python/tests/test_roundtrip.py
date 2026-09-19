@@ -1094,9 +1094,9 @@ class BankExpressionTest(unittest.TestCase):
     def test_round_trip(self):
         packed = packer.pack_config(self.sections)
         df = unpacker.unpack_bank_expression_settings(packed).set_index("Bank_Number")
-        self.assertEqual(list(df.loc["7"]), ["Off", "", "7", "2"])
-        self.assertEqual(list(df.loc["2"]), ["1", "", "", ""])
-        self.assertEqual(list(df.loc["0"]), ["", "", "", ""])
+        self.assertEqual(list(df.loc["7"]), ["Off", "", "", "", "7", "2", "40", ""])
+        self.assertEqual(list(df.loc["2"]), ["1", "", "20", "100", "", "", "", ""])
+        self.assertEqual(list(df.loc["0"]), [""] * 8)
         again = packer.pack_config({**self.sections, packer.BANK_EXPRESSION_SECTION: df.reset_index()})
         self.assertEqual(again, packed)
 
@@ -1133,6 +1133,84 @@ class BankExpressionTest(unittest.TestCase):
         packed = packer.pack_config({**s, packer.BANK_EXPRESSION_SECTION: pasted})
         self.assertEqual(self.region(packed, 9), [0x80, 0xFF, 7, 2])
         self.assertEqual(self.region(packed, 7), [0x80, 0xFF, 7, 2])
+
+
+class ExpressionRangeTest(unittest.TestCase):
+    """Output range of the expression pedals, per pedal and per bank (firmware 0.33)."""
+
+    def setUp(self):
+        self.sections = read_config_csv(DEMO_CSV)
+
+    def pedal_bytes(self, packed, pedal):
+        base = unpacker.EXP_OFFSET + pedal * unpacker.EXP_STRIDE
+        return list(packed[base + 11 : base + 13])
+
+    def bank_range(self, packed, bank):
+        base = unpacker.BANK_EXP_RANGE_OFFSET + bank * unpacker.BANK_EXP_RANGE_STRIDE
+        return list(packed[base : base + unpacker.BANK_EXP_RANGE_STRIDE])
+
+    def test_pedal_defaults_to_full_range(self):
+        packed = packer.pack_config(self.sections)
+        self.assertEqual(self.pedal_bytes(packed, 0), [0, 127])
+        exp = unpacker.unpack_config(packed)[4]
+        self.assertEqual([exp.at[0, "Out_Min"], exp.at[0, "Out_Max"]], ["0", "127"])
+
+    def test_pedal_range_round_trip(self):
+        from lib.configPacker import empty_expression_settings
+
+        df = empty_expression_settings()
+        df.loc[0, ["Out_Min", "Out_Max"]] = ["40", "127"]
+        df.loc[1, ["Out_Min", "Out_Max"]] = ["100", "10"]     # turned round
+        packed = packer.pack_config({**self.sections, packer.EXPRESSION_SECTION: df})
+        self.assertEqual(self.pedal_bytes(packed, 0), [40, 127])
+        self.assertEqual(self.pedal_bytes(packed, 1), [100, 10])
+        exp = unpacker.unpack_config(packed)[4]
+        self.assertEqual(list(exp["Out_Min"]), ["40", "100"])
+        self.assertEqual(list(exp["Out_Max"]), ["127", "10"])
+        # Nothing else in the record moves
+        base = unpacker.EXP_OFFSET
+        self.assertEqual(list(packed[base + 13 : base + 16]), [0, 0, 0])
+
+    def test_older_records_have_the_full_range(self):
+        """Older tools wrote zeros after byte 10, blank flash is 0xFF."""
+        packed = bytearray(packer.pack_config(self.sections))
+        base = unpacker.EXP_OFFSET
+        packed[base + 11 : base + 13] = b"\x00\x00"
+        packed[base + 16 + 11 : base + 16 + 13] = b"\xff\xff"
+        exp = unpacker.unpack_config(bytes(packed))[4]
+        self.assertEqual(list(exp["Out_Min"]), ["0", "0"])
+        self.assertEqual(list(exp["Out_Max"]), ["127", "127"])
+
+    def test_csv_without_the_columns(self):
+        df = self.sections[packer.EXPRESSION_SECTION].drop(columns=["Out_Min", "Out_Max"])
+        packed = packer.pack_config({**self.sections, packer.EXPRESSION_SECTION: df})
+        self.assertEqual(self.pedal_bytes(packed, 1), [0, 127])
+
+    def test_bank_range_bytes(self):
+        packed = packer.pack_config(self.sections)
+        self.assertEqual(self.bank_range(packed, 2), [20, 100, 0xFF, 0xFF])
+        self.assertEqual(self.bank_range(packed, 7), [0xFF, 0xFF, 40, 0xFF])
+        self.assertEqual(self.bank_range(packed, 0), [0xFF] * 4)
+        # The CC and channel table in front of it does not move
+        base = unpacker.BANK_EXP_OFFSET + 7 * unpacker.BANK_EXP_STRIDE
+        self.assertEqual(list(packed[base : base + 4]), [0x80, 0xFF, 7, 2])
+
+    def test_bank_csv_without_the_columns(self):
+        df = self.sections[packer.BANK_EXPRESSION_SECTION].drop(
+            columns=["Exp1_Min", "Exp1_Max", "Exp2_Min", "Exp2_Max"])
+        packed = packer.pack_config({**self.sections, packer.BANK_EXPRESSION_SECTION: df})
+        self.assertEqual(set(packed[unpacker.BANK_EXP_RANGE_OFFSET : unpacker.CONFIG_SIZE]), {0xFF})
+
+    def test_range_values(self):
+        r = packer.bank_exp_range_byte
+        self.assertEqual([r(v) for v in ("", "Default", None, "0", "127", "200", "-3", "x")],
+                         [0xFF, 0xFF, 0xFF, 0, 127, 127, 0, 0xFF])
+
+    def test_image_read_from_older_firmware(self):
+        """A dump that stops before the range table decodes as the pedal's own range."""
+        packed = packer.pack_config(self.sections)[: unpacker.BANK_EXP_RANGE_OFFSET]
+        df = unpacker.unpack_bank_expression_settings(packed)
+        self.assertTrue((df[["Exp1_Min", "Exp1_Max", "Exp2_Min", "Exp2_Max"]] == "").all().all())
 
 
 class PanicTest(unittest.TestCase):

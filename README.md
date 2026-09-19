@@ -44,6 +44,7 @@ The firmware replaces the stock MeloAudio one but never touches its bootloader, 
 - **USB keyboard and media keys (HID).** A command can press a key with Ctrl / Shift / Alt / Cmd modifiers, tap it, hold it or release it, or send a media key (play/pause, next, previous, stop, volume, mute, record) to the computer.
 - **Two expression pedals** with per-pedal CC number, MIDI channel, calibrated end points, response curve and direction, calibrated live from the configurator. Each can also act as a switch: reaching the toe, or returning to the heel, taps a button of the current bank.
 - **Expression per bank.** Each bank can give each expression pedal its own CC and channel, or silence it, so the same pedal is a wah in one bank and a volume in another.
+- **Expression output range.** A pedal can send only part of the range, 40 to 127 for a volume that never drops to silence for instance, or run backwards; per pedal, and per bank on top of that.
 - **Virtual pedal.** The configurator draws the pedal as it is built, and lets you press its switches with the mouse, tap, hold or double click, while its screen, pixel for pixel, and its LEDs are read back from the pedal, so a configuration can be tried without standing on it.
 - **Double press.** A third command list per button, fired by two quick presses, alongside the short and the long press.
 - **LEDs that follow the computer.** With `LED_Feedback` on, a CC or a note arriving over USB lights or darkens the toggle buttons that send it, so the pedal shows what is really on when an effect is changed from a DAW or an amp editor.
@@ -130,7 +131,7 @@ The tabs follow the order a configuration is usually built in. Each starts with 
 
 <img src="docs/images/gui_button_config.png" width="500">
 
-**Banks** — the 4 character name and 8 character info line of each bank, and where the expression pedals send while it is selected: a CC and a channel per pedal, each `Default` to keep the pedal's own, or `Off` for the CC to silence the pedal in that bank.
+**Banks** — the 4 character name and 8 character info line of each bank, and where the expression pedals send while it is selected: a CC and a channel per pedal, each `Default` to keep the pedal's own, or `Off` for the CC to silence the pedal in that bank, and the lowest and highest value it sends there, left empty to keep the pedal's own range.
 
 **Bank Enter** — the commands each bank sends when you switch to it.
 
@@ -140,7 +141,7 @@ The tabs follow the order a configuration is usually built in. Each starts with 
 
 **Setlist** — the order Bank Up / Down follow when **Follow the setlist** (`Setlist_Mode`) is on, one drop-down per position listing every bank by number and name. The list ends at the first empty row.
 
-**Expression** — per pedal: end points, response curve, invert, channel and the toe and heel switches. **Connect live view** shows the pedal position and the CC being sent, read from the pedal in real time. To calibrate: press **Calibrate**, sweep the pedal slowly from heel to toe and back a couple of times, press **Done**; the end points are filled in with a small margin so 0 and 127 are always reached.
+**Expression** — per pedal: end points, response curve, invert, channel, the toe and heel switches and the output range. **Connect live view** shows the pedal position and the CC being sent, read from the pedal in real time. To calibrate: press **Calibrate**, sweep the pedal slowly from heel to toe and back a couple of times, press **Done**; the end points are filled in with a small margin so 0 and 127 are always reached.
 
 **SysEx** — the sixteen stored SysEx messages, with the byte count or a parse warning as you type.
 
@@ -174,7 +175,7 @@ A configuration is a CSV with several sections, each introduced by a line starti
 | 11 | Several commands chained on one button, and short versus long press |
 | 12–31 | A setlist: each bank selects its patch on entry and has looper controls |
 
-Both expression pedals are configured, one linear and one logarithmic and inverted, with the toe and heel acting as switches. Regenerate the file with `python3 python/make_demo_config.py` after adding a feature, so it keeps covering everything.
+Both expression pedals are configured, one linear and one logarithmic and inverted, with the toe and heel acting as switches. Bank 2 turns pedal 1 into a modulation wheel held between 20 and 100, and bank 7 silences it and makes pedal 2 a volume on channel 2 that never drops below 40. Regenerate the file with `python3 python/make_demo_config.py` after adding a feature, so it keeps covering everything.
 
 (`python/MeloConfig_10_Cmds - RC-600.csv` is a real-world configuration for a Boss RC-600. The original project's Google Sheets template is no longer online, and it predated several columns anyway; start from one of the CSVs instead.)
 
@@ -315,6 +316,9 @@ Optional; two rows, `Pedal` 1 and 2.
 | `Toe_Level` | 1–127 | Value the pedal must reach for that. Default 120. |
 | `Heel_Button` | None or 1–4, A–D | Button tapped when the pedal returns to the heel. |
 | `Heel_Level` | 0–127 | Value it must fall to for that. Default 7. |
+| `Out_Min`, `Out_Max` | 0–127 | Values sent at the heel and at the toe. Defaults 0 and 127. |
+
+**Output range.** The pedal's travel, after the curve and `Invert`, is spread between `Out_Min` at the heel and `Out_Max` at the toe, so 40 and 127 make a volume pedal that never goes silent, and 127 and 0 turn it round without touching `Invert`. The ends are always reached exactly. `Toe_Level` and `Heel_Level` still refer to the pedal's position, 0 to 127, whatever it sends. A bank can override either end in `BankExpression_Settings`. Stored in two bytes that were reserved in each pedal's record, where older tools wrote zeros: firmware 0.33 reads 0 and 0 as the full range, so older configurations are unchanged. Firmware before 0.33 ignores the range.
 
 Used as a switch, the pedal taps a button of the **current bank**, sending whatever that button is configured to send, including its toggle state and LED. Each direction re-arms only after the pedal moves back past its level by a margin, so resting on the edge does not retrigger.
 
@@ -330,8 +334,9 @@ Optional; one row per `Bank_Number` (0–31), rows may be missing or in any orde
 |---|---|---|
 | `Exp1_CC`, `Exp2_CC` | empty, 0–127 or Off | CC the pedal sends while this bank is selected. Empty keeps `Exp1_CC` / `Exp2_CC` from `Global_Settings`; Off silences the pedal in this bank. |
 | `Exp1_Channel`, `Exp2_Channel` | empty or 1–16 | Channel for that pedal in this bank. Empty keeps the pedal's `Channel` from `Expression_Settings`. |
+| `Exp1_Min`, `Exp1_Max`, `Exp2_Min`, `Exp2_Max` | empty or 0–127 | Values the pedal sends at the heel and at the toe in this bank. Empty keeps its `Out_Min` / `Out_Max` from `Expression_Settings`; each end is taken on its own. Needs firmware 0.33. |
 
-A silenced pedal still acts as a switch: its `Toe_Button` and `Heel_Button` keep working. After a bank change the pedal is not sent to its new CC or channel at the position it happens to rest in; it follows the next movement. Configurations written before 0.28 have nothing stored here and behave as if every cell were empty. Edit it in the configurator's **Banks** tab.
+A silenced pedal still acts as a switch: its `Toe_Button` and `Heel_Button` keep working. After a bank change the pedal is not sent to its new CC, channel or range at the position it happens to rest in; it follows the next movement. Configurations written before 0.28 have nothing stored here and behave as if every cell were empty, and those written before 0.33 have no range here. The range is a table of its own after the CC and channel one, four bytes per bank, so their layout is unchanged. Edit it in the configurator's **Banks** tab.
 
 ---
 
@@ -400,6 +405,7 @@ Hardware notes (MCU, pinout, I²C addresses) are in `HardwareNotes.txt`; `backup
 
 Firmware versions are shown on the display at boot and reported by the tools.
 
+- **0.33 — Expression output range.** New `Out_Min` and `Out_Max` columns in `Expression_Settings`, stored in bytes 11 and 12 of each pedal's record, which older tools left at zero and the firmware reads as the full range when both are. New `Exp1_Min`, `Exp1_Max`, `Exp2_Min` and `Exp2_Max` columns in `BankExpression_Settings`, stored in a new table of four bytes per bank after the CC and channel one, erased (`0xFF`) to keep the pedal's own. The ends map exactly and a range can run backwards; toe and heel levels still follow the pedal's position. Output range fields in the configurator's Expression tab and Min / Max columns in its Banks tab. The demo's FX and KNOB banks use it.
 - **0.32 — Exclusive groups.** New `Group` column in `Button_Settings`: switching on a toggle button of a group first switches off, by pressing them as if by foot, the other buttons of the group in the bank that are on. Stored in bits 4–6 of the button's LED mode byte, whose low nibble keeps the mode and which older configurations always left at zero, so the layout is unchanged and a CSV without the column packs exactly as before. Exclusive group drop-down beside the LED mode in the configurator's button editor, carried by Copy / Paste bank. The demo's looper bank groups TRK1 to TRK4.
 - **Back up all slots.** `Backup_Slots.py` and the configurator's **Back Up All Slots** and **Restore Backup** copy every configuration slot to a folder, one CSV per slot, and write them back, validating every file first and restarting the pedal once. The slot reading and writing that `Flash_to_CSV.py` and `CSV_to_Flash.py` each did on their own now lives in `python/lib/slotIO.py`, shared by all three. Tested against a simulated pedal in the test suite, byte for byte, and on an MP-100. No firmware change.
 - **0.31 — Next and previous preset.** New `PCInc` command type: a Program Change one step up or down from the program last selected on the channel, with a step, a last program and optional wrapping, shown on the display as `PC 6`. The firmware remembers, per channel, the last program sent by a PC command or a bank being entered, or received from the host over USB. The command types were all taken, so it is a PC whose Bank Select MSB byte holds 0x81 or 0x82, values that byte could already hold to mean no Bank Select and that the tools never wrote; an ordinary Program Change is unaffected. The configuration layout is unchanged. The demo's program change bank has PREV and NEXT on C and D, and its channel 5 and 16 examples move to 3 and 4.

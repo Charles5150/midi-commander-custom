@@ -24,6 +24,7 @@ extern uint8_t *pSysExStrings;	// Table of stored SysEx payloads: [length][up to
 extern uint8_t *pBankSwitchCmds;	// Command lists for the Bank Down/Up switches
 extern uint8_t *pSetlist;		// Bank numbers in setlist order, 0xFF ends the list
 extern uint8_t *pBankExpSettings;	// Expression pedal CC and channel per bank, CFG_BANK_EXP_STRIDE bytes per bank
+extern uint8_t *pBankExpRange;	// Expression pedal output range per bank, CFG_BANK_EXP_RANGE_STRIDE bytes per bank
 
 /*
  * Four command lists, one per switch and press length, in this order:
@@ -47,7 +48,10 @@ extern uint8_t *pBankExpSettings;	// Expression pedal CC and channel per bank, C
  *   [7]    button triggered when the pedal reaches the toe (0-7, 0xFF none)
  *   [8]    button triggered when it returns to the heel (0-7, 0xFF none)
  *   [9]    toe threshold, as a 7-bit value    [10] heel threshold
- *   rest reserved. Blank flash (0xFF) means "not set" everywhere.
+ *   [11]   lowest value sent (0-127)          [12] highest value sent
+ *   rest reserved. Blank flash (0xFF) means "not set" everywhere. The tools
+ *   used to write zeros after byte 10, so a range of 0 to 0 means the full
+ *   range too.
  */
 #define EXP_SETTINGS_STRIDE		(16)
 #define EXP_CURVE_LINEAR		(0)
@@ -181,7 +185,15 @@ extern uint8_t *pBankExpSettings;	// Expression pedal CC and channel per bank, C
 #define CFG_BANK_EXP_SIZE	(MIDI_NUM_BANKS * CFG_BANK_EXP_STRIDE)
 #define CFG_BANK_EXP_OFF	(CFG_SETLIST_OFF + CFG_SETLIST_SIZE)
 #define BANK_EXP_CC_OFF		(128)	// 0x80, above any CC number
-#define CFG_TOTAL_SIZE		(CFG_BANK_EXP_OFF + CFG_BANK_EXP_SIZE)
+/*
+ * Expression pedal output range per bank: [pedal 1 lowest, pedal 1 highest,
+ * pedal 2 lowest, pedal 2 highest], 0-127 each. Erased flash (0xFF), which is
+ * all a configuration written before 0.33 holds here, keeps the pedal's own.
+ */
+#define CFG_BANK_EXP_RANGE_STRIDE	(4)
+#define CFG_BANK_EXP_RANGE_SIZE	(MIDI_NUM_BANKS * CFG_BANK_EXP_RANGE_STRIDE)
+#define CFG_BANK_EXP_RANGE_OFF	(CFG_BANK_EXP_OFF + CFG_BANK_EXP_SIZE)
+#define CFG_TOTAL_SIZE		(CFG_BANK_EXP_RANGE_OFF + CFG_BANK_EXP_RANGE_SIZE)
 // Double press commands, same size as CMDS, stored in the extension area
 #define CFG_DOUBLE_CMDS_OFF	(FLASH_SETTINGS_NO_PAGES * CFG_PAGE_SIZE)
 #define CFG_DOUBLE_CMDS_SIZE	(CFG_CMDS_SIZE)

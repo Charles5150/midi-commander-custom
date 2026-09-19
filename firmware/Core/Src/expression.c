@@ -12,9 +12,11 @@
  *   curve         0 linear, 1 log (fast at the start), 2 exp (slow at the start)
  *   invert        swap heel and toe
  *   channel       0 = global MIDI channel, 1-16 = fixed channel
+ *   out min/max   the values sent at the heel and at the toe
  *
  * The CC numbers come from the global settings (Exp1_CC / Exp2_CC). A bank can
- * give a pedal another CC and channel, or silence it (see pedal_target).
+ * give a pedal another CC, channel and output range, or silence it (see
+ * pedal_target).
  *
  * A pedal can also act as a switch: crossing up through the toe threshold, or
  * back down through the heel threshold, taps a button of the current bank. Each
@@ -83,6 +85,8 @@ typedef struct {
   uint8_t heel_button;
   uint8_t toe_level;
   uint8_t heel_level;
+  uint8_t out_min;      // value sent at the heel
+  uint8_t out_max;      // value sent at the toe
 } exp_cal_t;
 
 typedef struct {
@@ -98,6 +102,8 @@ typedef struct {
   bool switches_primed; // toe/heel armed from a real reading yet
   uint8_t target_cc;      // CC in use (BANK_EXP_CC_OFF when silent), 0xFF before the first reading
   uint8_t target_channel;
+  uint8_t target_min;
+  uint8_t target_max;
 } exp_pedal_t;
 
 static exp_pedal_t pedals[EXP_PEDAL_COUNT];
@@ -187,6 +193,11 @@ static void load_calibration(uint32_t i)
   c->toe_level  = (p[9]  <= 127) ? p[9]  : TOE_DEFAULT;
   c->heel_level = (p[10] <= 127) ? p[10] : HEEL_DEFAULT;
   if(c->toe_level == 0) c->toe_level = TOE_DEFAULT;
+
+  // Output range; zeros after byte 10 were written by older tools
+  c->out_min = (p[11] <= 127) ? p[11] : 0U;
+  c->out_max = (p[12] <= 127) ? p[12] : 127U;
+  if(p[11] == 0 && p[12] == 0) c->out_max = 127U;
 }
 
 static uint8_t adc_to_midi(const exp_cal_t *c, uint32_t sample)
@@ -216,6 +227,19 @@ static uint8_t adc_to_midi(const exp_cal_t *c, uint32_t sample)
   return (uint8_t)(v > 127U ? 127U : v);
 }
 
+/*
+ * Map a 7-bit pedal position into [lo, hi]. hi may be below lo, which turns
+ * the pedal round. The ends map exactly, the rest is rounded.
+ */
+static uint8_t scale_output(uint8_t v, uint8_t lo, uint8_t hi)
+{
+  if (lo == 0U && hi == 127U) return v;
+  int32_t span = (int32_t)hi - (int32_t)lo;
+  int32_t num = (int32_t)v * span;
+  num += (num >= 0) ? 63 : -63;
+  return (uint8_t)((int32_t)lo + num / 127);
+}
+
 static uint8_t midi_channel(const exp_cal_t *c)
 {
   if (c->channel) return c->channel - 1;
@@ -223,17 +247,22 @@ static uint8_t midi_channel(const exp_cal_t *c)
 }
 
 /*
- * Where a pedal sends in the current bank. A bank can give each pedal its own CC
- * and channel, or turn it off; erased flash keeps the pedal's own settings.
- * Returns false when the pedal is silent in this bank. Its toe and heel switches
- * are not affected.
+ * Where a pedal sends in the current bank. A bank can give each pedal its own
+ * CC, channel and output range, or turn it off; erased flash keeps the pedal's
+ * own settings. Returns false when the pedal is silent in this bank. Its toe
+ * and heel switches are not affected.
  */
-static bool pedal_target(uint32_t i, uint8_t *cc, uint8_t *channel)
+static bool pedal_target(uint32_t i, uint8_t *cc, uint8_t *channel,
+                         uint8_t *lo, uint8_t *hi)
 {
   const exp_cal_t *c = &pedals[i].cal;
-  const uint8_t *b = pBankExpSettings + sw_get_current_page() * CFG_BANK_EXP_STRIDE + i * 2U;
+  uint8_t page = sw_get_current_page();
+  const uint8_t *b = pBankExpSettings + page * CFG_BANK_EXP_STRIDE + i * 2U;
+  const uint8_t *r = pBankExpRange + page * CFG_BANK_EXP_RANGE_STRIDE + i * 2U;
   *cc = c->cc_number;
   *channel = midi_channel(c);
+  *lo = (r[0] <= 127U) ? r[0] : c->out_min;
+  *hi = (r[1] <= 127U) ? r[1] : c->out_max;
   if (b[0] == BANK_EXP_CC_OFF) return false;
   if (b[0] <= 127U) *cc = b[0];
   if (b[1] >= 1U && b[1] <= 16U) *channel = b[1] - 1U;
@@ -257,6 +286,8 @@ void expression_init(void)
     pedals[i].switches_primed = false;
     pedals[i].target_cc = 0xFFU;
     pedals[i].target_channel = 0xFFU;
+    pedals[i].target_min = 0xFFU;
+    pedals[i].target_max = 0xFFU;
     set_pin_pulldown(kExpChannels[i]);   // never leave the pin floating
   }
   next_process_tick = 0U;
@@ -303,39 +334,47 @@ static void process_pedal(uint32_t i)
       filtered = p->last_stable_adc;
   }
 
+  // Pedal position, 0 at the heel and 127 at the toe. The switches and the
+  // activity marker follow it; the value sent is scaled into the output range.
   uint8_t midi_value = adc_to_midi(&p->cal, filtered);
 
-  // A bank change can move the pedal to another CC or channel, or silence it.
-  // The new target is not sent the old position: it follows the next movement.
-  uint8_t cc, channel;
-  bool enabled = pedal_target(i, &cc, &channel);
+  // Only a real move counts as activity; noise must not hold off sleep
+  if (!p->activity_ref_set) {
+      p->activity_ref = midi_value;
+      p->activity_ref_set = true;
+  } else {
+      uint8_t moved = (midi_value > p->activity_ref)
+                    ? (uint8_t)(midi_value - p->activity_ref)
+                    : (uint8_t)(p->activity_ref - midi_value);
+      if (moved >= EXP_ACTIVITY_MOVE) {
+          p->activity_ref = midi_value;
+          sleep_note_activity();
+      }
+  }
+
+  // A bank change can move the pedal to another CC, channel or range, or
+  // silence it. The new target is not sent the old position: it follows the
+  // next movement.
+  uint8_t cc, channel, lo, hi;
+  bool enabled = pedal_target(i, &cc, &channel, &lo, &hi);
+  uint8_t out_value = scale_output(midi_value, lo, hi);
   uint8_t target = enabled ? cc : BANK_EXP_CC_OFF;
-  if (target != p->target_cc || channel != p->target_channel) {
+  if (target != p->target_cc || channel != p->target_channel
+      || lo != p->target_min || hi != p->target_max) {
       if (p->target_cc != 0xFFU) {
-          p->last_sent_midi = midi_value;
+          p->last_sent_midi = out_value;
       }
       p->target_cc = target;
       p->target_channel = channel;
+      p->target_min = lo;
+      p->target_max = hi;
   }
 
-  if (p->last_sent_midi != midi_value) {
-      // Only a real move counts as activity; noise must not hold off sleep
-      if (!p->activity_ref_set) {
-          p->activity_ref = midi_value;
-          p->activity_ref_set = true;
-      } else {
-          uint8_t moved = (midi_value > p->activity_ref)
-                        ? (uint8_t)(midi_value - p->activity_ref)
-                        : (uint8_t)(p->activity_ref - midi_value);
-          if (moved >= EXP_ACTIVITY_MOVE) {
-              p->activity_ref = midi_value;
-              sleep_note_activity();
-          }
-      }
+  if (p->last_sent_midi != out_value) {
       if (!enabled) {
-          p->last_sent_midi = midi_value;    // silent in this bank
-      } else if (midiCmd_send_cc(channel, cc, midi_value) != ERROR_BUFFERS_FULL) {
-          p->last_sent_midi = midi_value;
+          p->last_sent_midi = out_value;    // silent in this bank
+      } else if (midiCmd_send_cc(channel, cc, out_value) != ERROR_BUFFERS_FULL) {
+          p->last_sent_midi = out_value;
       }
   }
 

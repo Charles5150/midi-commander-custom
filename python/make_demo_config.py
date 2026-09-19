@@ -252,14 +252,16 @@ def build() -> Demo:
     d.long_press(2, "A", CommandType="Scene", **{"OnValue_(CC/PB)": "+-+..-.."})   # a mix
     # MOMT does all three: a tap sends CC 13, holding it is the all-off scene
     # above, and a double press latches CC 18 on and off
-    # Expression per bank: here pedal 1 is a modulation wheel instead of CC 11
-    d.bank_expression(2, Exp1_CC="1")
+    # Expression per bank: here pedal 1 is a modulation wheel instead of CC 11,
+    # held between 20 and 100
+    d.bank_expression(2, Exp1_CC="1", Exp1_Min="20", Exp1_Max="100")
     d.double_press(2, "4", CommandType="CC",
                    **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": "18",
                       "OnValue_(CC/PB)": "127", "OffValue_(CC)": "0", "Toggle_(CC/PB/Note)": "Y"})
 
-    # KNOB silences pedal 1 and moves pedal 2 to CC 7 on channel 2
-    d.bank_expression(7, Exp1_CC="Off", Exp2_CC="7", Exp2_Channel="2")
+    # KNOB silences pedal 1 and moves pedal 2 to CC 7 on channel 2, a volume
+    # that never drops below 40
+    d.bank_expression(7, Exp1_CC="Off", Exp2_CC="7", Exp2_Channel="2", Exp2_Min="40")
 
     # --- bank 3: program changes, with and without bank select -----------
     d.pc(3, "1", "P 0", "0")
