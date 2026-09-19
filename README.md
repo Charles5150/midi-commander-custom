@@ -72,6 +72,7 @@ The firmware replaces the stock MeloAudio one but never touches its bootloader, 
 - **Sleep mode.** When the computer the pedal is connected to suspends, LEDs and display switch off; they come back when it wakes.
 - **Ready for the Fractal FM3.** A template that loads a preset per bank and puts scenes, tuner, tap tempo, the looper and block bypass under your feet; see [the FM3 template](#fractal-audio-fm3-template).
 - **Ready for the Line 6 HX Stomp.** A template with a preset per bank, snapshots, footswitches FS1–FS5, tuner, tap tempo and the looper, using the HX Stomp's own MIDI map so there is nothing to assign; see [the HX Stomp template](#line-6-hx-stomp-template).
+- **Ready for the Kemper Profiler Player.** A template with the Player's ten banks of five rigs, its effect modules and effect buttons, tuner and tap tempo, again with nothing to assign on the Player; see [the Kemper Player template](#kemper-profiler-player-template).
 - **Configuration over USB.** Flash a configuration to the pedal and read it back, from the GUI or the command line, over ordinary USB MIDI SysEx. No special driver.
 - **Backups.** Copy all four configuration slots to a folder in one go, one editable CSV each, and put them all back just as easily.
 - Firmware updates through the stock DFU bootloader with `dfu-util`.
@@ -245,6 +246,36 @@ The HX Stomp has a fixed MIDI map, so it needs no assignments: under **Global Se
 | Snapshot | 69 | 0–2 snapshots 1–3, 8 next, 9 previous |
 
 To use another channel, change `CHANNEL` at the top of `python/make_hx_stomp_template.py` and run it again, or edit the buttons in the configurator. Presets above 10C take a Program Change with the preset number, 0 to 125.
+
+### Kemper Profiler Player template
+
+**`python/templates/Kemper_Player.csv`** is ready to flash for a Kemper Profiler Player. The Player has no DIN sockets: plug the pedal's USB into the Player's USB A socket, where the Player acts as host and powers it. That is the link whose Active Sensing stalls the stock firmware, which this one drains, as described above.
+
+| Banks | Buttons |
+|---|---|
+| 0–9, `BK01`–`BK10` | The Player's ten banks of five rigs. Entering the bank preselects it, 1 2 3 4 A load rigs 1–5 of it, B and C press the Player's effect buttons I and II, and D taps the tempo |
+| 10, `FX` | Modules A, B, DLY and REV, then the four effect buttons I to IIII |
+| 11, `TOOL` | Tuner, rotary speed, delay infinity, freeze, all effects at once, delay and reverb again but keeping their tails, and tap |
+
+Only those twelve banks are in use, so the template turns `Setlist_Mode` on and Bank Up / Down walk them and skip the empty ones; a long press jumps five. The rig buttons are an exclusive group, so the LED and the display show the rig last picked and pressing the lit one again sends nothing. Entering a bank only preselects it on the Player: the rig changes when you press one of the five, which is what keeps the sound from jumping about while you walk the banks with your foot.
+
+The Player has a fixed MIDI map, so it needs no assignments: it listens on all sixteen channels unless **System Settings > MIDI In Channel** says otherwise. The template sends:
+
+| Function | CC | Values |
+|---|---|---|
+| Wah pedal, Volume pedal | 1, 7 | the two expression pedals |
+| All modules at once | 16 | 127 inverts every module |
+| Module A, module B | 17, 18 | 127 and 0 |
+| Delay, reverb | 26, 28 | 127 and 0, tails cut |
+| Delay, reverb keeping the tails | 27, 29 | 127 and 0 |
+| Tap Tempo | 30 | 127, on the press only |
+| Tuner | 31 | 127 opens it, 0 closes it |
+| Rotary speed, delay infinity, freeze | 33, 34, 35 | 127, and each press flips it |
+| Bank preselect | 47 | 0–9, sent when you enter one of the ten rig banks |
+| Rigs 1–5 of the bank | 50–54 | 1, which is what loads the rig |
+| Effect buttons I–IIII | 75–78 | 127 and 0 |
+
+To use another channel, change `CHANNEL` at the top of `python/make_kemper_player_template.py` and run it again, or edit the buttons in the configurator. The fifty rigs also answer to a plain Program Change: the Player's manual numbers them 1 to 50, which is `Number` 0 to 49 here.
 
 ### Global_Settings
 

@@ -24,6 +24,7 @@ SAMPLE_CSV = os.path.join(os.path.dirname(HERE), "MeloConfig_10_Cmds - RC-600.cs
 DEMO_CSV = os.path.join(os.path.dirname(HERE), "demo-all-features.csv")
 FM3_CSV = os.path.join(os.path.dirname(HERE), "templates", "FM3.csv")
 HX_STOMP_CSV = os.path.join(os.path.dirname(HERE), "templates", "HX_Stomp.csv")
+KEMPER_PLAYER_CSV = os.path.join(os.path.dirname(HERE), "templates", "Kemper_Player.csv")
 
 
 def pack_csv(path: str) -> bytes:
@@ -2204,6 +2205,73 @@ class HxStompTemplateTest(unittest.TestCase):
     def test_expression_pedals_are_exp1_and_exp2(self):
         values = self.globals.set_index("Label")["Value"]
         self.assertEqual((norm(values["Exp1_CC"]), norm(values["Exp2_CC"])), ("1", "2"))
+
+
+class KemperPlayerTemplateTest(unittest.TestCase):
+    """The Kemper Player template packs and reads back as the template describes."""
+
+    @classmethod
+    def setUpClass(cls):
+        packed = packer.pack_config(read_config_csv(KEMPER_PLAYER_CSV))
+        tables = unpacker.unpack_config(packed)
+        cls.globals, cls.banks, cls.buttons = tables[0], tables[1], tables[2]
+        cls.enter, cls.setlist = tables[5], tables[8]
+
+    def button(self, bank, btn):
+        b = self.buttons
+        return b[(b["Bank_Number"].astype(str) == str(bank)) & (b["Button_Identifier"] == btn)].iloc[0]
+
+    def test_rig_banks_preselect_their_bank(self):
+        names = self.banks.set_index(self.banks["Bank_Number"].astype(str))
+        for bank, name, rigs in ((0, "BK01", "1 to 5"), (3, "BK04", "16 to 20"), (9, "BK10", "46 to 50")):
+            row = self.enter[self.enter["Bank_Number"].astype(str) == str(bank)].iloc[0]
+            self.assertEqual(row["A_CommandType"], "CC")
+            self.assertEqual(norm(row["A_Number_(PC/CC/Note)"]), "47")
+            self.assertEqual(norm(row["A_OnValue_(CC/PB)"]), str(bank))
+            self.assertEqual(names.loc[str(bank), "Bank_Name_Large"], name)
+            self.assertEqual(names.loc[str(bank), "Bank_Info_Small"], rigs)
+
+    def test_slot_buttons(self):
+        for btn, number in (("1", "50"), ("2", "51"), ("3", "52"), ("4", "53"), ("A", "54")):
+            row = self.button(7, btn)
+            self.assertEqual(norm(row["A_Number_(PC/CC/Note)"]), number)
+            self.assertEqual(norm(row["A_OnValue_(CC/PB)"]), "1")
+            self.assertEqual(norm(row["A_OffValue_(CC)"]), "128")   # sends nothing
+            self.assertEqual(row["A_Toggle_(CC/PB/Note)"], "Y")
+            self.assertEqual(norm(row["Group"]), "1")
+
+    def test_effect_buttons_and_tap(self):
+        for btn, number in (("B", "75"), ("C", "76")):
+            row = self.button(0, btn)
+            self.assertEqual(norm(row["A_Number_(PC/CC/Note)"]), number)
+            self.assertEqual(row["A_Toggle_(CC/PB/Note)"], "Y")
+        tap = self.button(0, "D")
+        self.assertEqual(norm(tap["A_Number_(PC/CC/Note)"]), "30")
+        self.assertEqual(norm(tap["A_OffValue_(CC)"]), "128")
+
+    def test_fx_and_tool_banks(self):
+        names = self.banks.set_index(self.banks["Bank_Number"].astype(str))["Bank_Name_Large"]
+        self.assertEqual((names["10"], names["11"]), ("FX", "TOOL"))
+        for btn, number in (("1", "17"), ("2", "18"), ("3", "26"), ("4", "28"), ("D", "78")):
+            self.assertEqual(norm(self.button(10, btn)["A_Number_(PC/CC/Note)"]), number)
+        # The tuner latches: 127 to open it and 0 to close it
+        self.assertEqual(norm(self.button(11, "1")["A_Number_(PC/CC/Note)"]), "31")
+        self.assertEqual(norm(self.button(11, "1")["A_OffValue_(CC)"]), "0")
+        # What flips on any value sends 127 on both halves of the toggle
+        for btn, number in (("2", "33"), ("3", "34"), ("4", "35")):
+            row = self.button(11, btn)
+            self.assertEqual(norm(row["A_Number_(PC/CC/Note)"]), number)
+            self.assertEqual(norm(row["A_OnValue_(CC/PB)"]), "127")
+            self.assertEqual(norm(row["A_OffValue_(CC)"]), "127")
+
+    def test_only_the_twelve_used_banks_are_in_the_setlist(self):
+        values = self.globals.set_index("Label")["Value"]
+        self.assertEqual(values["Setlist_Mode"], "Y")
+        self.assertEqual([norm(b) for b in self.setlist["Bank_Number"]], [str(b) for b in range(12)])
+
+    def test_expression_pedals_are_wah_and_volume(self):
+        values = self.globals.set_index("Label")["Value"]
+        self.assertEqual((norm(values["Exp1_CC"]), norm(values["Exp2_CC"])), ("1", "7"))
 
 
 class SceneTest(unittest.TestCase):
