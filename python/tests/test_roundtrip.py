@@ -1407,7 +1407,7 @@ class PcIncTest(unittest.TestCase):
                     "A_Number_(PC/CC/Note)": "5", "A_BankSelect_(PC)": "",
                     "A_BankSelectHighByte_(PC)": "N"})
         packed = bytes(cbp.pack_row(pd.Series(row)))[:4]
-        self.assertNotIn(packed[2], (cbp.PC_REL_UP, cbp.PC_REL_DOWN))
+        self.assertNotIn(packed[2], cbp.PC_REL_MARKERS)
         self.assertEqual(unpacker.unpack_command(packed)["CommandType"], "PC")
 
     def test_demo_prev_next(self):
@@ -1513,6 +1513,52 @@ class RampTest(unittest.TestCase):
         self.assertEqual((rise["A_CommandType"], rise["A_Duration_(Note/PB)"]), ("Ramp", "500"))
         self.assertEqual((rise["B_CommandType"], rise["B_Number_(PC/CC/Note)"],
                           rise["B_Toggle_(CC/PB/Note)"]), ("CC", "13", "N"))
+
+
+class RepeatTest(unittest.TestCase):
+    """Auto-repeat of CCInc and PCInc while the button is held."""
+
+    @staticmethod
+    def pack(cmd_type, mode, step="2", number="7", start="64", wrap="N"):
+        row = {f"A_{f}": "" for f in unpacker.CMD_FIELDS}
+        row.update({
+            "A_CommandType": cmd_type, "A_Channel_(PC/CC/Note/PB)": "1",
+            "A_Number_(PC/CC/Note)": number, "A_OnValue_(CC/PB)": start,
+            "A_OffValue_(CC)": step, "A_KeyMode_(Key)": mode,
+            "A_Toggle_(CC/PB/Note)": wrap,
+        })
+        return bytes(cbp.pack_row(pd.Series(row)))[:4]
+
+    def test_ccinc_encoding(self):
+        self.assertEqual(list(self.pack("CCInc", "Up Repeat")), [0x50, 7, 0x82, 64])
+        self.assertEqual(list(self.pack("CCInc", "Down Repeat", step="127")), [0x50, 7, 0xFF, 0xC0])
+        self.assertEqual(list(self.pack("CCInc", "Up")), [0x50, 7, 2, 64])
+
+    def test_pcinc_encoding(self):
+        self.assertEqual(list(self.pack("PCInc", "Up Repeat", number="127")), [0xC0, 2, 0x83, 127])
+        self.assertEqual(list(self.pack("PCInc", "Down Repeat", number="127")), [0xC0, 2, 0x84, 127])
+
+    def test_never_a_toggle(self):
+        """Byte 1 bit 7 is the toggle bit: repeating must not set it."""
+        for cmd_type in ("CCInc", "PCInc"):
+            for mode in ("Up Repeat", "Down Repeat"):
+                self.assertEqual(self.pack(cmd_type, mode, step="127")[1] & 0x80, 0)
+
+    def test_round_trip(self):
+        for cmd_type in ("CCInc", "PCInc"):
+            for mode in ("Up", "Down", "Up Repeat", "Down Repeat"):
+                d = unpacker.unpack_command(self.pack(cmd_type, mode, step="3"))
+                self.assertEqual((d["CommandType"], d["KeyMode_(Key)"], d["OffValue_(CC)"]),
+                                 (cmd_type, mode, "3"))
+
+    def test_demo_volume(self):
+        buttons = unpacker.unpack_config(packer.pack_config(read_config_csv(DEMO_CSV)))[2]
+        def btn(b):
+            r = buttons[(buttons["Bank_Number"].astype(str) == "7")
+                        & (buttons["Button_Identifier"].astype(str) == b)].iloc[0]
+            return r["Label"], r["A_CommandType"], r["A_KeyMode_(Key)"]
+        self.assertEqual(btn("1"), ("VOL+", "CCInc", "Up Repeat"))
+        self.assertEqual(btn("2"), ("VOL-", "CCInc", "Down Repeat"))
 
 
 class SceneTest(unittest.TestCase):

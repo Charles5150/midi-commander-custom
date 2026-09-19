@@ -315,8 +315,9 @@ def build() -> Demo:
     d.long_press(6, "4", CommandType="Panic")
 
     # --- bank 7: relative CC and ramps ---------------------------------------
-    d.ccinc(7, "1", "VOL+", "7", "Up", 5, 64)
-    d.ccinc(7, "2", "VOL-", "7", "Down", 5, 64)
+    # Held down, the volume keeps moving, faster and faster
+    d.ccinc(7, "1", "VOL+", "7", "Up Repeat", 2, 64)
+    d.ccinc(7, "2", "VOL-", "7", "Down Repeat", 2, 64)
     d.ccinc(7, "3", "PAN+", "10", "Up", 8, 64)
     d.ccinc(7, "4", "PAN-", "10", "Down", 8, 64)
     d.ccinc(7, "A", "WRP+", "11", "Up", 16, 0, wrap="Y")   # wraps past 127

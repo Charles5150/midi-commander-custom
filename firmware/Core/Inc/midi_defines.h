@@ -73,15 +73,20 @@
 #define CMD_PC_NIBBLE		(0xC0)
 // Relative Program Change: a PC whose byte 2 (the Bank Select MSB, 0x80 and up
 // meaning none) holds one of these markers. Byte 1 is the step, byte 3 the last
-// program in the range, with bit 7 set to wrap round at the ends.
+// program in the range, with bit 7 set to wrap round at the ends. The REPEAT
+// markers also fire the command again while the button is held.
 #define PC_REL_UP			(0x81)
 #define PC_REL_DOWN			(0x82)
+#define PC_REL_UP_REPEAT	(0x83)
+#define PC_REL_DOWN_REPEAT	(0x84)
+#define PC_IS_RELATIVE(b2)	((b2) >= PC_REL_UP && (b2) <= PC_REL_DOWN_REPEAT)
 #define CMD_CC_NIBBLE		(0xB0)
 #define CMD_PB_NIBBLE		(0xE0)
 #define CMD_NOTE_NIBBLE		(0x90)
 #define CMD_KEY_NIBBLE		(0xD0)
 #define CMD_TAP_NIBBLE		(0x70)	// Tap tempo: low nibble = mode (0 tap, 1 toggle the clock)
-#define CMD_CCINC_NIBBLE	(0x50)	// Relative CC: byte1 = CC | wrap<<7, byte2 = step, byte3 = down<<7 | start value
+#define CMD_CCINC_NIBBLE	(0x50)	// Relative CC: byte1 = CC | wrap<<7, byte2 = step | repeat<<7, byte3 = down<<7 | start value
+#define CCINC_REPEAT_BIT	(0x80)	// In the step byte of CCInc: repeat while held
 #define CMD_SYSEX_NIBBLE	(0x60)	// Stored SysEx string: byte1 = index into the string table
 #define CMD_BANK_NIBBLE		(0x40)	// Bank change: low nibble = mode (0 go to, 1 up by, 2 down by), byte 1 = value
 #define CMD_MEDIA_NIBBLE	(0x30)	// Consumer control (media) key: bytes 1-2 = usage (10 bits), byte 3 = duration | toggle

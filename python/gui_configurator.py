@@ -157,7 +157,7 @@ TAP_MODES = ["Tap", "Clock"]
 SCENE_STATES = ["-", "On", "Off"]
 BANK_SWITCH_MODES = ["Bank", "Bank+MIDI", "MIDI only"]
 BANK_SWITCH_CHOICES = [f"{sw} / {pr}" for sw, pr in BANK_SWITCH_LISTS]
-CCINC_DIRECTIONS = ["Up", "Down"]
+CCINC_DIRECTIONS = ["Up", "Down", "Up Repeat", "Down Repeat"]
 BANK_MODES = ["GoTo", "Up", "Down", "Config", "NextConfig"]
 CONFIG_SLOT_NAMES = ["1", "2", "3", "4"]
 # Which configuration slot Read and Flash use; "Active" lets the pedal decide
@@ -465,7 +465,7 @@ class SlotEditor:
             self._channel()
             self._int("number", "CC#", "Number_(PC/CC/Note)", 0, 127)
             self._label("Dir")
-            w = Option(self.params, CCINC_DIRECTIONS, self.initial.get("KeyMode_(Key)"), width=75)
+            w = Option(self.params, CCINC_DIRECTIONS, self.initial.get("KeyMode_(Key)"), width=110)
             w.pack(side="left")
             self.widgets["ccincdir"] = w
             self._int("step", "Step", "OffValue_(CC)", 1, 127, width=50)
@@ -474,7 +474,7 @@ class SlotEditor:
         elif cmd_type == "PCInc":
             self._channel()
             self._label("Dir")
-            w = Option(self.params, CCINC_DIRECTIONS, self.initial.get("KeyMode_(Key)"), width=75)
+            w = Option(self.params, CCINC_DIRECTIONS, self.initial.get("KeyMode_(Key)"), width=110)
             w.pack(side="left")
             self.widgets["ccincdir"] = w
             self._int("step", "Step", "OffValue_(CC)", 1, 127, width=50)

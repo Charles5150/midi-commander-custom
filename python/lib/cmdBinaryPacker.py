@@ -28,6 +28,12 @@ RAMP_MAX_MS = 0xFFFF * 10
 # above already meant "none", holds one of these markers
 PC_REL_UP = 0x81
 PC_REL_DOWN = 0x82
+# The same, also firing again while the button is held
+PC_REL_UP_REPEAT = 0x83
+PC_REL_DOWN_REPEAT = 0x84
+PC_REL_MARKERS = (PC_REL_UP, PC_REL_DOWN, PC_REL_UP_REPEAT, PC_REL_DOWN_REPEAT)
+# In the step byte of CCInc: fire again while the button is held
+CCINC_REPEAT_BIT = 0x80
 # Button order of a scene string, one character each: + on, - off, . leave
 SCENE_BUTTONS = "1234ABCD"
 
@@ -312,20 +318,28 @@ def cmd_tap(cmd):
     return [CMD_TAP_NIBBLE | mode, 0, 0, 0]
 
 
+def inc_mode(cmd):
+    """Direction and auto-repeat of a CCInc or PCInc, from KeyMode such as
+    "Up", "Down" or "Down Repeat"."""
+    text = str(cmd.get("KeyMode_(Key)", "")).strip().upper()
+    return text.startswith("DOWN"), "REPEAT" in text
+
+
 def cmd_ccinc(cmd):
     """Relative CC: each press moves the value by a step.
 
     OnValue is the starting value, OffValue the step, KeyMode the direction
-    (Up/Down) and Toggle enables wrapping past the ends.
+    (Up/Down, with Repeat to fire again while held) and Toggle enables
+    wrapping past the ends.
     """
     start = max(0, min(127, safe_int(cmd.get("OnValue_(CC/PB)", 0))))
     step = max(1, min(127, safe_int(cmd.get("OffValue_(CC)", 1)) or 1))
-    down = str(cmd.get("KeyMode_(Key)", "")).strip().upper().startswith("DOWN")
+    down, repeat = inc_mode(cmd)
     wrap = get_toggle_bit(str(cmd.get("Toggle_(CC/PB/Note)", ""))) != 0
     return [
         CMD_CCINC_NIBBLE | channel_nibble(cmd["Channel_(PC/CC/Note/PB)"]),
         (safe_int(cmd["Number_(PC/CC/Note)"]) & 0x7F) | (0x80 if wrap else 0),
-        step,
+        step | (CCINC_REPEAT_BIT if repeat else 0),
         (0x80 if down else 0) | start,
     ]
 
@@ -335,16 +349,17 @@ def cmd_pcinc(cmd):
 
     Moves from the program last sent on the channel. OffValue is the step,
     Number the last program in the range (127 when empty), KeyMode the
-    direction (Up/Down) and Toggle wraps round at the ends instead of stopping.
+    direction (Up/Down, with Repeat to fire again while held) and Toggle
+    wraps round at the ends instead of stopping.
     """
     step = max(1, min(127, safe_int(cmd.get("OffValue_(CC)", 1)) or 1))
     top = max(0, min(127, safe_int(cmd.get("Number_(PC/CC/Note)", ""), 127)))
-    down = str(cmd.get("KeyMode_(Key)", "")).strip().upper().startswith("DOWN")
+    down, repeat = inc_mode(cmd)
     wrap = get_toggle_bit(str(cmd.get("Toggle_(CC/PB/Note)", ""))) != 0
     return [
         CMD_PC_NIBBLE | channel_nibble(cmd["Channel_(PC/CC/Note/PB)"]),
         step,
-        PC_REL_DOWN if down else PC_REL_UP,
+        PC_REL_MARKERS[(1 if down else 0) + (2 if repeat else 0)],
         (0x80 if wrap else 0) | top,
     ]
 

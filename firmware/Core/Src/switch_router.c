@@ -61,6 +61,10 @@ typedef struct {
 	uint32_t press_tick;         // HAL tick when the button went down
 	uint32_t release_tick;       // HAL tick when a possible first press of a double ended
 	uint8_t press_state;         // PRESS_IDLE / PRESS_PENDING / PRESS_SHORT / PRESS_LONG
+	// Auto-repeat of the CCInc / PCInc commands marked Repeat while held
+	uint8_t *repeat_list;        // List that fired and holds such commands, NULL for none
+	uint32_t repeat_tick;        // HAL tick of the last firing
+	uint16_t repeat_interval;    // ms until the next one
 } sw_t;
 
 #define PRESS_IDLE		(0)  // Released
@@ -244,11 +248,12 @@ static int32_t ccinc_index(const uint8_t *pRom){
 	return -1; // e.g. a bank-enter command: no stored value, always starts fresh
 }
 
-static void send_ccinc(uint8_t *pRom){
+// A repeat (repeat true) that cannot move any further sends nothing
+static void send_ccinc(uint8_t *pRom, bool repeat){
 	uint8_t channel = pRom[0] & 0x0F;
 	uint8_t cc = pRom[1] & 0x7F;
 	uint8_t wrap = (pRom[1] & 0x80) != 0;
-	uint8_t step = pRom[2] ? pRom[2] : 1;
+	uint8_t step = (pRom[2] & 0x7F) ? (pRom[2] & 0x7F) : 1;
 	uint8_t down = (pRom[3] & 0x80) != 0;
 	uint8_t start = pRom[3] & 0x7F;
 
@@ -262,6 +267,7 @@ static void send_ccinc(uint8_t *pRom){
 	int16_t next = (int16_t)current + (down ? -(int16_t)step : (int16_t)step);
 	if(next > 127) next = wrap ? (int16_t)(next - 128) : 127;
 	if(next < 0)   next = wrap ? (int16_t)(next + 128) : 0;
+	if(repeat && next == current) return;
 
 	if(slot >= 0) ccinc_value[slot] = (uint8_t)next;
 	midiCmd_send_cc(channel, cc, (uint8_t)next);
@@ -280,14 +286,15 @@ void sw_note_program(uint8_t channel, uint8_t program){
 	pc_current[channel & 0x0F] = program & 0x7F;
 }
 
-static void send_pc_relative(const uint8_t *pRom){
+static void send_pc_relative(const uint8_t *pRom, bool repeat){
 	uint8_t channel = pRom[0] & 0x0F;
 	int16_t step = (pRom[1] & 0x7F) ? (pRom[1] & 0x7F) : 1;
 	int16_t top = pRom[3] & 0x7F;
 	bool wrap = (pRom[3] & 0x80) != 0;
 	int16_t current = (pc_current[channel] <= 127) ? pc_current[channel] : 0;
 
-	int16_t next = current + ((pRom[2] == PC_REL_DOWN) ? -step : step);
+	bool down = pRom[2] == PC_REL_DOWN || pRom[2] == PC_REL_DOWN_REPEAT;
+	int16_t next = current + (down ? -step : step);
 	if(wrap){
 		next %= top + 1;
 		if(next < 0) next += top + 1;
@@ -295,6 +302,7 @@ static void send_pc_relative(const uint8_t *pRom){
 		if(next > top) next = top;
 		if(next < 0) next = 0;
 	}
+	if(repeat && next == current) return;
 
 	uint8_t pc[4] = { CMD_PC_NIBBLE | channel, (uint8_t)next, 0x80, 0xFF }; // no Bank Select
 	midiCmd_send_pc_command_from_rom(pc);
@@ -585,8 +593,8 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 
 	switch(*pRom & 0xF0){
 	case CMD_PC_NIBBLE:
-		if(pRom[2] == PC_REL_UP || pRom[2] == PC_REL_DOWN){
-			send_pc_relative(pRom);
+		if(PC_IS_RELATIVE(pRom[2])){
+			send_pc_relative(pRom, false);
 		} else {
 			status = midiCmd_send_pc_command_from_rom(pRom);
 			sw_note_program(pRom[0], pRom[1]);
@@ -665,7 +673,7 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 		}
 		break;
 	case CMD_CCINC_NIBBLE:
-		send_ccinc(pRom);
+		send_ccinc(pRom, false);
 		break;
 	case CMD_TAP_NIBBLE:
 		if((*pRom & 0x0F) == 1){
@@ -1099,6 +1107,71 @@ static void run_list_up(uint8_t *base, uint8_t toggle, uint8_t flags){
 	}
 }
 
+/*
+ * Auto-repeat. A CCInc or PCInc command marked Repeat fires again while its
+ * button is held: after REPEAT_DELAY_MS, then every REPEAT_START_MS, each gap
+ * a quarter shorter than the last down to REPEAT_MIN_MS. Only the marked
+ * commands of the list that fired repeat, straight away, whatever pauses the
+ * list holds. Holding a button with long press commands makes a long press,
+ * so its short list cannot repeat, but its long list can.
+ */
+#define REPEAT_DELAY_MS		(500U)
+#define REPEAT_START_MS		(200U)
+#define REPEAT_MIN_MS		(50U)
+
+static bool cmd_repeats(const uint8_t *pRom){
+	switch(pRom[0] & 0xF0){
+	case CMD_CCINC_NIBBLE:
+		return (pRom[2] & CCINC_REPEAT_BIT) != 0;
+	case CMD_PC_NIBBLE:
+		return pRom[2] == PC_REL_UP_REPEAT || pRom[2] == PC_REL_DOWN_REPEAT;
+	default:
+		return false;
+	}
+}
+
+// Called as a list fires: remember it if it has anything to repeat
+static void repeat_arm(sw_t *sw, uint8_t *base){
+	sw->repeat_list = NULL;
+	for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
+		if(cmd_repeats(base + j * MIDI_ROM_CMD_SIZE)){
+			sw->repeat_list = base;
+			sw->repeat_tick = HAL_GetTick();
+			sw->repeat_interval = REPEAT_DELAY_MS;
+			return;
+		}
+	}
+}
+
+static void repeat_task(sw_t *sw, uint32_t now){
+	if(sw->repeat_list == NULL) return;
+	if(sw->press_state != PRESS_SHORT && sw->press_state != PRESS_LONG &&
+			sw->press_state != PRESS_DOUBLE){
+		sw->repeat_list = NULL;	// released, or never held
+		return;
+	}
+	if((now - sw->repeat_tick) < sw->repeat_interval) return;
+	// Step the clock by the interval, not to now, so the main loop's pace
+	// does not stretch every gap; after a long stall, start again from now
+	sw->repeat_tick += sw->repeat_interval;
+	if((now - sw->repeat_tick) >= sw->repeat_interval) sw->repeat_tick = now;
+	if(sw->repeat_interval == REPEAT_DELAY_MS){
+		sw->repeat_interval = REPEAT_START_MS;
+	} else {
+		uint16_t next = (uint16_t)(sw->repeat_interval * 3 / 4);
+		sw->repeat_interval = (next > REPEAT_MIN_MS) ? next : REPEAT_MIN_MS;
+	}
+	for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
+		uint8_t *pRom = sw->repeat_list + j * MIDI_ROM_CMD_SIZE;
+		if(!cmd_repeats(pRom)) continue;
+		if((pRom[0] & 0xF0) == CMD_CCINC_NIBBLE){
+			send_ccinc(pRom, true);
+		} else {
+			send_pc_relative(pRom, true);
+		}
+	}
+}
+
 // LED of a momentary (non toggle) button following the physical press
 static void set_momentary_led(uint8_t i, uint8_t pressed){
 	if(!(a_sw_obj[i].led_cmd_toggle & (1UL<<switch_current_page))){
@@ -1145,6 +1218,7 @@ static void fire_short_down(uint8_t i){
 		set_momentary_led(i, 1);
 	}
 
+	repeat_arm(sw, get_rom_pointer(switch_current_page, i, 0));
 	run_cmd_list(get_rom_pointer(switch_current_page, i, 0), 0, get_sw_toggle_state(sw), i, 0, true);
 }
 
@@ -1161,6 +1235,7 @@ static void fire_long_down(uint8_t i){
 	sw->long_toggle_state ^= (1UL << switch_current_page);
 	state_store_mark_dirty();
 	uint8_t toggleState = (sw->long_toggle_state >> switch_current_page) & 1;
+	repeat_arm(sw, get_long_rom_pointer(switch_current_page, i, 0));
 	run_cmd_list(get_long_rom_pointer(switch_current_page, i, 0), 0, toggleState, i, 0, true);
 }
 
@@ -1576,6 +1651,7 @@ static void fire_double_down(uint8_t i){
 	pending_flush_owner(i);
 	sw->double_toggle_state ^= (1UL << switch_current_page);
 	uint8_t toggleState = (sw->double_toggle_state >> switch_current_page) & 1;
+	repeat_arm(sw, get_double_rom_pointer(switch_current_page, i, 0));
 	run_cmd_list(get_double_rom_pointer(switch_current_page, i, 0), 0, toggleState, i, 0, true);
 }
 
@@ -1697,6 +1773,8 @@ void handle_switches(void){
 				sw->press_state = next;
 			}
 		}
+
+		repeat_task(sw, now);
 	}
 
 	handle_delayed_cmds();
