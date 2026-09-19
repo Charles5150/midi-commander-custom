@@ -894,7 +894,61 @@ class LedFeedbackTest(unittest.TestCase):
         self.assertEqual(packed[34], 1)     # Clock_Follow in the demo
         self.assertEqual(packed[36], 30)    # Double_Press_ms in the demo
         self.assertEqual(packed[37], 1)     # the demo stores double press commands
-        self.assertEqual(packed[38], 0)
+        self.assertEqual(packed[38], 1)     # Remote_Mode CC in the demo
+
+
+class RemotePressTest(unittest.TestCase):
+    """Global bytes 38-40: CC or notes from USB press the switches."""
+
+    def pack_with(self, **values):
+        sections = read_config_csv(DEMO_CSV)
+        g = sections["Global_Settings"]
+        for label, value in values.items():
+            g.loc[g["Label"] == label, "Value"] = value
+        return packer.pack_config(sections)
+
+    def decoded(self, packed):
+        return unpacker.unpack_config(packed)[0].set_index("Label")["Value"]
+
+    def test_demo(self):
+        packed = packer.pack_config(read_config_csv(DEMO_CSV))
+        self.assertEqual(list(packed[38:41]), [1, 16, 102])
+
+    def test_round_trip(self):
+        for mode, byte in (("Off", 0), ("CC", 1), ("Note", 2)):
+            for channel, ch_byte in (("Any", 0), ("1", 1), ("16", 16)):
+                packed = self.pack_with(Remote_Mode=mode, Remote_Channel=channel, Remote_First="36")
+                self.assertEqual(list(packed[38:41]), [byte, ch_byte, 36], (mode, channel))
+                back = self.decoded(packed)
+                self.assertEqual((back["Remote_Mode"], back["Remote_Channel"], back["Remote_First"]),
+                                 (mode, channel, "36"))
+
+    def test_spellings(self):
+        for text, byte in (("off", 0), ("cc", 1), ("note", 2), ("Notes", 2), ("", 0)):
+            self.assertEqual(self.pack_with(Remote_Mode=text)[38], byte, text)
+
+    def test_bad_mode_rejected(self):
+        with self.assertRaises(ValueError):
+            self.pack_with(Remote_Mode="PC")
+
+    def test_first_leaves_room_for_ten(self):
+        self.assertEqual(self.pack_with(Remote_First="127")[40], 118)
+        self.assertEqual(self.pack_with(Remote_First="-3")[40], 0)
+
+    def test_missing_settings_mean_off(self):
+        sections = read_config_csv(DEMO_CSV)
+        g = sections["Global_Settings"]
+        sections["Global_Settings"] = g[~g["Label"].str.startswith("Remote_")]
+        self.assertEqual(list(packer.pack_config(sections)[38:41]), [0, 0, 102])
+
+    def test_older_images_read_off(self):
+        """Configurations written before 0.45 hold 0 here, or erased flash."""
+        image = bytearray(self.pack_with(Remote_Mode="CC"))
+        for old in (0x00, 0xFF):
+            image[38] = image[39] = image[40] = old
+            back = self.decoded(bytes(image))
+            self.assertEqual(back["Remote_Mode"], "Off")
+            self.assertEqual(back["Remote_Channel"], "Any")
 
 
 class DoublePressTest(unittest.TestCase):

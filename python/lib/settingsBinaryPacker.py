@@ -18,12 +18,16 @@ GLOBAL_SETTINGS_SETLIST_MODE = 33
 GLOBAL_SETTINGS_CLOCK_FOLLOW = 34
 GLOBAL_SETTINGS_LED_FEEDBACK = 35
 GLOBAL_SETTINGS_DOUBLE_PRESS = 36
+GLOBAL_SETTINGS_REMOTE_MODE = 38
+GLOBAL_SETTINGS_REMOTE_CHANNEL = 39
+GLOBAL_SETTINGS_REMOTE_FIRST = 40
 # Set by configPacker when the image carries double press commands
 GLOBAL_SETTINGS_DOUBLE_STORED = 37
 
 BANK_SWITCH_MODES = {"BANK": 0, "BANK+MIDI": 1, "MIDI": 2}
 
 BANK_CHANGE_MODES = {"OFF": 0, "PC": 1, "CC": 2}
+REMOTE_MODES = {"OFF": 0, "CC": 1, "NOTE": 2}
 
 def pack_global_settings(df):
     # global settings will be 32 bytes long
@@ -171,6 +175,34 @@ def pack_global_settings(df):
         except ValueError:
             double_ms = 300
     bin_list[GLOBAL_SETTINGS_DOUBLE_PRESS] = max(10, min(100, round(double_ms / 10)))
+
+    # Remote press: ten CCs or notes from Remote_First press the ten switches
+    mode_text = str(df.loc["Remote_Mode", "Value"]).strip().upper() if "Remote_Mode" in df.index else "OFF"
+    if mode_text in ("", "NAN"):
+        mode_text = "OFF"
+    if mode_text.startswith("N"):
+        mode_text = "NOTE"
+    if mode_text not in REMOTE_MODES:
+        raise ValueError(f"Remote_Mode must be Off, CC or Note, not {mode_text!r}")
+    bin_list[GLOBAL_SETTINGS_REMOTE_MODE] = REMOTE_MODES[mode_text]
+
+    ch_text = str(df.loc["Remote_Channel", "Value"]).strip() if "Remote_Channel" in df.index else "Any"
+    if ch_text.upper().startswith("A") or ch_text in ("", "nan"):
+        channel = 0
+    else:
+        try:
+            channel = max(0, min(16, int(float(ch_text))))
+        except ValueError:
+            channel = 0
+    bin_list[GLOBAL_SETTINGS_REMOTE_CHANNEL] = channel
+
+    first = 102
+    if "Remote_First" in df.index:
+        try:
+            first = int(float(str(df.loc["Remote_First", "Value"]).strip() or 102))
+        except ValueError:
+            first = 102
+    bin_list[GLOBAL_SETTINGS_REMOTE_FIRST] = max(0, min(118, first))
 
     return bin_list
 

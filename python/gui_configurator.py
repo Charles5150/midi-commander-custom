@@ -289,6 +289,9 @@ GLOBAL_GROUPS = [
         ("USB_MIDI_Thru", "USB to DIN thru", "forward notes, CC, PC and other devices' SysEx"),
         ("RealTime_Passthrough", "Clock and transport thru", "forward Clock, Start, Continue and Stop"),
         ("Clock_Follow", "Follow the host's clock", "adopt the tempo of MIDI clock from USB"),
+        ("Remote_Mode", "Press from the computer", "CC or notes from USB press the switches"),
+        ("Remote_Channel", "\u2026 listening on channel", ""),
+        ("Remote_First", "\u2026 from number", "1 2 3 4 A B C D, Bank Down, Bank Up take ten in a row"),
     ]),
     ("Power", [
         ("Sleep_After_Min", "Sleep after", "idle minutes before the display and LEDs go out, 0 = never"),
@@ -892,6 +895,9 @@ class MidiCommanderGUI(ctk.CTk):
                 ("Clock_Follow", "N"),
                 ("LED_Feedback", "N"),
                 ("Double_Press_ms", "300"),
+                ("Remote_Mode", "Off"),
+                ("Remote_Channel", "Any"),
+                ("Remote_First", "102"),
             ]
             missing = [{"Label": l, "Value": v} for l, v in defaults if l not in labels]
             if missing:
@@ -1164,7 +1170,11 @@ class MidiCommanderGUI(ctk.CTk):
             return Option(parent, BANK_SWITCH_MODES, value, width=110)
         if label == "Sleep_After_Min":
             return IntEntry(parent, 0, 60, value, width=70)
-        if label == "Bank_Change_Channel":
+        if label == "Remote_Mode":
+            return Option(parent, ["Off", "CC", "Note"], value, width=80)
+        if label == "Remote_First":
+            return IntEntry(parent, 0, 118, value, width=70)
+        if label in ("Bank_Change_Channel", "Remote_Channel"):
             return Option(parent, ["Any"] + CHANNELS, value, width=80)
         if label == "ConfigName":
             return TextEntry(parent, 16, value, width=180)

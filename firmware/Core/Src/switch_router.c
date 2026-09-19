@@ -1939,8 +1939,15 @@ static void virtual_set(uint8_t id, bool down){
 }
 
 static void virtual_task(void){
+	// One change per switch per pass: a press and its release arriving
+	// together (a host sending CC 127 then 0) must not cancel out before the
+	// switch loop has seen the press, so the release waits for the next pass.
+	uint16_t touched = 0;
 	while(virtual_tail != virtual_head){
 		uint8_t e = virtual_queue[virtual_tail];
+		uint16_t bit = (uint16_t)(1U << (e & 0x7F));
+		if(touched & bit) break;
+		touched |= bit;
 		virtual_tail = (uint8_t)((virtual_tail + 1) % VIRTUAL_QUEUE_LEN);
 		virtual_set(e & 0x7F, (e & 0x80) != 0);
 	}

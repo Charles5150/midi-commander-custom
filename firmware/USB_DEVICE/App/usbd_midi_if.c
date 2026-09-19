@@ -439,6 +439,39 @@ static void handle_bank_change_message(uint8_t cin, const uint8_t *data){
 	}
 }
 
+/*
+ * Remote press: a CC or a note in the range set by Remote_First presses one of
+ * the ten switches, 1 2 3 4 A B C D, Bank Down, Bank Up, through the virtual
+ * pedal, so the host drives the pedal's own logic, LEDs and display. A CC of
+ * 64 or more, or a Note On, holds the switch down; a CC below 64, a Note Off
+ * or a Note On with velocity 0 lets it go. A message used this way goes no
+ * further: not to the DIN output, not to LED_Feedback nor bank selection.
+ */
+static bool handle_remote_message(uint8_t cin, const uint8_t *data){
+	uint8_t mode = pGlobalSettings[GLOBAL_SETTINGS_REMOTE_MODE];
+	bool down;
+	if(mode == REMOTE_CC && cin == CIN_CONTROL_CHANGE){
+		down = (data[2] & 0x7F) >= 64;
+	} else if(mode == REMOTE_NOTE && cin == CIN_NOTE_ON){
+		down = (data[2] & 0x7F) > 0;
+	} else if(mode == REMOTE_NOTE && cin == CIN_NOTE_OFF){
+		down = false;
+	} else {
+		return false;
+	}
+
+	uint8_t want_channel = pGlobalSettings[GLOBAL_SETTINGS_REMOTE_CHANNEL];
+	uint8_t channel = (data[0] & 0x0F) + 1;
+	if(want_channel >= 1 && want_channel <= 16 && channel != want_channel) return false;
+
+	uint8_t first = pGlobalSettings[GLOBAL_SETTINGS_REMOTE_FIRST] & 0x7F;
+	uint8_t number = data[1] & 0x7F;
+	if(number < first || number - first >= SW_VIRTUAL_COUNT) return false;
+
+	sw_virtual_press(number - first, down);
+	return true;
+}
+
 static void handle_sysex_event(uint8_t cin, const uint8_t *data, uint8_t len){
 	uint8_t is_end = (cin != CIN_SYSEX_STARTS_OR_CONTINUES);
 
@@ -521,6 +554,7 @@ uint16_t MIDI_DataRx(uint8_t *msg, uint16_t length)
 
 		case CIN_PROGRAM_CHANGE:
 		case CIN_CONTROL_CHANGE:
+			if(handle_remote_message(cin, data)) break;
 			// May select a bank before being forwarded to the DIN output
 			handle_bank_change_message(cin, data);
 			if(cin == CIN_CONTROL_CHANGE){
@@ -533,6 +567,7 @@ uint16_t MIDI_DataRx(uint8_t *msg, uint16_t length)
 
 		case CIN_NOTE_OFF:
 		case CIN_NOTE_ON:
+			if(handle_remote_message(cin, data)) break;
 			// May set the LED of a toggle button that sends this note
 			sw_feedback_message(data);
 			thru_push(data, len);

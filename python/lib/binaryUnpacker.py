@@ -171,6 +171,9 @@ def unpack_global_settings(data: bytes) -> pd.DataFrame:
         ("Clock_Follow", "Y" if g[34] == 1 else "N"),
         ("LED_Feedback", "Y" if g[35] == 1 else "N"),
         ("Double_Press_ms", str((g[36] if 0 < g[36] < 0xFF else 30) * 10)),
+        ("Remote_Mode", {1: "CC", 2: "Note"}.get(g[38], "Off")),
+        ("Remote_Channel", str(g[39]) if 1 <= g[39] <= 16 else "Any"),
+        ("Remote_First", str(g[40] if g[40] <= 118 else 102)),
     ]
     return pd.DataFrame(rows, columns=["Label", "Value"])
 

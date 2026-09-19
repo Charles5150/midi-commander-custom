@@ -166,10 +166,17 @@
 #define GLOBAL_SETTINGS_LED_FEEDBACK (35)	// 1 = incoming CC/Note over USB set matching toggle buttons
 #define GLOBAL_SETTINGS_DOUBLE_PRESS (36)	// Double press window in 10 ms units (0/0xFF = 300 ms)
 #define GLOBAL_SETTINGS_DOUBLE_STORED (37)	// 1 = the tools wrote this slot's double press area
+#define GLOBAL_SETTINGS_REMOTE_MODE (38)	// Remote press: 0 off, 1 Control Change, 2 Note
+#define GLOBAL_SETTINGS_REMOTE_CHANNEL (39)	// 0 = any channel, 1-16 = that channel only
+#define GLOBAL_SETTINGS_REMOTE_FIRST (40)	// CC or note for switch 1; the next nine follow
 
 #define BANK_SWITCH_BANK_ONLY	(0)	// change bank, send nothing (the original behaviour)
 #define BANK_SWITCH_BANK_MIDI	(1)	// change bank and send the switch's commands
 #define BANK_SWITCH_MIDI_ONLY	(2)	// send the commands only, never change bank
+
+#define REMOTE_OFF		(0)
+#define REMOTE_CC		(1)
+#define REMOTE_NOTE		(2)
 
 #define BANK_CHANGE_OFF		(0)
 #define BANK_CHANGE_PC		(1)

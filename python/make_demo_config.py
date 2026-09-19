@@ -518,6 +518,9 @@ def global_settings() -> pd.DataFrame:
                 ("Clock_Follow", "Y"),
                 ("LED_Feedback", "Y"),
                 ("Double_Press_ms", "300"),
+                ("Remote_Mode", "CC"),
+                ("Remote_Channel", "16"),
+                ("Remote_First", "102"),
             )
         ]
     )
