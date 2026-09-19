@@ -152,7 +152,7 @@ BUTTON_GROUPS = ["None", "1", "2", "3", "4"]
 CHANNELS = [str(i) for i in range(1, 17)]
 NO_COMMAND = "(none)"
 COMMAND_TYPES = [NO_COMMAND, "PC", "PCInc", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "Panic", "Scene", "Wait", "Ramp"]
-TAP_MODES = ["Tap", "Clock"]
+TAP_MODES = ["Tap", "Clock", "Set", "Up", "Down", "Up Repeat", "Down Repeat"]
 # A scene leaves a button alone, or switches it on or off
 SCENE_STATES = ["-", "On", "Off"]
 BANK_SWITCH_MODES = ["Bank", "Bank+MIDI", "MIDI only"]
@@ -418,6 +418,11 @@ class SlotEditor:
         w.pack(side="left", padx=(10, 0))
         self.widgets[key] = w
 
+    def _remode(self, cmd_type: str, mode: str):
+        """A menu that changes the fields shown: keep the choice across the rebuild."""
+        self.initial = dict(self.initial, **{"KeyMode_(Key)": mode})
+        self._rebuild(cmd_type)
+
     def _rebuild(self, cmd_type: str):
         for w in self.params.winfo_children():
             w.destroy()
@@ -485,14 +490,27 @@ class SlotEditor:
             self._check("toggle", "Wrap", "Toggle_(CC/PB/Note)")
         elif cmd_type == "Tap":
             self._label("Action")
-            w = Option(self.params, TAP_MODES, self.initial.get("KeyMode_(Key)"), width=80)
+            w = Option(self.params, TAP_MODES, self.initial.get("KeyMode_(Key)"), width=110,
+                       command=lambda v: self._remode("Tap", v))
             w.pack(side="left")
             self.widgets["tapmode"] = w
-            ctk.CTkLabel(
-                self.params,
-                text="(Tap sets the tempo, Clock starts/stops the MIDI clock)",
-                text_color=MUTED,
-            ).pack(side="left", padx=8)
+            mode = w.get()
+            if mode == "Set":
+                self._label("BPM")
+                v = IntEntry(self.params, 30, 300, self.initial.get("OnValue_(CC/PB)") or "120", width=55)
+                v.pack(side="left")
+                self.widgets["bpm"] = v
+            elif mode.startswith(("Up", "Down")):
+                self._label("Step")
+                v = IntEntry(self.params, 1, 127, self.initial.get("OffValue_(CC)") or "1", width=50)
+                v.pack(side="left")
+                self.widgets["step"] = v
+            else:
+                ctk.CTkLabel(
+                    self.params,
+                    text="(Tap sets the tempo, Clock starts/stops the MIDI clock)",
+                    text_color=MUTED,
+                ).pack(side="left", padx=8)
         elif cmd_type == "SysEx":
             self._label("String")
             w = Option(self.params, [str(i) for i in range(SYSEX_STRING_COUNT)],
@@ -504,7 +522,7 @@ class SlotEditor:
         elif cmd_type == "Bank":
             self._label("Action")
             w = Option(self.params, BANK_MODES, self.initial.get("KeyMode_(Key)"), width=80,
-                       command=lambda _v: self._rebuild("Bank"))
+                       command=lambda v: self._remode("Bank", v))
             w.pack(side="left")
             self.widgets["bankmode"] = w
             mode = w.get()
@@ -600,6 +618,10 @@ class SlotEditor:
             out["Number_(PC/CC/Note)"] = w["sysexindex"].value()
         if cmd_type == "Tap":
             out["KeyMode_(Key)"] = w["tapmode"].value()
+            if "bpm" in w:
+                out["OnValue_(CC/PB)"] = w["bpm"].value()
+            if "step" in w:
+                out["OffValue_(CC)"] = w["step"].value()
         if cmd_type == "Scene":
             code = {"On": "+", "Off": "-"}
             out["OnValue_(CC/PB)"] = "".join(code.get(w[f"scene_{i}"].value(), ".") for i in range(8))

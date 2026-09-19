@@ -84,7 +84,16 @@
 #define CMD_PB_NIBBLE		(0xE0)
 #define CMD_NOTE_NIBBLE		(0x90)
 #define CMD_KEY_NIBBLE		(0xD0)
-#define CMD_TAP_NIBBLE		(0x70)	// Tap tempo: low nibble = mode (0 tap, 1 toggle the clock)
+#define CMD_TAP_NIBBLE		(0x70)	// Tap tempo: low nibble = mode, see the TAP_MODE_ values
+// Tap command modes. Set: bytes 2 (low 7 bits) and 3 (high bits) hold the BPM.
+// Up / Down: byte 2 is the step in BPM, with TAP_REPEAT_BIT to repeat while
+// held. Byte 1 stays 0, as its top bit marks a toggling command.
+#define TAP_MODE_TAP		(0)
+#define TAP_MODE_CLOCK		(1)
+#define TAP_MODE_SET		(2)
+#define TAP_MODE_UP			(3)
+#define TAP_MODE_DOWN		(4)
+#define TAP_REPEAT_BIT		(0x80)
 #define CMD_CCINC_NIBBLE	(0x50)	// Relative CC: byte1 = CC | wrap<<7, byte2 = step | repeat<<7, byte3 = down<<7 | start value
 #define CCINC_REPEAT_BIT	(0x80)	// In the step byte of CCInc: repeat while held
 #define CMD_SYSEX_NIBBLE	(0x60)	// Stored SysEx string: byte1 = index into the string table

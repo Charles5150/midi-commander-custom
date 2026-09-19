@@ -1562,6 +1562,58 @@ class RepeatTest(unittest.TestCase):
         self.assertEqual(btn("2"), ("VOL-", "CCInc", "Down Repeat"))
 
 
+class TempoCommandTest(unittest.TestCase):
+    """Tap commands that set the tempo or step it."""
+
+    pack = staticmethod(RepeatTest.pack)
+
+    def tap(self, mode, bpm="", step=""):
+        return self.pack("Tap", mode, step=step, start=bpm, number="")
+
+    def test_encoding(self):
+        self.assertEqual(list(self.tap("Tap")), [0x70, 0, 0, 0])
+        self.assertEqual(list(self.tap("Clock")), [0x71, 0, 0, 0])
+        self.assertEqual(list(self.tap("Set", bpm="120")), [0x72, 0, 120, 0])
+        self.assertEqual(list(self.tap("Set", bpm="300")), [0x72, 0, 300 & 0x7F, 2])
+        self.assertEqual(list(self.tap("Up", step="5")), [0x73, 0, 5, 0])
+        self.assertEqual(list(self.tap("Down Repeat", step="1")), [0x74, 0, 0x81, 0])
+
+    def test_defaults_and_limits(self):
+        self.assertEqual(list(self.tap("Set")), [0x72, 0, 120, 0])       # empty: 120
+        self.assertEqual(list(self.tap("Set", bpm="10")), [0x72, 0, 30, 0])
+        self.assertEqual(list(self.tap("Set", bpm="999")), [0x72, 0, 300 & 0x7F, 2])
+        self.assertEqual(list(self.tap("Up")), [0x73, 0, 1, 0])          # empty: 1 BPM
+
+    def test_never_a_toggle(self):
+        for mode in ("Set", "Up Repeat", "Down Repeat"):
+            self.assertEqual(self.tap(mode, bpm="300", step="127")[1] & 0x80, 0)
+
+    def test_round_trip(self):
+        d = unpacker.unpack_command(self.tap("Set", bpm="174"))
+        self.assertEqual((d["CommandType"], d["KeyMode_(Key)"], d["OnValue_(CC/PB)"]),
+                         ("Tap", "Set", "174"))
+        for mode in ("Up", "Down", "Up Repeat", "Down Repeat"):
+            d = unpacker.unpack_command(self.tap(mode, step="4"))
+            self.assertEqual((d["CommandType"], d["KeyMode_(Key)"], d["OffValue_(CC)"]),
+                             ("Tap", mode, "4"))
+        for mode in ("Tap", "Clock"):
+            self.assertEqual(unpacker.unpack_command(self.tap(mode))["KeyMode_(Key)"], mode)
+
+    def test_demo_bank(self):
+        sections = unpacker.unpack_config(packer.pack_config(read_config_csv(DEMO_CSV)))
+        buttons, long_frame = sections[2], sections[3]
+        def row(frame, b):
+            return frame[(frame["Bank_Number"].astype(str) == "6")
+                         & (frame["Button_Identifier"].astype(str) == b)].iloc[0]
+        self.assertEqual((row(buttons, "C")["Label"], row(buttons, "C")["A_KeyMode_(Key)"]),
+                         ("BPM+", "Up Repeat"))
+        self.assertEqual((row(buttons, "D")["Label"], row(buttons, "D")["A_KeyMode_(Key)"]),
+                         ("BPM-", "Down Repeat"))
+        hold = row(long_frame, "B")
+        self.assertEqual((hold["A_CommandType"], hold["A_KeyMode_(Key)"], hold["A_OnValue_(CC/PB)"]),
+                         ("Tap", "Set", "120"))
+
+
 class Fm3TemplateTest(unittest.TestCase):
     """The FM3 template packs and reads back as the template describes."""
 

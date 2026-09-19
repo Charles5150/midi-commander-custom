@@ -317,6 +317,41 @@ static void send_pc_relative(const uint8_t *pRom, bool repeat){
 }
 
 // A stored SysEx payload, wrapped in F0 ... F7 and sent to USB and DIN
+// A Tap command that steps the tempo up or down
+static bool tap_is_step(const uint8_t *pRom){
+	uint8_t mode = pRom[0] & 0x0F;
+	return mode == TAP_MODE_UP || mode == TAP_MODE_DOWN;
+}
+
+/*
+ * Tap command: tap the tempo, start or stop the clock, set the tempo to a
+ * fixed BPM, or step it up or down. The new tempo shows on the display; the
+ * running clock and the free beat pick it up at once.
+ */
+static void send_tap(const uint8_t *pRom){
+	uint16_t bpm = tempo_get_bpm();
+	uint8_t step = pRom[2] & 0x7F;
+	switch(pRom[0] & 0x0F){
+	case TAP_MODE_CLOCK:
+		tempo_clock_toggle();
+		break;
+	case TAP_MODE_SET:
+		tempo_set_bpm((uint16_t)((pRom[2] & 0x7F) | ((pRom[3] & 0x7F) << 7)));
+		break;
+	case TAP_MODE_UP:
+		tempo_set_bpm((uint16_t)(bpm + (step ? step : 1)));
+		break;
+	case TAP_MODE_DOWN:
+		step = step ? step : 1;
+		tempo_set_bpm(bpm > step ? (uint16_t)(bpm - step) : 0);	// clamped to the minimum
+		break;
+	default:
+		tempo_tap();
+		break;
+	}
+	display_show_tempo();
+}
+
 static void send_stored_sysex(const uint8_t *pRom){
 	uint8_t index = pRom[1];
 	if(index >= SYSEX_STRING_COUNT) return;
@@ -485,8 +520,11 @@ uint8_t calculate_led_state(uint8_t pressed, uint8_t mode){
 // Note a Tap command in any of a button's lists, for the beat flash
 static void note_tap_cmd(sw_t *sw, uint8_t page, const uint8_t *pCmd){
 	if((pCmd[0] & 0xF0) != CMD_TAP_NIBBLE) return;
-	if((pCmd[0] & 0x0F) == 1) sw->clock_blink |= (1UL<<page);
-	else sw->tap_blink |= (1UL<<page);
+	switch(pCmd[0] & 0x0F){
+	case TAP_MODE_TAP:   sw->tap_blink |= (1UL<<page); break;
+	case TAP_MODE_CLOCK: sw->clock_blink |= (1UL<<page); break;
+	default: break;	// setting the tempo is no reason to flash
+	}
 }
 
 static void tap_led_task(void);
@@ -693,12 +731,7 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 		send_ccinc(pRom, false);
 		break;
 	case CMD_TAP_NIBBLE:
-		if((*pRom & 0x0F) == 1){
-			tempo_clock_toggle();
-		} else {
-			tempo_tap();
-		}
-		display_show_tempo();
+		send_tap(pRom);
 		break;
 	case CMD_SYSEX_NIBBLE:
 		send_stored_sysex(pRom);
@@ -1140,6 +1173,8 @@ static bool cmd_repeats(const uint8_t *pRom){
 	switch(pRom[0] & 0xF0){
 	case CMD_CCINC_NIBBLE:
 		return (pRom[2] & CCINC_REPEAT_BIT) != 0;
+	case CMD_TAP_NIBBLE:
+		return tap_is_step(pRom) && (pRom[2] & TAP_REPEAT_BIT) != 0;
 	case CMD_PC_NIBBLE:
 		return pRom[2] == PC_REL_UP_REPEAT || pRom[2] == PC_REL_DOWN_REPEAT;
 	default:
@@ -1183,6 +1218,8 @@ static void repeat_task(sw_t *sw, uint32_t now){
 		if(!cmd_repeats(pRom)) continue;
 		if((pRom[0] & 0xF0) == CMD_CCINC_NIBBLE){
 			send_ccinc(pRom, true);
+		} else if((pRom[0] & 0xF0) == CMD_TAP_NIBBLE){
+			send_tap(pRom);
 		} else {
 			send_pc_relative(pRom, true);
 		}

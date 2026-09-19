@@ -262,7 +262,17 @@ def unpack_command(raw: bytes) -> dict:
         cmd["Toggle_(CC/PB/Note)"] = "Y" if b1 & 0x80 else "N"
     elif cmd_type == CMD_TAP_NIBBLE:
         cmd["CommandType"] = "Tap"
-        cmd["KeyMode_(Key)"] = "Clock" if (b0 & 0x0F) == 1 else "Tap"
+        mode = b0 & 0x0F
+        if mode == 1:
+            cmd["KeyMode_(Key)"] = "Clock"
+        elif mode == 2:
+            cmd["KeyMode_(Key)"] = "Set"
+            cmd["OnValue_(CC/PB)"] = str((b2 & 0x7F) | ((b3 & 0x7F) << 7))
+        elif mode in (3, 4):
+            cmd["KeyMode_(Key)"] = ("Down" if mode == 4 else "Up") + (" Repeat" if b2 & 0x80 else "")
+            cmd["OffValue_(CC)"] = str(b2 & 0x7F)
+        else:
+            cmd["KeyMode_(Key)"] = "Tap"
     elif cmd_type == CMD_SYSEX_NIBBLE:
         cmd["CommandType"] = "SysEx"
         cmd["Number_(PC/CC/Note)"] = str(b1)

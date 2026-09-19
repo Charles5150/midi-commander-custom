@@ -312,10 +312,27 @@ def cmd_media(cmd):
     return [CMD_MEDIA_NIBBLE, usage & 0xFF, (usage >> 8) & 0x03, duration | toggle_bit]
 
 
+TAP_MODE_TAP, TAP_MODE_CLOCK, TAP_MODE_SET, TAP_MODE_UP, TAP_MODE_DOWN = range(5)
+TAP_REPEAT_BIT = 0x80
+TEMPO_BPM_MIN, TEMPO_BPM_MAX = 30, 300
+
+
 def cmd_tap(cmd):
-    """Tap tempo. KeyMode picks the action: Tap, or Clock to start/stop it."""
-    mode = 1 if str(cmd.get("KeyMode_(Key)", "")).strip().upper().startswith("CLOCK") else 0
-    return [CMD_TAP_NIBBLE | mode, 0, 0, 0]
+    """Tap tempo. KeyMode picks the action: Tap, Clock to start/stop the
+    clock, Set to set the tempo to OnValue BPM, or Up/Down to move it by
+    OffValue BPM (1 when empty), with Repeat to keep moving while held."""
+    text = str(cmd.get("KeyMode_(Key)", "")).strip().upper()
+    if text.startswith("CLOCK"):
+        return [CMD_TAP_NIBBLE | TAP_MODE_CLOCK, 0, 0, 0]
+    if text.startswith("SET"):
+        bpm = max(TEMPO_BPM_MIN, min(TEMPO_BPM_MAX, safe_int(cmd.get("OnValue_(CC/PB)", ""), 120)))
+        return [CMD_TAP_NIBBLE | TAP_MODE_SET, 0, bpm & 0x7F, bpm >> 7]
+    if text.startswith("UP") or text.startswith("DOWN"):
+        down, repeat = inc_mode(cmd)
+        step = max(1, min(127, safe_int(cmd.get("OffValue_(CC)", 1)) or 1))
+        return [CMD_TAP_NIBBLE | (TAP_MODE_DOWN if down else TAP_MODE_UP), 0,
+                step | (TAP_REPEAT_BIT if repeat else 0), 0]
+    return [CMD_TAP_NIBBLE | TAP_MODE_TAP, 0, 0, 0]
 
 
 def inc_mode(cmd):

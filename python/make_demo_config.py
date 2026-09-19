@@ -309,8 +309,12 @@ def build() -> Demo:
     d.transport(6, "4", "STOP", "Stop")
     d.tap(6, "A", "TAP2", "Tap")
     d.cc(6, "B", "SYNC", "20", toggle="Y")
-    d.transport(6, "C", "STRT", "Start")
-    d.transport(6, "D", "STOP", "Stop")
+    # The tempo a BPM at a time, faster while held; hold SYNC for 120 BPM
+    d.button(6, "C", "BPM+", None, "A", CommandType="Tap",
+             **{"KeyMode_(Key)": "Up Repeat", "OffValue_(CC)": "1"})
+    d.button(6, "D", "BPM-", None, "A", CommandType="Tap",
+             **{"KeyMode_(Key)": "Down Repeat", "OffValue_(CC)": "1"})
+    d.long_press(6, "B", CommandType="Tap", **{"KeyMode_(Key)": "Set", "OnValue_(CC/PB)": "120"})
     # Hold STOP for panic: every sound and note off, on every channel
     d.long_press(6, "4", CommandType="Panic")
 
