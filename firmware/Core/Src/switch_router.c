@@ -58,6 +58,9 @@ typedef struct {
 	uint32_t double_toggle_state; // Toggle state of the double press commands, bit per bank
 	uint32_t double_cmd_present;  // Bit per bank: this button has double press commands
 	uint32_t double_cmd_toggle;   // Bit per bank: any double press command is a toggle
+	// Tap LED: bit per bank, the button holds a Tap command in Tap / Clock mode
+	uint32_t tap_blink;
+	uint32_t clock_blink;
 	uint32_t press_tick;         // HAL tick when the button went down
 	uint32_t release_tick;       // HAL tick when a possible first press of a double ended
 	uint8_t press_state;         // PRESS_IDLE / PRESS_PENDING / PRESS_SHORT / PRESS_LONG
@@ -479,18 +482,30 @@ uint8_t calculate_led_state(uint8_t pressed, uint8_t mode){
 	}
 }
 
+// Note a Tap command in any of a button's lists, for the beat flash
+static void note_tap_cmd(sw_t *sw, uint8_t page, const uint8_t *pCmd){
+	if((pCmd[0] & 0xF0) != CMD_TAP_NIBBLE) return;
+	if((pCmd[0] & 0x0F) == 1) sw->clock_blink |= (1UL<<page);
+	else sw->tap_blink |= (1UL<<page);
+}
+
+static void tap_led_task(void);
+
 void sw_led_init(void){
 	// Scan all commands in EEPROM, and build the table of whether the LED should toggle with the switch, or be momentary
 	for(int page=0; page<MIDI_NUM_BANKS; page++){
 		for(int sw=0; sw<8; sw++){
 			// Clear the toggle bit
 			a_sw_obj[sw].led_cmd_toggle &= ~(1UL<<page);
+			a_sw_obj[sw].tap_blink &= ~(1UL<<page);
+			a_sw_obj[sw].clock_blink &= ~(1UL<<page);
 
 			for(int cmd=0; cmd<MIDI_NUM_COMMANDS_PER_SWITCH; cmd++){
 				uint8_t *pCmd = get_rom_pointer(page, sw, cmd);
 				if(midiCmd_get_cmd_toggle(pCmd)){
 					a_sw_obj[sw].led_cmd_toggle |= (1UL<<page);
 				}
+				note_tap_cmd(&a_sw_obj[sw], page, pCmd);
 			}
 
 			// Same for the long press command set
@@ -498,6 +513,7 @@ void sw_led_init(void){
 			a_sw_obj[sw].long_cmd_toggle &= ~(1UL<<page);
 			for(int cmd=0; cmd<MIDI_NUM_COMMANDS_PER_SWITCH; cmd++){
 				uint8_t *pCmd = get_long_rom_pointer(page, sw, cmd);
+				note_tap_cmd(&a_sw_obj[sw], page, pCmd);
 				if(cmd_is_present(pCmd)){
 					a_sw_obj[sw].long_cmd_present |= (1UL<<page);
 					if(midiCmd_get_cmd_toggle(pCmd)){
@@ -513,6 +529,7 @@ void sw_led_init(void){
 			if(flash_settings_double_stored()){
 				for(int cmd=0; cmd<MIDI_NUM_COMMANDS_PER_SWITCH; cmd++){
 					uint8_t *pCmd = get_double_rom_pointer(page, sw, cmd);
+					note_tap_cmd(&a_sw_obj[sw], page, pCmd);
 					if(cmd_is_present(pCmd)){
 						a_sw_obj[sw].double_cmd_present |= (1UL<<page);
 						if(midiCmd_get_cmd_toggle(pCmd)){
@@ -1798,6 +1815,8 @@ void handle_switches(void){
 		}
 	}
 	
+	tap_led_task();
+
 	// Bank LEDs Update - Handle Blink
 	// We need to continuously update them if they are in Blink mode
 	uint8_t bank_down_mode = get_bank_down_led_mode();
@@ -1830,6 +1849,25 @@ void handle_switches(void){
 			LED_ID_BANK_DOWN, bank_down_mode, -1, now, BANK_SWITCH_DOWN);
 	handle_bank_switch(&bank_up_press, SW_5_GPIO_Port, SW_5_Pin, &port_B_switches_changed,
 			LED_ID_BANK_UP, bank_up_mode, +1, now, BANK_SWITCH_UP);
+}
+
+/*
+ * Tap LED: the buttons of this bank holding a Tap command flash at the start
+ * of every beat, those in Clock mode only while the clock runs. The flash is
+ * an overlay on top of whatever the LED shows, so nothing else is disturbed.
+ */
+static void tap_led_task(void){
+	uint16_t mask = 0;
+	if(!is_app_suspended && !sleep_is_asleep() && tempo_beat_flash()){
+		uint32_t bit = 1UL << switch_current_page;
+		bool clock = tempo_clock_running();
+		for(int i=0; i<8; i++){
+			if((a_sw_obj[i].tap_blink & bit) || (clock && (a_sw_obj[i].clock_blink & bit))){
+				mask |= (uint16_t)(1U << i);
+			}
+		}
+	}
+	leds_set_flash(mask);
 }
 
 void set_all_leds(uint8_t state){
@@ -1876,6 +1914,7 @@ void sw_restore_state(uint8_t page, const uint32_t toggles[8], const uint32_t lo
 void setIsSuspended(uint8_t suspended){
 	is_app_suspended = suspended;
 	if(suspended){
+		leds_set_flash(0);
 		set_all_leds(0);
 	}
 }

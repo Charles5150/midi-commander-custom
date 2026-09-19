@@ -45,6 +45,13 @@ void tempo_tick_1ms(void);
 void tempo_task(void);
 
 /*
+ * True during the short flash at the start of each beat, for the tap LED.
+ * The beat is the host's while its clock is followed, the pedal's clock while
+ * it runs, and otherwise the tempo running freely from the last tap.
+ */
+bool tempo_beat_flash(void);
+
+/*
  * Following an external clock (Clock_Follow). The USB receive path reports
  * every clock byte and Start/Continue; the tempo is measured over two beats.
  * While that clock keeps arriving the pedal adopts its tempo and does not

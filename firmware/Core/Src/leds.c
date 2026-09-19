@@ -35,6 +35,7 @@ static const led_pin_t led_pins[LEDS_COUNT] = {
 
 static volatile uint8_t led_level[LEDS_COUNT];
 static volatile uint8_t pwm_counter = 0;
+static volatile uint16_t flash_mask = 0;	// LEDs shown at the active level for now
 static uint8_t level_active = LEDS_LEVELS;
 static uint8_t level_rest = LEDS_LEVELS;
 
@@ -55,7 +56,12 @@ void leds_set(uint8_t led, uint8_t level){
 }
 
 uint8_t leds_get(uint8_t led){
-	return (led < LEDS_COUNT) ? led_level[led] : 0;
+	if(led >= LEDS_COUNT) return 0;
+	return ((flash_mask >> led) & 1) ? level_active : led_level[led];
+}
+
+void leds_set_flash(uint16_t mask){
+	flash_mask = mask;
 }
 
 void leds_set_all(uint8_t level){
@@ -91,8 +97,10 @@ void TIM2_IRQHandler(void){
 
 	// Per port: pins to drive low (LED on) and high (LED off)
 	uint32_t a_on = 0, a_off = 0, b_on = 0, b_off = 0, c_on = 0, c_off = 0;
+	uint16_t flash = flash_mask;
 	for(uint8_t i=0; i<LEDS_COUNT; i++){
-		uint8_t on = led_level[i] > counter;
+		uint8_t level = ((flash >> i) & 1) ? level_active : led_level[i];
+		uint8_t on = level > counter;
 		GPIO_TypeDef *port = led_pins[i].port;
 		uint32_t pin = led_pins[i].pin;
 		if(port == GPIOA){ if(on) a_on |= pin; else a_off |= pin; }

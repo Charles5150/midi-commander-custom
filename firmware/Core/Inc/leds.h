@@ -27,7 +27,11 @@
 void leds_init(void);						// start the PWM timer, load brightness from config
 void leds_set(uint8_t led, uint8_t level);	// level 0..LEDS_LEVELS
 void leds_set_all(uint8_t level);
-uint8_t leds_get(uint8_t led);				// current level, 0 for an unknown id
+uint8_t leds_get(uint8_t led);				// level shown, flash included; 0 for an unknown id
+
+// LEDs (bit per id) shown at the active level regardless of their own level,
+// for the tap LED's beat flash. Their own level returns once the bit clears.
+void leds_set_flash(uint16_t mask);
 
 uint8_t leds_level_active(void);			// configured "on" level
 uint8_t leds_level_rest(void);				// configured "lit at rest" level

@@ -31,6 +31,18 @@ static uint32_t intervals[TAPS_AVERAGED];
 static uint8_t interval_count = 0;
 static uint8_t interval_next = 0;
 
+// Beats, for the tap LED. The internal beat follows the running clock (a beat
+// every 24 clock bytes, the first one right after Start) or, with the clock
+// stopped, runs freely at the tempo, re-phased by every tap. The external beat
+// counts the host's clock bytes the same way.
+#define FLASH_MAX_MS	(100)	// length of the flash, at most a quarter beat
+
+static volatile uint32_t int_beat_tick = 0;
+static volatile uint8_t clock_beat_count = 0;	// clocks sent since the last beat
+static volatile uint32_t free_acc_us = 0;
+static volatile uint32_t ext_beat_tick = 0;
+static volatile uint8_t ext_beat_count = 0;
+
 // External clock following
 #define EXT_BEATS_MEASURED	(2)		// window the tempo is measured over
 #define EXT_TIMEOUT_MS		(500)	// longer silence means the clock stopped
@@ -59,9 +71,13 @@ void tempo_external_clock(void){
 		ext_clock_count = 0;
 		ext_last_clock_tick = now;
 		ext_seen = true;
+		ext_beat_tick = now;
+		ext_beat_count = 1;
 		return;
 	}
 	ext_last_clock_tick = now;
+	if(ext_beat_count == 0) ext_beat_tick = now;
+	ext_beat_count = (uint8_t)((ext_beat_count + 1) % CLOCKS_PER_BEAT);
 	if(++ext_clock_count >= CLOCKS_PER_BEAT * EXT_BEATS_MEASURED){
 		uint32_t ms = now - ext_window_start;
 		if(ms) ext_bpm_measured = (uint16_t)((60000UL * EXT_BEATS_MEASURED + ms / 2) / ms);
@@ -120,6 +136,14 @@ uint16_t tempo_tap(void){
 	uint32_t since = now - last_tap_tick;
 	last_tap_tick = now;
 
+	// The tap is a beat: with the clock stopped the LED flashes with the foot
+	if(!clock_running){
+		__disable_irq();
+		free_acc_us = 0;
+		int_beat_tick = now;
+		__enable_irq();
+	}
+
 	// First tap, or too long since the last one: start over
 	if(interval_count == 0 && since > TAP_TIMEOUT_MS){
 		return 0;
@@ -150,14 +174,20 @@ void tempo_clock_start(void){
 	if(clock_running) return;
 	clock_acc_us = 0;
 	clocks_due = 0;
+	clock_beat_count = 0;
 	clock_running = true;
 	midiCmd_send_start_command();
 }
 
 void tempo_clock_stop(void){
 	if(!clock_running) return;
+	__disable_irq();
 	clock_running = false;
 	clocks_due = 0;
+	// The free beat carries on in the phase the clock left it
+	free_acc_us = (uint32_t)((clock_beat_count + CLOCKS_PER_BEAT - 1) % CLOCKS_PER_BEAT)
+			* clock_interval_us + clock_acc_us;
+	__enable_irq();
 	midiCmd_send_stop_command();
 }
 
@@ -176,13 +206,32 @@ bool tempo_clock_running(void){
  * interrupt context.
  */
 void tempo_tick_1ms(void){
-	if(!clock_running || clock_interval_us == 0) return;
+	if(clock_interval_us == 0) return;
 
-	clock_acc_us += 1000UL;
-	while(clock_acc_us >= clock_interval_us){
-		clock_acc_us -= clock_interval_us;
-		if(clocks_due < 8) clocks_due++;   // cap: never queue a burst
+	if(clock_running){
+		clock_acc_us += 1000UL;
+		while(clock_acc_us >= clock_interval_us){
+			clock_acc_us -= clock_interval_us;
+			if(clocks_due < 8) clocks_due++;   // cap: never queue a burst
+			if(clock_beat_count == 0) int_beat_tick = HAL_GetTick();
+			clock_beat_count = (uint8_t)((clock_beat_count + 1) % CLOCKS_PER_BEAT);
+		}
+	} else {
+		uint32_t beat_us = clock_interval_us * CLOCKS_PER_BEAT;
+		free_acc_us += 1000UL;
+		if(free_acc_us >= beat_us){
+			free_acc_us -= beat_us;
+			if(free_acc_us >= beat_us) free_acc_us = 0;	// tempo just got faster
+			int_beat_tick = HAL_GetTick();
+		}
 	}
+}
+
+bool tempo_beat_flash(void){
+	uint32_t beat = tempo_external_present() ? ext_beat_tick : int_beat_tick;
+	uint32_t flash = 60000UL / (bpm ? bpm : 120) / 4;
+	if(flash > FLASH_MAX_MS) flash = FLASH_MAX_MS;
+	return (HAL_GetTick() - beat) < flash;
 }
 
 void tempo_task(void){
