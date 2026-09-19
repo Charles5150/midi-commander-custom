@@ -57,6 +57,7 @@ The firmware replaces the stock MeloAudio one but never touches its bootloader, 
 - **Works without a computer.** On a USB charger or a power bank the pedal runs normally and drives your gear over the DIN output.
 - **Sleep mode.** When the computer the pedal is connected to suspends, LEDs and display switch off; they come back when it wakes.
 - **Configuration over USB.** Flash a configuration to the pedal and read it back, from the GUI or the command line, over ordinary USB MIDI SysEx. No special driver.
+- **Backups.** Copy all four configuration slots to a folder in one go, one editable CSV each, and put them all back just as easily.
 - Firmware updates through the stock DFU bootloader with `dfu-util`.
 
 ---
@@ -120,7 +121,7 @@ Connect the pedal in normal mode (not DFU), click **Read from Device** to load w
 **Sidebar.** Two groups, the file and the pedal, with the name of the open file at the bottom.
 
 - **File: Load CSV** opens a configuration file. `python/demo-all-features.csv` is loaded at start, so every feature is there to look at straight away. **Save CSV** writes the current settings to the open file.
-- **Pedal: Slot** chooses which of the four configuration slots the two buttons below it use. `Active` means the one the pedal is running; flashing one slot never touches the others. **Read from Device** pulls that configuration from the connected pedal into a CSV you choose, and loads it. **Flash to Device**, the one red button, saves the CSV, transfers it to the pedal and reboots it.
+- **Pedal: Slot** chooses which of the four configuration slots the two buttons below it use. `Active` means the one the pedal is running; flashing one slot never touches the others. **Read from Device** pulls that configuration from the connected pedal into a CSV you choose, and loads it. **Flash to Device**, the one red button, saves the CSV, transfers it to the pedal and reboots it. **Back Up All Slots** reads every slot that holds a configuration into a new dated folder, one CSV per slot, and **Restore Backup** writes such a folder back, each file to its own slot, after showing which ones it will replace.
 
 The tabs follow the order a configuration is usually built in. Each starts with a one line summary; the **?** next to it opens the details.
 
@@ -348,7 +349,13 @@ Everything the GUI does is available from the terminal, from the repository root
 
 # Read the configuration stored on the pedal into a CSV
 .venv/bin/python python/Flash_to_CSV.py current-config.csv
+
+# Back up all four slots at once, and put them back
+.venv/bin/python python/Backup_Slots.py backup my-backup
+.venv/bin/python python/Backup_Slots.py restore my-backup
 ```
+
+**Backups.** `Backup_Slots.py backup` reads every slot that holds a configuration into a folder, `slot1.csv` to `slot4.csv`, plus a `backup.txt` with the date, the firmware and the name in each slot; with no folder given it makes one named after the date and time. Each CSV is an ordinary configuration, so any of them can be opened in the configurator or flashed on its own. `restore` checks every file before touching the pedal, lists what it will overwrite and asks first (`--yes` skips the question), writes each file to its slot and restarts the pedal once at the end; slots with no file in the folder are left as they are. A backup restored onto the pedal gives the same bytes it was read from, except that settings a configuration from older firmware never had are written with the value the pedal was already using for them.
 
 The tools find the pedal by its USB MIDI name (`MIDI Commander Custom`), check the firmware version, and exchange the configuration as SysEx messages under manufacturer ID `0x7D`: erase (52), write 16-byte chunk (54), read chunk (56), version (58), reset (60), pedal readings (62). The read-back commands need firmware 0.2 or later; the tools tell you if the pedal is older.
 
@@ -389,6 +396,7 @@ Hardware notes (MCU, pinout, I²C addresses) are in `HardwareNotes.txt`; `backup
 
 Firmware versions are shown on the display at boot and reported by the tools.
 
+- **Back up all slots.** `Backup_Slots.py` and the configurator's **Back Up All Slots** and **Restore Backup** copy every configuration slot to a folder, one CSV per slot, and write them back, validating every file first and restarting the pedal once. The slot reading and writing that `Flash_to_CSV.py` and `CSV_to_Flash.py` each did on their own now lives in `python/lib/slotIO.py`, shared by all three. Tested against a simulated pedal in the test suite, byte for byte, and on an MP-100. No firmware change.
 - **0.31 — Next and previous preset.** New `PCInc` command type: a Program Change one step up or down from the program last selected on the channel, with a step, a last program and optional wrapping, shown on the display as `PC 6`. The firmware remembers, per channel, the last program sent by a PC command or a bank being entered, or received from the host over USB. The command types were all taken, so it is a PC whose Bank Select MSB byte holds 0x81 or 0x82, values that byte could already hold to mean no Bank Select and that the tools never wrote; an ordinary Program Change is unaffected. The configuration layout is unchanged. The demo's program change bank has PREV and NEXT on C and D, and its channel 5 and 16 examples move to 3 and 4.
 - **0.30 — Pauses inside a command list.** New `Wait` command type: the commands below it in the list are sent `Duration` milliseconds later, in steps of 10 up to 2550, for the device that drops a Control Change arriving right behind a Program Change. All sixteen command types were taken, so a pause is marked by the low nibble of the empty command type: a command of all zeroes stays an empty command, and the byte holding the pause is not the one whose top bit marks a toggling command, so nothing in an older configuration reads as one. Command lists are no longer sent in a single loop: `run_cmd_list` sends up to the pause and leaves the rest in a table of four pending lists that the main loop drains, so switches, expression pedals and the display keep working while a list waits. A button released mid-list has its release pass held back until the list finishes, a second press first sends whatever was left, and a configuration switch now waits for every list to finish, since their commands live in the configuration being left. Pauses work in the short, long and double press lists, the bank enter list and the bank switch lists. The configuration layout is unchanged.
 - **0.29 — Works without a computer.** Powered from a USB charger or a power bank the pedal booted and went dark, ignoring every switch: with no host the USB bus is idle from the start, the core reported a suspend a few milliseconds after boot, and the suspend handler switched the display off and blocked the switches. Suspend is now only honoured when a host had configured the device; otherwise the pedal keeps running, DIN MIDI works and USB MIDI is discarded. A sleeping computer still turns the display and LEDs off. Reported in harvie256/midi-commander-custom#40.

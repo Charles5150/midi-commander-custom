@@ -376,7 +376,7 @@ class RoundTripTest(unittest.TestCase):
         self.assertEqual(df["Bank_Jump_Step"], "4")
 
     def test_fits_in_the_flash_pages(self):
-        from CSV_to_Flash import ALLOWED_NUM_FLASH_PAGES, FLASH_PAGE_SIZE
+        from lib.slotIO import ALLOWED_NUM_FLASH_PAGES, FLASH_PAGE_SIZE
 
         self.assertLessEqual(unpacker.CONFIG_SIZE, ALLOWED_NUM_FLASH_PAGES * FLASH_PAGE_SIZE)
 
@@ -1420,3 +1420,155 @@ class ConfigSlotCommandTest(unittest.TestCase):
         row = long_frame[(long_frame["Bank_Number"].astype(str) == "0")
                          & (long_frame["Button_Identifier"].astype(str) == "1")].iloc[0]
         self.assertEqual((row["A_CommandType"], row["A_KeyMode_(Key)"]), ("Bank", "NextConfig"))
+
+
+class FakePedal:
+    """A pedal in memory that answers the SysEx the slot tools use: four slots
+    of flash, a target selected with SELECT_SLOT, erase, write and read."""
+
+    def __init__(self, version="0.31", active=0):
+        self.version = version
+        self.active = active
+        self.target = active
+        self.flash = {s: bytearray(b"\xff" * unpacker.IMAGE_SIZE) for s in range(4)}
+        self.resets = 0
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def get_version(self, timeout=1.0):
+        return self.version
+
+    def firmware_at_least(self, major, minor, timeout=1.0):
+        from lib.midiDevice import version_at_least
+        return version_at_least(self.version, major, minor)
+
+    def valid(self):
+        # The firmware's rule: a slot holds a configuration when its name is
+        # sixteen printable characters
+        return [s for s, f in self.flash.items() if all(0x20 <= b <= 0x7E for b in f[16:32])]
+
+    def select_slot(self, slot=None, timeout=1.0):
+        if slot is not None:
+            self.target = slot
+        return self.target, self.active, self.valid()
+
+    def read_settings(self, num_bytes, progress=None, start=0):
+        return bytes(self.flash[self.target][start:start + num_bytes])
+
+    def send(self, data):
+        from lib import midiDevice as md
+        if data[0] == md.SYSEX_CMD_ERASE_FLASH:
+            self.flash[self.target] = bytearray(b"\xff" * unpacker.IMAGE_SIZE)
+        elif data[0] == md.SYSEX_CMD_WRITE_FLASH:
+            at = ((data[1] << 7) | data[2]) * 16
+            nib = data[3:]
+            self.flash[self.target][at:at + 16] = bytes(
+                (nib[2 * i] << 4) | nib[2 * i + 1] for i in range(16))
+        elif data[0] == md.SYSEX_CMD_RESET:
+            self.resets += 1
+
+    def wait_for_sysex(self, expected_rsp, timeout=2.0):
+        return []
+
+
+class BackupSlotsTest(unittest.TestCase):
+    """Backup_Slots.py: every slot out to a folder, and back, byte for byte."""
+
+    @classmethod
+    def setUpClass(cls):
+        import Backup_Slots
+        from lib.slotIO import pack_sections, select_slot, write_image
+        cls.tool = Backup_Slots
+        cls.pack_sections = staticmethod(pack_sections)
+        cls.select_slot = staticmethod(select_slot)
+        cls.write_image = staticmethod(write_image)
+
+    def sections(self, name):
+        s = read_config_csv(DEMO_CSV)
+        g = s["Global_Settings"]
+        g.loc[g["Label"] == "ConfigName", "Value"] = name
+        return s
+
+    def pedal_with(self, names):
+        """A pedal whose slots hold the demo under the given names, {slot: name}."""
+        pedal = FakePedal()
+        for slot, name in names.items():
+            self.select_slot(pedal, slot)
+            self.write_image(pedal, *self.pack_sections(self.sections(name)))
+        self.select_slot(pedal, None)
+        return pedal
+
+    def run_tool(self, pedal, *argv):
+        import argparse
+        import contextlib
+        import io
+        from unittest import mock
+        args = argparse.Namespace(folder=argv[1], yes=True)
+        with mock.patch.object(self.tool, "MidiCommander", lambda: pedal), \
+                contextlib.redirect_stdout(io.StringIO()) as out:
+            code = self.tool.backup(args) if argv[0] == "backup" else self.tool.restore(args)
+        return code, out.getvalue()
+
+    def test_backup_then_restore_is_byte_exact(self):
+        import tempfile
+        source = self.pedal_with({0: "DEMO ONE", 2: "DEMO THREE"})
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = os.path.join(tmp, "bk")
+            self.assertEqual(self.run_tool(source, "backup", folder)[0], 0)
+            self.assertEqual(sorted(os.listdir(folder)), ["backup.txt", "slot1.csv", "slot3.csv"])
+            with open(os.path.join(folder, "backup.txt"), encoding="utf-8") as f:
+                text = f.read()
+            self.assertIn("Slot 1: 'DEMO ONE", text)
+            self.assertIn("Slot 2: empty", text)
+
+            target = FakePedal()
+            code, _ = self.run_tool(target, "restore", folder)
+            self.assertEqual(code, 0)
+            for slot in range(4):
+                self.assertEqual(bytes(target.flash[slot]), bytes(source.flash[slot]), f"slot {slot + 1}")
+            self.assertEqual(target.resets, 1)   # one restart for the whole restore
+
+    def test_restore_leaves_other_slots_alone(self):
+        import tempfile
+        source = self.pedal_with({0: "DEMO ONE"})
+        target = self.pedal_with({0: "OLD ONE", 1: "KEEP ME"})
+        keep = bytes(target.flash[1])
+        with tempfile.TemporaryDirectory() as tmp:
+            self.run_tool(source, "backup", tmp)
+            code, out = self.run_tool(target, "restore", tmp)
+        self.assertEqual(code, 0)
+        self.assertEqual(bytes(target.flash[1]), keep)
+        self.assertEqual(bytes(target.flash[0]), bytes(source.flash[0]))
+        self.assertIn("Left as they are: slot 2, 3, 4", out)
+
+    def test_bad_file_writes_nothing(self):
+        import tempfile
+        source = self.pedal_with({0: "DEMO ONE", 1: "DEMO TWO"})
+        target = self.pedal_with({0: "OLD ONE"})
+        before = {s: bytes(f) for s, f in target.flash.items()}
+        with tempfile.TemporaryDirectory() as tmp:
+            self.run_tool(source, "backup", tmp)
+            with open(os.path.join(tmp, "slot2.csv"), "w", encoding="utf-8") as f:
+                f.write("* Global_Settings\nnot,a,configuration\n")
+            code, out = self.run_tool(target, "restore", tmp)
+        self.assertEqual(code, 1)
+        self.assertIn("slot2.csv", out)
+        self.assertEqual({s: bytes(f) for s, f in target.flash.items()}, before)
+        self.assertEqual(target.resets, 0)
+
+    def test_slot_files(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            for name in ("slot1.csv", "Slot4.CSV", "slot5.csv", "slot1.csv.bak", "notes.csv"):
+                open(os.path.join(tmp, name), "w").close()
+            self.assertEqual(sorted(self.tool.slot_files(tmp)), [0, 3])
+
+    def test_empty_pedal(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            code, out = self.run_tool(FakePedal(), "backup", os.path.join(tmp, "x"))
+        self.assertEqual(code, 4)

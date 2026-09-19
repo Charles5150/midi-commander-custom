@@ -10,11 +10,8 @@ Requires firmware 0.2 or later (SysEx READ_FLASH support).
 import argparse
 import sys
 
-import lib.binaryUnpacker as unpacker
-from lib.configCsv import write_config_csv
-from lib.midiDevice import (
-    CONFIG_SLOTS, DeviceNotFound, DeviceTimeout, MidiCommander, version_at_least,
-)
+from lib.midiDevice import CONFIG_SLOTS, DeviceNotFound, DeviceTimeout, MidiCommander
+from lib.slotIO import SlotError, read_image, save_csv, select_slot
 
 
 def main(args: argparse.Namespace) -> int:
@@ -36,34 +33,17 @@ def main(args: argparse.Namespace) -> int:
                     print(f"Reading chunk {done}/{total}")
 
             try:
-                # Always choose explicitly, see CSV_to_Flash.py
-                _, active, _ = dev.select_slot(None)
-                wanted = active if args.slot is None else args.slot - 1
-                target, active, valid = dev.select_slot(wanted)
-                if args.slot is not None and target != args.slot - 1:
-                    print(f"ERROR: the device did not accept slot {args.slot}")
-                    return 1
-                if target not in valid:
-                    print(f"Configuration slot {target + 1} holds no configuration")
-                    return 4
-                print(f"Reading configuration slot {target + 1} "
-                      f"(the pedal is running slot {active + 1})")
-            except DeviceTimeout:
-                if args.slot not in (None, 1):
-                    print("ERROR: this firmware has a single configuration; "
-                          "slots need 0.24 or later")
-                    return 1
+                target, active, valid = select_slot(dev, None if args.slot is None else args.slot - 1)
+            except SlotError as e:
+                print(f"ERROR: {e}")
+                return 1
+            if target not in valid:
+                print(f"Configuration slot {target + 1} holds no configuration")
+                return 4
+            print(f"Reading configuration slot {target + 1} "
+                  f"(the pedal is running slot {active + 1})")
 
-            data = dev.read_settings(unpacker.CONFIG_SIZE, progress)
-            # Double press commands live in the extension area (0.26), and only
-            # count when the configuration says the tools wrote them
-            if version_at_least(version, 0, 26) and data[37] == 1:
-                print("Reading double press commands")
-                extension = dev.read_settings(
-                    unpacker.DOUBLE_PRESS_SIZE, progress, start=unpacker.DOUBLE_PRESS_OFFSET)
-                image = data.ljust(unpacker.DOUBLE_PRESS_OFFSET, b"\xff") + extension
-            else:
-                image = data
+            data, image = read_image(dev, version, progress)
     except DeviceNotFound as e:
         print(f"No matching MIDI device found: {e}")
         return 1
@@ -71,25 +51,7 @@ def main(args: argparse.Namespace) -> int:
         print(f"Device stopped responding: {e}")
         return 3
 
-    (df_global, df_banks, df_buttons, df_long, df_exp,
-     df_enter, df_sysex, df_bank_switch, df_setlist) = unpacker.unpack_config(data)
-    write_config_csv(
-        args.output,
-        df_global,
-        df_banks,
-        df_buttons,
-        note="Read from device",
-        df_long_press=df_long,
-        df_double_press=unpacker.unpack_double_press_settings(image),
-        df_expression=df_exp,
-        df_bank_enter=df_enter,
-        df_sysex=df_sysex,
-        df_bank_switch=df_bank_switch,
-        df_setlist=df_setlist,
-        df_bank_expression=unpacker.unpack_bank_expression_settings(data),
-    )
-
-    name = df_global.loc[df_global["Label"] == "ConfigName", "Value"].iloc[0]
+    name = save_csv(args.output, data, image)
     print(f"Saved configuration '{name}' ({len(data)} bytes) to {args.output}")
     return 0
 

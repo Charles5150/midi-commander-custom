@@ -10,7 +10,7 @@ for questions.
 | Path | What it is |
 |---|---|
 | `firmware/` | STM32F103 firmware (HAL, USB MIDI + HID composite device) |
-| `python/` | Configuration tools: GUI, `CSV_to_Flash.py`, `Flash_to_CSV.py`, packers under `lib/` |
+| `python/` | Configuration tools: GUI, `CSV_to_Flash.py`, `Flash_to_CSV.py`, `Backup_Slots.py`, packers and `slotIO.py` (reading and writing a slot) under `lib/` |
 | `python/tests/` | Round-trip tests for the CSV packers |
 | `artifacts/` | Built firmware images. Current ones are attached to GitHub releases |
 | `tools/`, `scripts/` | DFU packaging helpers used by the PlatformIO build |
@@ -47,6 +47,7 @@ python3 -m venv .venv
 .venv/bin/python python/gui_configurator.py            # GUI
 .venv/bin/python python/CSV_to_Flash.py config.csv     # flash a configuration
 .venv/bin/python python/Flash_to_CSV.py dump.csv       # read it back
+.venv/bin/python python/Backup_Slots.py backup my-backup  # every slot at once
 .venv/bin/python -m unittest discover -s python/tests  # tests
 ```
 

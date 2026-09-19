@@ -6,7 +6,9 @@ set of values is a drop-down or a check box; numeric fields only accept
 numbers inside their valid range.
 """
 
+import datetime
 import os
+import re
 import subprocess
 import sys
 from tkinter import filedialog, messagebox
@@ -675,6 +677,8 @@ class MidiCommanderGUI(ctk.CTk):
         action(7, "Read from Device", self.read_device, fg_color=FIELD, hover_color=FIELD_HOVER)
         action(8, "Flash to Device", self.flash_device, fg_color=DANGER, hover_color=DANGER_HOVER,
                font=("", 13, "bold"))
+        action(9, "Back Up All Slots\u2026", self.backup_slots, fg_color=FIELD, hover_color=FIELD_HOVER)
+        action(10, "Restore Backup\u2026", self.restore_slots, fg_color=FIELD, hover_color=FIELD_HOVER)
 
         self.lbl_file = ctk.CTkLabel(self.sidebar, text="no file loaded", font=FONT_SMALL,
                                      text_color=MUTED, wraplength=170, justify="left")
@@ -1966,6 +1970,49 @@ class MidiCommanderGUI(ctk.CTk):
             return
         self.load_csv(save_path)
         messagebox.showinfo("Read Complete", p.stdout.strip().splitlines()[-1])
+
+    def backup_slots(self):
+        parent = filedialog.askdirectory(title="Folder to put the backup in")
+        if not parent:
+            return
+        folder = os.path.join(parent, datetime.datetime.now().strftime("midi-commander-backup-%Y%m%d-%H%M%S"))
+        try:
+            p = self._run_tool("Backup_Slots.py", "backup", folder)
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("Error", f"Failed to run backup script: {e}")
+            return
+        detail = (p.stdout + "\n" + p.stderr).strip()
+        if p.returncode != 0:
+            messagebox.showerror("Backup Error", detail or f"Exit code {p.returncode}")
+            return
+        saved = [l.strip() for l in p.stdout.splitlines() if l.strip().startswith("saved ")]
+        messagebox.showinfo("Backup Complete", "\n".join(saved + ["", p.stdout.strip().splitlines()[-1]]))
+
+    def restore_slots(self):
+        folder = filedialog.askdirectory(title="Backup folder to restore")
+        if not folder:
+            return
+        found = sorted(n for n in os.listdir(folder) if re.match(r"^slot[1-4]\.csv$", n, re.IGNORECASE))
+        if not found:
+            messagebox.showwarning("Restore", "That folder holds no slot1.csv to slot4.csv.")
+            return
+        if not messagebox.askyesno(
+            "Restore Backup",
+            "Write these files to the matching slots of the pedal, replacing what they hold?\n\n"
+            + "\n".join(found)
+            + "\n\nSlots with no file are left as they are. The pedal restarts at the end.",
+        ):
+            return
+        try:
+            p = self._run_tool("Backup_Slots.py", "restore", folder, "--yes")
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("Error", f"Failed to run restore script: {e}")
+            return
+        if p.returncode != 0:
+            detail = (p.stdout + "\n" + p.stderr).strip()
+            messagebox.showerror("Restore Error", detail[-1500:] or f"Exit code {p.returncode}")
+            return
+        messagebox.showinfo("Restore Complete", p.stdout.strip().splitlines()[-1])
 
     def flash_device(self):
         if not self.current_csv_path:
