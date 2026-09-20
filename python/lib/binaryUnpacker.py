@@ -24,6 +24,12 @@ from lib.cmdBinaryPacker import (
     CMD_LEAVE_MODE,
     CMD_EXP_MODE,
     CMD_LFO_MODE,
+    CMD_MMC_MODE,
+    CMD_SONG_MODE,
+    MMC_COMMANDS,
+    MMC_LOCATE,
+    SONG_MODES,
+    SONG_POSITION,
     LFO_DIVISIONS,
     LFO_SHAPES,
     EXP_TARGET_OFF,
@@ -122,6 +128,7 @@ _HID_NAMES[39] = "0"
 for _name, _code in HID_SPECIAL_KEYS.items():
     _HID_NAMES.setdefault(_code, _name)
 _MEDIA_NAMES = {code: name for name, code in MEDIA_KEYS.items()}
+_MMC_NAMES = {code: name for name, code in MMC_COMMANDS.items()}
 
 
 def _ascii(chunk: bytes) -> str:
@@ -247,6 +254,15 @@ def unpack_command(raw: bytes, cycle_labels=None) -> dict:
         cmd["CommandType"] = "LFO"
         cmd["OnValue_(CC/PB)"] = LFO_DIVISIONS[min(b2, len(LFO_DIVISIONS) - 1)]
         cmd["KeyMode_(Key)"] = LFO_SHAPES[b3] if b3 < len(LFO_SHAPES) else LFO_SHAPES[0]
+    elif cmd_type == CMD_NO_CMD_NIBBLE and (b0 & 0x0F) == CMD_MMC_MODE:
+        cmd["CommandType"] = "MMC"
+        cmd["KeyMode_(Key)"] = _MMC_NAMES.get(b1, "Play")
+        if b1 == MMC_LOCATE:
+            cmd["OnValue_(CC/PB)"] = str((b2 & 0x7F) | ((b3 & 0x7F) << 7))
+    elif cmd_type == CMD_NO_CMD_NIBBLE and (b0 & 0x0F) == CMD_SONG_MODE:
+        cmd["CommandType"] = "Song"
+        cmd["KeyMode_(Key)"] = SONG_MODES[1] if b1 == SONG_POSITION else SONG_MODES[0]
+        cmd["OnValue_(CC/PB)"] = str((b2 & 0x7F) | ((b3 & 0x7F) << 7))
     elif cmd_type == CMD_PC_NIBBLE and b2 in PC_REL_MARKERS:
         cmd["CommandType"] = "PCInc"
         cmd["Channel_(PC/CC/Note/PB)"] = channel

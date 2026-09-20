@@ -108,6 +108,29 @@
 #define LFO_SHAPE_SQUARE	(4)
 #define LFO_SHAPE_RANDOM	(5)
 #define LFO_SHAPE_COUNT		(6)
+// MMC: same empty command type, low nibble 7. A MIDI Machine Control message
+// to every device (F0 7F 7F 06 ... F7), for a recorder or a DAW. Byte 1 is the
+// MMC command byte, one of the MMC_ values below. For MMC_LOCATE, bytes 2 (low
+// 7 bits) and 3 (high 7 bits) hold the position in seconds.
+#define CMD_MMC_MODE		(7)
+#define MMC_STOP		(0x01)
+#define MMC_PLAY		(0x02)
+#define MMC_DEFERRED_PLAY	(0x03)
+#define MMC_FAST_FORWARD	(0x04)
+#define MMC_REWIND		(0x05)
+#define MMC_RECORD_STROBE	(0x06)
+#define MMC_RECORD_EXIT		(0x07)
+#define MMC_PAUSE		(0x09)
+#define MMC_EJECT		(0x0A)
+#define MMC_CHASE		(0x0B)
+#define MMC_RESET		(0x0D)
+#define MMC_LOCATE		(0x44)
+// Song: same empty command type, low nibble 8. Byte 1 says which message,
+// bytes 2 (low 7 bits) and 3 (high 7 bits) the value: a song number 0-127 for
+// Song Select (F3), or the position in sixteenth notes for Song Position (F2).
+#define CMD_SONG_MODE		(8)
+#define SONG_SELECT		(0)
+#define SONG_POSITION		(1)
 #define CMD_PC_NIBBLE		(0xC0)
 // Relative Program Change: a PC whose byte 2 (the Bank Select MSB, 0x80 and up
 // meaning none) holds one of these markers. Byte 1 is the step, byte 3 the last

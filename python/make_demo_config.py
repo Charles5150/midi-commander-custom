@@ -308,6 +308,20 @@ def build() -> Demo:
         ("C", "mute", "MUTE"), ("D", "record", "REC"),
     ):
         d.media(5, btn, label, name)
+    # Held, the same buttons drive a recorder or a sequencer over MIDI instead
+    # of the computer: MIDI Machine Control, Song Select and Song Position
+    d.long_press(5, "1", CommandType="MMC", **{"KeyMode_(Key)": "Play"})
+    d.long_press(5, "4", CommandType="MMC", **{"KeyMode_(Key)": "Stop"})
+    d.long_press(5, "D", CommandType="MMC", **{"KeyMode_(Key)": "Record"})
+    # Locate: back to the top, and to 1:02:05 into the song
+    d.long_press(5, "A", CommandType="MMC",
+                 **{"KeyMode_(Key)": "Locate", "OnValue_(CC/PB)": "0"})
+    d.long_press(5, "B", CommandType="MMC",
+                 **{"KeyMode_(Key)": "Locate", "OnValue_(CC/PB)": "3725"})
+    d.long_press(5, "2", CommandType="Song",
+                 **{"KeyMode_(Key)": "Select", "OnValue_(CC/PB)": "2"})
+    d.long_press(5, "3", CommandType="Song",
+                 **{"KeyMode_(Key)": "Position", "OnValue_(CC/PB)": "0"})
 
     # --- bank 6: tap tempo and clock ---------------------------------------
     d.tap(6, "1", "TAP", "Tap")

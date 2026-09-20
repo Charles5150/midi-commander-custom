@@ -2504,6 +2504,103 @@ class BackCommandTest(unittest.TestCase):
         self.assertEqual(norm(row["A_OnValue_(CC/PB)"]), "")
 
 
+class MmcAndSongTest(unittest.TestCase):
+    """MMC and Song commands: driving a recorder or a sequencer (firmware 0.50)."""
+
+    @staticmethod
+    def pack(cmd_type, mode, value=""):
+        row = {f"A_{f}": "" for f in unpacker.CMD_FIELDS}
+        row["A_CommandType"] = cmd_type
+        row["A_KeyMode_(Key)"] = mode
+        row["A_OnValue_(CC/PB)"] = value
+        return bytes(cbp.pack_row(pd.Series(row)))[:4]
+
+    def test_modes_match_firmware(self):
+        """The low nibbles and the MMC command bytes are the firmware's."""
+        import re
+
+        path = os.path.join(os.path.dirname(__file__), "..", "..", "firmware", "Core", "Inc", "midi_defines.h")
+        with open(path) as handle:
+            text = handle.read()
+        modes = dict(re.findall(r"^#define\s+CMD_(\w+)_MODE\s+\((\d+)\)", text, re.M))
+        self.assertEqual(int(modes["MMC"]), cbp.CMD_MMC_MODE)
+        self.assertEqual(int(modes["SONG"]), cbp.CMD_SONG_MODE)
+        # Each one a nibble of its own, and never 0, which means "no command"
+        taken = [int(v) for v in modes.values()]
+        self.assertEqual(len(taken), len(set(taken)))
+        self.assertNotIn(0, taken)
+        for name, value in (("STOP", 0x01), ("PLAY", 0x02), ("RECORD_STROBE", 0x06),
+                            ("PAUSE", 0x09), ("LOCATE", 0x44)):
+            fw = int(re.search(r"^#define\s+MMC_" + name + r"\s+\((0x[0-9A-Fa-f]+)\)", text, re.M).group(1), 16)
+            self.assertEqual(fw, value)
+
+    def test_mmc_round_trip(self):
+        for mode, command in (("Play", 0x02), ("Stop", 0x01), ("Record", 0x06),
+                              ("Pause", 0x09), ("Rewind", 0x05), ("FastForward", 0x04),
+                              ("Reset", 0x0D)):
+            packed = self.pack("MMC", mode)
+            self.assertEqual(list(packed), [0x07, command, 0, 0])
+            back = unpacker.unpack_command(packed)
+            self.assertEqual((back["CommandType"], back["KeyMode_(Key)"]), ("MMC", mode))
+            self.assertEqual(norm(back["OnValue_(CC/PB)"]), "")
+
+    def test_mmc_locate_carries_seconds(self):
+        packed = self.pack("MMC", "Locate", "3725")   # 1:02:05 into the song
+        self.assertEqual(list(packed), [0x07, 0x44, 3725 & 0x7F, 3725 >> 7])
+        back = unpacker.unpack_command(packed)
+        self.assertEqual((back["KeyMode_(Key)"], back["OnValue_(CC/PB)"]), ("Locate", "3725"))
+        # And the clamp at the top of the range the two bytes hold
+        self.assertEqual(list(self.pack("MMC", "Locate", "99999")), [0x07, 0x44, 0x7F, 0x7F])
+
+    def test_mmc_empty_action_plays(self):
+        self.assertEqual(list(self.pack("MMC", "")), [0x07, 0x02, 0, 0])
+
+    def test_mmc_unknown_action_refused(self):
+        with self.assertRaises(ValueError):
+            self.pack("MMC", "Fly")
+
+    def test_song_round_trip(self):
+        packed = self.pack("Song", "Select", "2")
+        self.assertEqual(list(packed), [0x08, 0, 2, 0])
+        back = unpacker.unpack_command(packed)
+        self.assertEqual((back["CommandType"], back["KeyMode_(Key)"], back["OnValue_(CC/PB)"]),
+                         ("Song", "Select", "2"))
+        packed = self.pack("Song", "Position", "3000")
+        self.assertEqual(list(packed), [0x08, 1, 3000 & 0x7F, 3000 >> 7])
+        back = unpacker.unpack_command(packed)
+        self.assertEqual((back["KeyMode_(Key)"], back["OnValue_(CC/PB)"]), ("Position", "3000"))
+
+    def test_song_values_clamped(self):
+        """A song number is one byte; a position spans both."""
+        self.assertEqual(list(self.pack("Song", "Select", "300")), [0x08, 0, 127, 0])
+        self.assertEqual(list(self.pack("Song", "Position", "99999")), [0x08, 1, 0x7F, 0x7F])
+
+    def test_empty_command_still_empty(self):
+        """The new modes live in the empty command type: all zeroes is still none."""
+        back = unpacker.unpack_command(bytes([0, 0, 0, 0]))
+        self.assertEqual(back["CommandType"], "")
+
+    def test_demo_holds_them(self):
+        """Held, the media buttons of bank 5 drive a recorder instead."""
+        packed = packer.pack_config(read_config_csv(DEMO_CSV))
+        frames = unpacker.unpack_config(packed)
+        long_press = next(f for f in frames
+                          if "A_CommandType" in f.columns and "Label" not in f.columns)
+        got = {}
+        for _, row in long_press[long_press["Bank_Number"].astype(str) == "5"].iterrows():
+            if norm(row["A_CommandType"]):
+                got[str(row["Button_Identifier"])] = (norm(row["A_CommandType"]),
+                                                      norm(row["A_KeyMode_(Key)"]),
+                                                      norm(row["A_OnValue_(CC/PB)"]))
+        self.assertEqual(got["1"], ("MMC", "Play", ""))
+        self.assertEqual(got["4"], ("MMC", "Stop", ""))
+        self.assertEqual(got["D"], ("MMC", "Record", ""))
+        self.assertEqual(got["A"], ("MMC", "Locate", "0"))
+        self.assertEqual(got["B"], ("MMC", "Locate", "3725"))
+        self.assertEqual(got["2"], ("Song", "Select", "2"))
+        self.assertEqual(got["3"], ("Song", "Position", "0"))
+
+
 class FakePedal:
     """A pedal in memory that answers the SysEx the slot tools use: four slots
     of flash, a target selected with SELECT_SLOT, erase, write and read."""

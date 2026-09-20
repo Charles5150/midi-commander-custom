@@ -204,6 +204,58 @@ int8_t midiCmd_send_panic(void){
 	return 0;
 }
 
+/*
+ * Song Select (F3) and Song Position Pointer (F2), to USB and the DIN output.
+ * Neither belongs to a channel: they tell a sequencer or a recorder which song
+ * to play and where in it to start.
+ */
+int8_t midiCmd_send_song_select(uint8_t song){
+	uint8_t usb[4] = { CIN_TWO_BYTE_SYSTEM_COMMON, 0xF3, song & 0x7F, 0 };
+	MIDI_DataTx(usb, 4);
+	midiCmd_send_bytes_serial(&usb[1], 2);
+	return 0;
+}
+
+int8_t midiCmd_send_song_position(uint16_t beats){
+	uint8_t usb[4] = { CIN_THREE_BYTE_SYSTEM_COMMON, 0xF2,
+			beats & 0x7F, (beats >> 7) & 0x7F };
+	MIDI_DataTx(usb, 4);
+	midiCmd_send_bytes_serial(&usb[1], 3);
+	return 0;
+}
+
+/*
+ * MIDI Machine Control, addressed to every device: F0 7F 7F 06 <command> F7.
+ * Locate also carries where to go, as a timecode of hours, minutes, seconds
+ * and frames: F0 7F 7F 06 44 06 01 hh mm ss ff sf F7. The position arrives
+ * here in seconds, so the frames are always 0 and the timecode type 24 fps,
+ * which is the two top bits of the hours byte left at zero.
+ */
+int8_t midiCmd_send_mmc(uint8_t command, uint16_t seconds){
+	uint8_t msg[13];
+	uint8_t len = 0;
+
+	msg[len++] = SYSEX_START;
+	msg[len++] = 0x7F;	// real time
+	msg[len++] = 0x7F;	// every device
+	msg[len++] = 0x06;	// MMC command
+	msg[len++] = command & 0x7F;
+	if(command == MMC_LOCATE){
+		msg[len++] = 0x06;	// the locate sub-command carries six bytes
+		msg[len++] = 0x01;	// and goes to a timecode
+		msg[len++] = (seconds / 3600) & 0x1F;
+		msg[len++] = (seconds / 60) % 60;
+		msg[len++] = seconds % 60;
+		msg[len++] = 0;		// frames
+		msg[len++] = 0;		// subframes
+	}
+	msg[len++] = SYSEX_END;
+
+	sysex_send_message(msg, len);
+	midiCmd_send_bytes_serial(msg, len);
+	return 0;
+}
+
 int8_t midiCmd_send_start_command(void){
 	__disable_irq();
 	int8_t buffer_no = get_next_available_tx_buffer();

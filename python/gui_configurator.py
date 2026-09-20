@@ -21,7 +21,10 @@ import pandas as pd
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-from lib.cmdBinaryPacker import EXP_TARGETS, HID_SPECIAL_KEYS, LFO_DIVISIONS, LFO_SHAPES, MEDIA_KEYS, RAMP_MAX_MS  # noqa: E402
+from lib.cmdBinaryPacker import (  # noqa: E402
+    EXP_TARGETS, HID_SPECIAL_KEYS, LFO_DIVISIONS, LFO_SHAPES, MEDIA_KEYS, RAMP_MAX_MS,
+    MMC_COMMANDS, MMC_LOCATE_MAX, SONG_MODES, SONG_POSITION_MAX,
+)
 from lib.configCsv import read_config_csv, write_config_csv  # noqa: E402
 from lib.configPacker import NUM_BANKS, BUTTON_IDS  # noqa: E402
 from lib.configPacker import (  # noqa: E402
@@ -151,12 +154,14 @@ LED_MODES = ["Normal", "Reverse", "AlwaysOn"]
 BUTTON_GROUPS = ["None", "1", "2", "3", "4"]
 CHANNELS = [str(i) for i in range(1, 17)]
 NO_COMMAND = "(none)"
-COMMAND_TYPES = [NO_COMMAND, "PC", "PCInc", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "Panic", "Scene", "Wait", "Ramp", "LFO", "Exp"]
+COMMAND_TYPES = [NO_COMMAND, "PC", "PCInc", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "MMC", "Song", "Panic", "Scene", "Wait", "Ramp", "LFO", "Exp"]
 # Cycle splits a button's short press list into states, so only that list offers it
 SHORT_COMMAND_TYPES = COMMAND_TYPES + ["Cycle"]
 # Leave splits a bank's enter list into the commands on entering and on leaving
 ENTER_COMMAND_TYPES = COMMAND_TYPES + ["Leave"]
 TAP_MODES = ["Tap", "Clock", "Set", "Up", "Down", "Up Repeat", "Down Repeat"]
+# MIDI Machine Control actions, and which of the two song messages to send
+MMC_ACTIONS = list(MMC_COMMANDS.keys())
 # A scene leaves a button alone, or switches it on or off
 SCENE_STATES = ["-", "On", "Off"]
 BANK_SWITCH_MODES = ["Bank", "Bank+MIDI", "MIDI only"]
@@ -552,6 +557,37 @@ class SlotEditor:
             if v is not None:
                 v.pack(side="left")
                 self.widgets["bankvalue"] = v
+        elif cmd_type == "MMC":
+            self._label("Action")
+            w = Option(self.params, MMC_ACTIONS, self.initial.get("KeyMode_(Key)") or "Play",
+                       width=115, command=lambda v: self._remode("MMC", v))
+            w.pack(side="left")
+            self.widgets["mmcaction"] = w
+            if w.get() == "Locate":
+                self._label("At (s)")
+                v = IntEntry(self.params, 0, MMC_LOCATE_MAX,
+                             clean(self.initial.get("OnValue_(CC/PB)")) or "0", width=60)
+                v.pack(side="left")
+                self.widgets["mmcvalue"] = v
+            ctk.CTkLabel(self.params, text="(MIDI Machine Control, to every device)",
+                         text_color=MUTED).pack(side="left", padx=8)
+        elif cmd_type == "Song":
+            self._label("Send")
+            w = Option(self.params, SONG_MODES, self.initial.get("KeyMode_(Key)") or "Select",
+                       width=90, command=lambda v: self._remode("Song", v))
+            w.pack(side="left")
+            self.widgets["songmode"] = w
+            position = w.get() == "Position"
+            self._label("Beat" if position else "Song")
+            v = IntEntry(self.params, 0, SONG_POSITION_MAX if position else 127,
+                         clean(self.initial.get("OnValue_(CC/PB)")) or "0", width=60)
+            v.pack(side="left")
+            self.widgets["songvalue"] = v
+            ctk.CTkLabel(
+                self.params,
+                text="(sixteenth notes from the start)" if position else "(song number)",
+                text_color=MUTED,
+            ).pack(side="left", padx=8)
         elif cmd_type == "Media":
             self._label("Key")
             w = Option(self.params, MEDIA_NAMES, self.initial.get("OnValue_(CC/PB)"), width=130)
@@ -685,6 +721,12 @@ class SlotEditor:
                 out["OnValue_(CC/PB)"] = w["bpm"].value()
             if "step" in w:
                 out["OffValue_(CC)"] = w["step"].value()
+        if cmd_type == "MMC":
+            out["KeyMode_(Key)"] = w["mmcaction"].value()
+            out["OnValue_(CC/PB)"] = w["mmcvalue"].value() if "mmcvalue" in w else ""
+        if cmd_type == "Song":
+            out["KeyMode_(Key)"] = w["songmode"].value()
+            out["OnValue_(CC/PB)"] = w["songvalue"].value()
         if cmd_type == "Cycle":
             out["OnValue_(CC/PB)"] = w["cyclelabel"].value().strip()
         if cmd_type == "LFO":

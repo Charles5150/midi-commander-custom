@@ -52,6 +52,32 @@ LFO_DIVISIONS = ["1/16T", "1/16", "1/8T", "1/8", "1/4T", "1/8.", "1/4", "1/2T",
                  "1/4.", "1/2", "1/2.", "1/1", "2/1", "4/1"]
 LFO_DIV_TICKS = [4, 6, 8, 12, 16, 18, 24, 32, 36, 48, 72, 96, 192, 384]
 LFO_SHAPES = ["Sine", "Triangle", "SawUp", "SawDown", "Square", "Random"]
+# And MIDI Machine Control: a message to every device (F0 7F 7F 06 ... F7) for
+# a recorder or a DAW. Byte 1 is the MMC command byte, and for Locate bytes 2
+# (low 7 bits) and 3 (high 7 bits) hold the position in seconds.
+CMD_MMC_MODE = 7
+MMC_COMMANDS = {
+    "Stop": 0x01,
+    "Play": 0x02,
+    "DeferredPlay": 0x03,
+    "FastForward": 0x04,
+    "Rewind": 0x05,
+    "Record": 0x06,
+    "RecordExit": 0x07,
+    "Pause": 0x09,
+    "Eject": 0x0A,
+    "Chase": 0x0B,
+    "Reset": 0x0D,
+    "Locate": 0x44,
+}
+MMC_LOCATE = 0x44
+MMC_LOCATE_MAX = 16383   # seconds, the largest the two value bytes hold
+# And Song Select (F3) or Song Position Pointer (F2). Byte 1 says which, bytes
+# 2 and 3 the value: the song number, or the position in sixteenth notes.
+CMD_SONG_MODE = 8
+SONG_SELECT, SONG_POSITION = 0, 1
+SONG_MODES = ["Select", "Position"]
+SONG_POSITION_MAX = 16383
 # A relative Program Change is a PC whose Bank Select MSB byte, where 0x80 and
 # above already meant "none", holds one of these markers
 PC_REL_UP = 0x81
@@ -544,6 +570,38 @@ def cmd_exp(cmd):
     return [CMD_NO_CMD_NIBBLE | CMD_EXP_MODE, (pedal - 1) | toggle, cc, channel]
 
 
+def cmd_mmc(cmd):
+    """MIDI Machine Control, to every device on the wire.
+
+    KeyMode is the action, one of MMC_COMMANDS: Play, Stop, Record, Pause and
+    the rest. Locate takes OnValue, where to go in seconds from the start.
+    """
+    text = str(cmd.get("KeyMode_(Key)", "")).strip().replace(" ", "")
+    if text.lower() in ("", "nan"):
+        text = "Play"
+    names = {k.upper(): v for k, v in MMC_COMMANDS.items()}
+    if text.upper() not in names:
+        raise ValueError(f"MMC action must be one of {', '.join(MMC_COMMANDS)}, not {text!r}")
+    command = names[text.upper()]
+    seconds = 0
+    if command == MMC_LOCATE:
+        seconds = max(0, min(MMC_LOCATE_MAX, safe_int(cmd.get("OnValue_(CC/PB)", 0))))
+    return [CMD_NO_CMD_NIBBLE | CMD_MMC_MODE, command, seconds & 0x7F, (seconds >> 7) & 0x7F]
+
+
+def cmd_song(cmd):
+    """Song Select or Song Position Pointer, neither of them on a channel.
+
+    KeyMode picks which: Select sends the song number in OnValue, 0-127;
+    Position sends where to start it, in sixteenth notes from the beginning.
+    """
+    text = str(cmd.get("KeyMode_(Key)", "")).strip().upper()
+    which = SONG_POSITION if text.startswith("POS") else SONG_SELECT
+    top = SONG_POSITION_MAX if which == SONG_POSITION else 127
+    value = max(0, min(top, safe_int(cmd.get("OnValue_(CC/PB)", 0))))
+    return [CMD_NO_CMD_NIBBLE | CMD_SONG_MODE, which, value & 0x7F, (value >> 7) & 0x7F]
+
+
 def cycle_label_text(value) -> str:
     """A Cycle command's label as stored: at most 4 ASCII characters."""
     text = "" if value is None else str(value)
@@ -601,6 +659,8 @@ cmd_route_table = {
     "Ramp": cmd_ramp,
     "Exp": cmd_exp,
     "LFO": cmd_lfo,
+    "MMC": cmd_mmc,
+    "Song": cmd_song,
 }
 
 

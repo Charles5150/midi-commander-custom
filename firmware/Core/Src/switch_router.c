@@ -387,9 +387,16 @@ static uint8_t* get_double_rom_pointer(uint8_t page, uint8_t sw, uint8_t cmd){
 	return pDoublePressCmds + (MIDI_ROM_KEY_STRIDE * sw) + (MIDI_ROM_CMD_SIZE * cmd) + (MIDI_ROM_KEY_STRIDE * 8 * page);
 }
 
+/*
+ * Whether a command does anything at all, which is what tells a button it has
+ * long press or double press commands. The empty command type counts when its
+ * low nibble names one of the commands that share it (Wait, Exp, MMC, Song and
+ * the rest), so a long press that only sends one of those still fires.
+ */
 static inline uint8_t cmd_is_present(const uint8_t *pRom){
 	uint8_t t = *pRom & 0xF0;
-	return t != CMD_NO_CMD_NIBBLE && t != 0xF0; // 0xF0 = erased flash
+	if(t == CMD_NO_CMD_NIBBLE) return (*pRom & 0x0F) != 0;
+	return t != 0xF0; // 0xF0 = erased flash
 }
 
 /*
@@ -501,6 +508,11 @@ static uint8_t* get_bank_enter_pointer(uint8_t bank, uint8_t cmd){
 
 static inline bool cmd_is_exp(const uint8_t *pRom){
 	return (pRom[0] & 0xF0) == CMD_NO_CMD_NIBBLE && (pRom[0] & 0x0F) == CMD_EXP_MODE;
+}
+
+// The 14 bit value the MMC and Song commands carry in their last two bytes
+static inline uint16_t cmd_value14(const uint8_t *pRom){
+	return (uint16_t)(pRom[2] & 0x7F) | ((uint16_t)(pRom[3] & 0x7F) << 7);
 }
 
 /*
@@ -946,7 +958,23 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 		apply_scene(pRom[1], pRom[2]);
 		break;
 	case CMD_NO_CMD_NIBBLE:
-		if(cmd_is_exp(pRom)) send_exp(pRom, toggleState);
+		switch(*pRom & 0x0F){
+		case CMD_EXP_MODE:
+			send_exp(pRom, toggleState);
+			break;
+		case CMD_MMC_MODE:
+			status = midiCmd_send_mmc(pRom[1], cmd_value14(pRom));
+			break;
+		case CMD_SONG_MODE:
+			if(pRom[1] == SONG_POSITION){
+				status = midiCmd_send_song_position(cmd_value14(pRom));
+			} else {
+				status = midiCmd_send_song_select(cmd_value14(pRom) & 0x7F);
+			}
+			break;
+		default:
+			break;
+		}
 		break;
 	default:
 		break;
