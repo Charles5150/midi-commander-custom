@@ -43,6 +43,8 @@ static void ramp_stop(uint8_t channel, uint8_t cc);
 static void lfo_stop(uint8_t channel, uint8_t cc);
 static void lfo_stop_all(void);
 static void lfo_restart_all(void);
+static void seq_stop(uint8_t channel, uint8_t number);
+static void seq_stop_all(void);
 
 /*
  * Creating some constant arrays for the switches that can be scanned and handled
@@ -950,8 +952,9 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 		status = midiCmd_send_stop_command();
 		break;
 	case CMD_PANIC_NIBBLE:
-		ramp_stop_all();	// or a ramp or LFO would bring the sound back
+		ramp_stop_all();	// or a ramp, LFO or sequence would bring the sound back
 		lfo_stop_all();
+		seq_stop_all();
 		status = midiCmd_send_panic();
 		break;
 	case CMD_SCENE_NIBBLE:
@@ -1548,6 +1551,196 @@ static void lfo_restart_all(void){
 	}
 }
 
+/*
+ * Seq: a step sequencer. A run of Seq commands above a CC or Note command
+ * plays that command one step at a time while the button is held, or while
+ * its toggle is on: a CC gets each step as its value, and a Note plays each
+ * step as a note, with the velocity the command carries. A step of SEQ_REST
+ * sends nothing, so a sequence has rests as well as notes.
+ *
+ * Like the LFO it is locked to the beat the tap LED shows, the host's clock
+ * while it is followed: the first step starts on the beat of the press, so a
+ * new tap or tempo is followed straight away, and the sequence runs round and
+ * round until the button lets it go. Then a CC gets its Off value as usual and
+ * a sounding note is let go.
+ */
+#define SEQ_SLOTS		(4)
+
+typedef struct {
+	uint32_t start_beat;	// beat the sequence started on
+	uint16_t div;			// how long a step lasts, in 24ths of a beat
+	uint8_t steps[SEQ_MAX_STEPS];
+	uint8_t count;			// steps in the sequence
+	uint8_t at;				// step last sent, 0xFF before the first
+	uint8_t channel;
+	uint8_t number;			// the CC number, or the note command's own note
+	uint8_t velocity;		// of the notes a Note sequence plays
+	uint8_t sounding;		// note left on by the last step, 0xFF for none
+	bool note;
+	bool active;
+} seq_t;
+
+static seq_t seqs[SEQ_SLOTS];
+
+// The commands a sequence can play, one step at a time
+static inline bool cmd_takes_steps(const uint8_t *pRom){
+	uint8_t type = pRom[0] & 0xF0;
+	return type == CMD_CC_NIBBLE || type == CMD_NOTE_NIBBLE;
+}
+
+static inline bool cmd_is_seq(const uint8_t *pRom){
+	return (pRom[0] & 0xF0) == CMD_NO_CMD_NIBBLE && (pRom[0] & 0x0F) == CMD_SEQ_MODE;
+}
+
+// The step a sequence is on now
+static uint8_t seq_step_now(const seq_t *s){
+	uint32_t beat, ms;
+	tempo_beat_now(&beat, &ms);
+	if(ms > 60000) ms = 60000;
+	uint32_t frac = ms * tempo_get_bpm() * 2 / 5;	// ms * bpm * 24000 / 60000
+	if(frac > 23999) frac = 23999;	// a late beat: wait for it at the end
+	uint32_t span = (uint32_t)s->div * s->count;	// the whole sequence, in 24ths
+	uint32_t pos = ((beat - s->start_beat) % span) * 24000 + frac;
+	pos %= span * 1000;
+	return (uint8_t)(pos / ((uint32_t)s->div * 1000));
+}
+
+static void seq_note(const seq_t *s, uint8_t note, uint8_t velocity, uint8_t on){
+	uint8_t rom[MIDI_ROM_CMD_SIZE] = {(uint8_t)(CMD_NOTE_NIBBLE | s->channel), note, velocity, 0};
+	midiCmd_send_note_command_from_rom(rom, on);
+}
+
+static void seq_send(seq_t *s, uint8_t step){
+	uint8_t value = s->steps[step];
+	if(s->note){
+		if(s->sounding <= 0x7F){
+			seq_note(s, s->sounding, 0, 0);	// the step before is over
+			s->sounding = SEQ_NO_STEP;
+		}
+		if(value <= 0x7F){
+			seq_note(s, value, s->velocity, 1);
+			s->sounding = value;
+		}
+	} else if(value <= 0x7F){
+		midiCmd_send_cc(s->channel, s->number, value);
+	}
+	s->at = step;
+}
+
+static void seq_release(seq_t *s){
+	if(s->note && s->sounding <= 0x7F) seq_note(s, s->sounding, 0, 0);
+	s->sounding = SEQ_NO_STEP;
+	s->active = false;
+}
+
+// The CC or Note command pRom as a sequence, from the run of `cmds` Seq
+// commands starting at `seq`
+static void seq_start(const uint8_t *seq, uint8_t cmds, const uint8_t *pRom){
+	bool note = (pRom[0] & 0xF0) == CMD_NOTE_NIBBLE;
+	uint8_t channel = pRom[0] & 0x0F;
+	uint8_t number = pRom[1] & 0x7F;
+	seq_t *s = NULL;
+	for(uint8_t i=0; i<SEQ_SLOTS; i++){
+		if(seqs[i].active && seqs[i].channel == channel && seqs[i].number == number){
+			s = &seqs[i];	// the same command again: start over
+			break;
+		}
+	}
+	for(uint8_t i=0; s == NULL && i<SEQ_SLOTS; i++){
+		if(!seqs[i].active) s = &seqs[i];
+	}
+	if(s == NULL){
+		// Every slot busy: the command as it stands
+		if(note) midiCmd_send_note_command_from_rom((uint8_t*)pRom, 1);
+		else midiCmd_send_cc(channel, number, pRom[2] & 0x7F);
+		return;
+	}
+
+	uint8_t count = 0;
+	for(uint8_t i=0; i<cmds && count<SEQ_MAX_STEPS; i++){
+		const uint8_t *cmd = seq + i * MIDI_ROM_CMD_SIZE;
+		bool done = false;
+		for(uint8_t b=2; b<=3 && count<SEQ_MAX_STEPS; b++){
+			if(cmd[b] == SEQ_NO_STEP){	// the sequence ends here
+				done = true;
+				break;
+			}
+			s->steps[count++] = cmd[b];
+		}
+		if(done) break;
+	}
+	if(count == 0) return;	// a run with no steps plays nothing
+
+	if(!note){
+		ramp_stop(channel, number);	// the sequence takes over the CC
+		lfo_stop(channel, number);
+	}
+	uint32_t ms;
+	tempo_beat_now(&s->start_beat, &ms);
+	s->div = lfo_div_ticks[(seq[1] & 0x0F) < LFO_DIV_COUNT ? (seq[1] & 0x0F) : 3];
+	s->count = count;
+	s->at = 0xFF;
+	s->channel = channel;
+	s->number = number;
+	s->velocity = pRom[2] & 0x7F;
+	s->sounding = SEQ_NO_STEP;
+	s->note = note;
+	s->active = true;
+	seq_send(s, seq_step_now(s));
+}
+
+static void seq_stop(uint8_t channel, uint8_t number){
+	for(uint8_t i=0; i<SEQ_SLOTS; i++){
+		if(seqs[i].active && seqs[i].channel == channel && seqs[i].number == number){
+			seq_release(&seqs[i]);
+		}
+	}
+}
+
+static void seq_stop_all(void){
+	for(uint8_t i=0; i<SEQ_SLOTS; i++){
+		if(seqs[i].active) seq_release(&seqs[i]);
+	}
+}
+
+/*
+ * After a power cycle: the sequences of the toggle buttons that are on, in
+ * every bank, run again, so the sound matches the LEDs.
+ */
+static void seq_restart_all(void){
+	seq_stop_all();
+	for(uint8_t b=0; b<MIDI_NUM_BANKS; b++){
+		for(uint8_t i=0; i<MIDI_NUM_SWITCHES; i++){
+			if(!sw_button_is_toggle(b, i) || !sw_get_toggle_state(b, i)) continue;
+			const uint8_t *run = NULL;
+			uint8_t cmds = 0;
+			for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
+				uint8_t *pRom = get_rom_pointer(b, i, j);
+				if(cmd_is_cycle(pRom)) break;
+				if(cmd_is_seq(pRom)){
+					if(run == NULL) run = pRom;
+					cmds++;
+					continue;
+				}
+				if(run && cmd_takes_steps(pRom) && midiCmd_get_cmd_toggle(pRom)){
+					seq_start(run, cmds, pRom);
+				}
+				run = NULL;
+				cmds = 0;
+			}
+		}
+	}
+}
+
+static void seq_task(void){
+	for(uint8_t i=0; i<SEQ_SLOTS; i++){
+		seq_t *s = &seqs[i];
+		if(!s->active) continue;
+		uint8_t step = seq_step_now(s);
+		if(step != s->at) seq_send(s, step);
+	}
+}
+
 static inline bool cmd_is_chan(const uint8_t *pRom){
 	return (pRom[0] & 0xF0) == CMD_NO_CMD_NIBBLE && (pRom[0] & 0x0F) == CMD_CHAN_MODE;
 }
@@ -1592,6 +1785,8 @@ static bool run_cmd_list(uint8_t *base, uint8_t first, uint8_t start, uint8_t to
 	uint32_t ramp = 0;	// time of a Ramp just above the command, 0 for none
 	const uint8_t *lfo = NULL;	// an LFO just above the command
 	const uint8_t *chan = NULL;	// a Chan just above the command
+	const uint8_t *seq = NULL;	// the first of a run of Seq commands above it
+	uint8_t seq_cmds = 0;
 	for(uint8_t j=start; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
 		uint8_t *pRom = base + j * MIDI_ROM_CMD_SIZE;
 		if(cmd_is_cycle(pRom)) break;	// the next state
@@ -1600,6 +1795,8 @@ static bool run_cmd_list(uint8_t *base, uint8_t first, uint8_t start, uint8_t to
 		uint32_t ramp_ms = ramp;
 		const uint8_t *lfo_cmd = lfo;
 		const uint8_t *chan_cmd = chan;
+		const uint8_t *seq_run = seq;
+		uint8_t seq_run_cmds = seq_cmds;
 		ramp = 0;	// a Ramp, LFO or Chan only reaches the command right below it
 		lfo = NULL;
 		chan = NULL;
@@ -1615,6 +1812,13 @@ static bool run_cmd_list(uint8_t *base, uint8_t first, uint8_t start, uint8_t to
 			chan = pRom;
 			continue;
 		}
+		if(cmd_is_seq(pRom)){
+			if(seq == NULL) seq = pRom;	// a run of them holds the steps
+			seq_cmds++;
+			continue;
+		}
+		seq = NULL;	// and the run only reaches the command right below it
+		seq_cmds = 0;
 		if(cmd_is_wait(pRom)){
 			uint32_t ms = (uint32_t)pRom[2] * 10;
 			if(allow_wait && ms &&
@@ -1634,6 +1838,13 @@ static bool run_cmd_list(uint8_t *base, uint8_t first, uint8_t start, uint8_t to
 			}
 			lfo_stop(pRom[0] & 0x0F, pRom[1] & 0x7F);	// switched off: then its Off value
 		}
+		if(seq_run && cmd_takes_steps(pRom)){
+			if(!midiCmd_get_cmd_toggle(pRom) || toggle){
+				seq_start(seq_run, seq_run_cmds, pRom);
+				continue;
+			}
+			seq_stop(pRom[0] & 0x0F, pRom[1] & 0x7F);	// switched off: then its Off value
+		}
 		send_on_channels(chan_cmd, pRom, toggle, false);
 	}
 
@@ -1652,18 +1863,24 @@ static bool run_cmd_list(uint8_t *base, uint8_t first, uint8_t start, uint8_t to
 static void run_list_up(uint8_t *base, uint8_t first, uint8_t toggle, uint8_t flags){
 	uint32_t ramp = 0;
 	bool lfo = false;
+	bool seq = false;
 	const uint8_t *chan = NULL;
 	for(uint8_t j=first; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
 		uint8_t *pRom = base + j * MIDI_ROM_CMD_SIZE;
 		if(cmd_is_cycle(pRom)) break;
 		uint32_t ramp_ms = ramp;
 		bool lfo_above = lfo;
+		bool seq_above = seq;
 		const uint8_t *chan_cmd = chan;
 		ramp = cmd_is_ramp(pRom) ? ramp_time_ms(pRom) : 0;
 		lfo = cmd_is_lfo(pRom);
+		seq = cmd_is_seq(pRom);
 		chan = cmd_is_chan(pRom) ? pRom : NULL;
 		if(lfo_above && (*pRom & 0xF0) == CMD_CC_NIBBLE && !midiCmd_get_cmd_toggle(pRom)){
 			lfo_stop(pRom[0] & 0x0F, pRom[1] & 0x7F);	// released: then its Off value
+		}
+		if(seq_above && cmd_takes_steps(pRom) && !midiCmd_get_cmd_toggle(pRom)){
+			seq_stop(pRom[0] & 0x0F, pRom[1] & 0x7F);	// released: then its Off value
 		}
 		if((flags & LIST_SKIP_BANK) && (*pRom & 0xF0) == CMD_BANK_NIBBLE) continue;
 		if(ramp_ms && (*pRom & 0xF0) == CMD_CC_NIBBLE){
@@ -1988,6 +2205,7 @@ static void switch_config(uint8_t target){
 	expression_init();
 	expression_clear_targets();
 	lfo_stop_all();
+	seq_stop_all();
 
 	display_setBankName(0);
 	display_show_config(slot);
@@ -2301,6 +2519,7 @@ void handle_switches(void){
 	pending_task();	// lists left half way by a Wait
 	ramp_task();	// CC ramps under way
 	lfo_task();		// and LFOs
+	seq_task();		// and step sequences
 
 	// The Command switches
 	uint32_t now = HAL_GetTick();
@@ -2513,6 +2732,7 @@ void sw_restore_state(uint8_t page, const uint32_t toggles[8], const uint32_t lo
 	}
 	exp_targets_for_bank();
 	lfo_restart_all();
+	seq_restart_all();
 	update_leds_on_bank_change();
 }
 

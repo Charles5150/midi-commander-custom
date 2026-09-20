@@ -154,7 +154,7 @@ LED_MODES = ["Normal", "Reverse", "AlwaysOn"]
 BUTTON_GROUPS = ["None", "1", "2", "3", "4"]
 CHANNELS = [str(i) for i in range(1, 17)]
 NO_COMMAND = "(none)"
-COMMAND_TYPES = [NO_COMMAND, "PC", "PCInc", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "MMC", "Song", "Panic", "Scene", "Wait", "Ramp", "LFO", "Exp", "Chan"]
+COMMAND_TYPES = [NO_COMMAND, "PC", "PCInc", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "MMC", "Song", "Panic", "Scene", "Wait", "Ramp", "LFO", "Seq", "Exp", "Chan"]
 # Cycle splits a button's short press list into states, so only that list offers it
 SHORT_COMMAND_TYPES = COMMAND_TYPES + ["Cycle"]
 # Leave splits a bank's enter list into the commands on entering and on leaving
@@ -659,6 +659,20 @@ class SlotEditor:
                 text="(the CC right below swings between Off and On, locked to the tempo)",
                 text_color=MUTED,
             ).pack(side="left", padx=8)
+        elif cmd_type == "Seq":
+            self._label("Steps")
+            w = TextEntry(self.params, 15, clean(self.initial.get("OnValue_(CC/PB)")), width=90)
+            w.pack(side="left")
+            self.widgets["seqsteps"] = w
+            self._label("Every")
+            w = Option(self.params, LFO_DIVISIONS, clean(self.initial.get("KeyMode_(Key)")) or "1/8", width=70)
+            w.pack(side="left")
+            self.widgets["seqdiv"] = w
+            ctk.CTkLabel(
+                self.params,
+                text="(two steps, \"100 -\"; one Seq after another makes a longer sequence)",
+                text_color=MUTED,
+            ).pack(side="left", padx=8)
         elif cmd_type == "Exp":
             self._label("Pedal")
             w = Option(self.params, ["1", "2"], self.initial.get("OnValue_(CC/PB)"), width=50)
@@ -745,6 +759,9 @@ class SlotEditor:
         if cmd_type == "LFO":
             out["OnValue_(CC/PB)"] = w["lfodiv"].value()
             out["KeyMode_(Key)"] = w["lfoshape"].value()
+        if cmd_type == "Seq":
+            out["OnValue_(CC/PB)"] = w["seqsteps"].value().strip()
+            out["KeyMode_(Key)"] = w["seqdiv"].value()
         if cmd_type == "Exp":
             out["OnValue_(CC/PB)"] = w["exppedal"].value()
             out["KeyMode_(Key)"] = w["exptarget"].value()

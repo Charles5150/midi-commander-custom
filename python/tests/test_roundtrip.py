@@ -2689,6 +2689,86 @@ class ChannelsTest(unittest.TestCase):
                          ("CC", "60"))
 
 
+class SequencerTest(unittest.TestCase):
+    """The Seq command, a step sequencer above a CC or a Note (firmware 0.52)."""
+
+    @staticmethod
+    def pack_seq(steps, div=""):
+        row = {f"A_{f}": "" for f in unpacker.CMD_FIELDS}
+        row["A_CommandType"] = "Seq"
+        row["A_OnValue_(CC/PB)"] = steps
+        row["A_KeyMode_(Key)"] = div
+        return bytes(cbp.pack_row(pd.Series(row)))[:4]
+
+    def test_mode_and_bytes_match_firmware(self):
+        """The Seq nibble and the two values a step byte can take instead."""
+        import re
+
+        path = os.path.join(os.path.dirname(__file__), "..", "..", "firmware", "Core", "Inc", "midi_defines.h")
+        with open(path) as handle:
+            text = handle.read()
+        modes = dict(re.findall(r"^#define\s+CMD_(\w+)_MODE\s+\((\d+)\)", text, re.M))
+        self.assertEqual(int(modes["SEQ"]), cbp.CMD_SEQ_MODE)
+        taken = [int(v) for v in modes.values()]
+        self.assertEqual(len(taken), len(set(taken)))   # still a nibble each
+        for name, value in (("SEQ_REST", cbp.SEQ_REST), ("SEQ_NO_STEP", cbp.SEQ_NO_STEP)):
+            fw = re.search(r"^#define\s+" + name + r"\s+\((0x[0-9A-Fa-f]+)\)", text, re.M)
+            self.assertEqual(int(fw.group(1), 16), value, name)
+        fw = re.search(r"^#define\s+SEQ_MAX_STEPS\s+\((\d+)\)", text, re.M)
+        self.assertEqual(int(fw.group(1)), cbp.SEQ_MAX_STEPS)
+        # the whole sequence fits in the commands a button has above its CC
+        self.assertEqual(cbp.SEQ_MAX_STEPS,
+                         (cbp.MIDI_NUM_COMMANDS_PER_SWITCH - 1) * cbp.SEQ_STEPS_PER_CMD)
+
+    def test_seq_round_trip(self):
+        for text, div, packed_steps in (
+                ("127 0", "1/8", [127, 0]),
+                ("60 -", "1/16", [60, cbp.SEQ_REST]),
+                ("- -", "1/4", [cbp.SEQ_REST, cbp.SEQ_REST]),
+                ("90", "1/1", [90, cbp.SEQ_NO_STEP]),
+                ("100,64", "", [100, 64])):
+            packed = self.pack_seq(text, div)
+            wanted_div = cbp.LFO_DIVISIONS.index(div or cbp.SEQ_DEFAULT_DIV)
+            self.assertEqual(list(packed), [0x0A, wanted_div] + packed_steps, text)
+            back = unpacker.unpack_command(packed)
+            self.assertEqual(back["CommandType"], "Seq")
+            self.assertEqual(back["KeyMode_(Key)"], div or cbp.SEQ_DEFAULT_DIV, text)
+            self.assertEqual(back["OnValue_(CC/PB)"],
+                             cbp.steps_text(packed_steps), text)
+
+    def test_seq_rejects_what_is_not_a_step(self):
+        for text in ("128", "-1", "loud", "1 2 3"):
+            with self.assertRaises(ValueError, msg=text):
+                self.pack_seq(text)
+        with self.assertRaises(ValueError):
+            self.pack_seq("1 2", "1/5")
+
+    def test_seq_without_steps_ends_the_sequence(self):
+        packed = self.pack_seq("")
+        self.assertEqual(list(packed)[2:], [cbp.SEQ_NO_STEP, cbp.SEQ_NO_STEP])
+        self.assertEqual(unpacker.unpack_command(packed)["OnValue_(CC/PB)"], "")
+
+    def test_seq_is_not_an_empty_command(self):
+        """It shares the empty command type, but zero is still no command."""
+        self.assertEqual(unpacker.unpack_command(bytes([0, 0, 0, 0]))["CommandType"], "")
+        self.assertEqual(unpacker.unpack_command(bytes([0x0A, 3, 60, 64]))["CommandType"], "Seq")
+
+    def test_demo_holds_an_arpeggio(self):
+        """Held, STRT of bank 6 plays four notes, an eighth note each."""
+        packed = packer.pack_config(read_config_csv(DEMO_CSV))
+        frames = unpacker.unpack_config(packed)
+        long_press = next(f for f in frames
+                          if "A_CommandType" in f.columns and "Label" not in f.columns)
+        row = long_press[(long_press["Bank_Number"].astype(str) == "6")
+                         & (long_press["Button_Identifier"].astype(str) == "3")].iloc[0]
+        self.assertEqual((norm(row["A_CommandType"]), norm(row["A_OnValue_(CC/PB)"]),
+                          norm(row["A_KeyMode_(Key)"])), ("Seq", "60 64", "1/8"))
+        self.assertEqual((norm(row["B_CommandType"]), norm(row["B_OnValue_(CC/PB)"])),
+                         ("Seq", "67 72"))
+        self.assertEqual((norm(row["C_CommandType"]), norm(row["C_Number_(PC/CC/Note)"]),
+                          norm(row["C_Toggle_(CC/PB/Note)"])), ("Note", "60", "Y"))
+
+
 class FakePedal:
     """A pedal in memory that answers the SysEx the slot tools use: four slots
     of flash, a target selected with SELECT_SLOT, erase, write and read."""

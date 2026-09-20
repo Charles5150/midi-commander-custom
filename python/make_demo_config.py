@@ -342,6 +342,16 @@ def build() -> Demo:
     d.button(6, "D", "BPM-", None, "A", CommandType="Tap",
              **{"KeyMode_(Key)": "Down Repeat", "OffValue_(CC)": "1"})
     d.long_press(6, "B", CommandType="Tap", **{"KeyMode_(Key)": "Set", "OnValue_(CC/PB)": "120"})
+    # Hold STRT for a four note arpeggio, locked to the tempo: two Seq
+    # commands hold its four steps, an eighth note each, and the note below
+    # them plays one step at a time. Hold it again to stop
+    d.long_press(6, "3", CommandType="Seq",
+                 **{"OnValue_(CC/PB)": "60 64", "KeyMode_(Key)": "1/8"})
+    d.long_press(6, "3", slot="B", CommandType="Seq",
+                 **{"OnValue_(CC/PB)": "67 72", "KeyMode_(Key)": "1/8"})
+    d.long_press(6, "3", slot="C", CommandType="Note",
+                 **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": "60",
+                    "Velocity_(Note)": "100", "Toggle_(CC/PB/Note)": "Y"})
     # Hold STOP for panic: every sound and note off, on every channel
     d.long_press(6, "4", CommandType="Panic")
 

@@ -84,6 +84,17 @@ SONG_POSITION_MAX = 16383
 CMD_CHAN_MODE = 9
 CHAN_15_BIT = 0x01
 CHAN_16_BIT = 0x02
+# And a step sequencer: a run of Seq commands above a CC or Note command plays
+# it one step at a time, locked to the tempo. Each command holds two steps, in
+# bytes 2 and 3, a step being a value 0-127, SEQ_REST for one that sends
+# nothing or SEQ_NO_STEP where the sequence ends. Byte 1 is how long a step
+# lasts, an index into LFO_DIVISIONS, read from the first command of the run.
+CMD_SEQ_MODE = 10
+SEQ_REST = 0x80
+SEQ_NO_STEP = 0xFF
+SEQ_STEPS_PER_CMD = 2
+SEQ_MAX_STEPS = 18
+SEQ_DEFAULT_DIV = "1/8"
 # A relative Program Change is a PC whose Bank Select MSB byte, where 0x80 and
 # above already meant "none", holds one of these markers
 PC_REL_UP = 0x81
@@ -653,6 +664,49 @@ def cmd_chan(cmd):
     return [CMD_NO_CMD_NIBBLE | CMD_CHAN_MODE, byte1, mask & 0x7F, (mask >> 7) & 0x7F]
 
 
+def parse_steps(text) -> list:
+    """The steps of one Seq command: values 0-127, or "-" for a silent step."""
+    text = str("" if text is None else text).strip()
+    if text.lower() in ("", "nan"):
+        return []
+    steps = []
+    for part in text.replace(",", " ").replace(";", " ").split():
+        if part in ("-", "_", "."):
+            steps.append(SEQ_REST)
+            continue
+        value = safe_int(part, -1)
+        if not 0 <= value <= 127:
+            raise ValueError(f"Seq steps are 0-127, or - for a rest, not {part!r}")
+        steps.append(value)
+    if len(steps) > SEQ_STEPS_PER_CMD:
+        raise ValueError(
+            f"A Seq command holds {SEQ_STEPS_PER_CMD} steps; put the rest in the next one"
+        )
+    return steps
+
+
+def steps_text(values) -> str:
+    """The steps of a Seq command back as text, "100 -"."""
+    return " ".join("-" if v == SEQ_REST else str(v) for v in values if v != SEQ_NO_STEP)
+
+
+def cmd_seq(cmd):
+    """Play the CC or Note command below the run of Seq commands step by step.
+
+    OnValue holds this command's two steps, "100 -", and KeyMode how long a
+    step lasts as a note division (LFO_DIVISIONS, "1/8" when empty), which
+    only the first command of the run is asked for.
+    """
+    steps = parse_steps(cmd.get("OnValue_(CC/PB)"))
+    div = str(cmd.get("KeyMode_(Key)", "")).strip()
+    if div in ("", "nan"):
+        div = SEQ_DEFAULT_DIV
+    if div not in LFO_DIVISIONS:
+        raise ValueError(f"Seq step must be one of {', '.join(LFO_DIVISIONS)}, not {div!r}")
+    steps = steps + [SEQ_NO_STEP] * (SEQ_STEPS_PER_CMD - len(steps))
+    return [CMD_NO_CMD_NIBBLE | CMD_SEQ_MODE, LFO_DIVISIONS.index(div), steps[0], steps[1]]
+
+
 def cycle_label_text(value) -> str:
     """A Cycle command's label as stored: at most 4 ASCII characters."""
     text = "" if value is None else str(value)
@@ -713,6 +767,7 @@ cmd_route_table = {
     "MMC": cmd_mmc,
     "Song": cmd_song,
     "Chan": cmd_chan,
+    "Seq": cmd_seq,
 }
 
 

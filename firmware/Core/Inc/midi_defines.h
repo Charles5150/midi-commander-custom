@@ -141,6 +141,20 @@
 #define CMD_CHAN_MODE		(9)
 #define CHAN_15_BIT		(0x01)
 #define CHAN_16_BIT		(0x02)
+// Seq: same empty command type, low nibble 10. A run of them above a CC or
+// Note command turns it into a step sequencer: while the button is held, or
+// its toggle is on, that command goes out one step at a time, locked to the
+// tempo. Each Seq command holds two steps, in bytes 2 and 3, and a step is a
+// value 0-127 (the CC's value, or the note to play), SEQ_REST for a step that
+// sends nothing, or SEQ_NO_STEP where the sequence ends. Byte 1 of the first
+// command of the run is how long a step lasts, an index into the LFO_DIV_
+// table (its top bit stays clear, as that is what marks a command as
+// toggling). Nine commands, the most a button has above its CC, hold eighteen
+// steps.
+#define CMD_SEQ_MODE		(10)
+#define SEQ_REST		(0x80)
+#define SEQ_NO_STEP		(0xFF)
+#define SEQ_MAX_STEPS		(18)
 #define CMD_PC_NIBBLE		(0xC0)
 // Relative Program Change: a PC whose byte 2 (the Bank Select MSB, 0x80 and up
 // meaning none) holds one of these markers. Byte 1 is the step, byte 3 the last

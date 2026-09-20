@@ -30,6 +30,8 @@ from lib.cmdBinaryPacker import (
     CHAN_15_BIT,
     CHAN_16_BIT,
     channel_list_text,
+    CMD_SEQ_MODE,
+    steps_text,
     MMC_COMMANDS,
     MMC_LOCATE,
     SONG_MODES,
@@ -259,6 +261,10 @@ def unpack_command(raw: bytes, cycle_labels=None) -> dict:
         cmd["CommandType"] = "LFO"
         cmd["OnValue_(CC/PB)"] = LFO_DIVISIONS[min(b2, len(LFO_DIVISIONS) - 1)]
         cmd["KeyMode_(Key)"] = LFO_SHAPES[b3] if b3 < len(LFO_SHAPES) else LFO_SHAPES[0]
+    elif cmd_type == CMD_NO_CMD_NIBBLE and (b0 & 0x0F) == CMD_SEQ_MODE:
+        cmd["CommandType"] = "Seq"
+        cmd["KeyMode_(Key)"] = LFO_DIVISIONS[min(b1 & 0x0F, len(LFO_DIVISIONS) - 1)]
+        cmd["OnValue_(CC/PB)"] = steps_text([b2, b3])
     elif cmd_type == CMD_NO_CMD_NIBBLE and (b0 & 0x0F) == CMD_MMC_MODE:
         cmd["CommandType"] = "MMC"
         cmd["KeyMode_(Key)"] = _MMC_NAMES.get(b1, "Play")
