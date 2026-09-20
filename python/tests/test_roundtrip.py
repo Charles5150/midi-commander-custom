@@ -2601,6 +2601,94 @@ class MmcAndSongTest(unittest.TestCase):
         self.assertEqual(got["3"], ("Song", "Position", "0"))
 
 
+class ChannelsTest(unittest.TestCase):
+    """The global channel and the Chan command (firmware 0.51)."""
+
+    @staticmethod
+    def pack_chan(channels):
+        row = {f"A_{f}": "" for f in unpacker.CMD_FIELDS}
+        row["A_CommandType"] = "Chan"
+        row["A_Channel_(PC/CC/Note/PB)"] = channels
+        return bytes(cbp.pack_row(pd.Series(row)))[:4]
+
+    @staticmethod
+    def pack_global(value):
+        sections = read_config_csv(DEMO_CSV)
+        g = sections["Global_Settings"]
+        g.loc[g["Label"] == "Global_Channel", "Value"] = value
+        return packer.pack_config(sections)
+
+    def test_mode_and_byte_match_firmware(self):
+        """The Chan nibble, its two top channel bits and the global setting byte."""
+        import re
+
+        path = os.path.join(os.path.dirname(__file__), "..", "..", "firmware", "Core", "Inc", "midi_defines.h")
+        with open(path) as handle:
+            text = handle.read()
+        modes = dict(re.findall(r"^#define\s+CMD_(\w+)_MODE\s+\((\d+)\)", text, re.M))
+        self.assertEqual(int(modes["CHAN"]), cbp.CMD_CHAN_MODE)
+        taken = [int(v) for v in modes.values()]
+        self.assertEqual(len(taken), len(set(taken)))   # still a nibble each
+        self.assertNotIn(0, taken)
+        for name, value in (("CHAN_15_BIT", cbp.CHAN_15_BIT), ("CHAN_16_BIT", cbp.CHAN_16_BIT)):
+            fw = re.search(r"^#define\s+" + name + r"\s+\((0x[0-9A-Fa-f]+)\)", text, re.M)
+            self.assertEqual(int(fw.group(1), 16), value)
+        byte = re.search(r"^#define\s+GLOBAL_SETTINGS_GLOBAL_CHANNEL\s+\((\d+)\)", text, re.M)
+        self.assertEqual(int(byte.group(1)), 41)
+
+    def test_chan_round_trip(self):
+        for text, mask in (("1", 0x0001), ("1 2 3", 0x0007), ("2,4,6", 0x002A),
+                           ("16", 0x8000), ("15 16", 0xC000), ("1-16", 0xFFFF)):
+            packed = self.pack_chan(text)
+            byte1 = (cbp.CHAN_15_BIT if mask & (1 << 14) else 0) | (cbp.CHAN_16_BIT if mask & (1 << 15) else 0)
+            self.assertEqual(list(packed), [0x09, byte1, mask & 0x7F, (mask >> 7) & 0x7F], text)
+            back = unpacker.unpack_command(packed)
+            self.assertEqual(back["CommandType"], "Chan")
+            wanted = " ".join(str(c + 1) for c in range(16) if mask & (1 << c))
+            self.assertEqual(back["Channel_(PC/CC/Note/PB)"], wanted, text)
+
+    def test_chan_needs_channels(self):
+        for text in ("", "0", "17", "1 99"):
+            with self.assertRaises(ValueError, msg=text):
+                self.pack_chan(text)
+
+    def test_chan_is_not_an_empty_command(self):
+        """It shares the empty command type, but zero is still no command."""
+        self.assertEqual(unpacker.unpack_command(bytes([0, 0, 0, 0]))["CommandType"], "")
+        self.assertEqual(unpacker.unpack_command(bytes([0x09, 0, 1, 0]))["CommandType"], "Chan")
+
+    def test_global_channel_round_trip(self):
+        for text, byte in (("Off", 0), ("1", 1), ("10", 10), ("16", 16)):
+            packed = self.pack_global(text)
+            self.assertEqual(packed[41], byte, text)
+            back = unpacker.unpack_config(packed)[0].set_index("Label")["Value"]
+            self.assertEqual(back["Global_Channel"], text, text)
+
+    def test_global_channel_defaults_to_off(self):
+        """A configuration written before 0.51 has erased flash in that byte."""
+        image = bytearray(self.pack_global("5"))
+        image[41] = 0xFF
+        back = unpacker.unpack_config(bytes(image))[0].set_index("Label")["Value"]
+        self.assertEqual(back["Global_Channel"], "Off")
+        sections = read_config_csv(DEMO_CSV)
+        sections["Global_Settings"] = sections["Global_Settings"][
+            sections["Global_Settings"]["Label"] != "Global_Channel"]
+        self.assertEqual(packer.pack_config(sections)[41], 0)
+
+    def test_demo_holds_one(self):
+        """Held, button A of bank 11 mutes three devices with one CC."""
+        packed = packer.pack_config(read_config_csv(DEMO_CSV))
+        frames = unpacker.unpack_config(packed)
+        long_press = next(f for f in frames
+                          if "A_CommandType" in f.columns and "Label" not in f.columns)
+        row = long_press[(long_press["Bank_Number"].astype(str) == "11")
+                         & (long_press["Button_Identifier"].astype(str) == "A")].iloc[0]
+        self.assertEqual((norm(row["A_CommandType"]), norm(row["A_Channel_(PC/CC/Note/PB)"])),
+                         ("Chan", "1 2 3"))
+        self.assertEqual((norm(row["B_CommandType"]), norm(row["B_Number_(PC/CC/Note)"])),
+                         ("CC", "60"))
+
+
 class FakePedal:
     """A pedal in memory that answers the SysEx the slot tools use: four slots
     of flash, a target selected with SELECT_SLOT, erase, write and read."""

@@ -53,6 +53,29 @@ static int8_t get_next_available_tx_buffer(void){
 	return -1;
 }
 
+/*
+ * Which channel a message really goes out on.
+ *
+ * A command stores its own channel, but two things can move it. The global
+ * channel setting takes every message in the configuration to one channel, so
+ * a whole rig moves with one number. A Chan command names channels on purpose
+ * for the command below it, and while it is sending, that channel wins over
+ * everything: it is how one command reaches several devices, and how a command
+ * stays where it is when the rest of the configuration moves.
+ */
+static uint8_t forced_channel = 0;	// 1-16 while a Chan command is sending
+
+void midiCmd_force_channel(uint8_t channel){
+	forced_channel = (channel <= 16) ? channel : 0;
+}
+
+uint8_t midiCmd_channel(uint8_t stored){
+	if(forced_channel) return (uint8_t)(forced_channel - 1) & 0x0F;
+	uint8_t global = pGlobalSettings[GLOBAL_SETTINGS_GLOBAL_CHANNEL];
+	if(global >= 1 && global <= 16) return (uint8_t)(global - 1) & 0x0F;
+	return stored & 0x0F;
+}
+
 uint8_t midiCmd_get_cmd_toggle(uint8_t *pRom){
 // Toggle state is always stored in the most significant bit of the second cmd byte
 // EXCEPT for KEY commands where we use byte 4 (index 3)
@@ -297,7 +320,7 @@ int8_t midiCmd_send_pb_command_from_rom(uint8_t *pRom, uint8_t on_off){
 	uint8_t *usbBuf = midi_usb_assembly_buffer;
 
 	*(usbBuf++) = CIN_PITCHBEND_CHANGE;
-	*(usbBuf++) = 0xE0| (pRom[0] & 0xF); // Channel
+	*(usbBuf++) = 0xE0| midiCmd_channel(pRom[0]); // Channel
 	*(usbBuf++) = on_off ? (pRom[1] & 0x7F) : 0x0; // PB LSB
 	*(usbBuf++) = on_off ? (pRom[2] & 0x7F) : (0X2000 >> 7) & 0X7f; // PB MSB
 
@@ -328,7 +351,7 @@ int8_t midiCmd_send_note_command_from_rom(uint8_t *pRom, uint8_t on_off){
 
 	*(usbBuf++) = (on_off) ? CIN_NOTE_ON : CIN_NOTE_OFF;
 	*(usbBuf) = (on_off) ? 0x90 : 0x80; // Note on/off
-	*(usbBuf++) |= pRom[0] & 0xF; // Channel
+	*(usbBuf++) |= midiCmd_channel(pRom[0]); // Channel
 	*(usbBuf++) = pRom[1] & 0x7F; // Note Number
 	*(usbBuf++) = (on_off) ?  pRom[2] & 0x7F : 0; // Velocity
 
@@ -359,7 +382,7 @@ int8_t midiCmd_send_cc(uint8_t channel, uint8_t cc_number, uint8_t value)
 	uint8_t *usbBuf = midi_usb_assembly_buffer;
 
 	*(usbBuf++) = CIN_CONTROL_CHANGE;
-	*(usbBuf++) = 0xB0 | (channel & 0xF);
+	*(usbBuf++) = 0xB0 | midiCmd_channel(channel);
 	*(usbBuf++) = cc_number & 0x7F;
 	*(usbBuf++) = value & 0x7F;
 
@@ -395,7 +418,7 @@ int8_t midiCmd_send_cc14(uint8_t channel, uint8_t cc_number, uint16_t value)
 
 	for(uint8_t k = 0; k < 2; k++){
 		*(usbBuf++) = CIN_CONTROL_CHANGE;
-		*(usbBuf++) = 0xB0 | (channel & 0xF);
+		*(usbBuf++) = 0xB0 | midiCmd_channel(channel);
 		*(usbBuf++) = k ? (cc_number & 0x1F) + 32 : cc_number & 0x1F;
 		*(usbBuf++) = k ? value & 0x7F : (value >> 7) & 0x7F;
 
@@ -442,7 +465,7 @@ int8_t midiCmd_send_cc_command_from_rom(uint8_t *pRom, uint8_t on_off){
 	uint8_t cc_value = (on_off) ?  pRom[2] & 0x7F : pRom[3] & 0x7F; // Value
 
 	*(usbBuf++) = CIN_CONTROL_CHANGE;
-	*(usbBuf++) = 0xB0 | (pRom[0] & 0xF); // CC and Channel
+	*(usbBuf++) = 0xB0 | midiCmd_channel(pRom[0]); // CC and Channel
 	*(usbBuf++) = cc_number;
 	*(usbBuf++) = cc_value;
 
@@ -494,7 +517,7 @@ int8_t midiCmd_send_pc_command_from_rom(uint8_t *pRom){
 	 */
 	if(pRom[2] < 0x80){ // Bank Select MSB
 		*(usbBuf++) = CIN_CONTROL_CHANGE;
-		*(usbBuf++) = 0xB0 | (pRom[0] & 0xF);
+		*(usbBuf++) = 0xB0 | midiCmd_channel(pRom[0]);
 		*(usbBuf++) = MIDI_PC_BANK_SELECT_MSB;
 		*(usbBuf++) = pRom[2];
 
@@ -504,7 +527,7 @@ int8_t midiCmd_send_pc_command_from_rom(uint8_t *pRom){
 
 	if(pRom[3] < 0x80){ // Bank Select LSB
 		*(usbBuf++) = CIN_CONTROL_CHANGE;
-		*(usbBuf++) = 0xB0 | (pRom[0] & 0xF);
+		*(usbBuf++) = 0xB0 | midiCmd_channel(pRom[0]);
 		*(usbBuf++) = MIDI_PC_BANK_SELECT_LSB;
 		*(usbBuf++) = pRom[3];
 
@@ -514,7 +537,7 @@ int8_t midiCmd_send_pc_command_from_rom(uint8_t *pRom){
 
 	// The program change message
 	*(usbBuf++) = CIN_PROGRAM_CHANGE;
-	*(usbBuf++) = 0xC0 | (pRom[0] & 0xF);
+	*(usbBuf++) = 0xC0 | midiCmd_channel(pRom[0]);
 	*(usbBuf++) = pRom[1] & 0x7F;
 	*(usbBuf++) = 0; // must pad USB packets to 32b
 

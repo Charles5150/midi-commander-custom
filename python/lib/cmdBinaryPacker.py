@@ -78,6 +78,12 @@ CMD_SONG_MODE = 8
 SONG_SELECT, SONG_POSITION = 0, 1
 SONG_MODES = ["Select", "Position"]
 SONG_POSITION_MAX = 16383
+# Chan: sends the command right below it on the channels it names. The sixteen
+# channels are a bit each: byte 2 holds channels 1-7, byte 3 channels 8-14, and
+# the two low bits of byte 1 channels 15 and 16.
+CMD_CHAN_MODE = 9
+CHAN_15_BIT = 0x01
+CHAN_16_BIT = 0x02
 # A relative Program Change is a PC whose Bank Select MSB byte, where 0x80 and
 # above already meant "none", holds one of these markers
 PC_REL_UP = 0x81
@@ -602,6 +608,51 @@ def cmd_song(cmd):
     return [CMD_NO_CMD_NIBBLE | CMD_SONG_MODE, which, value & 0x7F, (value >> 7) & 0x7F]
 
 
+def parse_channel_list(text) -> int:
+    """The channels of a Chan command as a bit mask, bit 0 being channel 1.
+
+    The cell holds them in any readable form: "1 2 3", "1,2,3" or "1-3".
+    """
+    text = str("" if text is None else text).strip()
+    if text.lower() in ("", "nan"):
+        return 0
+    mask = 0
+    for part in text.replace(",", " ").replace(";", " ").split():
+        if "-" in part[1:]:
+            first, last = part.split("-", 1)
+            span = range(safe_int(first), safe_int(last) + 1)
+        else:
+            span = [safe_int(part)]
+        for channel in span:
+            if not 1 <= channel <= 16:
+                raise ValueError(f"Chan channels must be 1-16, not {part!r}")
+            mask |= 1 << (channel - 1)
+    return mask
+
+
+def channel_list_text(mask: int) -> str:
+    """The channels of a Chan command back as text, "1 2 3"."""
+    return " ".join(str(c + 1) for c in range(16) if mask & (1 << c))
+
+
+def cmd_chan(cmd):
+    """Send the command right below this one on several channels.
+
+    Channel holds the list, "1 2 3" or "1-3". The command below goes out once
+    per channel, whatever channel of its own it carries, and whatever the
+    configuration's global channel says.
+    """
+    mask = parse_channel_list(cmd.get("Channel_(PC/CC/Note/PB)"))
+    if mask == 0:
+        raise ValueError("Chan needs a channel list, like 1 2 3")
+    byte1 = 0
+    if mask & (1 << 14):
+        byte1 |= CHAN_15_BIT
+    if mask & (1 << 15):
+        byte1 |= CHAN_16_BIT
+    return [CMD_NO_CMD_NIBBLE | CMD_CHAN_MODE, byte1, mask & 0x7F, (mask >> 7) & 0x7F]
+
+
 def cycle_label_text(value) -> str:
     """A Cycle command's label as stored: at most 4 ASCII characters."""
     text = "" if value is None else str(value)
@@ -661,6 +712,7 @@ cmd_route_table = {
     "LFO": cmd_lfo,
     "MMC": cmd_mmc,
     "Song": cmd_song,
+    "Chan": cmd_chan,
 }
 
 

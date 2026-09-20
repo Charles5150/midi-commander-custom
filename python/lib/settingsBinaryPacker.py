@@ -21,6 +21,7 @@ GLOBAL_SETTINGS_DOUBLE_PRESS = 36
 GLOBAL_SETTINGS_REMOTE_MODE = 38
 GLOBAL_SETTINGS_REMOTE_CHANNEL = 39
 GLOBAL_SETTINGS_REMOTE_FIRST = 40
+GLOBAL_SETTINGS_GLOBAL_CHANNEL = 41
 # Set by configPacker when the image carries double press commands
 GLOBAL_SETTINGS_DOUBLE_STORED = 37
 
@@ -203,6 +204,19 @@ def pack_global_settings(df):
         except ValueError:
             first = 102
     bin_list[GLOBAL_SETTINGS_REMOTE_FIRST] = max(0, min(118, first))
+
+    # The global channel: every command goes out on it instead of its own, so
+    # one number moves a whole configuration to another channel. Off = each
+    # command keeps the channel it carries.
+    ch_text = str(df.loc["Global_Channel", "Value"]).strip() if "Global_Channel" in df.index else "Off"
+    if ch_text.upper().startswith("O") or ch_text in ("", "nan"):
+        channel = 0
+    else:
+        try:
+            channel = max(0, min(16, int(float(ch_text))))
+        except ValueError:
+            channel = 0
+    bin_list[GLOBAL_SETTINGS_GLOBAL_CHANNEL] = channel
 
     return bin_list
 

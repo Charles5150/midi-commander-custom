@@ -428,6 +428,13 @@ def build() -> Demo:
     d.cc(11, "4", "BOST", "56", toggle="Y", light="AlwaysOn")
     d.momentary_hold(11, "4")
     d.media(11, "A", "PLAY", "play_pause")
+    # Held, the same button mutes three devices at once: the Chan above the CC
+    # names the channels it goes out on, whatever the global channel says
+    d.long_press(11, "A", CommandType="Chan", **{"Channel_(PC/CC/Note/PB)": "1 2 3"})
+    d.long_press(11, "A", slot="B", CommandType="CC",
+                 **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": "60",
+                    "OnValue_(CC/PB)": "127", "OffValue_(CC)": "0",
+                    "Toggle_(CC/PB/Note)": "Y"})
     # A pause in the middle of a list: the program change goes out, and the CC
     # follows 200 ms later, once the device has finished loading the patch
     d.pc(11, "B", "WAIT", "6")
@@ -558,6 +565,7 @@ def global_settings() -> pd.DataFrame:
                 ("Remote_Mode", "CC"),
                 ("Remote_Channel", "16"),
                 ("Remote_First", "102"),
+                ("Global_Channel", "Off"),
             )
         ]
     )

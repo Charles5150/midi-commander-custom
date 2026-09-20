@@ -131,6 +131,16 @@
 #define CMD_SONG_MODE		(8)
 #define SONG_SELECT		(0)
 #define SONG_POSITION		(1)
+// Chan: same empty command type, low nibble 9. Sends the command right below
+// it on the channels it names instead of the one that command carries, so one
+// command reaches several devices at once. The sixteen channels are a bit
+// each: byte 2 holds channels 1-7, byte 3 channels 8-14, and the two low bits
+// of byte 1 channels 15 and 16 (byte 1 keeps its top bit clear, as that is
+// what marks a command as toggling). Naming channels on purpose also beats
+// the global channel, which an empty list would otherwise move it to.
+#define CMD_CHAN_MODE		(9)
+#define CHAN_15_BIT		(0x01)
+#define CHAN_16_BIT		(0x02)
 #define CMD_PC_NIBBLE		(0xC0)
 // Relative Program Change: a PC whose byte 2 (the Bank Select MSB, 0x80 and up
 // meaning none) holds one of these markers. Byte 1 is the step, byte 3 the last
@@ -196,6 +206,7 @@
 #define GLOBAL_SETTINGS_REMOTE_MODE (38)	// Remote press: 0 off, 1 Control Change, 2 Note
 #define GLOBAL_SETTINGS_REMOTE_CHANNEL (39)	// 0 = any channel, 1-16 = that channel only
 #define GLOBAL_SETTINGS_REMOTE_FIRST (40)	// CC or note for switch 1; the next nine follow
+#define GLOBAL_SETTINGS_GLOBAL_CHANNEL (41)	// 0 = each command keeps its own, 1-16 = they all go out on that one
 
 #define BANK_SWITCH_BANK_ONLY	(0)	// change bank, send nothing (the original behaviour)
 #define BANK_SWITCH_BANK_MIDI	(1)	// change bank and send the switch's commands

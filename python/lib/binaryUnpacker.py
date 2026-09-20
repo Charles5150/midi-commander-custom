@@ -26,6 +26,10 @@ from lib.cmdBinaryPacker import (
     CMD_LFO_MODE,
     CMD_MMC_MODE,
     CMD_SONG_MODE,
+    CMD_CHAN_MODE,
+    CHAN_15_BIT,
+    CHAN_16_BIT,
+    channel_list_text,
     MMC_COMMANDS,
     MMC_LOCATE,
     SONG_MODES,
@@ -183,6 +187,7 @@ def unpack_global_settings(data: bytes) -> pd.DataFrame:
         ("Remote_Mode", {1: "CC", 2: "Note"}.get(g[38], "Off")),
         ("Remote_Channel", str(g[39]) if 1 <= g[39] <= 16 else "Any"),
         ("Remote_First", str(g[40] if g[40] <= 118 else 102)),
+        ("Global_Channel", str(g[41]) if 1 <= g[41] <= 16 else "Off"),
     ]
     return pd.DataFrame(rows, columns=["Label", "Value"])
 
@@ -263,6 +268,14 @@ def unpack_command(raw: bytes, cycle_labels=None) -> dict:
         cmd["CommandType"] = "Song"
         cmd["KeyMode_(Key)"] = SONG_MODES[1] if b1 == SONG_POSITION else SONG_MODES[0]
         cmd["OnValue_(CC/PB)"] = str((b2 & 0x7F) | ((b3 & 0x7F) << 7))
+    elif cmd_type == CMD_NO_CMD_NIBBLE and (b0 & 0x0F) == CMD_CHAN_MODE:
+        cmd["CommandType"] = "Chan"
+        mask = (b2 & 0x7F) | ((b3 & 0x7F) << 7)
+        if b1 & CHAN_15_BIT:
+            mask |= 1 << 14
+        if b1 & CHAN_16_BIT:
+            mask |= 1 << 15
+        cmd["Channel_(PC/CC/Note/PB)"] = channel_list_text(mask)
     elif cmd_type == CMD_PC_NIBBLE and b2 in PC_REL_MARKERS:
         cmd["CommandType"] = "PCInc"
         cmd["Channel_(PC/CC/Note/PB)"] = channel

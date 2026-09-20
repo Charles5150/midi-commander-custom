@@ -154,7 +154,7 @@ LED_MODES = ["Normal", "Reverse", "AlwaysOn"]
 BUTTON_GROUPS = ["None", "1", "2", "3", "4"]
 CHANNELS = [str(i) for i in range(1, 17)]
 NO_COMMAND = "(none)"
-COMMAND_TYPES = [NO_COMMAND, "PC", "PCInc", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "MMC", "Song", "Panic", "Scene", "Wait", "Ramp", "LFO", "Exp"]
+COMMAND_TYPES = [NO_COMMAND, "PC", "PCInc", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "MMC", "Song", "Panic", "Scene", "Wait", "Ramp", "LFO", "Exp", "Chan"]
 # Cycle splits a button's short press list into states, so only that list offers it
 SHORT_COMMAND_TYPES = COMMAND_TYPES + ["Cycle"]
 # Leave splits a bank's enter list into the commands on entering and on leaving
@@ -267,6 +267,7 @@ GLOBAL_GROUPS = [
     ("Configuration", [
         ("ConfigName", "Configuration name", "shown on the display at boot, 16 characters"),
         ("MIDI_Channel", "MIDI channel", "used by the expression pedals"),
+        ("Global_Channel", "Global channel", "every command goes out on it, whatever channel it carries"),
         ("Exp1_CC", "Expression pedal 1 CC", "0-127"),
         ("Exp2_CC", "Expression pedal 2 CC", "0-127"),
     ]),
@@ -627,6 +628,16 @@ class SlotEditor:
                 text="(the commands below are sent on leaving the bank instead)",
                 text_color=MUTED,
             ).pack(side="left", padx=8)
+        elif cmd_type == "Chan":
+            self._label("Channels")
+            w = TextEntry(self.params, 47, clean(self.initial.get("Channel_(PC/CC/Note/PB)")), width=140)
+            w.pack(side="left")
+            self.widgets["chanlist"] = w
+            ctk.CTkLabel(
+                self.params,
+                text="(the command right below goes out on each of them, \"1 2 3\" or \"1-3\")",
+                text_color=MUTED,
+            ).pack(side="left", padx=8)
         elif cmd_type == "Ramp":
             self._int("duration", "ms", "Duration_(Note/PB)", 0, RAMP_MAX_MS, width=75)
             ctk.CTkLabel(
@@ -727,6 +738,8 @@ class SlotEditor:
         if cmd_type == "Song":
             out["KeyMode_(Key)"] = w["songmode"].value()
             out["OnValue_(CC/PB)"] = w["songvalue"].value()
+        if cmd_type == "Chan":
+            out["Channel_(PC/CC/Note/PB)"] = w["chanlist"].value().strip()
         if cmd_type == "Cycle":
             out["OnValue_(CC/PB)"] = w["cyclelabel"].value().strip()
         if cmd_type == "LFO":
@@ -943,6 +956,7 @@ class MidiCommanderGUI(ctk.CTk):
                 ("Remote_Mode", "Off"),
                 ("Remote_Channel", "Any"),
                 ("Remote_First", "102"),
+                ("Global_Channel", "Off"),
             ]
             missing = [{"Label": l, "Value": v} for l, v in defaults if l not in labels]
             if missing:
@@ -1224,6 +1238,8 @@ class MidiCommanderGUI(ctk.CTk):
             return Option(parent, ["Off", "CC", "Note"], value, width=80)
         if label == "Remote_First":
             return IntEntry(parent, 0, 118, value, width=70)
+        if label == "Global_Channel":
+            return Option(parent, ["Off"] + CHANNELS, value, width=80)
         if label in ("Bank_Change_Channel", "Remote_Channel"):
             return Option(parent, ["Any"] + CHANNELS, value, width=80)
         if label == "ConfigName":

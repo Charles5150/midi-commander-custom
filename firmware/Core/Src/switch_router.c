@@ -1548,6 +1548,39 @@ static void lfo_restart_all(void){
 	}
 }
 
+static inline bool cmd_is_chan(const uint8_t *pRom){
+	return (pRom[0] & 0xF0) == CMD_NO_CMD_NIBBLE && (pRom[0] & 0x0F) == CMD_CHAN_MODE;
+}
+
+// The channels a Chan command names, one bit each, bit 0 being channel 1
+static uint16_t chan_mask(const uint8_t *pRom){
+	uint16_t mask = (uint16_t)(pRom[2] & 0x7F) | ((uint16_t)(pRom[3] & 0x7F) << 7);
+	if(pRom[1] & CHAN_15_BIT) mask |= 1U << 14;
+	if(pRom[1] & CHAN_16_BIT) mask |= 1U << 15;
+	return mask;
+}
+
+/*
+ * One command, sent once on every channel the Chan command above it named.
+ * Without one, or when it names no channel at all, the command goes out once
+ * as it stands.
+ */
+static void send_on_channels(const uint8_t *chan, uint8_t *pRom, uint8_t toggle, bool up){
+	uint16_t mask = chan ? chan_mask(chan) : 0;
+	if(mask == 0){
+		if(up) handle_cmd_sw_up(pRom, toggle);
+		else handle_cmd_sw_down(pRom, toggle);
+		return;
+	}
+	for(uint8_t ch=0; ch<16; ch++){
+		if(!(mask & (1U << ch))) continue;
+		midiCmd_force_channel(ch + 1);
+		if(up) handle_cmd_sw_up(pRom, toggle);
+		else handle_cmd_sw_down(pRom, toggle);
+	}
+	midiCmd_force_channel(0);
+}
+
 /*
  * One command list, from command `start` on, up to the end of the list or the
  * next Cycle command. `first` is where the part of the list that fired begins,
@@ -1558,6 +1591,7 @@ static bool run_cmd_list(uint8_t *base, uint8_t first, uint8_t start, uint8_t to
 		uint8_t owner, uint8_t flags, bool allow_wait){
 	uint32_t ramp = 0;	// time of a Ramp just above the command, 0 for none
 	const uint8_t *lfo = NULL;	// an LFO just above the command
+	const uint8_t *chan = NULL;	// a Chan just above the command
 	for(uint8_t j=start; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
 		uint8_t *pRom = base + j * MIDI_ROM_CMD_SIZE;
 		if(cmd_is_cycle(pRom)) break;	// the next state
@@ -1565,14 +1599,20 @@ static bool run_cmd_list(uint8_t *base, uint8_t first, uint8_t start, uint8_t to
 		if((flags & LIST_SKIP_BANK) && (*pRom & 0xF0) == CMD_BANK_NIBBLE) continue;
 		uint32_t ramp_ms = ramp;
 		const uint8_t *lfo_cmd = lfo;
-		ramp = 0;	// a Ramp or LFO only reaches the command right below it
+		const uint8_t *chan_cmd = chan;
+		ramp = 0;	// a Ramp, LFO or Chan only reaches the command right below it
 		lfo = NULL;
+		chan = NULL;
 		if(cmd_is_ramp(pRom)){
 			ramp = ramp_time_ms(pRom);
 			continue;
 		}
 		if(cmd_is_lfo(pRom)){
 			lfo = pRom;
+			continue;
+		}
+		if(cmd_is_chan(pRom)){
+			chan = pRom;
 			continue;
 		}
 		if(cmd_is_wait(pRom)){
@@ -1594,7 +1634,7 @@ static bool run_cmd_list(uint8_t *base, uint8_t first, uint8_t start, uint8_t to
 			}
 			lfo_stop(pRom[0] & 0x0F, pRom[1] & 0x7F);	// switched off: then its Off value
 		}
-		handle_cmd_sw_down(pRom, toggle);
+		send_on_channels(chan_cmd, pRom, toggle, false);
 	}
 
 	if(flags & LIST_SKIP_BANK){
@@ -1612,13 +1652,16 @@ static bool run_cmd_list(uint8_t *base, uint8_t first, uint8_t start, uint8_t to
 static void run_list_up(uint8_t *base, uint8_t first, uint8_t toggle, uint8_t flags){
 	uint32_t ramp = 0;
 	bool lfo = false;
+	const uint8_t *chan = NULL;
 	for(uint8_t j=first; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
 		uint8_t *pRom = base + j * MIDI_ROM_CMD_SIZE;
 		if(cmd_is_cycle(pRom)) break;
 		uint32_t ramp_ms = ramp;
 		bool lfo_above = lfo;
+		const uint8_t *chan_cmd = chan;
 		ramp = cmd_is_ramp(pRom) ? ramp_time_ms(pRom) : 0;
 		lfo = cmd_is_lfo(pRom);
+		chan = cmd_is_chan(pRom) ? pRom : NULL;
 		if(lfo_above && (*pRom & 0xF0) == CMD_CC_NIBBLE && !midiCmd_get_cmd_toggle(pRom)){
 			lfo_stop(pRom[0] & 0x0F, pRom[1] & 0x7F);	// released: then its Off value
 		}
@@ -1628,7 +1671,7 @@ static void run_list_up(uint8_t *base, uint8_t first, uint8_t toggle, uint8_t fl
 			if(!midiCmd_get_cmd_toggle(pRom)) ramp_cc(pRom, MIDI_CONTROL_OFF, ramp_ms);
 			continue;
 		}
-		handle_cmd_sw_up(pRom, toggle);
+		send_on_channels(chan_cmd, pRom, toggle, true);
 	}
 }
 
@@ -2126,7 +2169,7 @@ void sw_feedback_message(const uint8_t *data){
  */
 static int8_t feedback_state_for(uint8_t *pRom, const uint8_t *msg){
 	if(!midiCmd_get_cmd_toggle(pRom)) return -1;
-	if((pRom[0] & 0x0F) != (msg[0] & 0x0F)) return -1;
+	if(midiCmd_channel(pRom[0]) != (msg[0] & 0x0F)) return -1;	// the global channel moves it too
 	if((pRom[1] & 0x7F) != msg[1]) return -1;
 
 	uint8_t type = pRom[0] & 0xF0;

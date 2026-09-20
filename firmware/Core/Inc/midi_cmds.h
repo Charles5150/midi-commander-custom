@@ -31,6 +31,8 @@ int8_t midiCmd_send_panic(void);
 void midiCmd_send_byte_serial(uint8_t byteMessage);
 void midiCmd_send_bytes_serial(const uint8_t *data, uint8_t len);
 
+void midiCmd_force_channel(uint8_t channel);	// 1-16 while a Chan command sends, 0 to stop forcing
+uint8_t midiCmd_channel(uint8_t stored);	// the channel a command really goes out on
 uint8_t midiCmd_get_cmd_toggle(uint8_t *pRom);
 uint32_t midiCmd_get_delay(uint8_t *pRom);
 
