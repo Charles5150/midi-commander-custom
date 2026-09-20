@@ -576,6 +576,7 @@ def global_settings() -> pd.DataFrame:
                 ("Remote_Channel", "16"),
                 ("Remote_First", "102"),
                 ("Global_Channel", "Off"),
+                ("Edit_Lock", "N"),
             )
         ]
     )

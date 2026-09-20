@@ -38,6 +38,7 @@ static uint8_t current_bank = 0;
 
 // A transient overlay (the tempo readout) shown instead of the bank info
 #define OVERLAY_MS	(1500)
+static uint8_t editor_on = 0;	// the on-pedal editor owns the screen
 static uint32_t overlay_until = 0;
 
 /*
@@ -238,6 +239,41 @@ void display_request_refresh(void){
 }
 
 /*
+ * The editor's screen. Six rows of Font_7x10 fit in the 64 pixels: the title,
+ * then the lines, with the cursor row drawn the other way round so it stands
+ * out like a toggle button does on the bank screen.
+ */
+void display_editor(const char *title, const char lines[][DISPLAY_EDIT_COLS + 1],
+		uint8_t count, uint8_t cursor){
+	editor_on = 1;
+	overlay_until = 0;
+	refresh_pending = 0;
+
+	ssd1306_Fill(Black);
+	ssd1306_SetCursor(0, 0);
+	ssd1306_WriteString((char *)title, Font_7x10, White);
+
+	if(count > DISPLAY_EDIT_ROWS) count = DISPLAY_EDIT_ROWS;
+	for(uint8_t i=0; i<count; i++){
+		uint8_t y = (uint8_t)(12 + i * 10);
+		SSD1306_COLOR fg = White;
+		if(i == cursor){
+			fill_rect(0, y, SSD1306_WIDTH, 10, White);	// exactly the row, so the one above keeps its pixels
+			fg = Black;
+		}
+		ssd1306_SetCursor(0, y);
+		ssd1306_WriteString((char *)lines[i], Font_7x10, fg);
+	}
+
+	ssd1306_UpdateScreen();
+}
+
+void display_editor_end(void){
+	editor_on = 0;
+	refresh_pending = 1;
+}
+
+/*
  * Replace the bank's info line with "120 BPM" (and a * while the clock is
  * running) for a moment. Only that line is redrawn, so the bank name and the
  * button grid stay put.
@@ -314,6 +350,7 @@ static void show_moment_text(void){
 }
 
 void display_task(void){
+	if(editor_on) return;	// the editor draws its own screen
 	if(moment_pending){
 		show_moment_text();
 		return;

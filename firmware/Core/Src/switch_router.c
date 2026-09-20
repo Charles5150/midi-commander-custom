@@ -18,6 +18,7 @@
 #include "sleep.h"
 #include "expression.h"
 #include "switch_router.h"
+#include "editor.h"
 #include <string.h>
 
 void update_leds_on_bank_change(void);
@@ -2495,6 +2496,60 @@ static void feedback_task(void){
 	}
 }
 
+/*
+ * Editing on the pedal. Bank Down and Bank Up held together for two seconds
+ * open the editor, and held again close it. While it is open the switches are
+ * its own, so nothing is sent by mistake, and the two bank ones step the bank
+ * it is looking at. Returns true when the editor has taken this pass.
+ */
+static uint32_t both_banks_since = 0;
+#define BOTH_BANKS_DONE		(0xFFFFFFFFU)
+
+static bool editor_switches(uint32_t now){
+	bool both = switch_down(SW_E_GPIO_Port, SW_E_Pin) && switch_down(SW_5_GPIO_Port, SW_5_Pin);
+
+	if(both){
+		if(both_banks_since == 0){
+			both_banks_since = now;
+		} else if(both_banks_since != BOTH_BANKS_DONE && (now - both_banks_since) >= EDITOR_HOLD_MS){
+			both_banks_since = BOTH_BANKS_DONE;	// once per hold
+			if(editor_is_open()){
+				editor_close();
+			} else if(pGlobalSettings[GLOBAL_SETTINGS_EDIT_LOCK] != 1){
+				editor_open();
+			}
+		}
+		// Both down is the gesture, not a bank change: drop what it left behind
+		port_A_switches_changed &= ~SW_E_Pin;
+		port_B_switches_changed &= ~SW_5_Pin;
+		bank_down_press.state = PRESS_IDLE;
+		bank_up_press.state = PRESS_IDLE;
+	} else {
+		both_banks_since = 0;
+	}
+
+	if(!editor_is_open()) return false;
+
+	for(int i=0; i<8; i++){
+		sw_t *sw = &a_sw_obj[i];
+		if(*sw->pSwChangeState & sw->sw_gpio_pin){
+			*sw->pSwChangeState &= ~sw->sw_gpio_pin;
+			editor_press((uint8_t)i, switch_down(sw->sw_gpio_port, sw->sw_gpio_pin));
+		}
+	}
+	if(port_A_switches_changed & SW_E_Pin){
+		port_A_switches_changed &= ~SW_E_Pin;
+		if(switch_down(SW_E_GPIO_Port, SW_E_Pin)) editor_press(SW_VIRTUAL_BANK_DOWN, true);
+	}
+	if(port_B_switches_changed & SW_5_Pin){
+		port_B_switches_changed &= ~SW_5_Pin;
+		if(switch_down(SW_5_GPIO_Port, SW_5_Pin)) editor_press(SW_VIRTUAL_BANK_UP, true);
+	}
+
+	editor_task();
+	return true;
+}
+
 void handle_switches(void){
 	if(is_app_suspended) return;
 
@@ -2521,8 +2576,10 @@ void handle_switches(void){
 	lfo_task();		// and LFOs
 	seq_task();		// and step sequences
 
-	// The Command switches
 	uint32_t now = HAL_GetTick();
+	if(editor_switches(now)) return;	// the editor has the switches
+
+	// The Command switches
 	for(int i=0; i<8; i++){
 		sw_t *sw = &a_sw_obj[i];
 

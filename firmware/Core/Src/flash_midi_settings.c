@@ -10,6 +10,8 @@
  * which follows the active one unless SysEx SELECT_SLOT picked another.
  */
 
+#include <string.h>
+
 #include "main.h"
 #include "flash_midi_settings.h"
 #include "midi_defines.h"
@@ -153,6 +155,53 @@ void flash_settings_erase(void){
 	if(status != HAL_OK){
 		Error("Flash erase error");
 	}
+}
+
+/*
+ * Change a few bytes of the running configuration, for the on-pedal editor.
+ * Flash can only be cleared a whole page at a time, so the page those bytes
+ * live in is copied to RAM, changed there, erased and written back. Interrupts
+ * are off for the write, as in state_store.c, so a SysEx flash write arriving
+ * over USB cannot walk into the middle of it.
+ */
+bool flash_settings_patch(uint8_t *dst, const uint8_t *data, uint8_t len){
+	static uint8_t page_buf[CFG_PAGE_SIZE];
+	uint32_t address = (uint32_t)dst;
+	uint32_t base = slot_base(active_slot);
+	uint32_t ext = FLASH_EXT_ADDR(active_slot);
+
+	if(len == 0) return false;
+	bool in_slot = address >= base && address + len <= base + FLASH_SETTINGS_SIZE;
+	bool in_ext = address >= ext && address + len <= ext + FLASH_DOUBLE_PAGES * CFG_PAGE_SIZE;
+	if(!in_slot && !in_ext) return false;
+
+	uint32_t page = address & ~(uint32_t)(CFG_PAGE_SIZE - 1);
+	uint32_t at = address - page;
+	if(at + len > CFG_PAGE_SIZE) return false;	// never straddles two pages
+	if(memcmp(dst, data, len) == 0) return true;	// already what it should be
+
+	memcpy(page_buf, (const uint8_t*)page, CFG_PAGE_SIZE);
+	memcpy(page_buf + at, data, len);
+
+	uint32_t pageError;
+	FLASH_EraseInitTypeDef eraseInit = {
+			.TypeErase = FLASH_TYPEERASE_PAGES,
+			.Banks = FLASH_BANK_1,
+			.PageAddress = page,
+			.NbPages = 1
+	};
+
+	__disable_irq();
+	HAL_FLASH_Unlock();
+	HAL_StatusTypeDef status = HAL_FLASHEx_Erase(&eraseInit, &pageError);
+	for(uint32_t i=0; status == HAL_OK && i < CFG_PAGE_SIZE; i += 2){
+		uint16_t half = (uint16_t)(page_buf[i] | (page_buf[i+1] << 8));
+		status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_HALFWORD, page + i, half);
+	}
+	HAL_FLASH_Lock();
+	__enable_irq();
+
+	return status == HAL_OK;
 }
 
 void flash_settings_write(uint8_t* data, uint32_t offset){

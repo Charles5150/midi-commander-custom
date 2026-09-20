@@ -190,6 +190,7 @@ def unpack_global_settings(data: bytes) -> pd.DataFrame:
         ("Remote_Channel", str(g[39]) if 1 <= g[39] <= 16 else "Any"),
         ("Remote_First", str(g[40] if g[40] <= 118 else 102)),
         ("Global_Channel", str(g[41]) if 1 <= g[41] <= 16 else "Off"),
+        ("Edit_Lock", "Y" if g[42] == 1 else "N"),
     ]
     return pd.DataFrame(rows, columns=["Label", "Value"])
 

@@ -2769,6 +2769,82 @@ class SequencerTest(unittest.TestCase):
                           norm(row["C_Toggle_(CC/PB/Note)"])), ("Note", "60", "Y"))
 
 
+class PedalEditorTest(unittest.TestCase):
+    """Editing on the pedal (firmware 0.53)."""
+
+    FIRMWARE = os.path.join(os.path.dirname(__file__), "..", "..", "firmware", "Core")
+
+    def firmware(self, name):
+        with open(os.path.join(self.FIRMWARE, name)) as handle:
+            return handle.read()
+
+    @staticmethod
+    def pack_lock(value):
+        sections = read_config_csv(DEMO_CSV)
+        g = sections["Global_Settings"]
+        g.loc[g["Label"] == "Edit_Lock", "Value"] = value
+        return packer.pack_config(sections)
+
+    def test_lock_byte_matches_firmware(self):
+        """The setting the firmware reads before opening the editor."""
+        import re
+
+        text = self.firmware(os.path.join("Inc", "midi_defines.h"))
+        byte = re.search(r"^#define\s+GLOBAL_SETTINGS_EDIT_LOCK\s+\((\d+)\)", text, re.M)
+        self.assertEqual(int(byte.group(1)), 42)
+        self.assertLess(42, unpacker.GLOBAL_SIZE)   # still inside the global settings
+
+    def test_lock_round_trip(self):
+        for text, byte in (("N", 0), ("Y", 1)):
+            packed = self.pack_lock(text)
+            self.assertEqual(packed[42], byte, text)
+            back = unpacker.unpack_config(packed)[0].set_index("Label")["Value"]
+            self.assertEqual(back["Edit_Lock"], text, text)
+
+    def test_lock_defaults_to_open(self):
+        """A configuration written before 0.53 leaves that byte erased."""
+        image = bytearray(self.pack_lock("Y"))
+        image[42] = 0xFF
+        back = unpacker.unpack_config(bytes(image))[0].set_index("Label")["Value"]
+        self.assertEqual(back["Edit_Lock"], "N")
+        sections = read_config_csv(DEMO_CSV)
+        sections["Global_Settings"] = sections["Global_Settings"][
+            sections["Global_Settings"]["Label"] != "Edit_Lock"]
+        self.assertEqual(packer.pack_config(sections)[42], 0)
+
+    def test_editor_settings_exist(self):
+        """Every setting the editor offers is a real global settings byte."""
+        import re
+
+        editor = self.firmware(os.path.join("Src", "editor.c"))
+        defines = self.firmware(os.path.join("Inc", "midi_defines.h"))
+        known = dict(re.findall(r"^#define\s+(GLOBAL_SETTINGS_\w+)\s+\((\d+)\)", defines, re.M))
+        used = re.findall(r"\{\"[^\"]+\",\s*(GLOBAL_SETTINGS_\w+)", editor)
+        self.assertGreaterEqual(len(used), 10)
+        self.assertEqual(len(used), len(set(used)))     # none of them twice
+        for name in used:
+            self.assertIn(name, known, name)
+            self.assertLess(int(known[name]), unpacker.GLOBAL_SIZE, name)
+
+    def test_editor_types_are_the_tools_names(self):
+        """What the editor calls a command is what the configurator calls it."""
+        import re
+
+        editor = self.firmware(os.path.join("Src", "editor.c"))
+        block = re.search(r"type_names\[T_COUNT\]\s*=\s*\{([^}]*)\}", editor, re.S)
+        names = re.findall(r'"([^"]+)"', block.group(1))
+        self.assertEqual(names[0], "---")               # the empty command
+        for name in names[1:]:
+            self.assertIn(name, cbp.cmd_route_table, name)
+
+    def test_editor_writes_one_page_at_a_time(self):
+        """A command never straddles two pages, which the patch refuses."""
+        page = 2048
+        for base in (unpacker.COMMANDS_OFFSET, unpacker.LONG_PRESS_OFFSET):
+            for at in range(base, base + unpacker.NUM_BANKS * 8 * unpacker.BUTTON_STRIDE, 4):
+                self.assertEqual(at // page, (at + 3) // page, at)
+
+
 class FakePedal:
     """A pedal in memory that answers the SysEx the slot tools use: four slots
     of flash, a target selected with SELECT_SLOT, erase, write and read."""

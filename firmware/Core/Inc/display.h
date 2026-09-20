@@ -44,6 +44,18 @@ void display_show_message(const char *msg);
 #define TEXT_KEEP_MOMENT	(2)	// for a moment, like the tempo readout
 uint8_t display_host_text(uint8_t place, uint8_t how, const uint8_t *text, uint8_t len);
 
+/*
+ * The on-pedal editor's screen: a title and up to DISPLAY_EDIT_ROWS lines of
+ * small text, with one of them inverted as the cursor. While it is up nothing
+ * else draws, so the bank screen, the tempo readout and the host's text wait
+ * their turn; display_editor_end() gives the screen back.
+ */
+#define DISPLAY_EDIT_ROWS	(5)
+#define DISPLAY_EDIT_COLS	(18)
+void display_editor(const char *title, const char lines[][DISPLAY_EDIT_COLS + 1],
+		uint8_t count, uint8_t cursor);
+void display_editor_end(void);
+
 // Ask for the current bank screen to be redrawn from the main loop
 // (e.g. after a toggle state changed), without blocking the caller.
 void display_request_refresh(void);

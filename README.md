@@ -15,11 +15,12 @@ The firmware replaces the stock MeloAudio one but never touches its bootloader, 
 3. [The configurator](#the-configurator)
 4. [Configuration reference](#configuration-reference)
 5. [The display](#the-display)
-6. [Command line tools](#command-line-tools)
-7. [Building and flashing from source](#building-and-flashing-from-source)
-8. [Changelog](#changelog)
-9. [Still to come](#still-to-come)
-10. [Acknowledgements](#acknowledgements)
+6. [Editing on the pedal](#editing-on-the-pedal)
+7. [Command line tools](#command-line-tools)
+8. [Building and flashing from source](#building-and-flashing-from-source)
+9. [Changelog](#changelog)
+10. [Still to come](#still-to-come)
+11. [Acknowledgements](#acknowledgements)
 
 ---
 
@@ -76,6 +77,7 @@ The firmware replaces the stock MeloAudio one but never touches its bootloader, 
 - **Ready for the Fractal FM3.** A template that loads a preset per bank and puts scenes, tuner, tap tempo, the looper and block bypass under your feet; see [the FM3 template](#fractal-audio-fm3-template).
 - **Ready for the Line 6 HX Stomp.** A template with a preset per bank, snapshots, footswitches FS1–FS5, tuner, tap tempo and the looper, using the HX Stomp's own MIDI map so there is nothing to assign; see [the HX Stomp template](#line-6-hx-stomp-template).
 - **Ready for the Kemper Profiler Player.** A template with the Player's ten banks of five rigs, its effect modules and effect buttons, tuner and tap tempo, again with nothing to assign on the Player; see [the Kemper Player template](#kemper-profiler-player-template).
+- **Editing on the pedal.** Bank Down and Bank Up held together open an editor on the pedal's own screen: the commands of any button of any bank, short and long press, their labels, and the settings that are a number or a choice, all changed with your foot and written straight to flash. For the wrong Program Change found at soundcheck, with no laptop in sight.
 - **Configuration over USB.** Flash a configuration to the pedal and read it back, from the GUI or the command line, over ordinary USB MIDI SysEx. No special driver.
 - **Backups.** Copy all four configuration slots to a folder in one go, one editable CSV each, and put them all back just as easily.
 - Firmware updates through the stock DFU bootloader with `dfu-util`.
@@ -310,6 +312,7 @@ To use another channel, change `CHANNEL` at the top of `python/make_kemper_playe
 | `Setlist_Mode` | Y / N | Bank Up / Down, and relative `Bank` commands, follow the order in the `Setlist` section instead of the bank numbers. From a bank that is not in the list, Up enters at its first entry and Down at its last. `GoTo` and bank selection from incoming MIDI still go to the exact bank. Default N. |
 | `Sleep_After_Min` | 0–60 | Minutes of inactivity before the display and LEDs go out. 0 turns it off. A press or a moved expression pedal wakes it and still does what it was asked to. |
 | `Bank_Switch_Mode` | Bank / Bank+MIDI / MIDI only | What the Bank Up / Down switches do. `Bank` is the original behaviour, they only change bank. `Bank+MIDI` also sends their commands from `BankSwitch_Settings`. `MIDI only` stops them changing bank, leaving a ten switch controller. Default `Bank`. |
+| `Edit_Lock` | Y / N | Stop the two bank switches held together opening the [on-pedal editor](#editing-on-the-pedal), for a pedal that must not change under anybody's foot. It can only be unlocked from here, so a locked pedal needs the computer once. Default N. |
 
 ### Bank_Naming
 
@@ -531,6 +534,31 @@ For example, `F0 7D 48 02 00 53 77 65 65 74 20 43 68 69 6C 64 F7` puts **Sweet C
 
 ---
 
+## Editing on the pedal
+
+Everything is easier from the configurator, but the configurator is not always there. Hold **Bank Down and Bank Up together for two seconds** and the pedal opens an editor on the configuration it is running; the same two switches held again leave it. All ten LEDs light while it is open, and none of the switches sends anything, so nothing can go out by mistake.
+
+The screen is a list of named fields with the cursor on one of them, and the switches are:
+
+| Switch | What it does |
+| --- | --- |
+| **1** / **2** | move the cursor up and down the list |
+| **3** / **4** | change the value under the cursor; held, they repeat and speed up |
+| **A** / **B** | step to the previous or next command of the button's list |
+| **C** | send the command as it stands, so it can be heard |
+| **D** | swap the commands for the settings |
+| **Bank Down** / **Bank Up** | step to the previous or next bank |
+
+On the commands screen the first fields say what is being edited — bank, button, short or long press, and which of the ten commands — then the command's type and the fields that type has: channel, CC or note number, on and off values, whether it toggles, and so on. Below them come the four characters of the button's label, one field each. The types the editor writes are `---` (no command), `PC`, `CC`, `Note`, `Bank`, `Tap`, `Start`, `Stop`, `Panic` and `Wait`; a command of any other type is shown by name and left exactly as it is until the type field is changed, which replaces it. The double press lists are not offered: they live in an area the tools write as a block.
+
+The settings screen holds the global settings that are a number or a choice: the long press and double press times, the two LED brightnesses, how far a long press on Bank Up / Down jumps, the sleep timeout, the global channel, what the bank switches do, the setlist, remember state, clock follow, LED feedback, the two thru switches and the expression pedal CC numbers. The rest, the ones that need text or a list, stay with the configurator.
+
+What you change is written to flash as soon as the cursor leaves the command, the label or the setting, so walking away loses nothing; a star in the title line says there is something not written yet. A write takes about a tenth of a second, during which the pedal is busy: change what you need between songs, not in the middle of one. Afterwards the pedal reads the configuration again, so the new command is live at once, and reading the configuration back with `Flash_to_CSV.py` gives you a CSV with the change in it.
+
+`Edit_Lock` in the Global tab stops the two bank switches opening the editor at all, for a pedal that must not change under anybody's foot. It can only be turned off again from the configurator.
+
+---
+
 ## Command line tools
 
 Both tools take `--slot 1` to `--slot 4` to choose a configuration slot, and use the slot the pedal is running when it is left out. Reading an empty slot is reported rather than producing a CSV. Firmware older than 0.24 has a single configuration, and the tools refuse any slot but 1 on it.
@@ -590,6 +618,7 @@ Hardware notes (MCU, pinout, I²C addresses) are in `HardwareNotes.txt`; `backup
 
 Firmware versions are shown on the display at boot and reported by the tools.
 
+- **0.53 — Editing on the pedal.** Bank Down and Bank Up held together for two seconds open an editor on the running configuration, and held again leave it: any command of any button of any bank, short or long press, with the fields of its type, the four characters of the button's label, and the global settings that are a number or a choice. Switches 1 and 2 walk the field list, 3 and 4 change the value under the cursor and repeat while held, A and B step through the ten commands of the list, C sends the command so it can be heard, D swaps commands for settings, and the bank switches change bank. The types it writes are `PC`, `CC`, `Note`, `Bank`, `Tap`, `Start`, `Stop`, `Panic`, `Wait` and no command; anything else is shown by name and left alone until the type is changed. A change is written as soon as the cursor leaves it, by rewriting the 2 kB flash page it lives in (`flash_settings_patch`), after which everything derived from the configuration is built again. New global setting `Edit_Lock` (byte 42) stops the editor opening at all. See [Editing on the pedal](#editing-on-the-pedal).
 - **0.52 — Step sequencer.** New `Seq` command type, marked by the low nibble of the empty command type, 10: a run of them above a `CC` or `Note` command plays it one step at a time, locked to the tempo, while the button is held or its toggle is on. Each command holds two steps in `OnValue`, a value 0–127 or `-` for a silent step, up to eighteen in the nine commands above the one they play, and `KeyMode` of the first is how long a step lasts, the same note divisions as the `LFO`. Under a `Note` each step is the note played, with the command's velocity, so a sequence is an arpeggio; the note before it is let go at every step, and on the release. Four can run at once, they survive a bank change and the toggled ones start again at power up; `Panic` and a configuration switch stop them. `Seq` in the configurator's command lists, with the steps and the division. Held, the demo's STRT in bank 6 plays a four note arpeggio.
 - **0.51 — Global channel and several channels at once.** New global setting `Global_Channel` (byte 41, 0 = off), which sends every message on one channel instead of the one each command carries, expression pedals included, so a whole configuration moves with one number. New `Chan` command type, marked by the low nibble of the empty command type, 9: it names channels in `Channel` and the command right below it goes out once on each, on the press and on the release, and on purpose, so it beats the global channel. LED feedback matches the channel a command really sends on. Both in the configurator, as a setting and a command with a channel list. The demo mutes three channels with one CC, holding A in bank 11.
 - **0.50 — MMC and Song Select.** New `MMC` command type, a MIDI Machine Control message to every device: `Play`, `Stop`, `Record`, `Pause`, `FastForward`, `Rewind`, `Locate` to a time in seconds, and the rest. New `Song` command type: Song Select with a song number, or Song Position Pointer with a place in the song in sixteenth notes, neither on a channel. Both are marked by the low nibble of the empty command type, 7 and 8, so the layout is unchanged. A long press or double press list holding only such a command now counts as present, which it did not before for any command of that type, `Exp` and `Wait` included. `MMC` and `Song` in the configurator's command lists, with an action menu and the value to match. Held, the demo's media buttons in bank 5 send the same transport as MMC, plus Song Select 2 and Song Position 0.

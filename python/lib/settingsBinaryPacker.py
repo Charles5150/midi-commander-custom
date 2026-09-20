@@ -22,6 +22,7 @@ GLOBAL_SETTINGS_REMOTE_MODE = 38
 GLOBAL_SETTINGS_REMOTE_CHANNEL = 39
 GLOBAL_SETTINGS_REMOTE_FIRST = 40
 GLOBAL_SETTINGS_GLOBAL_CHANNEL = 41
+GLOBAL_SETTINGS_EDIT_LOCK = 42
 # Set by configPacker when the image carries double press commands
 GLOBAL_SETTINGS_DOUBLE_STORED = 37
 
@@ -217,6 +218,11 @@ def pack_global_settings(df):
         except ValueError:
             channel = 0
     bin_list[GLOBAL_SETTINGS_GLOBAL_CHANNEL] = channel
+
+    # Editing on the pedal: locked, the two bank switches held together no
+    # longer open the editor, so nothing can be changed by accident on stage.
+    lock = str(df.loc["Edit_Lock", "Value"]).strip() if "Edit_Lock" in df.index else "N"
+    bin_list[GLOBAL_SETTINGS_EDIT_LOCK] = 1 if lock.upper().startswith("Y") else 0
 
     return bin_list
 

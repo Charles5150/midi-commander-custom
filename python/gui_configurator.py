@@ -275,6 +275,7 @@ GLOBAL_GROUPS = [
         ("Long_Press_ms", "Long press after", "ms held, 100-2500"),
         ("Double_Press_ms", "Double press within", "ms between presses, 100-1000"),
         ("Remember_State", "Remember state", "come back in the last bank with every toggle as it was"),
+        ("Edit_Lock", "Lock on-pedal editing", "the two bank switches held together no longer open the editor"),
     ]),
     ("LEDs", [
         ("LED_Brightness", "Brightness", "% for a lit LED, 1-100"),
@@ -974,6 +975,7 @@ class MidiCommanderGUI(ctk.CTk):
                 ("Remote_Channel", "Any"),
                 ("Remote_First", "102"),
                 ("Global_Channel", "Off"),
+                ("Edit_Lock", "N"),
             ]
             missing = [{"Label": l, "Value": v} for l, v in defaults if l not in labels]
             if missing:
@@ -1231,7 +1233,7 @@ class MidiCommanderGUI(ctk.CTk):
         if label == "MIDI_Channel":
             return Option(parent, CHANNELS, value, width=80)
         if label in ("RealTime_Passthrough", "USB_MIDI_Thru", "Remember_State", "Setlist_Mode",
-                     "Clock_Follow", "LED_Feedback"):
+                     "Clock_Follow", "LED_Feedback", "Edit_Lock"):
             return Check(parent, text="", checked=is_yes(value))
         if label in ("Bank_Up_LED_Mode", "Bank_Down_LED_Mode"):
             return Option(parent, LED_MODES, value, width=110)

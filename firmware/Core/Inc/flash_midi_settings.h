@@ -223,6 +223,10 @@ extern uint8_t *pCycleLabels;	// Labels of the states of cycle buttons, BUTTON_L
 // Erase and write act on the target slot, see flash_settings_set_target()
 void flash_settings_erase(void);
 void flash_settings_write(uint8_t* data, uint32_t offset);
+// Change a few bytes of the running configuration in place, for the on-pedal
+// editor: the page they live in is rewritten around them. False if the
+// address is outside the active configuration or the write failed.
+bool flash_settings_patch(uint8_t *dst, const uint8_t *data, uint8_t len);
 
 // Point every configuration pointer at a slot; it becomes active and the target
 bool flash_settings_select(uint8_t slot);
