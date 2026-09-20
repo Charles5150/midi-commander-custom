@@ -32,6 +32,14 @@ from lib.cmdBinaryPacker import (
     channel_list_text,
     CMD_SEQ_MODE,
     steps_text,
+    CMD_VAR_MODE,
+    VAR_MODES,
+    VAR_DEFAULT_TOP,
+    CMD_IF_MODE,
+    IF_TESTS,
+    IF_BUTTON_TESTS,
+    IF_VALUE_TESTS,
+    button_name,
     MMC_COMMANDS,
     MMC_LOCATE,
     SONG_MODES,
@@ -275,6 +283,24 @@ def unpack_command(raw: bytes, cycle_labels=None) -> dict:
         cmd["CommandType"] = "Song"
         cmd["KeyMode_(Key)"] = SONG_MODES[1] if b1 == SONG_POSITION else SONG_MODES[0]
         cmd["OnValue_(CC/PB)"] = str((b2 & 0x7F) | ((b3 & 0x7F) << 7))
+    elif cmd_type == CMD_NO_CMD_NIBBLE and (b0 & 0x0F) == CMD_VAR_MODE:
+        cmd["CommandType"] = "Value"
+        cmd["Number_(PC/CC/Note)"] = str((b1 & 0x07) + 1)
+        mode = (b1 >> 4) & 0x03
+        cmd["KeyMode_(Key)"] = VAR_MODES[mode] if mode < len(VAR_MODES) else VAR_MODES[0]
+        cmd["OnValue_(CC/PB)"] = str(b2 & 0x7F)
+        cmd["OffValue_(CC)"] = str((b3 & 0x7F) or VAR_DEFAULT_TOP)
+    elif cmd_type == CMD_NO_CMD_NIBBLE and (b0 & 0x0F) == CMD_IF_MODE:
+        cmd["CommandType"] = "If"
+        test = b1 & 0x7F
+        cmd["KeyMode_(Key)"] = IF_TESTS[test] if test < len(IF_TESTS) else IF_TESTS[0]
+        if test in IF_BUTTON_TESTS:
+            cmd["Number_(PC/CC/Note)"] = button_name(b2 & 0x07)
+        elif test in IF_VALUE_TESTS:
+            cmd["Number_(PC/CC/Note)"] = str((b2 & 0x07) + 1)
+            cmd["OnValue_(CC/PB)"] = str(b3 & 0x7F)
+        else:
+            cmd["OnValue_(CC/PB)"] = str(b3 & 0x7F)
     elif cmd_type == CMD_NO_CMD_NIBBLE and (b0 & 0x0F) == CMD_CHAN_MODE:
         cmd["CommandType"] = "Chan"
         mask = (b2 & 0x7F) | ((b3 & 0x7F) << 7)

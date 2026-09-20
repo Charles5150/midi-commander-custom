@@ -122,6 +122,8 @@ def parse_state(data) -> dict:
         # Changes whenever the pedal redraws its screen; None before firmware 0.27's final form
         "frame": (data[50] | (data[51] << 7)) if len(data) >= 53 else None,
         "asleep": bool(data[52]) if len(data) >= 53 else False,
+        # The eight stored values a Var command changes; None before firmware 0.54
+        "values": data[53:61] if len(data) >= 61 else None,
     }
 
 

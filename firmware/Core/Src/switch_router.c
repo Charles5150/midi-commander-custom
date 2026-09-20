@@ -1755,6 +1755,65 @@ static uint16_t chan_mask(const uint8_t *pRom){
 }
 
 /*
+ * The pedal's own values, 0-127 each. A Var command changes one, an If command
+ * looks at one, and they all start at zero when the pedal powers on: they are
+ * what a button remembers within a gig, not part of the configuration.
+ */
+static uint8_t var_value[VAR_COUNT] = {0};
+
+uint8_t sw_get_value(uint8_t which){
+	return which < VAR_COUNT ? var_value[which] : 0;
+}
+
+static inline bool cmd_is_var(const uint8_t *pRom){
+	return (pRom[0] & 0xF0) == CMD_NO_CMD_NIBBLE && (pRom[0] & 0x0F) == CMD_VAR_MODE;
+}
+
+static inline bool cmd_is_if(const uint8_t *pRom){
+	return (pRom[0] & 0xF0) == CMD_NO_CMD_NIBBLE && (pRom[0] & 0x0F) == CMD_IF_MODE;
+}
+
+// One Var command: set, add or take away, round and round within its top
+static void run_var(const uint8_t *pRom){
+	uint8_t which = pRom[1] & 0x07;
+	uint8_t mode = (uint8_t)((pRom[1] >> 4) & 0x03);
+	uint16_t amount = pRom[2] & 0x7F;
+	uint16_t span = (uint16_t)((pRom[3] & 0x7F) ? (pRom[3] & 0x7F) : 127) + 1;
+	uint16_t now = var_value[which];
+	if(now >= span) now = (uint16_t)(span - 1);
+	switch(mode){
+	case VAR_ADD:	now = (uint16_t)((now + amount) % span); break;
+	case VAR_SUB:	now = (uint16_t)((now + span - (amount % span)) % span); break;
+	default:	now = (amount < span) ? amount : (uint16_t)(span - 1); break;
+	}
+	var_value[which] = (uint8_t)now;
+}
+
+// Whether the command an If command guards goes out. A test it does not know
+// lets the command through, so a configuration written by newer tools still
+// plays.
+static bool if_holds(const uint8_t *pRom){
+	uint8_t test = pRom[1] & 0x7F;
+	uint8_t what = pRom[2] & 0x7F;
+	uint8_t value = pRom[3] & 0x7F;
+	switch(test){
+	case IF_BUTTON_ON:
+	case IF_BUTTON_OFF: {
+		if(what >= MIDI_NUM_SWITCHES) return false;
+		bool on = get_sw_toggle_state(&a_sw_obj[what]) != 0;
+		return (test == IF_BUTTON_ON) ? on : !on;
+	}
+	case IF_VALUE_EQ:	return sw_get_value(what) == value;
+	case IF_VALUE_NE:	return sw_get_value(what) != value;
+	case IF_VALUE_LT:	return sw_get_value(what) < value;
+	case IF_VALUE_GE:	return sw_get_value(what) >= value;
+	case IF_BANK:		return switch_current_page == value;
+	case IF_NOT_BANK:	return switch_current_page != value;
+	default:		return true;
+	}
+}
+
+/*
  * One command, sent once on every channel the Chan command above it named.
  * Without one, or when it names no channel at all, the command goes out once
  * as it stands.
@@ -1788,11 +1847,15 @@ static bool run_cmd_list(uint8_t *base, uint8_t first, uint8_t start, uint8_t to
 	const uint8_t *chan = NULL;	// a Chan just above the command
 	const uint8_t *seq = NULL;	// the first of a run of Seq commands above it
 	uint8_t seq_cmds = 0;
+	bool skip = false;		// an If above said no to the command coming
 	for(uint8_t j=start; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
 		uint8_t *pRom = base + j * MIDI_ROM_CMD_SIZE;
 		if(cmd_is_cycle(pRom)) break;	// the next state
 		if(cmd_is_leave(pRom)) break;	// a bank's commands on leaving it
-		if((flags & LIST_SKIP_BANK) && (*pRom & 0xF0) == CMD_BANK_NIBBLE) continue;
+		if((flags & LIST_SKIP_BANK) && (*pRom & 0xF0) == CMD_BANK_NIBBLE){
+			skip = false;	// it is skipped anyway, If or no If
+			continue;
+		}
 		uint32_t ramp_ms = ramp;
 		const uint8_t *lfo_cmd = lfo;
 		const uint8_t *chan_cmd = chan;
@@ -1820,6 +1883,23 @@ static bool run_cmd_list(uint8_t *base, uint8_t first, uint8_t start, uint8_t to
 		}
 		seq = NULL;	// and the run only reaches the command right below it
 		seq_cmds = 0;
+		if(cmd_is_if(pRom)){
+			if(!if_holds(pRom)) skip = true;
+			ramp = ramp_ms;	// an If passes on what was above it, either way round
+			lfo = lfo_cmd;
+			chan = chan_cmd;
+			seq = seq_run;
+			seq_cmds = seq_run_cmds;
+			continue;
+		}
+		if(skip){	// the command an If held back, its modifiers dropped with it
+			skip = false;
+			continue;
+		}
+		if(cmd_is_var(pRom)){
+			run_var(pRom);
+			continue;
+		}
 		if(cmd_is_wait(pRom)){
 			uint32_t ms = (uint32_t)pRom[2] * 10;
 			if(allow_wait && ms &&
@@ -1865,10 +1945,21 @@ static void run_list_up(uint8_t *base, uint8_t first, uint8_t toggle, uint8_t fl
 	uint32_t ramp = 0;
 	bool lfo = false;
 	bool seq = false;
+	bool skip = false;
 	const uint8_t *chan = NULL;
 	for(uint8_t j=first; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
 		uint8_t *pRom = base + j * MIDI_ROM_CMD_SIZE;
 		if(cmd_is_cycle(pRom)) break;
+		if(cmd_is_if(pRom)){
+			if(!if_holds(pRom)) skip = true;	// asked again, now on the release
+			continue;
+		}
+		if(skip && !cmd_is_ramp(pRom) && !cmd_is_lfo(pRom)
+				&& !cmd_is_chan(pRom) && !cmd_is_seq(pRom)){
+			skip = false;		// the command it held back, and no Off for it
+			ramp = 0; lfo = false; seq = false; chan = NULL;
+			continue;
+		}
 		uint32_t ramp_ms = ramp;
 		bool lfo_above = lfo;
 		bool seq_above = seq;

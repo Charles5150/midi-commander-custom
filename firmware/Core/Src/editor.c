@@ -158,6 +158,8 @@ static const char *other_name(const uint8_t *c){
 		case CMD_SONG_MODE:		return "Song";
 		case CMD_CHAN_MODE:		return "Chan";
 		case CMD_SEQ_MODE:		return "Seq";
+		case CMD_VAR_MODE:		return "Value";
+		case CMD_IF_MODE:		return "If";
 		default:				return "?";
 		}
 	}

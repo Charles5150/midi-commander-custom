@@ -95,6 +95,23 @@ SEQ_NO_STEP = 0xFF
 SEQ_STEPS_PER_CMD = 2
 SEQ_MAX_STEPS = 18
 SEQ_DEFAULT_DIV = "1/8"
+# Var: changes one of the eight values the pedal keeps of its own, 0-127 each
+# and all zero when it powers on. Byte 1 is the value 0-7 with the mode in bits
+# 4-5, byte 2 the amount and byte 3 the highest it goes, 0 standing for 127.
+CMD_VAR_MODE = 11
+VAR_MODES = ["Set", "Add", "Sub"]
+VAR_COUNT = 8
+VAR_DEFAULT_TOP = 127
+# If: the command right below it only goes out when the test holds, and an If
+# under another asks for both. Byte 1 is the test, an index into IF_TESTS, byte
+# 2 the button or stored value it looks at, byte 3 what it is compared with.
+CMD_IF_MODE = 12
+IF_TESTS = ["Button on", "Button off", "Value =", "Value <>", "Value <",
+            "Value >=", "Bank is", "Bank is not"]
+IF_BUTTON_TESTS = (0, 1)
+IF_VALUE_TESTS = (2, 3, 4, 5)
+IF_BANK_TESTS = (6, 7)
+
 # A relative Program Change is a PC whose Bank Select MSB byte, where 0x80 and
 # above already meant "none", holds one of these markers
 PC_REL_UP = 0x81
@@ -740,6 +757,70 @@ def pack_cycle_labels(cycle_labels) -> bytes:
     return out.ljust(CYCLE_LABEL_COUNT * CYCLE_LABEL_LEN, b"\xff")
 
 
+def button_index(val) -> int:
+    """A button as the CSV names it, "1"-"4" and "A"-"D" or 1-8, counted from 0."""
+    text = str("" if val is None else val).strip().upper()
+    if text in ("", "NAN"):
+        return 0
+    if text in SCENE_BUTTONS:
+        return SCENE_BUTTONS.index(text)
+    return max(0, min(len(SCENE_BUTTONS) - 1, safe_int(text, 1) - 1))
+
+
+def button_name(index: int) -> str:
+    """The button back as the CSV names it, "1" or "A"."""
+    return SCENE_BUTTONS[index % len(SCENE_BUTTONS)]
+
+
+def cmd_var(cmd):
+    """Change one of the eight values the pedal keeps of its own.
+
+    Number is the value 1-8, KeyMode what to do with it (VAR_MODES, Set when
+    empty), OnValue the amount, and OffValue the highest it goes, 127 when
+    empty: adding past it starts again at zero, taking away past zero starts
+    again at it. The values start at zero when the pedal powers on.
+    """
+    which = max(1, min(VAR_COUNT, safe_int(cmd.get("Number_(PC/CC/Note)", 1) or 1))) - 1
+    mode_text = str(cmd.get("KeyMode_(Key)", "")).strip()
+    if mode_text in ("", "nan"):
+        mode_text = VAR_MODES[0]
+    modes = {m.upper(): i for i, m in enumerate(VAR_MODES)}
+    if mode_text.upper() not in modes:
+        raise ValueError(f"Value command must be one of {', '.join(VAR_MODES)}, not {mode_text!r}")
+    amount = max(0, min(127, safe_int(cmd.get("OnValue_(CC/PB)", 0))))
+    top = str(cmd.get("OffValue_(CC)", "")).strip()
+    top = VAR_DEFAULT_TOP if top in ("", "nan") else max(0, min(127, safe_int(top, VAR_DEFAULT_TOP)))
+    return [CMD_NO_CMD_NIBBLE | CMD_VAR_MODE,
+            (modes[mode_text.upper()] << 4) | which, amount, top]
+
+
+def cmd_if(cmd):
+    """Hold back the command right below unless the test holds.
+
+    KeyMode is the test (IF_TESTS), Number the button ("1"-"4", "A"-"D") or the
+    stored value 1-8 it looks at, and OnValue what it is compared with: a value
+    0-127, or the bank for the bank tests. An If under another asks for both,
+    and the test is made again on the release, so a momentary command held back
+    is not sent its Off value either.
+    """
+    test_text = str(cmd.get("KeyMode_(Key)", "")).strip()
+    if test_text in ("", "nan"):
+        test_text = IF_TESTS[0]
+    tests = {t.upper(): i for i, t in enumerate(IF_TESTS)}
+    if test_text.upper() not in tests:
+        raise ValueError(f"If must be one of {', '.join(IF_TESTS)}, not {test_text!r}")
+    test = tests[test_text.upper()]
+    what = value = 0
+    if test in IF_BUTTON_TESTS:
+        what = button_index(cmd.get("Number_(PC/CC/Note)", "1"))
+    elif test in IF_VALUE_TESTS:
+        what = max(1, min(VAR_COUNT, safe_int(cmd.get("Number_(PC/CC/Note)", 1) or 1))) - 1
+        value = max(0, min(127, safe_int(cmd.get("OnValue_(CC/PB)", 0))))
+    else:
+        value = max(0, min(31, safe_int(cmd.get("OnValue_(CC/PB)", 0))))
+    return [CMD_NO_CMD_NIBBLE | CMD_IF_MODE, test, what, value]
+
+
 def cmd_none(cmd):
     return [0, 0, 0, 0]
 
@@ -768,6 +849,8 @@ cmd_route_table = {
     "Song": cmd_song,
     "Chan": cmd_chan,
     "Seq": cmd_seq,
+    "Value": cmd_var,
+    "If": cmd_if,
 }
 
 

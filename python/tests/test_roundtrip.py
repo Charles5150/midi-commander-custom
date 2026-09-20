@@ -2769,6 +2769,158 @@ class SequencerTest(unittest.TestCase):
                           norm(row["C_Toggle_(CC/PB/Note)"])), ("Note", "60", "Y"))
 
 
+class ValuesAndConditionsTest(unittest.TestCase):
+    """The Value and If commands (firmware 0.54)."""
+
+    FIRMWARE = os.path.join(os.path.dirname(__file__), "..", "..", "firmware", "Core")
+
+    @staticmethod
+    def pack(cmd_type, **fields):
+        row = {f"A_{f}": "" for f in unpacker.CMD_FIELDS}
+        row["A_CommandType"] = cmd_type
+        for field, value in fields.items():
+            row[f"A_{field}"] = value
+        return bytes(cbp.pack_row(pd.Series(row)))[:4]
+
+    def defines(self):
+        with open(os.path.join(self.FIRMWARE, "Inc", "midi_defines.h")) as handle:
+            return handle.read()
+
+    def test_modes_match_firmware(self):
+        """Both share the empty command type, each with a nibble of its own."""
+        import re
+
+        text = self.defines()
+        modes = dict(re.findall(r"^#define\s+CMD_(\w+)_MODE\s+\((\d+)\)", text, re.M))
+        self.assertEqual(int(modes["VAR"]), cbp.CMD_VAR_MODE)
+        self.assertEqual(int(modes["IF"]), cbp.CMD_IF_MODE)
+        taken = [int(v) for v in modes.values()]
+        self.assertEqual(len(taken), len(set(taken)))       # still a nibble each
+        self.assertTrue(all(0 < v <= 15 for v in taken))
+
+    def test_names_match_firmware(self):
+        """What the tools offer is exactly what the firmware knows, in order."""
+        import re
+
+        text = self.defines()
+
+        def value(name):
+            found = re.search(r"^#define\s+" + name + r"\s+\((\d+)\)", text, re.M)
+            self.assertIsNotNone(found, name)
+            return int(found.group(1))
+
+        for i, name in enumerate(("VAR_SET", "VAR_ADD", "VAR_SUB")):
+            self.assertEqual(value(name), i, name)
+        self.assertEqual(value("VAR_MODE_COUNT"), len(cbp.VAR_MODES))
+        self.assertEqual(value("VAR_COUNT"), cbp.VAR_COUNT)
+        tests = ("IF_BUTTON_ON", "IF_BUTTON_OFF", "IF_VALUE_EQ", "IF_VALUE_NE",
+                 "IF_VALUE_LT", "IF_VALUE_GE", "IF_BANK", "IF_NOT_BANK")
+        for i, name in enumerate(tests):
+            self.assertEqual(value(name), i, name)
+        self.assertEqual(value("IF_COUNT"), len(cbp.IF_TESTS))
+
+    def test_firmware_answers_every_test(self):
+        """if_holds has a case for each one, so none quietly lets a command by."""
+        with open(os.path.join(self.FIRMWARE, "Src", "switch_router.c")) as handle:
+            source = handle.read()
+        holds = source.split("static bool if_holds", 1)[1].split("\n}", 1)[0]
+        for name in ("IF_BUTTON_ON", "IF_BUTTON_OFF", "IF_VALUE_EQ", "IF_VALUE_NE",
+                     "IF_VALUE_LT", "IF_VALUE_GE", "IF_BANK", "IF_NOT_BANK"):
+            self.assertIn("case " + name + ":", holds, name)
+
+    def test_value_round_trip(self):
+        for which, mode, amount, top, packed in (
+                ("1", "Set", "0", "", [0x0B, 0x00, 0, 127]),
+                ("3", "Add", "1", "2", [0x0B, 0x12, 1, 2]),
+                ("8", "Sub", "5", "100", [0x0B, 0x27, 5, 100]),
+                ("2", "", "64", "", [0x0B, 0x01, 64, 127])):
+            raw = self.pack("Value", **{"Number_(PC/CC/Note)": which,
+                                        "KeyMode_(Key)": mode,
+                                        "OnValue_(CC/PB)": amount,
+                                        "OffValue_(CC)": top})
+            self.assertEqual(list(raw), packed, which)
+            back = unpacker.unpack_command(raw)
+            self.assertEqual(back["CommandType"], "Value")
+            self.assertEqual(back["Number_(PC/CC/Note)"], which)
+            self.assertEqual(back["KeyMode_(Key)"], mode or "Set")
+            self.assertEqual(back["OnValue_(CC/PB)"], amount)
+            self.assertEqual(back["OffValue_(CC)"], top or "127")
+
+    def test_value_keeps_the_toggle_bit_clear(self):
+        """Byte 1 carries the value and the mode, never the toggling mark."""
+        for mode in cbp.VAR_MODES:
+            raw = self.pack("Value", **{"Number_(PC/CC/Note)": "8", "KeyMode_(Key)": mode})
+            self.assertEqual(raw[1] & 0x80, 0, mode)
+
+    def test_value_refuses_what_it_cannot_do(self):
+        with self.assertRaises(ValueError):
+            self.pack("Value", **{"KeyMode_(Key)": "Multiply"})
+
+    def test_if_round_trip(self):
+        for test, number, value, packed in (
+                ("Button on", "4", "", [0x0C, 0, 3, 0]),
+                ("Button off", "C", "", [0x0C, 1, 6, 0]),
+                ("Value =", "3", "2", [0x0C, 2, 2, 2]),
+                ("Value <>", "1", "0", [0x0C, 3, 0, 0]),
+                ("Value <", "8", "64", [0x0C, 4, 7, 64]),
+                ("Value >=", "2", "127", [0x0C, 5, 1, 127]),
+                ("Bank is", "", "5", [0x0C, 6, 0, 5]),
+                ("Bank is not", "", "0", [0x0C, 7, 0, 0])):
+            raw = self.pack("If", **{"KeyMode_(Key)": test,
+                                     "Number_(PC/CC/Note)": number,
+                                     "OnValue_(CC/PB)": value})
+            self.assertEqual(list(raw), packed, test)
+            back = unpacker.unpack_command(raw)
+            self.assertEqual(back["CommandType"], "If")
+            self.assertEqual(back["KeyMode_(Key)"], test)
+            self.assertEqual(back["Number_(PC/CC/Note)"], number, test)
+            self.assertEqual(back["OnValue_(CC/PB)"], value, test)
+
+    def test_if_refuses_a_test_it_does_not_know(self):
+        with self.assertRaises(ValueError):
+            self.pack("If", **{"KeyMode_(Key)": "Feels right"})
+
+    def test_neither_is_an_empty_command(self):
+        """They share the empty command type, but zero is still no command."""
+        self.assertEqual(unpacker.unpack_command(bytes([0, 0, 0, 0]))["CommandType"], "")
+        self.assertEqual(unpacker.unpack_command(bytes([0x0B, 0, 0, 0]))["CommandType"], "Value")
+        self.assertEqual(unpacker.unpack_command(bytes([0x0C, 0, 0, 0]))["CommandType"], "If")
+
+    def test_demo_holds_a_shift_layer_and_a_counter(self):
+        """Bank 11: held, NUDG asks about BOST and ALL5 counts round three."""
+        packed = packer.pack_config(read_config_csv(DEMO_CSV))
+        frames = unpacker.unpack_config(packed)
+        long_press = next(f for f in frames
+                          if "A_CommandType" in f.columns and "Label" not in f.columns)
+
+        def row_of(button):
+            return long_press[(long_press["Bank_Number"].astype(str) == "11")
+                              & (long_press["Button_Identifier"].astype(str) == button)].iloc[0]
+
+        row = row_of("C")
+        self.assertEqual((norm(row["A_CommandType"]), norm(row["A_KeyMode_(Key)"]),
+                          norm(row["A_Number_(PC/CC/Note)"])), ("If", "Button on", "4"))
+        self.assertEqual((norm(row["B_CommandType"]), norm(row["B_Number_(PC/CC/Note)"])),
+                         ("CC", "61"))
+        self.assertEqual((norm(row["C_CommandType"]), norm(row["C_KeyMode_(Key)"])),
+                         ("If", "Button off"))
+        self.assertEqual((norm(row["D_CommandType"]), norm(row["D_Number_(PC/CC/Note)"])),
+                         ("CC", "62"))
+
+        row = row_of("1")
+        self.assertEqual((norm(row["A_CommandType"]), norm(row["A_KeyMode_(Key)"]),
+                          norm(row["A_OnValue_(CC/PB)"]), norm(row["A_OffValue_(CC)"])),
+                         ("Value", "Add", "1", "2"))
+        for n, (test_slot, cmd_slot) in enumerate((("B", "C"), ("D", "E"), ("F", "G"))):
+            self.assertEqual((norm(row[f"{test_slot}_CommandType"]),
+                              norm(row[f"{test_slot}_KeyMode_(Key)"]),
+                              norm(row[f"{test_slot}_OnValue_(CC/PB)"])),
+                             ("If", "Value =", str(n)))
+            self.assertEqual((norm(row[f"{cmd_slot}_CommandType"]),
+                              norm(row[f"{cmd_slot}_Number_(PC/CC/Note)"])),
+                             ("PC", str(10 + n)))
+
+
 class PedalEditorTest(unittest.TestCase):
     """Editing on the pedal (firmware 0.53)."""
 

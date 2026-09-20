@@ -55,7 +55,7 @@
 #define SYSEX_RSP_PRESS_BUTTON	(67) // echoes the switch and the action
 #define SYSEX_CMD_GET_STATE	(68) // no parameters
 #define SYSEX_RSP_GET_STATE	(69) // bank, slot, toggles (low 7 bits, bit 7), bank name x4, labels 8x4, LED levels x10,
-                                  // screen frame count (low 7, high 7), asleep
+                                  // screen frame count (low 7, high 7), asleep, stored values x8
 #define SYSEX_CMD_GET_SCREEN	(70) // part 0-15: half (0 left, 1 right) of screen page part/2
 #define SYSEX_RSP_GET_SCREEN	(71) // part, then its 65 bytes packed 7 in 8 (a byte of high bits, then 7 low parts)
 #define SYSEX_CMD_SET_TEXT	(72) // place (0 info line, 1 bank name, 2 whole top line large, 3 small), how (0 until the bank changes, 1 kept, 2 for a moment), then the text
@@ -155,6 +155,36 @@
 #define SEQ_REST		(0x80)
 #define SEQ_NO_STEP		(0xFF)
 #define SEQ_MAX_STEPS		(18)
+// Var: same empty command type, low nibble 11. The pedal keeps eight values of
+// its own, 0-127 each, all zero when it powers on, and this command changes
+// one of them. Byte 1 is the value 0-7 with the mode in bits 4-5 (its top bit
+// stays clear, as that is what marks a command as toggling), byte 2 the
+// amount, and byte 3 the highest the value goes, 0 standing for 127: adding
+// past it starts again at zero, taking away past zero starts again at it.
+#define CMD_VAR_MODE		(11)
+#define VAR_SET			(0)
+#define VAR_ADD			(1)
+#define VAR_SUB			(2)
+#define VAR_MODE_COUNT		(3)
+#define VAR_COUNT		(8)
+// If: same empty command type, low nibble 12. The command right below it, with
+// whatever Chan, Ramp, LFO or Seq commands belong to that one, only goes out
+// when the test holds; an If under another asks for both. Byte 1 is the test,
+// one of the IF_ values (its top bit stays clear, as that is what marks a
+// command as toggling), byte 2 what it looks at (a button 0-7, one of the
+// stored values 0-7, or nothing for a bank) and byte 3 what it is compared
+// with. The test is made again when the button is let go, so a momentary
+// command that was held back is not sent its Off value either.
+#define CMD_IF_MODE		(12)
+#define IF_BUTTON_ON		(0)	// byte 2 is the button, 0-7
+#define IF_BUTTON_OFF		(1)
+#define IF_VALUE_EQ		(2)	// byte 2 is the stored value, byte 3 what it must be
+#define IF_VALUE_NE		(3)
+#define IF_VALUE_LT		(4)
+#define IF_VALUE_GE		(5)
+#define IF_BANK			(6)	// byte 3 is the bank the pedal must be on
+#define IF_NOT_BANK		(7)
+#define IF_COUNT		(8)
 #define CMD_PC_NIBBLE		(0xC0)
 // Relative Program Change: a PC whose byte 2 (the Bank Select MSB, 0x80 and up
 // meaning none) holds one of these markers. Byte 1 is the step, byte 3 the last

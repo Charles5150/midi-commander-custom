@@ -457,6 +457,30 @@ def build() -> Demo:
     for n, (slot, name) in enumerate((("B", "CH B"), ("D", "CH C"), ("F", "CH D")), start=1):
         d.button(11, "D", slot=slot, CommandType="Cycle", **{"OnValue_(CC/PB)": name})
         d.pc(11, "D", None, str(n), ch="2", slot=chr(ord(slot) + 1))
+    # Held, NUDG becomes a shift layer: the same button sends one CC while the
+    # BOST toggle is on and another while it is off, each held back by the If
+    # right above it
+    d.long_press(11, "C", CommandType="If",
+                 **{"KeyMode_(Key)": "Button on", "Number_(PC/CC/Note)": "4"})
+    d.long_press(11, "C", slot="B", CommandType="CC",
+                 **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": "61",
+                    "OnValue_(CC/PB)": "127", "OffValue_(CC)": "0"})
+    d.long_press(11, "C", slot="C", CommandType="If",
+                 **{"KeyMode_(Key)": "Button off", "Number_(PC/CC/Note)": "4"})
+    d.long_press(11, "C", slot="D", CommandType="CC",
+                 **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": "62",
+                    "OnValue_(CC/PB)": "127", "OffValue_(CC)": "0"})
+    # Held, ALL5 counts: value 1 goes round 0, 1, 2 and each count sends its
+    # own program change, so one button walks a three patch set
+    d.long_press(11, "1", CommandType="Value",
+                 **{"Number_(PC/CC/Note)": "1", "KeyMode_(Key)": "Add",
+                    "OnValue_(CC/PB)": "1", "OffValue_(CC)": "2"})
+    for n, (test_slot, cmd_slot) in enumerate((("B", "C"), ("D", "E"), ("F", "G"))):
+        d.long_press(11, "1", slot=test_slot, CommandType="If",
+                     **{"KeyMode_(Key)": "Value =", "Number_(PC/CC/Note)": "1",
+                        "OnValue_(CC/PB)": str(n)})
+        d.long_press(11, "1", slot=cmd_slot, CommandType="PC",
+                     **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": str(10 + n)})
     # Entering the bank switches an effect on, and leaving it switches it off
     # again: the commands below the Leave go out on the way out
     d.on_enter(11, CommandType="CC",

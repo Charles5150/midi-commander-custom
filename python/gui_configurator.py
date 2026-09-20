@@ -24,6 +24,8 @@ sys.path.insert(0, HERE)
 from lib.cmdBinaryPacker import (  # noqa: E402
     EXP_TARGETS, HID_SPECIAL_KEYS, LFO_DIVISIONS, LFO_SHAPES, MEDIA_KEYS, RAMP_MAX_MS,
     MMC_COMMANDS, MMC_LOCATE_MAX, SONG_MODES, SONG_POSITION_MAX,
+    VAR_MODES, VAR_COUNT, VAR_DEFAULT_TOP, IF_TESTS, IF_BUTTON_TESTS, IF_VALUE_TESTS,
+    SCENE_BUTTONS,
 )
 from lib.configCsv import read_config_csv, write_config_csv  # noqa: E402
 from lib.configPacker import NUM_BANKS, BUTTON_IDS  # noqa: E402
@@ -154,7 +156,7 @@ LED_MODES = ["Normal", "Reverse", "AlwaysOn"]
 BUTTON_GROUPS = ["None", "1", "2", "3", "4"]
 CHANNELS = [str(i) for i in range(1, 17)]
 NO_COMMAND = "(none)"
-COMMAND_TYPES = [NO_COMMAND, "PC", "PCInc", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "MMC", "Song", "Panic", "Scene", "Wait", "Ramp", "LFO", "Seq", "Exp", "Chan"]
+COMMAND_TYPES = [NO_COMMAND, "PC", "PCInc", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "MMC", "Song", "Panic", "Scene", "Wait", "Ramp", "LFO", "Seq", "Exp", "Chan", "Value", "If"]
 # Cycle splits a button's short press list into states, so only that list offers it
 SHORT_COMMAND_TYPES = COMMAND_TYPES + ["Cycle"]
 # Leave splits a bank's enter list into the commands on entering and on leaving
@@ -674,6 +676,54 @@ class SlotEditor:
                 text="(two steps, \"100 -\"; one Seq after another makes a longer sequence)",
                 text_color=MUTED,
             ).pack(side="left", padx=8)
+        elif cmd_type == "Value":
+            self._label("Value")
+            w = Option(self.params, [str(i) for i in range(1, VAR_COUNT + 1)],
+                       clean(self.initial.get("Number_(PC/CC/Note)")) or "1", width=50)
+            w.pack(side="left")
+            self.widgets["varwhich"] = w
+            self._label("Do")
+            w = Option(self.params, VAR_MODES, clean(self.initial.get("KeyMode_(Key)")) or VAR_MODES[0], width=65)
+            w.pack(side="left")
+            self.widgets["varmode"] = w
+            self._int("varamount", "By", "OnValue_(CC/PB)", 0, 127)
+            self._label("Top")
+            w = IntEntry(self.params, 0, 127,
+                         clean(self.initial.get("OffValue_(CC)")) or str(VAR_DEFAULT_TOP), width=55)
+            w.pack(side="left")
+            self.widgets["vartop"] = w
+            ctk.CTkLabel(
+                self.params,
+                text="(the pedal's own values, all zero at power on; past the top it starts again)",
+                text_color=MUTED,
+            ).pack(side="left", padx=8)
+        elif cmd_type == "If":
+            self._label("Only if")
+            w = Option(self.params, IF_TESTS, clean(self.initial.get("KeyMode_(Key)")) or IF_TESTS[0],
+                       width=115, command=lambda v: self._remode("If", v))
+            w.pack(side="left")
+            self.widgets["iftest"] = w
+            test = IF_TESTS.index(w.get()) if w.get() in IF_TESTS else 0
+            if test in IF_BUTTON_TESTS:
+                self._label("Button")
+                b = Option(self.params, list(SCENE_BUTTONS),
+                           clean(self.initial.get("Number_(PC/CC/Note)")) or "1", width=50)
+                b.pack(side="left")
+                self.widgets["ifbutton"] = b
+            elif test in IF_VALUE_TESTS:
+                self._label("Value")
+                b = Option(self.params, [str(i) for i in range(1, VAR_COUNT + 1)],
+                           clean(self.initial.get("Number_(PC/CC/Note)")) or "1", width=50)
+                b.pack(side="left")
+                self.widgets["ifwhich"] = b
+                self._int("ifvalue", "Is", "OnValue_(CC/PB)", 0, 127)
+            else:
+                self._int("ifvalue", "Bank", "OnValue_(CC/PB)", 0, 31)
+            ctk.CTkLabel(
+                self.params,
+                text="(the command right below only goes out then; another If asks for both)",
+                text_color=MUTED,
+            ).pack(side="left", padx=8)
         elif cmd_type == "Exp":
             self._label("Pedal")
             w = Option(self.params, ["1", "2"], self.initial.get("OnValue_(CC/PB)"), width=50)
@@ -768,6 +818,19 @@ class SlotEditor:
             out["KeyMode_(Key)"] = w["exptarget"].value()
             if out["Channel_(PC/CC/Note/PB)"] == "Own":
                 out["Channel_(PC/CC/Note/PB)"] = ""
+        if cmd_type == "Value":
+            out["Number_(PC/CC/Note)"] = w["varwhich"].value()
+            out["KeyMode_(Key)"] = w["varmode"].value()
+            out["OnValue_(CC/PB)"] = w["varamount"].value()
+            out["OffValue_(CC)"] = w["vartop"].value()
+        if cmd_type == "If":
+            out["KeyMode_(Key)"] = w["iftest"].value()
+            if "ifbutton" in w:
+                out["Number_(PC/CC/Note)"] = w["ifbutton"].value()
+            if "ifwhich" in w:
+                out["Number_(PC/CC/Note)"] = w["ifwhich"].value()
+            if "ifvalue" in w:
+                out["OnValue_(CC/PB)"] = w["ifvalue"].value()
         if cmd_type == "Scene":
             code = {"On": "+", "Off": "-"}
             out["OnValue_(CC/PB)"] = "".join(code.get(w[f"scene_{i}"].value(), ".") for i in range(8))
@@ -1804,6 +1867,9 @@ class MidiCommanderGUI(ctk.CTk):
 
         c = tk.Canvas(frame, width=PEDAL_W, height=PEDAL_H, bg=PEDAL_BG, highlightthickness=0)
         c.pack(anchor="w")
+        # The eight values a Value command keeps, under the pedal
+        self.lbl_pedal_values = ctk.CTkLabel(frame, text="", text_color=MUTED)
+        self.lbl_pedal_values.pack(anchor="w", pady=(6, 0))
         self.pedal_canvas = c
         self._pedal_rounded_rect(8, 8, PEDAL_W - 8, PEDAL_H - 8, 26, fill=PEDAL_BODY, outline=PEDAL_BODY_EDGE, width=2)
 
@@ -1915,6 +1981,11 @@ class MidiCommanderGUI(ctk.CTk):
             if self.pedal_shown.get(sid) != level:
                 self.pedal_shown[sid] = level
                 self._pedal_led(w, level)
+        values = state.get("values")
+        shown = ("values  " + "   ".join(f"{i + 1}:{v}" for i, v in enumerate(values))) if values else ""
+        if self.pedal_shown.get("values") != shown:
+            self.pedal_shown["values"] = shown
+            self.lbl_pedal_values.configure(text=shown)
         note = "asleep: the display and LEDs are off" if state.get("asleep") else ""
         if self.pedal_shown.get("note") != note:
             self.pedal_shown["note"] = note
