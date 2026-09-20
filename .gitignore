@@ -51,3 +51,6 @@ docs
 # ...but the screenshots the README shows are part of the project
 !docs/images/
 .venv/
+
+# Every build leaves a dated DFU behind; the image of a release is attached to it
+artifacts/dfu/platformio-????????-??????.dfu
