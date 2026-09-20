@@ -601,6 +601,7 @@ def global_settings() -> pd.DataFrame:
                 ("Remote_First", "102"),
                 ("Global_Channel", "Off"),
                 ("Edit_Lock", "N"),
+                ("Kemper_Mode", "N"),
             )
         ]
     )

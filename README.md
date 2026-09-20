@@ -78,6 +78,7 @@ The firmware replaces the stock MeloAudio one but never touches its bootloader, 
 - **Ready for the Fractal FM3.** A template that loads a preset per bank and puts scenes, tuner, tap tempo, the looper and block bypass under your feet; see [the FM3 template](#fractal-audio-fm3-template).
 - **Ready for the Line 6 HX Stomp.** A template with a preset per bank, snapshots, footswitches FS1–FS5, tuner, tap tempo and the looper, using the HX Stomp's own MIDI map so there is nothing to assign; see [the HX Stomp template](#line-6-hx-stomp-template).
 - **Ready for the Kemper Profiler Player.** A template with the Player's ten banks of five rigs, its effect modules and effect buttons, tuner and tap tempo, again with nothing to assign on the Player; see [the Kemper Player template](#kemper-profiler-player-template).
+- **Two way with a Kemper.** With `Kemper_Mode` on, the pedal asks the amp about itself and follows the answers: the rig you are on written beside the bank name and the effect modules lighting the buttons that switch them, whether the module was switched with your foot, on the amp or from anywhere else; see [Two way with a Kemper](#two-way-with-a-kemper).
 - **Editing on the pedal.** Bank Down and Bank Up held together open an editor on the pedal's own screen: the commands of any button of any bank, short and long press, their labels, and the settings that are a number or a choice, all changed with your foot and written straight to flash. For the wrong Program Change found at soundcheck, with no laptop in sight.
 - **Configuration over USB.** Flash a configuration to the pedal and read it back, from the GUI or the command line, over ordinary USB MIDI SysEx. No special driver.
 - **Backups.** Copy all four configuration slots to a folder in one go, one editable CSV each, and put them all back just as easily.
@@ -283,6 +284,27 @@ The Player has a fixed MIDI map, so it needs no assignments: it listens on all s
 
 To use another channel, change `CHANNEL` at the top of `python/make_kemper_player_template.py` and run it again, or edit the buttons in the configurator. The fifty rigs also answer to a plain Program Change: the Player's manual numbers them 1 to 50, which is `Number` 0 to 49 here.
 
+### Two way with a Kemper
+
+Everything above sends one way: the pedal tells the amp what to do and hopes it listened. A Kemper Profiler can also be asked about itself, and `Kemper_Mode` in `Global_Settings` turns that on. The pedal then sends the amp the message that asks it to report what it is doing from now on, and repeats it every five seconds, which is what tells the amp somebody is still on the other end. Two things come back and are worth seeing from the floor:
+
+- **The rig you are on**, in the small line beside the bank name, eleven characters of it, and there it stays, bank after bank, until the rig changes. The pedal asks for it every second, so it is right even when the rig was changed on the amp itself.
+- **Which effect modules are running.** A module switching on or off is turned into the Control Change that switches that module — 17 and 18 for stomps A and B, 19, 20, 22 and 24 for C, D, X and MOD, 26 and 28 for delay and reverb, and 27 and 29 which keep their tails — and handed to the same machinery as [`LED_Feedback`](#global_settings). Any toggle button that sends one of those ends up lit or dark like the amp, in every bank, whether the module was switched with your foot, on the amp's own buttons or from a third place. Nothing is sent back because of it, so the two cannot chase each other, and the channel does not have to match: the amp's answers carry none.
+
+Six of the eight modules the amp reports by itself; the delay and the reverb it does not, so the pedal asks for those two every second. It asks for all eight when it starts and again whenever the rig changes.
+
+The answers come in over USB. On a **Profiler Player** that is the very socket the pedal is already plugged into: the Player is the host, powers the pedal and speaks MIDI over it, so nothing else is needed and the [Kemper Player template](#kemper-profiler-player-template) has `Kemper_Mode` on. A Profiler head or Stage would have to reach the pedal's own MIDI input, which the hardware does not have, so there the pedal keeps talking one way as before.
+
+**Tried without an amp.** The conversation was tested against `python/Kemper_Sim.py`, a Kemper of make believe that answers over the same USB link a Player would use: it replies to what the pedal asks and lets you change the rig or switch a module to watch the pedal follow.
+
+```bash
+.venv/bin/python python/Kemper_Sim.py
+kemper> rig Brit Crunch DLX
+kemper> dly
+```
+
+The numbers it speaks — the maker's `00 20 33`, the functions, the module pages and the beacon — are the ones the Profiler's MIDI documentation and the open controllers that talk to one use, and a test checks the firmware's list against the tools'. It has not been tried against a real Kemper, so if an amp ever disagrees the fix will be in that table of numbers and nowhere else.
+
 ### Global_Settings
 
 `Label,Value` rows.
@@ -314,6 +336,7 @@ To use another channel, change `CHANNEL` at the top of `python/make_kemper_playe
 | `Sleep_After_Min` | 0–60 | Minutes of inactivity before the display and LEDs go out. 0 turns it off. A press or a moved expression pedal wakes it and still does what it was asked to. |
 | `Bank_Switch_Mode` | Bank / Bank+MIDI / MIDI only | What the Bank Up / Down switches do. `Bank` is the original behaviour, they only change bank. `Bank+MIDI` also sends their commands from `BankSwitch_Settings`. `MIDI only` stops them changing bank, leaving a ten switch controller. Default `Bank`. |
 | `Edit_Lock` | Y / N | Stop the two bank switches held together opening the [on-pedal editor](#editing-on-the-pedal), for a pedal that must not change under anybody's foot. It can only be unlocked from here, so a locked pedal needs the computer once. Default N. |
+| `Kemper_Mode` | Y / N | Talk to a Kemper Profiler both ways: the pedal asks the amp to report itself and follows what comes back, the rig you are on written beside the bank name and the effect modules lighting the buttons that switch them. See [Two way with a Kemper](#two-way-with-a-kemper). Default N, on in the Kemper Player template. |
 
 ### Bank_Naming
 
@@ -580,6 +603,9 @@ Everything the GUI does is available from the terminal, from the repository root
 # Back up all four slots at once, and put them back
 .venv/bin/python python/Backup_Slots.py backup my-backup
 .venv/bin/python python/Backup_Slots.py restore my-backup
+
+# Answer the pedal as a Kemper would, to try Kemper_Mode without an amp
+.venv/bin/python python/Kemper_Sim.py
 ```
 
 **Backups.** `Backup_Slots.py backup` reads every slot that holds a configuration into a folder, `slot1.csv` to `slot4.csv`, plus a `backup.txt` with the date, the firmware and the name in each slot; with no folder given it makes one named after the date and time. Each CSV is an ordinary configuration, so any of them can be opened in the configurator or flashed on its own. `restore` checks every file before touching the pedal, lists what it will overwrite and asks first (`--yes` skips the question), writes each file to its slot and restarts the pedal once at the end; slots with no file in the folder are left as they are. A backup restored onto the pedal gives the same bytes it was read from, except that settings a configuration from older firmware never had are written with the value the pedal was already using for them.
@@ -623,6 +649,7 @@ Hardware notes (MCU, pinout, I²C addresses) are in `HardwareNotes.txt`; `backup
 
 Firmware versions are shown on the display at boot and reported by the tools.
 
+- **0.55 — Two way with a Kemper.** New global setting `Kemper_Mode` (byte 43). With it on the pedal sends a Kemper Profiler the beacon that asks it to report itself, again every five seconds, and asks for the rig name every second and for the two modules the amp does not report by itself, the delay and the reverb; all eight are asked for at the start and whenever the rig changes. What comes back the new `kemper.c` turns into the two things worth seeing from the floor: the rig name in the info line beside the bank name, and a module switching on or off turned into the Control Change that switches it and handed to the `LED_Feedback` machinery, which grew a way of matching a command whatever channel it carries, since the amp's answers carry none. Nothing is sent back because of what the amp reports, so they cannot chase each other. The Kemper Player template has it on, and the on-pedal editor offers it as `KEMPER`. New `python/Kemper_Sim.py`, a Kemper of make believe that answers over the same USB link a Player uses, which is what this was tried against: there was no Kemper here. See [Two way with a Kemper](#two-way-with-a-kemper).
 - **0.54 — Values and conditions.** New `Value` and `If` command types, marked by the low nibble of the empty command type, 11 and 12. The pedal keeps eight values of its own, 0–127 and all zero at power on; a `Value` command sets one, adds to it or takes away, wrapping round within a top of its own. An `If` command holds back the command right below it, with the `Chan`, `Ramp`, `LFO` or `Seq` commands belonging to it, unless its test holds: a button's toggle on or off, one of the values compared with a number, or the bank the pedal is on. Ifs stack, so two tests can be asked at once, and the test is made again on the release, so a command held back sends no off value either. The `GET_STATE` answer now carries the eight values, and the tools report them. `Value` and `If` in the configurator's command lists. Held, the demo's NUDG in bank 11 sends one CC or another depending on the BOST toggle, and ALL5 counts round three program changes.
 - **0.53 — Editing on the pedal.** Bank Down and Bank Up held together for two seconds open an editor on the running configuration, and held again leave it: any command of any button of any bank, short or long press, with the fields of its type, the four characters of the button's label, and the global settings that are a number or a choice. Switches 1 and 2 walk the field list, 3 and 4 change the value under the cursor and repeat while held, A and B step through the ten commands of the list, C sends the command so it can be heard, D swaps commands for settings, and the bank switches change bank. The types it writes are `PC`, `CC`, `Note`, `Bank`, `Tap`, `Start`, `Stop`, `Panic`, `Wait` and no command; anything else is shown by name and left alone until the type is changed. A change is written as soon as the cursor leaves it, by rewriting the 2 kB flash page it lives in (`flash_settings_patch`), after which everything derived from the configuration is built again. New global setting `Edit_Lock` (byte 42) stops the editor opening at all. See [Editing on the pedal](#editing-on-the-pedal).
 - **0.52 — Step sequencer.** New `Seq` command type, marked by the low nibble of the empty command type, 10: a run of them above a `CC` or `Note` command plays it one step at a time, locked to the tempo, while the button is held or its toggle is on. Each command holds two steps in `OnValue`, a value 0–127 or `-` for a silent step, up to eighteen in the nine commands above the one they play, and `KeyMode` of the first is how long a step lasts, the same note divisions as the `LFO`. Under a `Note` each step is the note played, with the command's velocity, so a sequence is an arpeggio; the note before it is let go at every step, and on the release. Four can run at once, they survive a bank change and the toggled ones start again at power up; `Panic` and a configuration switch stop them. `Seq` in the configurator's command lists, with the steps and the division. Held, the demo's STRT in bank 6 plays a four note arpeggio.

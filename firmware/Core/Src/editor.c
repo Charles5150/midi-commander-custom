@@ -386,6 +386,7 @@ static const setting_t settings[] = {
 	{"LEDFEEDB", GLOBAL_SETTINGS_LED_FEEDBACK,        S_ONOFF,  0,     1, 0,   false, NULL},
 	{"USB THRU", GLOBAL_SETTINGS_USB_THRU,            S_ONOFF,  0,     1, 0,   false, NULL},
 	{"RT THRU",  GLOBAL_SETTINGS_REALTIME_PASS,       S_ONOFF,  0,     1, 0,   false, NULL},
+	{"KEMPER",   GLOBAL_SETTINGS_KEMPER_MODE,         S_ONOFF,  0,     1, 0,   false, NULL},
 	{"EXP1 CC",  GLOBAL_SETTINGS_EXP1_CC,             S_NUM,    0,   127, 0,   false, NULL},
 	{"EXP2 CC",  GLOBAL_SETTINGS_EXP2_CC,             S_NUM,    0,   127, 0,   false, NULL},
 };

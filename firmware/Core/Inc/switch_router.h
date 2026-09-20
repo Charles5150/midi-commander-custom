@@ -37,6 +37,11 @@ void sw_request_bank(uint8_t bank);
 // buttons whose command matches, without sending anything.
 void sw_feedback_message(const uint8_t *data);
 
+// The same, for a state read back from an amp that has no MIDI channel of its
+// own (the Kemper): the command that sends this CC or note is matched whatever
+// channel it carries, and LED_Feedback does not have to be on.
+void sw_feedback_any_channel(const uint8_t *data);
+
 // Remember the program last selected on a channel (0-15), whether by a PC
 // command or by one arriving over USB, for the relative Program Change
 // command to move from. A single byte store, safe from the USB interrupt.

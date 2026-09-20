@@ -37,6 +37,7 @@
 #include "leds.h"
 #include "tempo.h"
 #include "sleep.h"
+#include "kemper.h"
 
 /* USER CODE END Includes */
 
@@ -189,6 +190,7 @@ int main(void)
       tempo_task();
       display_task();
       sleep_task();
+      kemper_task();
 
       /*
        * Nothing here spins waiting for anything, so sleep until the next

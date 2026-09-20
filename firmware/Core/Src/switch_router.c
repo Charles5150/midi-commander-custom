@@ -9,6 +9,7 @@
 #include "midi_cmds.h"
 #include "flash_midi_settings.h"
 #include "display.h"
+#include "kemper.h"
 #include "usbd_hid_custom.h"
 #include "usbd_midi_if.h"
 #include "tempo.h"
@@ -2298,6 +2299,7 @@ static void switch_config(uint8_t target){
 	expression_clear_targets();
 	lfo_stop_all();
 	seq_stop_all();
+	kemper_reset();		// nothing carried over from the amp that was there
 
 	display_setBankName(0);
 	display_show_config(slot);
@@ -2457,18 +2459,29 @@ static bool switch_down(GPIO_TypeDef *port, uint16_t pin){
 #define FEEDBACK_QUEUE_LEN		(32)
 #define FEEDBACK_PER_PASS		(4)
 
-static uint8_t feedback_queue[FEEDBACK_QUEUE_LEN][3];
+// The fourth byte is not MIDI: 1 means the channel does not have to match,
+// which is how the Kemper's answers come in, having no channel of their own.
+static uint8_t feedback_queue[FEEDBACK_QUEUE_LEN][4];
 static volatile uint8_t feedback_head = 0;	// written by the USB interrupt only
 static volatile uint8_t feedback_tail = 0;	// written by the main loop only
 
-void sw_feedback_message(const uint8_t *data){
-	if(pGlobalSettings[GLOBAL_SETTINGS_LED_FEEDBACK] != 1) return;
+static void feedback_push(const uint8_t *data, uint8_t any_channel){
 	uint8_t next = (uint8_t)((feedback_head + 1) % FEEDBACK_QUEUE_LEN);
 	if(next == feedback_tail) return;
 	feedback_queue[feedback_head][0] = data[0];
 	feedback_queue[feedback_head][1] = data[1] & 0x7F;
 	feedback_queue[feedback_head][2] = data[2] & 0x7F;
+	feedback_queue[feedback_head][3] = any_channel;
 	feedback_head = next;
+}
+
+void sw_feedback_message(const uint8_t *data){
+	if(pGlobalSettings[GLOBAL_SETTINGS_LED_FEEDBACK] != 1) return;
+	feedback_push(data, 0);
+}
+
+void sw_feedback_any_channel(const uint8_t *data){
+	feedback_push(data, 1);
 }
 
 /*
@@ -2479,7 +2492,8 @@ void sw_feedback_message(const uint8_t *data){
  */
 static int8_t feedback_state_for(uint8_t *pRom, const uint8_t *msg){
 	if(!midiCmd_get_cmd_toggle(pRom)) return -1;
-	if(midiCmd_channel(pRom[0]) != (msg[0] & 0x0F)) return -1;	// the global channel moves it too
+	// the global channel moves it too; msg[3] says the channel does not count
+	if(!msg[3] && midiCmd_channel(pRom[0]) != (msg[0] & 0x0F)) return -1;
 	if((pRom[1] & 0x7F) != msg[1]) return -1;
 
 	uint8_t type = pRom[0] & 0xF0;

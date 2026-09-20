@@ -301,6 +301,7 @@ GLOBAL_GROUPS = [
         ("Remote_Mode", "Press from the computer", "CC or notes from USB press the switches"),
         ("Remote_Channel", "\u2026 listening on channel", ""),
         ("Remote_First", "\u2026 from number", "1 2 3 4 A B C D, Bank Down, Bank Up take ten in a row"),
+        ("Kemper_Mode", "Talk to a Kemper", "the rig name on the display and the modules on the LEDs"),
     ]),
     ("Power", [
         ("Sleep_After_Min", "Sleep after", "idle minutes before the display and LEDs go out, 0 = never"),
@@ -1039,6 +1040,7 @@ class MidiCommanderGUI(ctk.CTk):
                 ("Remote_First", "102"),
                 ("Global_Channel", "Off"),
                 ("Edit_Lock", "N"),
+                ("Kemper_Mode", "N"),
             ]
             missing = [{"Label": l, "Value": v} for l, v in defaults if l not in labels]
             if missing:
@@ -1296,7 +1298,7 @@ class MidiCommanderGUI(ctk.CTk):
         if label == "MIDI_Channel":
             return Option(parent, CHANNELS, value, width=80)
         if label in ("RealTime_Passthrough", "USB_MIDI_Thru", "Remember_State", "Setlist_Mode",
-                     "Clock_Follow", "LED_Feedback", "Edit_Lock"):
+                     "Clock_Follow", "LED_Feedback", "Edit_Lock", "Kemper_Mode"):
             return Check(parent, text="", checked=is_yes(value))
         if label in ("Bank_Up_LED_Mode", "Bank_Down_LED_Mode"):
             return Option(parent, LED_MODES, value, width=110)

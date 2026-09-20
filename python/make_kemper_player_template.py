@@ -123,6 +123,10 @@ def global_settings() -> pd.DataFrame:
                 # Only the twelve banks below are in use, so Bank Up and Bank
                 # Down walk the setlist instead of the empty banks past them
                 ("Setlist_Mode", "Y"),
+                # The Player answers questions about itself over the same USB
+                # link, so the pedal asks: the rig name goes on the display and
+                # the modules light the buttons that switch them
+                ("Kemper_Mode", "Y"),
             )
         ]
     )

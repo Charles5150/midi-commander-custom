@@ -23,6 +23,7 @@ GLOBAL_SETTINGS_REMOTE_CHANNEL = 39
 GLOBAL_SETTINGS_REMOTE_FIRST = 40
 GLOBAL_SETTINGS_GLOBAL_CHANNEL = 41
 GLOBAL_SETTINGS_EDIT_LOCK = 42
+GLOBAL_SETTINGS_KEMPER_MODE = 43
 # Set by configPacker when the image carries double press commands
 GLOBAL_SETTINGS_DOUBLE_STORED = 37
 
@@ -223,6 +224,11 @@ def pack_global_settings(df):
     # longer open the editor, so nothing can be changed by accident on stage.
     lock = str(df.loc["Edit_Lock", "Value"]).strip() if "Edit_Lock" in df.index else "N"
     bin_list[GLOBAL_SETTINGS_EDIT_LOCK] = 1 if lock.upper().startswith("Y") else 0
+
+    # Two way Kemper: the pedal asks the amp to report itself and follows what
+    # comes back, the rig name on the display and the modules on the LEDs.
+    kemper = str(df.loc["Kemper_Mode", "Value"]).strip() if "Kemper_Mode" in df.index else "N"
+    bin_list[GLOBAL_SETTINGS_KEMPER_MODE] = 1 if kemper.upper().startswith("Y") else 0
 
     return bin_list
 
