@@ -938,6 +938,17 @@ def tempo_flash_value(value) -> bool:
     return _yes_no(value, "Tempo_Flash")
 
 
+# Bit 3: global. The button takes its three command lists, its label and its
+# light from the same button of the bank named by Global_Bank, so the thing is
+# stored once and a change to it is a change in every bank that follows it.
+BUTTON_GLOBAL = 0x08
+
+
+def button_global_value(value) -> bool:
+    """Global cell: Y/Yes/1/True is on, empty, N or None is off."""
+    return _yes_no(value, "Global")
+
+
 # Bit 7: momentary when held. A toggle button held past Long_Press_ms goes
 # back to its previous state when released; a tap still latches it.
 BUTTON_MOMENTARY_HOLD = 0x80
@@ -958,10 +969,12 @@ def momentary_hold_value(value) -> bool:
     return _yes_no(value, "Momentary_Hold")
 
 
-def pack_button_led_modes(light_modes, groups=None, holds=None, flashes=None) -> list:
+def pack_button_led_modes(light_modes, groups=None, holds=None, flashes=None,
+                          globals_=None) -> list:
     """Pack one LED mode byte per button from an iterable of mode names, with
     the exclusive group of each button, if given, in bits 4-6, its momentary
-    hold, if given, in bit 7, and its tempo flash, if given, in bit 2."""
+    hold, if given, in bit 7, its tempo flash, if given, in bit 2, and whether
+    it is a global button, if given, in bit 3."""
     modes = [led_mode_value(m) for m in light_modes]
     if groups is not None:
         modes = [m | (button_group_value(g) << BUTTON_GROUP_SHIFT) for m, g in zip(modes, groups)]
@@ -969,6 +982,8 @@ def pack_button_led_modes(light_modes, groups=None, holds=None, flashes=None) ->
         modes = [m | (BUTTON_MOMENTARY_HOLD if momentary_hold_value(h) else 0) for m, h in zip(modes, holds)]
     if flashes is not None:
         modes = [m | (BUTTON_TEMPO_FLASH if tempo_flash_value(f) else 0) for m, f in zip(modes, flashes)]
+    if globals_ is not None:
+        modes = [m | (BUTTON_GLOBAL if button_global_value(g) else 0) for m, g in zip(modes, globals_)]
     return modes
 
 

@@ -46,7 +46,8 @@ BANKS = {
     10: ("NAV", "bank jump"),
     11: ("MIX", "mixed"),
 }
-SETLIST_FROM = 12   # banks 12..30 are "songs"
+SETLIST_FROM = 12   # banks 12..29 are "songs"
+GLOBAL_BANK = 30    # the bank set aside for the buttons that are the same everywhere
 PAGE_BANK = 31      # the second page of the first song
 # The order Bank Up/Down follow with Setlist_Mode on: home, then songs out of
 # numeric order, which is the point of having a setlist at all
@@ -58,7 +59,7 @@ def blank_button_rows():
     columns = ["Bank_Number", "Button_Identifier", "Label"]
     for slot in SLOT_NAMES:
         columns += [f"{slot}_{f}" for f in CMD_FIELDS]
-    columns += ["Light_Mode", "Group", "Momentary_Hold", "Tempo_Flash"]
+    columns += ["Light_Mode", "Group", "Momentary_Hold", "Tempo_Flash", "Global"]
     columns += [f"{slot}_KeyMode_(Key)" for slot in SLOT_NAMES]
 
     rows = []
@@ -150,6 +151,9 @@ class Demo:
 
     def tempo_flash(self, bank, btn):
         self.buttons.at[self._index(self.buttons, bank, btn), "Tempo_Flash"] = "Y"
+
+    def global_button(self, bank, btn):
+        self.buttons.at[self._index(self.buttons, bank, btn), "Global"] = "Y"
 
     def cc(self, bank, btn, label, number, on="127", off="0", toggle="N", ch="1", light=None, slot="A"):
         self.button(bank, btn, label, light, slot, CommandType="CC",
@@ -497,8 +501,18 @@ def build() -> Demo:
                **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": "59",
                   "OnValue_(CC/PB)": "0", "OffValue_(CC)": "0"})
 
-    # --- banks 12..31: a setlist, each selecting its patch on entry ----------
-    for bank in range(SETLIST_FROM, PAGE_BANK):
+    # --- bank 30: the buttons that are the same in every bank ----------------
+    # The tap is written once here and every song bank takes it from this one,
+    # its label, its LED and its tempo included, four bytes of flag instead of
+    # a copy of the list. The bank is an ordinary bank otherwise: stand on it
+    # and this is where its buttons are edited.
+    BANKS[GLOBAL_BANK] = ("GLOB", "global")
+    d.tap(GLOBAL_BANK, "D", "TAP", "Tap")
+    d.cc(GLOBAL_BANK, "C", "MUTE", "69", toggle="Y", light="AlwaysOn")
+    d.bank_cmd(GLOBAL_BANK, "A", "HOME", "GoTo", 0)
+
+    # --- banks 12..29: a setlist, each selecting its patch on entry ----------
+    for bank in range(SETLIST_FROM, GLOBAL_BANK):
         n = bank - SETLIST_FROM + 1
         BANKS[bank] = (f"S{n:02d}", f"song {n}")
         d.on_enter(bank, CommandType="PC",
@@ -511,7 +525,11 @@ def build() -> Demo:
         d.bank_cmd(bank, "A", "HOME", "GoTo", 0)
         d.bank_cmd(bank, "B", "PREV", "Down", 1)
         d.bank_cmd(bank, "C", "NEXT", "Up", 1)
-        d.tap(bank, "D", "TAP", "Tap")
+        # The tap comes from the global bank, so it is stored once. Song 1
+        # keeps its own D: that is its second page, and a global button has no
+        # room for anything of its own.
+        if bank != SETLIST_FROM:
+            d.global_button(bank, "D")
 
     # --- bank 31: the first song's second page --------------------------------
     # D on song 1 shows bank 31's buttons in its place, and D there goes back.
@@ -608,6 +626,7 @@ def global_settings() -> pd.DataFrame:
                 ("Global_Channel", "Off"),
                 ("Edit_Lock", "N"),
                 ("Kemper_Mode", "N"),
+                ("Global_Bank", str(GLOBAL_BANK)),
             )
         ]
     )

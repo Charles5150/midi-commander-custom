@@ -267,6 +267,9 @@
 #define GLOBAL_SETTINGS_GLOBAL_CHANNEL (41)	// 0 = each command keeps its own, 1-16 = they all go out on that one
 #define GLOBAL_SETTINGS_EDIT_LOCK (42)		// 1 = the two bank switches no longer open the on-pedal editor
 #define GLOBAL_SETTINGS_KEMPER_MODE (43)	// 1 = ask a Kemper for its state and follow what it answers
+#define GLOBAL_SETTINGS_GLOBAL_BANK (44)	// 1-32 = that bank holds the global buttons, 0 = none
+
+#define GLOBAL_BANK_NONE	(0xFF)	// no bank set aside for global buttons
 
 #define BANK_SWITCH_BANK_ONLY	(0)	// change bank, send nothing (the original behaviour)
 #define BANK_SWITCH_BANK_MIDI	(1)	// change bank and send the switch's commands

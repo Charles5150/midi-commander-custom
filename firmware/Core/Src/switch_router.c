@@ -184,12 +184,44 @@ void sw_scan(void){
 
 }
 
+/*
+ * Global buttons. One bank, named by GLOBAL_SETTINGS_GLOBAL_BANK, is set
+ * aside to hold the buttons that should be the same wherever you are: the
+ * tuner, panic, tap tempo. A button of any other bank marked BUTTON_GLOBAL
+ * takes everything from the same button of that bank - its three command
+ * lists, its label, its light and its on and off state - so the thing is
+ * stored once and a change to it is a change in every bank that follows it.
+ *
+ * The bank set aside is an ordinary bank otherwise: you can stand on it, and
+ * it is where its buttons are edited. A button of it is never redirected, so
+ * there is nothing to go round in circles.
+ */
+static uint8_t global_bank(void){
+	uint8_t v = pGlobalSettings[GLOBAL_SETTINGS_GLOBAL_BANK];
+	// Stored as the bank plus one, so 0 and erased flash both mean "none"
+	return (v >= 1 && v <= MIDI_NUM_BANKS) ? (uint8_t)(v - 1) : GLOBAL_BANK_NONE;
+}
+
+// The bank a button's commands, label, light and state really come from
+static uint8_t button_bank(uint8_t bank, uint8_t sw){
+	uint8_t g = global_bank();
+	if(g == GLOBAL_BANK_NONE || bank == g || bank >= MIDI_NUM_BANKS) return bank;
+	uint8_t v = pButtonLedModes[bank * MIDI_NUM_SWITCHES + sw];
+	if(v == 0xFF) return bank;	// erased flash: not global
+	return (v & BUTTON_GLOBAL) ? g : bank;
+}
+
+// The same for a button of the bank now showing
+static inline uint8_t sw_bank(uint8_t sw){
+	return button_bank(switch_current_page, sw);
+}
+
 static inline uint8_t get_sw_toggle_state(sw_t *sw){
-	return (sw->switch_toggle_state >> switch_current_page) & 1U;
+	return (sw->switch_toggle_state >> sw_bank((uint8_t)(sw - a_sw_obj))) & 1U;
 }
 
 static inline void toggle_sw_state(sw_t *sw){
-	sw->switch_toggle_state ^= (1UL << switch_current_page);
+	sw->switch_toggle_state ^= (1UL << sw_bank((uint8_t)(sw - a_sw_obj)));
 	state_store_mark_dirty();
 	if(sw->led_cmd_toggle & (1UL << switch_current_page)){
 		display_request_refresh();
@@ -393,15 +425,23 @@ static void send_stored_sysex(const uint8_t *pRom){
 	midiCmd_send_bytes_serial(msg, len + 2);
 }
 
+/*
+ * The three command lists of a button. A global button's page is the bank set
+ * aside for them, so everything that reads a list - a press, the LED feedback,
+ * a Macro, the table sw_led_init builds - follows it without knowing about it.
+ */
 uint8_t* get_rom_pointer(uint8_t page, uint8_t sw, uint8_t cmd){
+	page = button_bank(page, sw);
 	return pSwitchCmds + (MIDI_ROM_KEY_STRIDE * sw) + (MIDI_ROM_CMD_SIZE * cmd) + (MIDI_ROM_KEY_STRIDE * 8 * page);
 }
 
 static uint8_t* get_long_rom_pointer(uint8_t page, uint8_t sw, uint8_t cmd){
+	page = button_bank(page, sw);
 	return pLongPressCmds + (MIDI_ROM_KEY_STRIDE * sw) + (MIDI_ROM_CMD_SIZE * cmd) + (MIDI_ROM_KEY_STRIDE * 8 * page);
 }
 
 static uint8_t* get_double_rom_pointer(uint8_t page, uint8_t sw, uint8_t cmd){
+	page = button_bank(page, sw);
 	return pDoublePressCmds + (MIDI_ROM_KEY_STRIDE * sw) + (MIDI_ROM_CMD_SIZE * cmd) + (MIDI_ROM_KEY_STRIDE * 8 * page);
 }
 
@@ -463,7 +503,7 @@ static uint8_t cycle_advance(uint8_t i){
 	const uint8_t *base = get_rom_pointer(switch_current_page, i, 0);
 	uint8_t n = cycle_states(base);
 	if(n == 1) return 0;
-	uint8_t *pos = &cycle_pos[switch_current_page * MIDI_NUM_SWITCHES + i];
+	uint8_t *pos = &cycle_pos[sw_bank(i) * MIDI_NUM_SWITCHES + i];
 	*pos = (*pos == CYCLE_NONE || *pos + 1 >= n) ? 0 : (uint8_t)(*pos + 1);
 	display_request_refresh();
 	return cycle_first(base, *pos);
@@ -471,12 +511,13 @@ static uint8_t cycle_advance(uint8_t i){
 
 // First command of the state a button of the current bank last sent
 static uint8_t cycle_current_first(uint8_t i){
-	uint8_t pos = cycle_pos[switch_current_page * MIDI_NUM_SWITCHES + i];
+	uint8_t pos = cycle_pos[sw_bank(i) * MIDI_NUM_SWITCHES + i];
 	if(pos == CYCLE_NONE) return 0;
 	return cycle_first(get_rom_pointer(switch_current_page, i, 0), pos);
 }
 
 const uint8_t *sw_button_label(uint8_t bank, uint8_t sw){
+	bank = button_bank(bank, sw);	// a global button shows the stored label
 	uint16_t k = (uint16_t)(bank * MIDI_NUM_SWITCHES + sw);
 	const uint8_t *own = pButtonLabels + k * BUTTON_LABEL_LEN;
 	uint8_t pos = cycle_pos[k];
@@ -681,7 +722,7 @@ static inline uint8_t sanitize_led_mode(uint8_t mode){
 
 // 0=Normal, 1=Reverse, 2=AlwaysOn(Blink), read from the per-button LED mode table
 uint8_t get_button_led_mode(uint8_t sw){
-	uint8_t v = pButtonLedModes[switch_current_page * MIDI_NUM_SWITCHES + sw];
+	uint8_t v = pButtonLedModes[sw_bank(sw) * MIDI_NUM_SWITCHES + sw];
 	if(v == 0xFF) return LED_MODE_NORMAL;
 	return sanitize_led_mode(v & LED_MODE_MASK);
 }
@@ -689,7 +730,7 @@ uint8_t get_button_led_mode(uint8_t sw){
 // Exclusive group of a button of the current bank, 0 for none. Shares the
 // LED mode byte, whose top bits older configurations always left at zero.
 static uint8_t get_button_group(uint8_t sw){
-	uint8_t v = pButtonLedModes[switch_current_page * MIDI_NUM_SWITCHES + sw];
+	uint8_t v = pButtonLedModes[sw_bank(sw) * MIDI_NUM_SWITCHES + sw];
 	if(v == 0xFF) return 0;
 	return (v >> BUTTON_GROUP_SHIFT) & BUTTON_GROUP_MASK;
 }
@@ -698,7 +739,7 @@ static uint8_t get_button_group(uint8_t sw){
 // as a Tap button's does. Shares the LED mode byte, in a bit older
 // configurations always left at zero.
 static bool get_button_tempo_flash(uint8_t sw){
-	uint8_t v = pButtonLedModes[switch_current_page * MIDI_NUM_SWITCHES + sw];
+	uint8_t v = pButtonLedModes[sw_bank(sw) * MIDI_NUM_SWITCHES + sw];
 	if(v == 0xFF) return false;
 	return (v & BUTTON_TEMPO_FLASH) != 0;
 }
@@ -2227,7 +2268,7 @@ static void fire_short_down(uint8_t i){
  * list instead, and a cycle button has no state to go back to.
  */
 static bool button_momentary_hold(uint8_t i){
-	uint8_t v = pButtonLedModes[switch_current_page * MIDI_NUM_SWITCHES + i];
+	uint8_t v = pButtonLedModes[sw_bank(i) * MIDI_NUM_SWITCHES + i];
 	if(v == 0xFF || !(v & BUTTON_MOMENTARY_HOLD)) return false;
 	if(!sw_button_is_toggle(switch_current_page, i)) return false;
 	return cycle_states(get_rom_pointer(switch_current_page, i, 0)) == 1;
@@ -2243,9 +2284,9 @@ static void fire_short_up(uint8_t i){
 static void fire_long_down(uint8_t i){
 	sw_t *sw = &a_sw_obj[i];
 	pending_flush_owner(i);
-	sw->long_toggle_state ^= (1UL << switch_current_page);
+	sw->long_toggle_state ^= (1UL << sw_bank(i));
 	state_store_mark_dirty();
-	uint8_t toggleState = (sw->long_toggle_state >> switch_current_page) & 1;
+	uint8_t toggleState = (sw->long_toggle_state >> sw_bank(i)) & 1;
 	repeat_arm(sw, get_long_rom_pointer(switch_current_page, i, 0), 0);
 	run_cmd_list(get_long_rom_pointer(switch_current_page, i, 0), 0, 0, toggleState, i, 0, true);
 }
@@ -2254,7 +2295,7 @@ static void fire_long_up(uint8_t i){
 	sw_t *sw = &a_sw_obj[i];
 	set_momentary_led(i, 0);
 	if(pending_defer_release(i)) return;
-	uint8_t toggleState = (sw->long_toggle_state >> switch_current_page) & 1;
+	uint8_t toggleState = (sw->long_toggle_state >> sw_bank(i)) & 1;
 	run_list_up(get_long_rom_pointer(switch_current_page, i, 0), 0, toggleState, 0);
 }
 
@@ -2645,13 +2686,16 @@ static void feedback_apply(const uint8_t *msg){
 		sw_t *sw = &a_sw_obj[i];
 		for(uint8_t b=0; b<MIDI_NUM_BANKS; b++){
 			uint32_t bit = 1UL << b;
+			// A global button keeps its state in the bank it is stored in, so
+			// the banks following it are passed over and it is dealt with once
+			if(button_bank(b, i) != b) continue;
 
 			if(sw->led_cmd_toggle & bit){
 				int8_t want = feedback_list_state(get_rom_pointer, b, i, msg);
 				if(want >= 0 && ((sw->switch_toggle_state & bit) != 0) != (want == 1)){
 					sw->switch_toggle_state ^= bit;
 					changed = true;
-					if(b == switch_current_page){
+					if(b == sw_bank(i)){
 						if(!sleep_is_asleep()){
 							set_led(i, calculate_led_state(want, get_button_led_mode(i)));
 						}
@@ -2689,15 +2733,15 @@ static void feedback_apply(const uint8_t *msg){
 static void fire_double_down(uint8_t i){
 	sw_t *sw = &a_sw_obj[i];
 	pending_flush_owner(i);
-	sw->double_toggle_state ^= (1UL << switch_current_page);
-	uint8_t toggleState = (sw->double_toggle_state >> switch_current_page) & 1;
+	sw->double_toggle_state ^= (1UL << sw_bank(i));
+	uint8_t toggleState = (sw->double_toggle_state >> sw_bank(i)) & 1;
 	repeat_arm(sw, get_double_rom_pointer(switch_current_page, i, 0), 0);
 	run_cmd_list(get_double_rom_pointer(switch_current_page, i, 0), 0, 0, toggleState, i, 0, true);
 }
 
 static void fire_double_up(uint8_t i){
 	sw_t *sw = &a_sw_obj[i];
-	uint8_t toggleState = (sw->double_toggle_state >> switch_current_page) & 1;
+	uint8_t toggleState = (sw->double_toggle_state >> sw_bank(i)) & 1;
 	if(pending_defer_release(i)) return;
 	run_list_up(get_double_rom_pointer(switch_current_page, i, 0), 0, toggleState, 0);
 }
@@ -2976,7 +3020,7 @@ uint8_t sw_button_is_toggle(uint8_t bank, uint8_t sw){
 
 uint8_t sw_get_toggle_state(uint8_t bank, uint8_t sw){
 	if(sw >= MIDI_NUM_SWITCHES || bank >= MIDI_NUM_BANKS) return 0;
-	return (a_sw_obj[sw].switch_toggle_state >> bank) & 1;
+	return (a_sw_obj[sw].switch_toggle_state >> button_bank(bank, sw)) & 1;
 }
 
 void sw_get_toggle_states(uint32_t out[8]){

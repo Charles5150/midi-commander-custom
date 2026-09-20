@@ -425,6 +425,7 @@ def pack_config(sections: dict) -> bytes:
     groups = []
     holds = []
     flashes = []
+    globals_ = []
     labels = b""
     cycle_labels = []
     for bank in range(NUM_BANKS):
@@ -436,6 +437,7 @@ def pack_config(sections: dict) -> bytes:
                 groups.append("")
                 holds.append("")
                 flashes.append("")
+                globals_.append("")
                 labels += pack_label("")
             else:
                 out += cbp.pack_row(row, cycle_labels)
@@ -443,8 +445,9 @@ def pack_config(sections: dict) -> bytes:
                 groups.append(row.get("Group", ""))
                 holds.append(row.get("Momentary_Hold", ""))
                 flashes.append(row.get("Tempo_Flash", ""))
+                globals_.append(row.get("Global", ""))
                 labels += pack_label(row.get("Label", ""))
-    out += cbp.pack_button_led_modes(light_modes, groups, holds, flashes)
+    out += cbp.pack_button_led_modes(light_modes, groups, holds, flashes, globals_)
     out += list(labels)
 
     # Long press command sets: rows are optional and may come in any order,

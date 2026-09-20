@@ -3402,3 +3402,131 @@ class MacroTest(unittest.TestCase):
         self.assertEqual((norm(called["B_CommandType"]), norm(called["B_Duration_(Note/PB)"])),
                          ("Wait", "200"))
         self.assertEqual(norm(called["C_CommandType"]), "CC")
+
+
+class GlobalButtonTest(unittest.TestCase):
+    """Global buttons: one bank holds what is the same everywhere (0.57)."""
+
+    FIRMWARE = os.path.join(os.path.dirname(__file__), "..", "..", "firmware", "Core")
+
+    def source(self, *name):
+        with open(os.path.join(self.FIRMWARE, *name)) as handle:
+            return handle.read()
+
+    def test_constants_match_firmware(self):
+        import re
+
+        header = self.source("Inc", "flash_midi_settings.h")
+        bit = re.search(r"^#define\s+BUTTON_GLOBAL\s+\((0x[0-9A-Fa-f]+)\)", header, re.M)
+        self.assertIsNotNone(bit)
+        self.assertEqual(int(bit.group(1), 16), cbp.BUTTON_GLOBAL)
+        # It is a bit of its own in the LED mode byte, taken by nothing else
+        taken = [int(v, 16) for v in re.findall(
+            r"^#define\s+(?:BUTTON_TEMPO_FLASH|BUTTON_MOMENTARY_HOLD)\s+\((0x[0-9A-Fa-f]+)\)",
+            header, re.M)]
+        group = int(re.search(r"^#define\s+BUTTON_GROUP_MASK\s+\((0x[0-9A-Fa-f]+)\)",
+                              header, re.M).group(1), 16)
+        shift = int(re.search(r"^#define\s+BUTTON_GROUP_SHIFT\s+\((\d+)\)", header, re.M).group(1))
+        taken.append(group << shift)
+        taken.append(int(re.search(r"^#define\s+LED_MODE_MASK\s+\((0x[0-9A-Fa-f]+)\)",
+                                   header, re.M).group(1), 16))
+        for other in taken:
+            self.assertEqual(other & cbp.BUTTON_GLOBAL, 0, hex(other))
+
+        defines = self.source("Inc", "midi_defines.h")
+        byte = re.search(r"^#define\s+GLOBAL_SETTINGS_GLOBAL_BANK\s+\((\d+)\)", defines, re.M)
+        self.assertIsNotNone(byte)
+        import lib.settingsBinaryPacker as sbp
+        self.assertEqual(int(byte.group(1)), sbp.GLOBAL_SETTINGS_GLOBAL_BANK)
+
+    def test_firmware_redirects_every_list(self):
+        """All three command lists of a button go through the same redirect."""
+        source = self.source("Src", "switch_router.c")
+        self.assertEqual(source.count("\tpage = button_bank(page, sw);"), 3)
+        # And the bank set aside never follows itself
+        self.assertIn("bank == g", source)
+
+    def test_packs_in_the_led_byte(self):
+        sections = read_config_csv(DEMO_CSV)
+        df = sections["Button_Settings"].copy()
+        df["Global"] = ""
+        i = df.index[(df["Bank_Number"].astype(str) == "5") & (df["Button_Identifier"] == "B")][0]
+        df.at[i, "Light_Mode"] = "Reverse"
+        df.at[i, "Group"] = "2"
+        base = pack_config({**sections, "Button_Settings": df})
+        df.at[i, "Global"] = "Y"
+        packed = pack_config({**sections, "Button_Settings": df})
+        at = unpacker.LED_MODES_OFFSET + 5 * 8 + unpacker.BUTTON_IDS.index("B")
+        self.assertEqual(base[at], 0x21)
+        self.assertEqual(packed[at], 0x29)
+        self.assertEqual(packed[:at] + packed[at + 1:], base[:at] + base[at + 1:])
+
+    def test_the_bank_is_held_as_one_more(self):
+        """0 means no bank set aside, so an older configuration redirects nothing."""
+        sections = read_config_csv(DEMO_CSV)
+        df = sections["Global_Settings"].copy()
+        where = df.index[df["Label"] == "Global_Bank"][0]
+        for value, byte in (("0", 1), ("30", 31), ("31", 32), ("Off", 0), ("", 0)):
+            df.at[where, "Value"] = value
+            packed = pack_config({**sections, "Global_Settings": df})
+            self.assertEqual(packed[44], byte, value)
+            back = unpacker.unpack_global_settings(packed)
+            row = back[back["Label"] == "Global_Bank"]["Value"].iloc[0]
+            self.assertEqual(row, "Off" if byte == 0 else str(byte - 1), value)
+        for bad in ("32", "-1", "twelve"):
+            df.at[where, "Value"] = bad
+            with self.assertRaises(ValueError, msg=bad):
+                pack_config({**sections, "Global_Settings": df})
+
+    def test_older_configurations_have_none(self):
+        sections = read_config_csv(SAMPLE_CSV)
+        self.assertNotIn("Global", sections["Button_Settings"].columns)
+        packed = pack_config(sections)
+        self.assertEqual(packed[44], 0)
+        _, _, decoded, *_ = unpacker.unpack_config(packed)
+        self.assertTrue((decoded["Global"] == "").all())
+
+    def test_erased_flash_has_none(self):
+        blank = bytes([0xFF]) * unpacker.CONFIG_SIZE
+        _, _, df, *_ = unpacker.unpack_config(blank)
+        self.assertTrue((df["Global"] == "").all())
+        settings = unpacker.unpack_global_settings(blank)
+        self.assertEqual(settings[settings["Label"] == "Global_Bank"]["Value"].iloc[0], "Off")
+
+    def test_values(self):
+        for cell, want in (("", False), (float("nan"), False), ("N", False),
+                           ("Y", True), ("yes", True), ("1.0", True)):
+            self.assertEqual(cbp.button_global_value(cell), want, cell)
+        with self.assertRaises(ValueError):
+            cbp.button_global_value("maybe")
+
+    def test_demo_stores_the_tap_once(self):
+        """The songs' tap is written in the bank set aside and followed."""
+        sections = read_config_csv(DEMO_CSV)
+        settings = sections["Global_Settings"]
+        self.assertEqual(
+            str(settings[settings["Label"] == "Global_Bank"]["Value"].iloc[0]), "30")
+
+        buttons = sections["Button_Settings"]
+
+        def row(bank, btn):
+            return buttons[(buttons["Bank_Number"].astype(str) == str(bank))
+                           & (buttons["Button_Identifier"].astype(str) == btn)].iloc[0]
+
+        stored = row(30, "D")
+        self.assertEqual(norm(stored["A_CommandType"]), "Tap")
+        self.assertEqual(norm(stored["Label"]), "TAP")
+        self.assertEqual(norm(stored["Global"]), "")     # it is the one stored
+
+        # Song 1 keeps its own D, which is the way to its second page
+        self.assertEqual(norm(row(12, "D")["Global"]), "")
+        followers = [b for b in range(13, 30)]
+        for bank in followers:
+            here = row(bank, "D")
+            self.assertEqual(norm(here["Global"]), "Y", bank)
+            # Nothing of its own: the whole button comes from bank 30
+            self.assertEqual(norm(here["A_CommandType"]), "", bank)
+            self.assertEqual(norm(here["Label"]), "", bank)
+
+        # What it saves: one list instead of one per bank
+        self.assertEqual(len(followers) * cbp.MIDI_NUM_COMMANDS_PER_SWITCH * 4, 680)

@@ -293,6 +293,7 @@ GLOBAL_GROUPS = [
         ("Bank_Change_Mode", "Change bank from MIDI", "an incoming PC or CC selects the bank"),
         ("Bank_Change_Channel", "\u2026 listening on channel", ""),
         ("Bank_Change_CC", "\u2026 with CC number", "when the mode is CC"),
+        ("Global_Bank", "Global buttons bank", "the bank the buttons marked Global take everything from"),
     ]),
     ("USB MIDI", [
         ("USB_MIDI_Thru", "USB to DIN thru", "forward notes, CC, PC and other devices' SysEx"),
@@ -1062,6 +1063,7 @@ class MidiCommanderGUI(ctk.CTk):
                 ("Global_Channel", "Off"),
                 ("Edit_Lock", "N"),
                 ("Kemper_Mode", "N"),
+                ("Global_Bank", "Off"),
             ]
             missing = [{"Label": l, "Value": v} for l, v in defaults if l not in labels]
             if missing:
@@ -1102,6 +1104,10 @@ class MidiCommanderGUI(ctk.CTk):
                 df.insert(df.columns.get_loc("Momentary_Hold") + 1, "Tempo_Flash", "")
             else:
                 df["Tempo_Flash"] = df["Tempo_Flash"].fillna("")
+            if "Global" not in df.columns:
+                df.insert(df.columns.get_loc("Tempo_Flash") + 1, "Global", "")
+            else:
+                df["Global"] = df["Global"].fillna("")
             missing = [
                 f"{slot}_{field}"
                 for slot in SLOTS
@@ -1259,7 +1265,7 @@ class MidiCommanderGUI(ctk.CTk):
         for slot in SLOTS:
             columns += [f"{slot}_{f}" for f in CMD_FIELDS]
         if with_extras:
-            columns += ["Light_Mode", "Group", "Momentary_Hold", "Tempo_Flash"]
+            columns += ["Light_Mode", "Group", "Momentary_Hold", "Tempo_Flash", "Global"]
 
         out = []
         for b in range(NUM_BANKS):
@@ -1273,6 +1279,7 @@ class MidiCommanderGUI(ctk.CTk):
                     row["Group"] = ""
                     row["Momentary_Hold"] = ""
                     row["Tempo_Flash"] = ""
+                    row["Global"] = ""
                 if src is not None:
                     for c in columns:
                         if c in src.index and c not in ("Bank_Number", "Button_Identifier"):
@@ -1345,6 +1352,8 @@ class MidiCommanderGUI(ctk.CTk):
             return IntEntry(parent, 0, 118, value, width=70)
         if label == "Global_Channel":
             return Option(parent, ["Off"] + CHANNELS, value, width=80)
+        if label == "Global_Bank":
+            return Option(parent, ["Off"] + [str(b) for b in range(NUM_BANKS)], value, width=80)
         if label in ("Bank_Change_Channel", "Remote_Channel"):
             return Option(parent, ["Any"] + CHANNELS, value, width=80)
         if label == "ConfigName":
@@ -1529,6 +1538,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.group = None
         self.momentary_hold = None
         self.tempo_flash = None
+        self.button_global = None
         long_mode = self.press_mode == "Long press"
         double_mode = self.press_mode == "Double press"
 
@@ -1560,6 +1570,9 @@ class MidiCommanderGUI(ctk.CTk):
             self.tempo_flash = Check(light_frame, text="Flash at the tempo",
                                      checked=is_yes(current.get("Tempo_Flash")))
             self.tempo_flash.pack(side="left", padx=(12, 0))
+            self.button_global = Check(light_frame, text="Global",
+                                       checked=is_yes(current.get("Global")))
+            self.button_global.pack(side="left", padx=(12, 0))
             Help(
                 self.cmd_editor,
                 "Exclusive group: switching this button on switches off the others of its group "
@@ -1584,6 +1597,16 @@ class MidiCommanderGUI(ctk.CTk):
                 "The beat is the host's clock while it is followed, the pedal's clock while it "
                 "runs, and otherwise the tempo running freely from the last tap. The flash sits "
                 "on top of the LED, which goes on showing whatever it shows.",
+                wraplength=720,
+            ).pack(anchor="w", padx=10, pady=(0, 4))
+            Help(
+                self.cmd_editor,
+                "Global: this button takes everything from the same button of the bank set aside "
+                "for them in Global settings.",
+                "Its three command lists, its label, its light and its on and off state come from "
+                "there, so the tuner or the tap is written once and is the same wherever you are. "
+                "Whatever is written on this button in this bank is left alone and unused; the "
+                "bank set aside is where it is edited.",
                 wraplength=720,
             ).pack(anchor="w", padx=10, pady=(0, 8))
 
@@ -1669,6 +1692,8 @@ class MidiCommanderGUI(ctk.CTk):
             self.df_buttons.at[idx, "Momentary_Hold"] = "Y" if self.momentary_hold.value() == "Y" else ""
         if self.tempo_flash is not None:
             self.df_buttons.at[idx, "Tempo_Flash"] = "Y" if self.tempo_flash.value() == "Y" else ""
+        if self.button_global is not None:
+            self.df_buttons.at[idx, "Global"] = "Y" if self.button_global.value() == "Y" else ""
         if self.label_entry is not None:
             self.df_buttons.at[idx, "Label"] = self.label_entry.value().strip()
 

@@ -157,16 +157,18 @@ def _led_mode_name(value: int) -> str:
 
 
 def _button_led_byte(value: int) -> tuple:
-    """(Light_Mode, Group, Momentary_Hold, Tempo_Flash) from a button's LED
-    mode byte: the mode in bits 0-1, the tempo flash in bit 2, the exclusive
-    group in bits 4-6, momentary hold in bit 7. Erased flash is Normal, with
-    none of the three."""
+    """(Light_Mode, Group, Momentary_Hold, Tempo_Flash, Global) from a button's
+    LED mode byte: the mode in bits 0-1, the tempo flash in bit 2, global in
+    bit 3, the exclusive group in bits 4-6, momentary hold in bit 7. Erased
+    flash is Normal, with none of the four."""
     if value == 0xFF:
-        return "Normal", "", "", ""
+        return "Normal", "", "", "", ""
     group = (value >> 4) & 0x07
     hold = "Y" if value & 0x80 else ""
     flash = "Y" if value & 0x04 else ""
-    return _led_mode_name(value & 0x03), str(group) if group else "", hold, flash
+    glob = "Y" if value & 0x08 else ""
+    return (_led_mode_name(value & 0x03), str(group) if group else "", hold,
+            flash, glob)
 
 
 def unpack_global_settings(data: bytes) -> pd.DataFrame:
@@ -202,6 +204,7 @@ def unpack_global_settings(data: bytes) -> pd.DataFrame:
         ("Global_Channel", str(g[41]) if 1 <= g[41] <= 16 else "Off"),
         ("Edit_Lock", "Y" if g[42] == 1 else "N"),
         ("Kemper_Mode", "Y" if g[43] == 1 else "N"),
+        ("Global_Bank", str(g[44] - 1) if 1 <= g[44] <= 32 else "Off"),
     ]
     return pd.DataFrame(rows, columns=["Label", "Value"])
 
@@ -430,7 +433,7 @@ def unpack_button_settings(data: bytes) -> pd.DataFrame:
     columns = ["Bank_Number", "Button_Identifier", "Label"]
     for slot in SLOT_NAMES:
         columns += [f"{slot}_{f}" for f in CMD_FIELDS]
-    columns += ["Light_Mode", "Group", "Momentary_Hold", "Tempo_Flash"]
+    columns += ["Light_Mode", "Group", "Momentary_Hold", "Tempo_Flash", "Global"]
     columns += [f"{slot}_KeyMode_(Key)" for slot in SLOT_NAMES]
 
     cycle_labels = unpack_cycle_labels(data)
@@ -453,7 +456,8 @@ def unpack_button_settings(data: bytes) -> pd.DataFrame:
                     row[f"{slot}_{f}"] = cmd[f]
                 row[f"{slot}_KeyMode_(Key)"] = cmd["KeyMode_(Key)"]
             (row["Light_Mode"], row["Group"], row["Momentary_Hold"],
-             row["Tempo_Flash"]) = _button_led_byte(data[LED_MODES_OFFSET + button_number])
+             row["Tempo_Flash"], row["Global"]) = _button_led_byte(
+                data[LED_MODES_OFFSET + button_number])
             rows.append(row)
 
     return pd.DataFrame(rows, columns=columns)

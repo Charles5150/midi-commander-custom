@@ -24,6 +24,7 @@ GLOBAL_SETTINGS_REMOTE_FIRST = 40
 GLOBAL_SETTINGS_GLOBAL_CHANNEL = 41
 GLOBAL_SETTINGS_EDIT_LOCK = 42
 GLOBAL_SETTINGS_KEMPER_MODE = 43
+GLOBAL_SETTINGS_GLOBAL_BANK = 44
 # Set by configPacker when the image carries double press commands
 GLOBAL_SETTINGS_DOUBLE_STORED = 37
 
@@ -229,6 +230,22 @@ def pack_global_settings(df):
     # comes back, the rig name on the display and the modules on the LEDs.
     kemper = str(df.loc["Kemper_Mode", "Value"]).strip() if "Kemper_Mode" in df.index else "N"
     bin_list[GLOBAL_SETTINGS_KEMPER_MODE] = 1 if kemper.upper().startswith("Y") else 0
+
+    # The bank the global buttons are stored in: a button marked Global in any
+    # other bank takes its lists, its label and its light from the same button
+    # of this one. Off = no bank set aside, and nothing is redirected. Held as
+    # the bank plus one, so a zero byte from an older configuration means Off.
+    gb = str(df.loc["Global_Bank", "Value"]).strip() if "Global_Bank" in df.index else "Off"
+    if gb.upper().startswith("O") or gb in ("", "nan"):
+        bank = 0
+    else:
+        try:
+            bank = int(float(gb)) + 1
+        except ValueError:
+            raise ValueError(f"Global_Bank must be Off or a bank 0-31, not {gb!r}")
+        if not 1 <= bank <= 32:
+            raise ValueError(f"Global_Bank must be Off or a bank 0-31, not {gb!r}")
+    bin_list[GLOBAL_SETTINGS_GLOBAL_BANK] = bank
 
     return bin_list
 

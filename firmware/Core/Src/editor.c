@@ -380,6 +380,7 @@ static const setting_t settings[] = {
 	{"BANKJUMP", GLOBAL_SETTINGS_BANK_JUMP_STEP,      S_NUM,    1,    32, 8,   true,  NULL},
 	{"SLEEP",    GLOBAL_SETTINGS_SLEEP_AFTER_MIN,     S_MIN,    0,   120, 0,   false, NULL},
 	{"GLOBCHAN", GLOBAL_SETTINGS_GLOBAL_CHANNEL,      S_CHAN,   0,    16, 0,   false, NULL},
+	{"GLOBBANK", GLOBAL_SETTINGS_GLOBAL_BANK,         S_NUM,    0,    32, 0,   false, NULL},
 	{"BANK SW",  GLOBAL_SETTINGS_BANK_SWITCH_MODE,    S_CHOICE, 0,     2, 0,   false, bank_switch_names},
 	{"SETLIST",  GLOBAL_SETTINGS_SETLIST_MODE,        S_ONOFF,  0,     1, 0,   false, NULL},
 	{"REMEMBER", GLOBAL_SETTINGS_REMEMBER_STATE,      S_ONOFF,  0,     1, 0,   false, NULL},
