@@ -34,7 +34,21 @@ static bool switch_down(GPIO_TypeDef *port, uint16_t pin);
 #define PENDING_OWNER_NONE	(0xFF)	// a list with no button to release
 #define LIST_SKIP_BANK		(0x01)	// bank change commands are ignored in this list
 #define LIST_UP_AFTER		(0x02)	// the release pass follows the press pass
+/*
+ * A list being run. A Macro command runs another button's list in place, so
+ * one is a stack of these: the frame at the top is the list running now, the
+ * ones below are what it goes back to. MACRO_DEPTH frames is how deep macros
+ * may call each other; a list that is already on the stack is never called
+ * again, so a macro cannot go round for ever.
+ */
+#define MACRO_DEPTH		(4)
+typedef struct {
+	uint8_t *base;	// first command of the list
+	uint8_t first;	// first command of the part that fired, for the release pass
+	uint8_t next;	// the command to run when this frame is come back to
+} frame_t;
 static bool run_cmd_list(uint8_t *base, uint8_t first, uint8_t start, uint8_t toggle, uint8_t owner, uint8_t flags, bool allow_wait);
+static bool run_list_stack(frame_t *st, uint8_t depth, uint8_t toggle, uint8_t owner, uint8_t flags, bool allow_wait);
 static void run_list_up(uint8_t *base, uint8_t first, uint8_t toggle, uint8_t flags);
 static bool pending_defer_release(uint8_t owner);
 static void pending_flush_owner(uint8_t owner);
@@ -1160,10 +1174,9 @@ static void apply_pending_bank(void){
 #define PENDING_LISTS		(4)
 
 typedef struct {
-	uint8_t *base;		// first command of the list
-	uint8_t first;		// first command of the part that fired, for the release pass
+	frame_t frames[MACRO_DEPTH];	// the list, and the macros it was called from
+	uint8_t depth;		// frames in use, 1 for a list with no macro running
 	uint32_t due;		// HAL tick when the rest of it runs
-	uint8_t next;		// index of the command to run next
 	uint8_t toggle;		// toggle state the list was fired with
 	uint8_t owner;		// button waiting to be released, or PENDING_OWNER_NONE
 	uint8_t flags;
@@ -1177,15 +1190,15 @@ static inline bool cmd_is_wait(const uint8_t *pRom){
 	return (pRom[0] & 0xF0) == CMD_NO_CMD_NIBBLE && (pRom[0] & 0x0F) == CMD_WAIT_MODE;
 }
 
-static bool pending_schedule(uint8_t *base, uint8_t first, uint8_t next, uint8_t toggle,
+static bool pending_schedule(const frame_t *st, uint8_t depth, uint8_t next, uint8_t toggle,
 		uint8_t owner, uint8_t flags, uint32_t ms){
 	for(uint8_t i=0; i<PENDING_LISTS; i++){
 		pending_list_t *p = &pending_lists[i];
 		if(p->active) continue;
-		p->base = base;
-		p->first = first;
+		for(uint8_t f=0; f<depth; f++) p->frames[f] = st[f];
+		p->frames[depth - 1].next = next;
+		p->depth = depth;
 		p->due = HAL_GetTick() + ms;
-		p->next = next;
 		p->toggle = toggle;
 		p->owner = owner;
 		p->flags = flags;
@@ -1214,8 +1227,10 @@ static void pending_flush_owner(uint8_t owner){
 		if(!p->active || p->owner != owner) continue;
 		pending_list_t run = *p;
 		p->active = false;
-		run_cmd_list(run.base, run.first, run.next, run.toggle, run.owner, run.flags, false);
-		if(run.release_pending) run_list_up(run.base, run.first, run.toggle, run.flags);
+		run_list_stack(run.frames, run.depth, run.toggle, run.owner, run.flags, false);
+		if(run.release_pending){
+			run_list_up(run.frames[0].base, run.frames[0].first, run.toggle, run.flags);
+		}
 	}
 }
 
@@ -1237,8 +1252,10 @@ static void pending_task(void){
 		if(!p->active || (int32_t)(now - p->due) < 0) continue;
 		pending_list_t run = *p;
 		p->active = false;	// free the slot: the rest of the list may need it
-		if(run_cmd_list(run.base, run.first, run.next, run.toggle, run.owner, run.flags, true)){
-			if(run.release_pending) run_list_up(run.base, run.first, run.toggle, run.flags);
+		if(run_list_stack(run.frames, run.depth, run.toggle, run.owner, run.flags, true)){
+			if(run.release_pending){
+				run_list_up(run.frames[0].base, run.frames[0].first, run.toggle, run.flags);
+			}
 		} else if(run.release_pending){
 			pending_defer_release(run.owner);	// another Wait: the release waits too
 		}
@@ -1819,6 +1836,38 @@ static bool if_holds(const uint8_t *pRom){
  * Without one, or when it names no channel at all, the command goes out once
  * as it stands.
  */
+/*
+ * Macro: a command that runs another button's list in place, so a sequence
+ * wanted in many banks is stored once and called with four bytes wherever it
+ * is needed. Byte 1 is the bank, byte 2 the button in its low nibble and which
+ * of its lists in the high one.
+ */
+static inline bool cmd_is_macro(const uint8_t *pRom){
+	return (pRom[0] & 0xF0) == CMD_NO_CMD_NIBBLE && (pRom[0] & 0x0F) == CMD_MACRO_MODE;
+}
+
+// The list a Macro command names, or NULL when there is none to run
+static uint8_t *macro_list(const uint8_t *pRom){
+	uint8_t bank = pRom[1] & 0x7F;
+	uint8_t sw = pRom[2] & 0x07;
+	if(bank >= MIDI_NUM_BANKS) return NULL;
+	switch((pRom[2] >> 4) & 0x03){
+	case MACRO_LIST_LONG:	return get_long_rom_pointer(bank, sw, 0);
+	case MACRO_LIST_DOUBLE:	return flash_settings_double_stored()
+			? get_double_rom_pointer(bank, sw, 0) : NULL;
+	default:				return get_rom_pointer(bank, sw, 0);
+	}
+}
+
+// Whether a list is already running, which is what stops a macro calling
+// itself, or two macros calling each other, round and round
+static bool macro_on_stack(const frame_t *st, uint8_t depth, const uint8_t *base){
+	for(uint8_t i=0; i<depth; i++){
+		if(st[i].base == base) return true;
+	}
+	return false;
+}
+
 static void send_on_channels(const uint8_t *chan, uint8_t *pRom, uint8_t toggle, bool up){
 	uint16_t mask = chan ? chan_mask(chan) : 0;
 	if(mask == 0){
@@ -1843,13 +1892,30 @@ static void send_on_channels(const uint8_t *chan, uint8_t *pRom, uint8_t toggle,
  */
 static bool run_cmd_list(uint8_t *base, uint8_t first, uint8_t start, uint8_t toggle,
 		uint8_t owner, uint8_t flags, bool allow_wait){
+	frame_t st[MACRO_DEPTH];
+	st[0].base = base;
+	st[0].first = first;
+	st[0].next = start;
+	return run_list_stack(st, 1, toggle, owner, flags, allow_wait);
+}
+
+/*
+ * The same, resumed: `st` holds the list to carry on with and the macros it
+ * was called from, innermost last, each frame saying where to pick up.
+ */
+static bool run_list_stack(frame_t *st, uint8_t depth, uint8_t toggle,
+		uint8_t owner, uint8_t flags, bool allow_wait){
+  while(depth > 0){
+	frame_t *f = &st[depth - 1];
+	uint8_t *base = f->base;
 	uint32_t ramp = 0;	// time of a Ramp just above the command, 0 for none
 	const uint8_t *lfo = NULL;	// an LFO just above the command
 	const uint8_t *chan = NULL;	// a Chan just above the command
 	const uint8_t *seq = NULL;	// the first of a run of Seq commands above it
 	uint8_t seq_cmds = 0;
 	bool skip = false;		// an If above said no to the command coming
-	for(uint8_t j=start; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
+	bool called = false;	// a Macro sent us off to another list
+	for(uint8_t j=f->next; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
 		uint8_t *pRom = base + j * MIDI_ROM_CMD_SIZE;
 		if(cmd_is_cycle(pRom)) break;	// the next state
 		if(cmd_is_leave(pRom)) break;	// a bank's commands on leaving it
@@ -1897,6 +1963,20 @@ static bool run_cmd_list(uint8_t *base, uint8_t first, uint8_t start, uint8_t to
 			skip = false;
 			continue;
 		}
+		if(cmd_is_macro(pRom)){
+			uint8_t *target = macro_list(pRom);
+			// Nothing to call, too deep, or a list already running: passed over
+			if(target == NULL || depth >= MACRO_DEPTH || macro_on_stack(st, depth, target)){
+				continue;
+			}
+			f->next = (uint8_t)(j + 1);	// where this list carries on after it
+			st[depth].base = target;
+			st[depth].first = 0;
+			st[depth].next = 0;
+			depth++;
+			called = true;
+			break;
+		}
 		if(cmd_is_var(pRom)){
 			run_var(pRom);
 			continue;
@@ -1904,7 +1984,7 @@ static bool run_cmd_list(uint8_t *base, uint8_t first, uint8_t start, uint8_t to
 		if(cmd_is_wait(pRom)){
 			uint32_t ms = (uint32_t)pRom[2] * 10;
 			if(allow_wait && ms &&
-					pending_schedule(base, first, (uint8_t)(j + 1), toggle, owner, flags, ms)){
+					pending_schedule(st, depth, (uint8_t)(j + 1), toggle, owner, flags, ms)){
 				return false;
 			}
 			continue;
@@ -1930,27 +2010,52 @@ static bool run_cmd_list(uint8_t *base, uint8_t first, uint8_t start, uint8_t to
 		send_on_channels(chan_cmd, pRom, toggle, false);
 	}
 
+	if(!called) depth--;	// this list is finished: back to the one that called it
+  }
+
 	if(flags & LIST_SKIP_BANK){
 		pending_bank = 0xFF;	// nothing in this list may change the bank
 		pending_page = 0xFF;
 	} else {
 		apply_pending_bank();
 	}
-	if(flags & LIST_UP_AFTER) run_list_up(base, first, toggle, flags);
+	if(flags & LIST_UP_AFTER) run_list_up(st[0].base, st[0].first, toggle, flags);
 	return true;
 }
 
 // The release pass of a list. Pauses belong to the press, so this one runs
 // straight through.
 static void run_list_up(uint8_t *base, uint8_t first, uint8_t toggle, uint8_t flags){
+	frame_t st[MACRO_DEPTH];
+	st[0].base = base;
+	st[0].first = first;
+	st[0].next = first;
+	uint8_t depth = 1;
+  while(depth > 0){
+	frame_t *f = &st[depth - 1];
+	base = f->base;
 	uint32_t ramp = 0;
 	bool lfo = false;
 	bool seq = false;
 	bool skip = false;
+	bool called = false;
 	const uint8_t *chan = NULL;
-	for(uint8_t j=first; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
+	for(uint8_t j=f->next; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
 		uint8_t *pRom = base + j * MIDI_ROM_CMD_SIZE;
 		if(cmd_is_cycle(pRom)) break;
+		if(cmd_is_macro(pRom) && !skip){
+			uint8_t *target = macro_list(pRom);
+			if(target == NULL || depth >= MACRO_DEPTH || macro_on_stack(st, depth, target)){
+				continue;
+			}
+			f->next = (uint8_t)(j + 1);
+			st[depth].base = target;
+			st[depth].first = 0;
+			st[depth].next = 0;
+			depth++;
+			called = true;
+			break;
+		}
 		if(cmd_is_if(pRom)){
 			if(!if_holds(pRom)) skip = true;	// asked again, now on the release
 			continue;
@@ -1983,6 +2088,9 @@ static void run_list_up(uint8_t *base, uint8_t first, uint8_t toggle, uint8_t fl
 		}
 		send_on_channels(chan_cmd, pRom, toggle, true);
 	}
+
+	if(!called) depth--;
+  }
 }
 
 /*

@@ -3294,3 +3294,111 @@ class KemperModeTest(unittest.TestCase):
         self.assertIn(kp.rig_name(amp.rig), answers)
         self.assertIn(kp.module_state("Delay", True), answers)
         self.assertTrue(all(kp.is_kemper(a) for a in answers))
+
+
+class MacroTest(unittest.TestCase):
+    """The Macro command (firmware 0.56)."""
+
+    FIRMWARE = os.path.join(os.path.dirname(__file__), "..", "..", "firmware", "Core")
+
+    @staticmethod
+    def pack(cmd_type, **fields):
+        row = {f"A_{f}": "" for f in unpacker.CMD_FIELDS}
+        row["A_CommandType"] = cmd_type
+        for field, value in fields.items():
+            row[f"A_{field}"] = value
+        return bytes(cbp.pack_row(pd.Series(row)))[:4]
+
+    def source(self, name):
+        with open(os.path.join(self.FIRMWARE, name)) as handle:
+            return handle.read()
+
+    def test_nibble_and_lists_match_firmware(self):
+        """One more nibble of the empty command type, and the three lists."""
+        import re
+
+        text = self.source(os.path.join("Inc", "midi_defines.h"))
+        modes = dict(re.findall(r"^#define\s+CMD_(\w+)_MODE\s+\((\d+)\)", text, re.M))
+        self.assertEqual(int(modes["MACRO"]), cbp.CMD_MACRO_MODE)
+        taken = [int(v) for v in modes.values()]
+        self.assertEqual(len(taken), len(set(taken)))       # still a nibble each
+        self.assertTrue(all(0 < v <= 15 for v in taken))
+
+        def value(name):
+            found = re.search(r"^#define\s+" + name + r"\s+\((\d+)\)", text, re.M)
+            self.assertIsNotNone(found, name)
+            return int(found.group(1))
+
+        for i, name in enumerate(("MACRO_LIST_SHORT", "MACRO_LIST_LONG", "MACRO_LIST_DOUBLE")):
+            self.assertEqual(value(name), i, name)
+        self.assertEqual(value("MACRO_LIST_COUNT"), len(cbp.MACRO_LISTS))
+        depth = re.search(r"^#define\s+MACRO_DEPTH\s+\((\d+)\)", 
+                          self.source(os.path.join("Src", "switch_router.c")), re.M)
+        self.assertIsNotNone(depth)
+        self.assertEqual(int(depth.group(1)), cbp.MACRO_DEPTH)
+
+    def test_firmware_cannot_go_round_for_ever(self):
+        """A list already running is never called again, however deep it goes."""
+        source = self.source(os.path.join("Src", "switch_router.c"))
+        self.assertIn("macro_on_stack", source)
+        # Both the press and the release pass ask before calling
+        self.assertEqual(source.count("depth >= MACRO_DEPTH || macro_on_stack"), 2)
+
+    def test_round_trip(self):
+        for bank, button, which, packed in (
+                ("0", "1", "Short", [0x0D, 0, 0x00, 0]),
+                ("11", "B", "Short", [0x0D, 11, 0x05, 0]),
+                ("31", "D", "Long", [0x0D, 31, 0x17, 0]),
+                ("5", "4", "Double", [0x0D, 5, 0x23, 0]),
+                ("7", "A", "", [0x0D, 7, 0x04, 0])):
+            raw = self.pack("Macro", **{"OnValue_(CC/PB)": bank,
+                                        "Number_(PC/CC/Note)": button,
+                                        "KeyMode_(Key)": which})
+            self.assertEqual(list(raw), packed, bank + button)
+            back = unpacker.unpack_command(raw)
+            self.assertEqual(back["CommandType"], "Macro")
+            self.assertEqual(back["OnValue_(CC/PB)"], bank)
+            self.assertEqual(back["Number_(PC/CC/Note)"], button)
+            self.assertEqual(back["KeyMode_(Key)"], which or "Short")
+
+    def test_keeps_the_toggle_bit_clear(self):
+        """Byte 1 carries the bank, never the toggling mark."""
+        for bank in ("0", "31"):
+            raw = self.pack("Macro", **{"OnValue_(CC/PB)": bank})
+            self.assertEqual(raw[1] & 0x80, 0, bank)
+
+    def test_refuses_a_list_it_does_not_know(self):
+        with self.assertRaises(ValueError):
+            self.pack("Macro", **{"KeyMode_(Key)": "Triple"})
+
+    def test_is_not_an_empty_command(self):
+        self.assertEqual(unpacker.unpack_command(bytes([0, 0, 0, 0]))["CommandType"], "")
+        self.assertEqual(unpacker.unpack_command(bytes([0x0D, 0, 0, 0]))["CommandType"], "Macro")
+
+    def test_costs_four_bytes_instead_of_the_whole_list(self):
+        """The point of it: the call is one command wherever the list is used."""
+        called = [self.pack("PC", **{"Channel_(PC/CC/Note/PB)": "1",
+                                     "Number_(PC/CC/Note)": str(n)}) for n in range(10)]
+        self.assertEqual(sum(len(c) for c in called), 40)
+        self.assertEqual(len(self.pack("Macro", **{"OnValue_(CC/PB)": "11"})), 4)
+
+    def test_demo_calls_the_stored_sequence(self):
+        """HOME, held on 2, runs bank 11's WAIT list instead of copying it."""
+        packed = packer.pack_config(read_config_csv(DEMO_CSV))
+        frames = unpacker.unpack_config(packed)
+        long_press = next(f for f in frames
+                          if "A_CommandType" in f.columns and "Label" not in f.columns)
+        row = long_press[(long_press["Bank_Number"].astype(str) == "0")
+                         & (long_press["Button_Identifier"].astype(str) == "2")].iloc[0]
+        self.assertEqual((norm(row["A_CommandType"]), norm(row["A_OnValue_(CC/PB)"]),
+                          norm(row["A_Number_(PC/CC/Note)"]), norm(row["A_KeyMode_(Key)"])),
+                         ("Macro", "11", "B", "Short"))
+
+        # And what it calls is really a program change, a pause and a CC
+        short = next(f for f in frames if "Label" in f.columns and "A_CommandType" in f.columns)
+        called = short[(short["Bank_Number"].astype(str) == "11")
+                       & (short["Button_Identifier"].astype(str) == "B")].iloc[0]
+        self.assertEqual(norm(called["A_CommandType"]), "PC")
+        self.assertEqual((norm(called["B_CommandType"]), norm(called["B_Duration_(Note/PB)"])),
+                         ("Wait", "200"))
+        self.assertEqual(norm(called["C_CommandType"]), "CC")

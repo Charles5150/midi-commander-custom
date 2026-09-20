@@ -160,6 +160,7 @@ static const char *other_name(const uint8_t *c){
 		case CMD_SEQ_MODE:		return "Seq";
 		case CMD_VAR_MODE:		return "Value";
 		case CMD_IF_MODE:		return "If";
+		case CMD_MACRO_MODE:	return "Macro";
 		default:				return "?";
 		}
 	}

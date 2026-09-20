@@ -185,6 +185,20 @@
 #define IF_BANK			(6)	// byte 3 is the bank the pedal must be on
 #define IF_NOT_BANK		(7)
 #define IF_COUNT		(8)
+// Macro: same empty command type, low nibble 13. Runs another button's command
+// list in place, so a sequence wanted in many banks is stored once and called
+// with four bytes wherever it is needed. Byte 1 is the bank 0-31 (its top bit
+// stays clear, as that is what marks a command as toggling), byte 2 the button
+// 0-7 in its low nibble and which of that button's lists in the high one. The
+// called list runs with the toggle state of the button that called it, and an
+// If above a Macro holds back the whole of it. Macros call macros, up to four
+// lists deep, and a list already running is never called again, so a macro
+// cannot go round for ever.
+#define CMD_MACRO_MODE		(13)
+#define MACRO_LIST_SHORT	(0)
+#define MACRO_LIST_LONG		(1)
+#define MACRO_LIST_DOUBLE	(2)
+#define MACRO_LIST_COUNT	(3)
 #define CMD_PC_NIBBLE		(0xC0)
 // Relative Program Change: a PC whose byte 2 (the Bank Select MSB, 0x80 and up
 // meaning none) holds one of these markers. Byte 1 is the step, byte 3 the last

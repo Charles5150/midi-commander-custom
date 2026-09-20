@@ -111,6 +111,12 @@ IF_TESTS = ["Button on", "Button off", "Value =", "Value <>", "Value <",
 IF_BUTTON_TESTS = (0, 1)
 IF_VALUE_TESTS = (2, 3, 4, 5)
 IF_BANK_TESTS = (6, 7)
+# Macro: runs another button's command list in place, so a sequence wanted in
+# many banks is stored once. Byte 1 is the bank, byte 2 the button in its low
+# nibble and which of that button's lists in the high one.
+CMD_MACRO_MODE = 13
+MACRO_LISTS = ["Short", "Long", "Double"]
+MACRO_DEPTH = 4
 
 # A relative Program Change is a PC whose Bank Select MSB byte, where 0x80 and
 # above already meant "none", holds one of these markers
@@ -821,6 +827,28 @@ def cmd_if(cmd):
     return [CMD_NO_CMD_NIBBLE | CMD_IF_MODE, test, what, value]
 
 
+def cmd_macro(cmd):
+    """Run another button's command list in place.
+
+    OnValue is the bank 0-31 the list lives in, Number the button ("1"-"4",
+    "A"-"D") and KeyMode which of that button's lists (MACRO_LISTS, its short
+    press list when empty). The called list runs with the toggle state of the
+    button that called it, and macros call macros up to MACRO_DEPTH lists deep;
+    a list already running is never called again, so one cannot go round for
+    ever.
+    """
+    bank = max(0, min(31, safe_int(cmd.get("OnValue_(CC/PB)", 0))))
+    button = button_index(cmd.get("Number_(PC/CC/Note)", "1"))
+    list_text = str(cmd.get("KeyMode_(Key)", "")).strip()
+    if list_text in ("", "nan"):
+        list_text = MACRO_LISTS[0]
+    lists = {m.upper(): i for i, m in enumerate(MACRO_LISTS)}
+    if list_text.upper() not in lists:
+        raise ValueError(f"Macro must be one of {', '.join(MACRO_LISTS)}, not {list_text!r}")
+    return [CMD_NO_CMD_NIBBLE | CMD_MACRO_MODE, bank,
+            (lists[list_text.upper()] << 4) | button, 0]
+
+
 def cmd_none(cmd):
     return [0, 0, 0, 0]
 
@@ -851,6 +879,7 @@ cmd_route_table = {
     "Seq": cmd_seq,
     "Value": cmd_var,
     "If": cmd_if,
+    "Macro": cmd_macro,
 }
 
 

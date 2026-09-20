@@ -36,6 +36,8 @@ from lib.cmdBinaryPacker import (
     VAR_MODES,
     VAR_DEFAULT_TOP,
     CMD_IF_MODE,
+    CMD_MACRO_MODE,
+    MACRO_LISTS,
     IF_TESTS,
     IF_BUTTON_TESTS,
     IF_VALUE_TESTS,
@@ -302,6 +304,12 @@ def unpack_command(raw: bytes, cycle_labels=None) -> dict:
             cmd["OnValue_(CC/PB)"] = str(b3 & 0x7F)
         else:
             cmd["OnValue_(CC/PB)"] = str(b3 & 0x7F)
+    elif cmd_type == CMD_NO_CMD_NIBBLE and (b0 & 0x0F) == CMD_MACRO_MODE:
+        cmd["CommandType"] = "Macro"
+        cmd["OnValue_(CC/PB)"] = str(b1 & 0x7F)
+        cmd["Number_(PC/CC/Note)"] = button_name(b2 & 0x07)
+        which = (b2 >> 4) & 0x03
+        cmd["KeyMode_(Key)"] = MACRO_LISTS[which] if which < len(MACRO_LISTS) else MACRO_LISTS[0]
     elif cmd_type == CMD_NO_CMD_NIBBLE and (b0 & 0x0F) == CMD_CHAN_MODE:
         cmd["CommandType"] = "Chan"
         mask = (b2 & 0x7F) | ((b3 & 0x7F) << 7)

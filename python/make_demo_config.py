@@ -227,6 +227,12 @@ def build() -> Demo:
     # Hold 1 on HOME to move to the next configuration slot holding one. HOME
     # is where every bank leads back to and where a new configuration starts.
     d.long_press(0, "1", CommandType="Bank", **{"KeyMode_(Key)": "NextConfig"})
+    # Hold 2 on HOME to run the sequence stored on bank 11's WAIT button: a
+    # program change, a pause and a CC, called here with one command instead of
+    # being copied. Its pause is kept, so the CC still follows 200 ms later.
+    d.long_press(0, "2", CommandType="Macro",
+                 **{"OnValue_(CC/PB)": "11", "Number_(PC/CC/Note)": "B",
+                    "KeyMode_(Key)": "Short"})
 
     # --- bank 1: looper, the everyday case -------------------------------
     d.cc(1, "1", "REC", "1", toggle="Y", light="AlwaysOn")

@@ -25,7 +25,7 @@ from lib.cmdBinaryPacker import (  # noqa: E402
     EXP_TARGETS, HID_SPECIAL_KEYS, LFO_DIVISIONS, LFO_SHAPES, MEDIA_KEYS, RAMP_MAX_MS,
     MMC_COMMANDS, MMC_LOCATE_MAX, SONG_MODES, SONG_POSITION_MAX,
     VAR_MODES, VAR_COUNT, VAR_DEFAULT_TOP, IF_TESTS, IF_BUTTON_TESTS, IF_VALUE_TESTS,
-    SCENE_BUTTONS,
+    SCENE_BUTTONS, MACRO_LISTS,
 )
 from lib.configCsv import read_config_csv, write_config_csv  # noqa: E402
 from lib.configPacker import NUM_BANKS, BUTTON_IDS  # noqa: E402
@@ -156,7 +156,7 @@ LED_MODES = ["Normal", "Reverse", "AlwaysOn"]
 BUTTON_GROUPS = ["None", "1", "2", "3", "4"]
 CHANNELS = [str(i) for i in range(1, 17)]
 NO_COMMAND = "(none)"
-COMMAND_TYPES = [NO_COMMAND, "PC", "PCInc", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "MMC", "Song", "Panic", "Scene", "Wait", "Ramp", "LFO", "Seq", "Exp", "Chan", "Value", "If"]
+COMMAND_TYPES = [NO_COMMAND, "PC", "PCInc", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "MMC", "Song", "Panic", "Scene", "Wait", "Ramp", "LFO", "Seq", "Exp", "Chan", "Value", "If", "Macro"]
 # Cycle splits a button's short press list into states, so only that list offers it
 SHORT_COMMAND_TYPES = COMMAND_TYPES + ["Cycle"]
 # Leave splits a bank's enter list into the commands on entering and on leaving
@@ -725,6 +725,23 @@ class SlotEditor:
                 text="(the command right below only goes out then; another If asks for both)",
                 text_color=MUTED,
             ).pack(side="left", padx=8)
+        elif cmd_type == "Macro":
+            self._int("macrobank", "Bank", "OnValue_(CC/PB)", 0, 31)
+            self._label("Button")
+            w = Option(self.params, list(SCENE_BUTTONS),
+                       clean(self.initial.get("Number_(PC/CC/Note)")) or "1", width=50)
+            w.pack(side="left")
+            self.widgets["macrobutton"] = w
+            self._label("List")
+            w = Option(self.params, MACRO_LISTS,
+                       clean(self.initial.get("KeyMode_(Key)")) or MACRO_LISTS[0], width=80)
+            w.pack(side="left")
+            self.widgets["macrolist"] = w
+            ctk.CTkLabel(
+                self.params,
+                text="(that button's list is run here, so a sequence used in many banks is stored once)",
+                text_color=MUTED,
+            ).pack(side="left", padx=8)
         elif cmd_type == "Exp":
             self._label("Pedal")
             w = Option(self.params, ["1", "2"], self.initial.get("OnValue_(CC/PB)"), width=50)
@@ -832,6 +849,10 @@ class SlotEditor:
                 out["Number_(PC/CC/Note)"] = w["ifwhich"].value()
             if "ifvalue" in w:
                 out["OnValue_(CC/PB)"] = w["ifvalue"].value()
+        if cmd_type == "Macro":
+            out["OnValue_(CC/PB)"] = w["macrobank"].value()
+            out["Number_(PC/CC/Note)"] = w["macrobutton"].value()
+            out["KeyMode_(Key)"] = w["macrolist"].value()
         if cmd_type == "Scene":
             code = {"On": "+", "Off": "-"}
             out["OnValue_(CC/PB)"] = "".join(code.get(w[f"scene_{i}"].value(), ".") for i in range(8))
