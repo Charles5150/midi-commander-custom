@@ -3065,6 +3065,15 @@ class BackupSlotsTest(unittest.TestCase):
         cls.select_slot = staticmethod(select_slot)
         cls.write_image = staticmethod(write_image)
 
+    def setUp(self):
+        # The pause between chunks paces a real pedal; the fake one needs none,
+        # and with it these tests spent a hundred seconds asleep
+        from unittest import mock
+        import lib.slotIO as slot_io
+        patcher = mock.patch.object(slot_io, "time", mock.Mock(sleep=lambda s: None))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def sections(self, name):
         s = read_config_csv(DEMO_CSV)
         g = s["Global_Settings"]

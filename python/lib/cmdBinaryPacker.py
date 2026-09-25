@@ -993,19 +993,18 @@ def pack_row(row, cycle_labels=None, leave=False):
     ``leave`` allows one Leave command, for a bank's enter list."""
     row_byte_list = []
     leaves = 0
+    # A plain dict per command: building a pandas Series for each of them made
+    # packing a whole configuration take a second
+    fields = row.to_dict() if hasattr(row, "to_dict") else dict(row)
 
     for i in range(0, MIDI_NUM_COMMANDS_PER_SWITCH):
         cmd_prefix = f"{chr(ord('A') + i)}_"
-        # Check if cmd exists in row columns
-        # Filter columns starting with prefix
-        current_cols = [c for c in row.index if c.startswith(cmd_prefix)]
-        if not current_cols:
+        cmd = {c[len(cmd_prefix):]: v for c, v in fields.items()
+               if isinstance(c, str) and c.startswith(cmd_prefix)}
+        if not cmd:
             # Should not happen given how logic works usually, but safety
             cmd_byte_list = cmd_none(None)
         else:
-            cmd = row[current_cols]
-            # Remove prefix from index to match cmd_xxx expectations
-            cmd.index = cmd.index.str.replace(cmd_prefix, "", regex=False)
 
             cmd_type = str(cmd["CommandType"]).strip()
             if cmd_type == "Cycle":
