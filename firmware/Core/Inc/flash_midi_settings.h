@@ -26,6 +26,7 @@ extern uint8_t *pSetlist;		// Bank numbers in setlist order, 0xFF ends the list
 extern uint8_t *pBankExpSettings;	// Expression pedal CC and channel per bank, CFG_BANK_EXP_STRIDE bytes per bank
 extern uint8_t *pBankExpRange;	// Expression pedal output range per bank, CFG_BANK_EXP_RANGE_STRIDE bytes per bank
 extern uint8_t *pCycleLabels;	// Labels of the states of cycle buttons, BUTTON_LABEL_LEN chars each
+extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
 
 /*
  * Four command lists, one per switch and press length, in this order:
@@ -217,7 +218,24 @@ extern uint8_t *pCycleLabels;	// Labels of the states of cycle buttons, BUTTON_L
 #define CYCLE_LABEL_COUNT	(48)
 #define CFG_CYCLE_LABELS_SIZE	(CYCLE_LABEL_COUNT * BUTTON_LABEL_LEN)
 #define CFG_CYCLE_LABELS_OFF	(CFG_BANK_EXP_RANGE_OFF + CFG_BANK_EXP_RANGE_SIZE)
-#define CFG_TOTAL_SIZE		(CFG_CYCLE_LABELS_OFF + CFG_CYCLE_LABELS_SIZE)
+/*
+ * Two switches pressed together. Each entry names a pair of the command
+ * switches and the list the pair runs, which is any button's list, as a Macro
+ * names one, so an entry costs four bytes rather than ten commands:
+ *   [0] first switch 0-7 in the low nibble, second in the high one; 0xFF unused
+ *   [1] the bank it counts in plus one, 0 for every bank
+ *   [2] bank of the list it runs, 0-31
+ *   [3] button of it 0-7 in the low nibble, which list (MACRO_LIST_) in the high
+ * Erased flash, which is all a configuration written before 0.59 holds here,
+ * is no entry at all. They take the last bytes a slot had free.
+ */
+#define COMBO_COUNT			(12)
+#define COMBO_STRIDE		(4)
+#define COMBO_EVERY_BANK	(0)
+#define COMBO_UNUSED		(0xFF)
+#define CFG_COMBOS_SIZE		(COMBO_COUNT * COMBO_STRIDE)
+#define CFG_COMBOS_OFF		(CFG_CYCLE_LABELS_OFF + CFG_CYCLE_LABELS_SIZE)
+#define CFG_TOTAL_SIZE		(CFG_COMBOS_OFF + CFG_COMBOS_SIZE)
 // Double press commands, same size as CMDS, stored in the extension area
 #define CFG_DOUBLE_CMDS_OFF	(FLASH_SETTINGS_NO_PAGES * CFG_PAGE_SIZE)
 #define CFG_DOUBLE_CMDS_SIZE	(CFG_CMDS_SIZE)

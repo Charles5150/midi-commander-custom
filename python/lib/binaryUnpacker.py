@@ -104,7 +104,13 @@ BANK_EXP_RANGE_OFFSET = BANK_EXP_OFFSET + NUM_BANKS * BANK_EXP_STRIDE
 BANK_EXP_RANGE_STRIDE = 4
 # Labels of the states of cycle buttons (firmware 0.38), 4 chars each
 CYCLE_LABELS_OFFSET = BANK_EXP_RANGE_OFFSET + NUM_BANKS * BANK_EXP_RANGE_STRIDE
-CONFIG_SIZE = CYCLE_LABELS_OFFSET + CYCLE_LABEL_COUNT * CYCLE_LABEL_LEN
+# Two switches pressed together (firmware 0.59), 4 bytes each: the pair, the
+# bank it counts in plus one (0 every bank), and the bank, button and list it runs
+COMBOS_OFFSET = CYCLE_LABELS_OFFSET + CYCLE_LABEL_COUNT * CYCLE_LABEL_LEN
+COMBO_COUNT = 12
+COMBO_STRIDE = 4
+COMBO_COLUMNS = ["Switches", "Bank", "Run_Bank", "Run_Button", "Run_List"]
+CONFIG_SIZE = COMBOS_OFFSET + COMBO_COUNT * COMBO_STRIDE
 # Double press commands follow the slot's 12 pages, in the extension area the
 # firmware maps there (firmware 0.26). Same shape as the long press commands.
 FLASH_PAGE_SIZE = 2048
@@ -205,6 +211,7 @@ def unpack_global_settings(data: bytes) -> pd.DataFrame:
         ("Edit_Lock", "Y" if g[42] == 1 else "N"),
         ("Kemper_Mode", "Y" if g[43] == 1 else "N"),
         ("Global_Bank", str(g[44] - 1) if 1 <= g[44] <= 32 else "Off"),
+        ("Combo_ms", str((g[45] if 0 < g[45] < 0xFF else 8) * 10)),
     ]
     return pd.DataFrame(rows, columns=["Label", "Value"])
 
@@ -620,6 +627,28 @@ def unpack_setlist(data: bytes) -> pd.DataFrame:
             break
         rows.append({"Position": str(i + 1), "Bank_Number": str(bank)})
     return pd.DataFrame(rows, columns=["Position", "Bank_Number"])
+
+
+def unpack_combos(data: bytes) -> pd.DataFrame:
+    """The two switch combinations; unused and invalid entries are left out."""
+    rows = []
+    data = bytes(data).ljust(CONFIG_SIZE, b"\xff")
+    for i in range(COMBO_COUNT):
+        pair, scope, bank, target = data[COMBOS_OFFSET + i * COMBO_STRIDE :][:COMBO_STRIDE]
+        a, b = pair & 0x0F, pair >> 4
+        if pair == 0xFF or a >= len(BUTTON_IDS) or b >= len(BUTTON_IDS) or a == b:
+            continue
+        if scope > NUM_BANKS or bank >= NUM_BANKS:
+            continue
+        which = (target >> 4) & 0x03
+        rows.append({
+            "Switches": f"{BUTTON_IDS[a]}+{BUTTON_IDS[b]}",
+            "Bank": "All" if scope == 0 else str(scope - 1),
+            "Run_Bank": str(bank),
+            "Run_Button": BUTTON_IDS[target & 0x07],
+            "Run_List": MACRO_LISTS[which] if which < len(MACRO_LISTS) else MACRO_LISTS[0],
+        })
+    return pd.DataFrame(rows, columns=COMBO_COLUMNS)
 
 
 def unpack_sysex_strings(data: bytes) -> pd.DataFrame:

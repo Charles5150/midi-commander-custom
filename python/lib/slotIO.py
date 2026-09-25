@@ -88,6 +88,7 @@ def save_csv(path, data, image, note="Read from device"):
         df_bank_switch=df_bank_switch,
         df_setlist=df_setlist,
         df_bank_expression=unpacker.unpack_bank_expression_settings(data),
+        df_combos=unpacker.unpack_combos(data),
     )
     return df_global.loc[df_global["Label"] == "ConfigName", "Value"].iloc[0]
 

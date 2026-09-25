@@ -44,6 +44,10 @@ from lib.configPacker import (  # noqa: E402
     empty_bank_expression_settings,
     empty_setlist,
     empty_sysex_strings,
+    COMBO_SECTION,
+    COMBO_COUNT,
+    COMBO_COLUMNS,
+    empty_combos,
     parse_sysex_bytes,
 )
 from lib.configPacker import (  # noqa: E402
@@ -277,6 +281,7 @@ GLOBAL_GROUPS = [
     ("Presses", [
         ("Long_Press_ms", "Long press after", "ms held, 100-2500"),
         ("Double_Press_ms", "Double press within", "ms between presses, 100-1000"),
+        ("Combo_ms", "Two switches together within", "ms between them, 20-250, see the Combos tab"),
         ("Remember_State", "Remember state", "come back in the last bank with every toggle as it was"),
         ("Edit_Lock", "Lock on-pedal editing", "the two bank switches held together no longer open the editor"),
     ]),
@@ -880,6 +885,8 @@ class MidiCommanderGUI(ctk.CTk):
         self.df_sysex = None
         self.df_bank_switch = None
         self.df_setlist = None
+        self.df_combos = None
+        self.combo_widgets = []
         self.df_bank_exp = None
         self.bank_exp_widgets = {}  # df index -> {column: widget}
         self.setlist_widgets = []
@@ -957,7 +964,7 @@ class MidiCommanderGUI(ctk.CTk):
                                       segmented_button_unselected_hover_color=FIELD_HOVER)
         self.tabview.grid(row=0, column=1, padx=16, pady=(12, 16), sticky="nsew")
         # In the order a configuration is usually built
-        for name in ("Buttons", "Banks", "Bank Enter", "Bank Switch", "Setlist",
+        for name in ("Buttons", "Banks", "Bank Enter", "Bank Switch", "Combos", "Setlist",
                      "Expression", "SysEx", "Global", "Virtual Pedal"):
             self.tabview.add(name)
 
@@ -983,6 +990,7 @@ class MidiCommanderGUI(ctk.CTk):
         self._setup_sysex_tab()
         self._setup_bank_switch_tab()
         self._setup_setlist_tab()
+        self._setup_combo_tab()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
         if os.path.exists(DEFAULT_CSV):
@@ -1066,6 +1074,7 @@ class MidiCommanderGUI(ctk.CTk):
                 ("Edit_Lock", "N"),
                 ("Kemper_Mode", "N"),
                 ("Global_Bank", "Off"),
+                ("Combo_ms", "80"),
             ]
             missing = [{"Label": l, "Value": v} for l, v in defaults if l not in labels]
             if missing:
@@ -1184,6 +1193,12 @@ class MidiCommanderGUI(ctk.CTk):
                 else empty_setlist()
             )
             self.populate_setlist()
+            self.df_combos = (
+                data[COMBO_SECTION].astype(object).reset_index(drop=True)
+                if COMBO_SECTION in data
+                else empty_combos()
+            )
+            self.populate_combos()
             self.df_sysex = (
                 data[SYSEX_SECTION].astype(object).reset_index(drop=True)
                 if SYSEX_SECTION in data
@@ -1338,6 +1353,8 @@ class MidiCommanderGUI(ctk.CTk):
             return IntEntry(parent, 100, 2500, value, width=70)
         if label == "Double_Press_ms":
             return IntEntry(parent, 100, 1000, value, width=70)
+        if label == "Combo_ms":
+            return IntEntry(parent, 20, 250, value, width=70)
         if label in ("LED_Brightness", "LED_Rest_Brightness"):
             return IntEntry(parent, 1, 100, value, width=70)
         if label == "Bank_Jump_Step":
@@ -2236,6 +2253,84 @@ class MidiCommanderGUI(ctk.CTk):
             rows.append({"Position": str(len(rows) + 1), "Bank_Number": str(bank)})
         self.df_setlist = pd.DataFrame(rows, columns=["Position", "Bank_Number"])
 
+    # --- Combos tab ----------------------------------------------------------------
+    COMBO_LISTS = ["Short", "Long", "Double"]
+
+    def _setup_combo_tab(self):
+        tab = self.tabview.tab("Combos")
+        Help(
+            tab,
+            "Two switches pressed together run a list of their own, instead of what either does alone.",
+            "A combination runs any button's short, long or double press list, as a Macro does, so "
+            "its commands live on a button of a bank you keep spare. It counts in one bank or in "
+            "all of them; one for the bank showing wins over one for all banks. A switch that belongs "
+            "to a combination waits for the other one, Two switches together within in the Global "
+            "tab, 80 ms unless changed, and carries on as a normal press if it does not come. Up to "
+            f"{COMBO_COUNT} combinations.",
+        ).pack(anchor="w", padx=10, pady=(10, 6))
+        self.combo_frame = ctk.CTkScrollableFrame(tab)
+        self.combo_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+
+    def populate_combos(self):
+        for w in self.combo_frame.winfo_children():
+            w.destroy()
+        self.combo_widgets = []
+        banks = self._bank_choices()[1:]
+        scopes = ["All banks"] + banks
+        switches = [NO_COMMAND] + list(BUTTON_IDS)
+        for col, text in enumerate(("", "SWITCHES", "", "", "IN", "RUNS BANK", "BUTTON", "LIST")):
+            ctk.CTkLabel(self.combo_frame, text=text, font=FONT_SECTION, text_color=MUTED).grid(
+                row=0, column=col, padx=6, pady=(8, 6), sticky="w")
+        rows = []
+        if self.df_combos is not None:
+            rows = [r for _, r in self.df_combos.iterrows() if clean(r.get("Switches"))]
+        for i in range(COMBO_COUNT):
+            r = rows[i] if i < len(rows) else {}
+            names = clean(r.get("Switches")).upper().replace("+", " ").split()
+            first, second = (names + [NO_COMMAND, NO_COMMAND])[:2]
+            scope = clean(r.get("Bank"))
+            try:
+                scope = banks[int(float(scope))] if scope and scope.upper() != "ALL" else scopes[0]
+            except (ValueError, IndexError):
+                scope = scopes[0]
+            try:
+                run_bank = banks[int(float(clean(r.get("Run_Bank"))))]
+            except (ValueError, IndexError):
+                run_bank = banks[0]
+            ctk.CTkLabel(self.combo_frame, text=f"{i + 1:>2}", width=28, font=BOLD).grid(row=i + 1, column=0)
+            widgets = {
+                "first": Option(self.combo_frame, switches, first, width=80),
+                "second": Option(self.combo_frame, switches, second, width=80),
+                "scope": Option(self.combo_frame, scopes, scope, width=150),
+                "bank": Option(self.combo_frame, banks, run_bank, width=150),
+                "button": Option(self.combo_frame, list(BUTTON_IDS), clean(r.get("Run_Button")).upper(), width=70),
+                "list": Option(self.combo_frame, self.COMBO_LISTS, clean(r.get("Run_List")).title(), width=90),
+            }
+            widgets["first"].grid(row=i + 1, column=1, padx=4, pady=2)
+            ctk.CTkLabel(self.combo_frame, text="+").grid(row=i + 1, column=2)
+            widgets["second"].grid(row=i + 1, column=3, padx=4, pady=2)
+            for col, key in enumerate(("scope", "bank", "button", "list"), start=4):
+                widgets[key].grid(row=i + 1, column=col, padx=4, pady=2)
+            self.combo_widgets.append(widgets)
+
+    def apply_combo_changes(self):
+        if not self.combo_widgets:
+            return
+        rows = []
+        for w in self.combo_widgets:
+            first, second = w["first"].value(), w["second"].value()
+            if NO_COMMAND in (first, second):
+                continue
+            scope = w["scope"].value()
+            rows.append({
+                "Switches": f"{first}+{second}",
+                "Bank": "All" if scope == "All banks" else scope.split()[0],
+                "Run_Bank": w["bank"].value().split()[0],
+                "Run_Button": w["button"].value(),
+                "Run_List": w["list"].value(),
+            })
+        self.df_combos = pd.DataFrame(rows, columns=COMBO_COLUMNS)
+
     # --- SysEx tab -----------------------------------------------------------------
     def _setup_sysex_tab(self):
         tab = self.tabview.tab("SysEx")
@@ -2293,6 +2388,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.apply_bank_enter_changes()
         self.apply_bank_switch_changes()
         self.apply_setlist_changes()
+        self.apply_combo_changes()
         self.apply_sysex_changes()
         for idx, w in self.global_widgets.items():
             self.df_global.at[idx, "Value"] = w.value()
@@ -2366,6 +2462,7 @@ class MidiCommanderGUI(ctk.CTk):
                 df_bank_switch=self.df_bank_switch,
                 df_setlist=self.df_setlist,
                 df_bank_expression=self.df_bank_exp,
+                df_combos=self.df_combos,
             )
             messagebox.showinfo("Success", "CSV Saved Successfully!")
         except Exception as e:  # noqa: BLE001
@@ -2506,6 +2603,7 @@ class MidiCommanderGUI(ctk.CTk):
                 df_bank_switch=self.df_bank_switch,
                 df_setlist=self.df_setlist,
                 df_bank_expression=self.df_bank_exp,
+                df_combos=self.df_combos,
             )
         except Exception as e:  # noqa: BLE001
             messagebox.showerror("Error", f"Could not save CSV before flashing: {e}")

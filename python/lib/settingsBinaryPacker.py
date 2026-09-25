@@ -25,6 +25,7 @@ GLOBAL_SETTINGS_GLOBAL_CHANNEL = 41
 GLOBAL_SETTINGS_EDIT_LOCK = 42
 GLOBAL_SETTINGS_KEMPER_MODE = 43
 GLOBAL_SETTINGS_GLOBAL_BANK = 44
+GLOBAL_SETTINGS_COMBO = 45
 # Set by configPacker when the image carries double press commands
 GLOBAL_SETTINGS_DOUBLE_STORED = 37
 
@@ -246,6 +247,16 @@ def pack_global_settings(df):
         if not 1 <= bank <= 32:
             raise ValueError(f"Global_Bank must be Off or a bank 0-31, not {gb!r}")
     bin_list[GLOBAL_SETTINGS_GLOBAL_BANK] = bank
+
+    # How long a switch of a combination waits for the other one, in ms,
+    # stored in 10 ms units (20..250 ms)
+    combo_ms = 80
+    if "Combo_ms" in df.index:
+        try:
+            combo_ms = int(float(str(df.loc["Combo_ms", "Value"]).strip() or 80))
+        except ValueError:
+            combo_ms = 80
+    bin_list[GLOBAL_SETTINGS_COMBO] = max(2, min(25, round(combo_ms / 10)))
 
     return bin_list
 

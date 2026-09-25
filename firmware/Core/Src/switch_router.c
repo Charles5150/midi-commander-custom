@@ -32,6 +32,7 @@ static bool switch_down(GPIO_TypeDef *port, uint16_t pin);
 
 // Command lists and the pauses inside them, see run_cmd_list further down
 #define PENDING_OWNER_NONE	(0xFF)	// a list with no button to release
+#define PENDING_OWNER_COMBO	(MIDI_NUM_SWITCHES)	// the list of a combination of two
 #define LIST_SKIP_BANK		(0x01)	// bank change commands are ignored in this list
 #define LIST_UP_AFTER		(0x02)	// the release pass follows the press pass
 /*
@@ -101,6 +102,8 @@ typedef struct {
 #define PRESS_LONG		(3)  // Long press commands fired, waiting for release
 #define PRESS_WAIT_SECOND	(4)  // Released after a tap, waiting to see if a second press follows
 #define PRESS_DOUBLE	(5)  // Double press commands fired, waiting for release
+#define PRESS_COMBO_WAIT	(6)  // Down, waiting to see if the other switch of a combination follows
+#define PRESS_COMBO		(7)  // Half of a combination that fired, waiting for release
 
 typedef struct {
 	uint32_t systick_timout;
@@ -2309,6 +2312,11 @@ typedef struct {
 static bank_press_t bank_down_press = { .state = PRESS_IDLE };
 static bank_press_t bank_up_press = { .state = PRESS_IDLE };
 
+// Two switch combinations, see combo_press()
+static uint16_t combo_toggle = 0;		// bit per combination
+static uint8_t combo_held = 0xFF;		// the combination fired and still down
+static uint8_t *combo_held_list = NULL;
+
 static uint8_t bank_switch_mode(void){
 	uint8_t v = pGlobalSettings[GLOBAL_SETTINGS_BANK_SWITCH_MODE];
 	return (v <= BANK_SWITCH_MIDI_ONLY) ? v : BANK_SWITCH_BANK_ONLY;
@@ -2438,6 +2446,8 @@ static void switch_config(uint8_t target){
 		a_sw_obj[i].double_toggle_state = 0;
 	}
 	memset(cycle_pos, CYCLE_NONE, sizeof(cycle_pos));
+	combo_toggle = 0;
+	combo_held = 0xFF;
 	pending_bank = 0xFF;
 	pending_page = 0xFF;
 
@@ -2746,6 +2756,107 @@ static void fire_double_up(uint8_t i){
 	run_list_up(get_double_rom_pointer(switch_current_page, i, 0), 0, toggleState, 0);
 }
 
+/*
+ * Two switches pressed together. A combination names a pair of switches and
+ * the list it runs, any button's, as a Macro does. It counts in one bank or
+ * in every bank; a combination of the bank showing wins over one of every
+ * bank for the same pair.
+ *
+ * A switch that belongs to a combination here does not fire at once: it waits
+ * combo_window_ms() for the other one. If that comes in time, the pair runs
+ * the combination's list and neither switch sends its own. If not, the press
+ * carries on as it would have, into a short, long or double press, the wait
+ * counted in. Switches in no combination, and every switch in a bank with
+ * none, answer at once as before. The list runs with a toggle state of the
+ * combination's own and its release pass goes out when the first of the two
+ * switches lets go.
+ */
+static uint32_t combo_window_ms(void){
+	uint8_t v = pGlobalSettings[GLOBAL_SETTINGS_COMBO];
+	if(v == 0 || v == 0xFF) return 80;
+	return (uint32_t)v * 10;
+}
+
+// Whether combination n is a valid one that counts in the bank showing
+static bool combo_here(uint8_t n){
+	const uint8_t *c = pCombos + n * COMBO_STRIDE;
+	uint8_t a = c[0] & 0x0F, b = c[0] >> 4;
+	if(c[0] == COMBO_UNUSED || a >= MIDI_NUM_SWITCHES || b >= MIDI_NUM_SWITCHES || a == b) return false;
+	return c[1] == COMBO_EVERY_BANK || c[1] == (uint8_t)(switch_current_page + 1U);
+}
+
+static bool combo_has(uint8_t n, uint8_t sw){
+	uint8_t pair = pCombos[n * COMBO_STRIDE];
+	return (pair & 0x0F) == sw || (pair >> 4) == sw;
+}
+
+// Whether a switch has to wait for a partner in the bank showing
+static bool combo_member(uint8_t sw){
+	for(uint8_t n=0; n<COMBO_COUNT; n++){
+		if(combo_here(n) && combo_has(n, sw)) return true;
+	}
+	return false;
+}
+
+// The combination two switches make in the bank showing, or 0xFF
+static uint8_t combo_find(uint8_t i, uint8_t j){
+	uint8_t found = 0xFF;
+	for(uint8_t n=0; n<COMBO_COUNT; n++){
+		if(!combo_here(n) || !combo_has(n, i) || !combo_has(n, j)) continue;
+		if(pCombos[n * COMBO_STRIDE + 1] != COMBO_EVERY_BANK) return n;	// this bank's own
+		if(found == 0xFF) found = n;
+	}
+	return found;
+}
+
+static uint8_t *combo_list(uint8_t n){
+	const uint8_t *c = pCombos + n * COMBO_STRIDE;
+	uint8_t bank = c[2], sw = c[3] & 0x07;
+	if(bank >= MIDI_NUM_BANKS) return NULL;
+	switch((c[3] >> 4) & 0x03){
+	case MACRO_LIST_LONG:	return get_long_rom_pointer(bank, sw, 0);
+	case MACRO_LIST_DOUBLE:	return flash_settings_double_stored()
+			? get_double_rom_pointer(bank, sw, 0) : NULL;
+	default:				return get_rom_pointer(bank, sw, 0);
+	}
+}
+
+static void fire_combo_down(uint8_t n, uint8_t i, uint8_t j){
+	a_sw_obj[i].press_state = PRESS_COMBO;
+	a_sw_obj[j].press_state = PRESS_COMBO;
+	set_momentary_led(i, 1);
+	set_momentary_led(j, 1);
+	pending_flush_owner(PENDING_OWNER_COMBO);
+	combo_toggle ^= (uint16_t)(1U << n);
+	combo_held = n;
+	combo_held_list = combo_list(n);
+	if(combo_held_list == NULL) return;
+	run_cmd_list(combo_held_list, 0, 0, (combo_toggle >> n) & 1U, PENDING_OWNER_COMBO, 0, true);
+}
+
+static void fire_combo_up(void){
+	uint8_t n = combo_held;
+	combo_held = 0xFF;
+	if(n == 0xFF || combo_held_list == NULL) return;
+	if(pending_defer_release(PENDING_OWNER_COMBO)) return;
+	run_list_up(combo_held_list, 0, (combo_toggle >> n) & 1U, 0);
+}
+
+// A switch of a combination going down: the pair fires if its partner is
+// already waiting, or it starts waiting itself
+static void combo_press(uint8_t i, uint32_t now){
+	for(uint8_t j=0; j<MIDI_NUM_SWITCHES; j++){
+		if(j == i || a_sw_obj[j].press_state != PRESS_COMBO_WAIT) continue;
+		uint8_t n = combo_find(i, j);
+		if(n != 0xFF){
+			fire_combo_down(n, i, j);
+			return;
+		}
+	}
+	a_sw_obj[i].press_tick = now;
+	a_sw_obj[i].press_state = PRESS_COMBO_WAIT;
+}
+
 static void feedback_task(void){
 	for(uint8_t n=0; n<FEEDBACK_PER_PASS && feedback_tail != feedback_head; n++){
 		feedback_apply(feedback_queue[feedback_tail]);
@@ -2844,6 +2955,18 @@ void handle_switches(void){
 		bool has_long = (sw->long_cmd_present & bit) != 0;
 		bool has_double = (sw->double_cmd_present & bit) != 0;
 
+		// No partner in time: the press carries on as if it had just begun,
+		// with the wait counted in towards a long press
+		if(sw->press_state == PRESS_COMBO_WAIT && (now - sw->press_tick) >= combo_window_ms()){
+			if(has_long || has_double){
+				sw->press_state = PRESS_PENDING;
+				set_momentary_led(i, 1);
+			} else {
+				fire_short_down(i);
+				sw->press_state = PRESS_SHORT;
+			}
+		}
+
 		// A pending press becomes a long press once held past the threshold.
 		// A button with no long press commands, pending only because of its
 		// double press, is simply a short press being held.
@@ -2874,6 +2997,9 @@ void handle_switches(void){
 					set_momentary_led(i, 1);
 					fire_double_down(i);
 					sw->press_state = PRESS_DOUBLE;
+				} else if(combo_member(i)){
+					// Maybe half of a combination: wait for the other switch
+					combo_press(i, now);
 				} else if(has_long || has_double){
 					// Can't tell yet whether this is a short, long or double press
 					sw->press_tick = now;
@@ -2888,6 +3014,7 @@ void handle_switches(void){
 				// Switch up
 				uint8_t next = PRESS_IDLE;
 				switch(sw->press_state){
+				case PRESS_COMBO_WAIT:	// let go before its partner came: a tap
 				case PRESS_PENDING:
 					if(has_double){
 						// Maybe the first half of a double press: wait for a second one
@@ -2912,6 +3039,10 @@ void handle_switches(void){
 				case PRESS_DOUBLE:
 					set_momentary_led(i, 0);
 					fire_double_up(i);
+					break;
+				case PRESS_COMBO:
+					set_momentary_led(i, 0);
+					fire_combo_up();	// the first of the two to let go ends it
 					break;
 				default:
 					break;

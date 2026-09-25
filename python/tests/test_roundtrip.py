@@ -620,6 +620,9 @@ class FirmwareLayoutTest(unittest.TestCase):
             ("SETLIST_MAX", "SETLIST_MAX"),
             ("CFG_CYCLE_LABELS_OFF", "CYCLE_LABELS_OFFSET"),
             ("CYCLE_LABEL_COUNT", "CYCLE_LABEL_COUNT"),
+            ("CFG_COMBOS_OFF", "COMBOS_OFFSET"),
+            ("COMBO_COUNT", "COMBO_COUNT"),
+            ("COMBO_STRIDE", "COMBO_STRIDE"),
             ("CFG_TOTAL_SIZE", "CONFIG_SIZE"),
             ("CFG_DOUBLE_CMDS_OFF", "DOUBLE_PRESS_OFFSET"),
             ("CFG_DOUBLE_CMDS_SIZE", "DOUBLE_PRESS_SIZE"),
@@ -1040,9 +1043,10 @@ class DoublePressTest(unittest.TestCase):
         config = packer.pack_config(self.sections)
         U = unpacker
         self.assertEqual(len(image), U.DOUBLE_PRESS_OFFSET + U.DOUBLE_PRESS_SIZE)
-        # The configuration itself is untouched, the gap is erased flash
+        # The configuration itself is untouched, and since 0.59 it fills the
+        # slot's pages, so the extension follows it with no gap
         self.assertEqual(image[: len(config)], config)
-        self.assertEqual(set(image[len(config) : U.DOUBLE_PRESS_OFFSET]), {0xFF})
+        self.assertEqual(len(config), U.DOUBLE_PRESS_OFFSET)
         # One command in the demo, everything else erased
         extension = image[U.DOUBLE_PRESS_OFFSET :]
         self.assertEqual(sum(1 for b in extension if b != 0xFF), 4)
@@ -3540,6 +3544,158 @@ class GlobalButtonTest(unittest.TestCase):
 
         # What it saves: one list instead of one per bank
         self.assertEqual(len(followers) * cbp.MIDI_NUM_COMMANDS_PER_SWITCH * 4, 680)
+
+
+class ComboTest(unittest.TestCase):
+    """Two switches pressed together run a list of their own (0.59)."""
+
+    FIRMWARE = os.path.join(os.path.dirname(__file__), "..", "..", "firmware", "Core")
+
+    def source(self, *name):
+        with open(os.path.join(self.FIRMWARE, *name)) as handle:
+            return handle.read()
+
+    def combos(self, rows):
+        return pd.DataFrame(rows, columns=packer.COMBO_COLUMNS)
+
+    def packed(self, rows, base=None):
+        sections = dict(read_config_csv(base or DEMO_CSV))
+        sections[packer.COMBO_SECTION] = self.combos(rows)
+        return pack_config(sections)
+
+    def table(self, packed):
+        return packed[unpacker.COMBOS_OFFSET : unpacker.COMBOS_OFFSET + 48]
+
+    def test_constants_agree(self):
+        import re
+
+        self.assertEqual(packer.COMBO_COUNT, unpacker.COMBO_COUNT)
+        self.assertEqual(packer.COMBO_COLUMNS, unpacker.COMBO_COLUMNS)
+        header = self.source("Inc", "flash_midi_settings.h")
+        for name, want in (("COMBO_EVERY_BANK", 0), ("COMBO_UNUSED", 0xFF)):
+            m = re.search(rf"^#define\s+{name}\s+\((0x[0-9A-Fa-f]+|\d+)\)", header, re.M)
+            self.assertIsNotNone(m, name)
+            self.assertEqual(int(m.group(1), 0), want, name)
+        # The list is named as a Macro names it
+        defines = self.source("Inc", "midi_defines.h")
+        for i, name in enumerate(cbp.MACRO_LISTS):
+            m = re.search(rf"^#define\s+MACRO_LIST_{name.upper()}\s+\((\d+)\)", defines, re.M)
+            self.assertEqual(int(m.group(1)), i, name)
+        # They take exactly the room the slot had left
+        self.assertEqual(unpacker.CONFIG_SIZE, 12 * 2048)
+
+    def test_packs_the_table(self):
+        packed = self.packed([
+            {"Switches": "1+2", "Bank": "All", "Run_Bank": "31", "Run_Button": "A", "Run_List": "Short"},
+            {"Switches": "D + a", "Bank": "3", "Run_Bank": "5", "Run_Button": "b", "Run_List": "long"},
+            {"Switches": "3 4", "Bank": "", "Run_Bank": "0", "Run_Button": "C", "Run_List": ""},
+            {"Switches": "C,2", "Bank": "31", "Run_Bank": "30", "Run_Button": "D", "Run_List": "Double"},
+        ])
+        table = self.table(packed)
+        self.assertEqual(table[:16], bytes([0x10, 0, 31, 0x04,  0x74, 4, 5, 0x15,
+                                            0x32, 0, 0, 0x06,   0x61, 32, 30, 0x27]))
+        self.assertEqual(table[16:], b"\xff" * 32)
+        back = unpacker.unpack_combos(packed)
+        self.assertEqual(back.to_dict("records"), [
+            {"Switches": "1+2", "Bank": "All", "Run_Bank": "31", "Run_Button": "A", "Run_List": "Short"},
+            {"Switches": "A+D", "Bank": "3", "Run_Bank": "5", "Run_Button": "B", "Run_List": "Long"},
+            {"Switches": "3+4", "Bank": "All", "Run_Bank": "0", "Run_Button": "C", "Run_List": "Short"},
+            {"Switches": "2+C", "Bank": "31", "Run_Bank": "30", "Run_Button": "D", "Run_List": "Double"},
+        ])
+        # and nothing else moved
+        self.assertEqual(packed[: unpacker.COMBOS_OFFSET], pack_csv(DEMO_CSV)[: unpacker.COMBOS_OFFSET])
+
+    def test_rows_without_switches_are_left_out(self):
+        packed = self.packed([
+            {"Switches": "", "Bank": "All", "Run_Bank": "1", "Run_Button": "A", "Run_List": "Short"},
+            {"Switches": float("nan"), "Bank": "", "Run_Bank": "", "Run_Button": "", "Run_List": ""},
+            {"Switches": "1+2", "Bank": "All", "Run_Bank": "1", "Run_Button": "A", "Run_List": "Short"},
+        ])
+        self.assertEqual(self.table(packed)[:4], bytes([0x10, 0, 1, 0x04]))
+        self.assertEqual(len(unpacker.unpack_combos(packed)), 1)
+
+    def test_refuses_what_it_cannot_store(self):
+        good = {"Switches": "1+2", "Bank": "All", "Run_Bank": "1", "Run_Button": "A", "Run_List": "Short"}
+        for field, bad in (("Switches", "1+1"), ("Switches", "1+E"), ("Switches", "1"), ("Switches", "1+2+3"),
+                           ("Bank", "32"), ("Bank", "-1"), ("Bank", "some"),
+                           ("Run_Bank", "32"), ("Run_Bank", ""), ("Run_Button", "E"), ("Run_Button", ""),
+                           ("Run_List", "Triple")):
+            with self.assertRaises(ValueError, msg=f"{field}={bad}"):
+                self.packed([{**good, field: bad}])
+        # the same pair twice for the same bank, whichever way round
+        with self.assertRaises(ValueError):
+            self.packed([good, {**good, "Switches": "2+1", "Run_Bank": "2"}])
+        # but for another bank it is how one bank changes what the pair does
+        self.packed([good, {**good, "Bank": "4"}])
+        pairs = [f"{a}+{b}" for i, a in enumerate(packer.BUTTON_IDS) for b in packer.BUTTON_IDS[i + 1:]]
+        self.packed([{**good, "Switches": p} for p in pairs[:packer.COMBO_COUNT]])
+        with self.assertRaises(ValueError):
+            self.packed([{**good, "Switches": p} for p in pairs[:packer.COMBO_COUNT + 1]])
+
+    def test_older_configurations_have_none(self):
+        sections = read_config_csv(SAMPLE_CSV)
+        self.assertNotIn(packer.COMBO_SECTION, sections)
+        packed = pack_config(sections)
+        self.assertEqual(self.table(packed), b"\xff" * 48)
+        self.assertEqual(packed[45], 8)   # and the window is the default
+        # An older dump stops before the table, and erased flash is none either
+        self.assertEqual(len(unpacker.unpack_combos(packed[: unpacker.COMBOS_OFFSET])), 0)
+        self.assertEqual(len(unpacker.unpack_combos(b"\xff" * unpacker.CONFIG_SIZE)), 0)
+        blank = unpacker.unpack_global_settings(b"\xff" * unpacker.CONFIG_SIZE)
+        self.assertEqual(blank[blank["Label"] == "Combo_ms"]["Value"].iloc[0], "80")
+
+    def test_invalid_entries_are_not_read(self):
+        """What the firmware passes over the tools do not show either."""
+        image = bytearray(pack_csv(SAMPLE_CSV))
+        at = unpacker.COMBOS_OFFSET
+        image[at : at + 20] = bytes([0x11, 0, 1, 0,   0x18, 0, 1, 0,   0x10, 33, 1, 0,
+                                     0x10, 0, 32, 0,  0x21, 0, 2, 0x13])
+        back = unpacker.unpack_combos(bytes(image))
+        self.assertEqual(back["Switches"].tolist(), ["2+3"])
+        source = self.source("Src", "switch_router.c")
+        self.assertIn("a >= MIDI_NUM_SWITCHES || b >= MIDI_NUM_SWITCHES || a == b", source)
+
+    def test_window(self):
+        sections = read_config_csv(DEMO_CSV)
+        df = sections["Global_Settings"].copy()
+        where = df.index[df["Label"] == "Combo_ms"][0]
+        for value, byte in (("80", 8), ("20", 2), ("5", 2), ("250", 25), ("400", 25), ("", 8), ("x", 8)):
+            df.at[where, "Value"] = value
+            packed = pack_config({**sections, "Global_Settings": df})
+            self.assertEqual(packed[45], byte, value)
+            back = unpacker.unpack_global_settings(packed)
+            self.assertEqual(back[back["Label"] == "Combo_ms"]["Value"].iloc[0], str(byte * 10))
+
+    def test_csv_round_trip(self):
+        import tempfile
+
+        from lib import slotIO
+
+        sections = dict(read_config_csv(DEMO_CSV))
+        sections[packer.COMBO_SECTION] = self.combos([
+            {"Switches": "1+2", "Bank": "7", "Run_Bank": "31", "Run_Button": "A", "Run_List": "Long"},
+        ])
+        image = packer.pack_flash_image(sections)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "back.csv")
+            slotIO.save_csv(path, image[: unpacker.CONFIG_SIZE], image)
+            again = read_config_csv(path)
+            self.assertIn(packer.COMBO_SECTION, again)
+            self.assertEqual(packer.pack_flash_image(again), image)
+
+    def test_demo(self):
+        """3+4 is the tuner everywhere, and on the first song the looper's clear."""
+        sections = read_config_csv(DEMO_CSV)
+        combos = sections[packer.COMBO_SECTION]
+        self.assertEqual(combos["Switches"].tolist(), ["3+4", "3+4"])
+        self.assertEqual(combos["Bank"].tolist(), ["All", "12"])
+        buttons = sections["Button_Settings"]
+        for _, c in combos.iterrows():
+            row = buttons[(buttons["Bank_Number"].astype(str) == c["Run_Bank"])
+                          & (buttons["Button_Identifier"] == c["Run_Button"])].iloc[0]
+            self.assertEqual(norm(row["A_CommandType"]), "CC", c.to_dict())
+        table = self.table(pack_config(sections))
+        self.assertEqual(table[:8], bytes([0x32, 0, 30, 0x05, 0x32, 13, 30, 0x03]))
 
 
 class FirmwareUpdateTest(unittest.TestCase):

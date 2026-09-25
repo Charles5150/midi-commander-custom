@@ -35,6 +35,9 @@ BANK_EXP_COLUMNS = ["Bank_Number", "Exp1_CC", "Exp1_Channel", "Exp1_Min", "Exp1_
                     "Exp2_CC", "Exp2_Channel", "Exp2_Min", "Exp2_Max"]
 BANK_EXP_CC_OFF = 0x80
 SETLIST_MAX = 32
+COMBO_SECTION = "Combo_Settings"
+COMBO_COUNT = 12
+COMBO_COLUMNS = ["Switches", "Bank", "Run_Bank", "Run_Button", "Run_List"]
 BANK_SWITCH_LISTS = [("Down", "Short"), ("Down", "Long"), ("Up", "Short"), ("Up", "Long")]
 SYSEX_STRING_COUNT = 16
 SYSEX_STRING_MAX = 23
@@ -154,6 +157,69 @@ def pack_setlist(df):
                 entries.append((pos, bank))
     banks = [b for _, b in sorted(entries, key=lambda e: e[0])][:SETLIST_MAX]
     return bytes(banks + [0xFF] * (SETLIST_MAX - len(banks)))
+
+
+def empty_combos():
+    """A Combo_Settings frame with no combinations."""
+    import pandas as pd
+
+    return pd.DataFrame(columns=COMBO_COLUMNS)
+
+
+def parse_combo_switches(text) -> tuple:
+    """"1+2", "A + B" or "3 4" -> the two switch indexes, lowest first."""
+    names = str(text).upper().replace("+", " ").replace(",", " ").split()
+    if len(names) != 2 or any(n not in BUTTON_IDS for n in names) or names[0] == names[1]:
+        raise ValueError(f"Combination switches must be two different switches such as 1+2, not {text!r}")
+    return tuple(sorted(BUTTON_IDS.index(n) for n in names))
+
+
+def pack_combos(df) -> bytes:
+    """Four bytes per combination: the pair, the bank it counts in plus one (0
+    for every bank), and the bank, button and list it runs. Rows without
+    switches are left out; the rest of the table is erased flash (0xFF)."""
+    out = bytearray(b"\xff" * (COMBO_COUNT * 4))
+    seen = set()
+    n = 0
+    if df is None:
+        return bytes(out)
+    for _, row in df.iterrows():
+        switches = _cell(row.get("Switches"))
+        if switches == "":
+            continue
+        a, b = parse_combo_switches(switches)
+        scope_text = _cell(row.get("Bank"))
+        if scope_text == "" or scope_text.upper() in ("ALL", "EVERY", "ANY"):
+            scope = 0
+        else:
+            try:
+                scope = int(float(scope_text)) + 1
+            except ValueError:
+                scope = -1
+            if not 1 <= scope <= NUM_BANKS:
+                raise ValueError(f"Combination {switches}: Bank must be All or a bank 0-31, not {scope_text!r}")
+        try:
+            bank = int(float(_cell(row.get("Run_Bank"))))
+        except ValueError:
+            bank = -1
+        if not 0 <= bank < NUM_BANKS:
+            raise ValueError(f"Combination {switches}: Run_Bank must be a bank 0-31, not {row.get('Run_Bank')!r}")
+        button = _cell(row.get("Run_Button")).upper()
+        if button not in BUTTON_IDS:
+            raise ValueError(f"Combination {switches}: Run_Button must be one of {', '.join(BUTTON_IDS)}, not {row.get('Run_Button')!r}")
+        list_text = _cell(row.get("Run_List")) or cbp.MACRO_LISTS[0]
+        lists = {m.upper(): i for i, m in enumerate(cbp.MACRO_LISTS)}
+        if list_text.upper() not in lists:
+            raise ValueError(f"Combination {switches}: Run_List must be one of {', '.join(cbp.MACRO_LISTS)}, not {list_text!r}")
+        if (a, b, scope) in seen:
+            raise ValueError(f"Combination {switches} is there twice for the same bank")
+        seen.add((a, b, scope))
+        if n >= COMBO_COUNT:
+            raise ValueError(f"At most {COMBO_COUNT} combinations fit in a configuration")
+        out[n * 4 : n * 4 + 4] = bytes([a | (b << 4), scope, bank,
+                                        (lists[list_text.upper()] << 4) | BUTTON_IDS.index(button)])
+        n += 1
+    return bytes(out)
 
 
 def empty_sysex_strings():
@@ -501,5 +567,6 @@ def pack_config(sections: dict) -> bytes:
     out += list(pack_bank_expression(sections.get(BANK_EXPRESSION_SECTION)))
     out += list(pack_bank_expression_range(sections.get(BANK_EXPRESSION_SECTION)))
     out += list(cbp.pack_cycle_labels(cycle_labels))
+    out += list(pack_combos(sections.get(COMBO_SECTION)))
 
     return bytes(out)

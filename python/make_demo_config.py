@@ -21,6 +21,7 @@ from lib.binaryUnpacker import CMD_FIELDS, SLOT_NAMES  # noqa: E402
 from lib.configCsv import write_config_csv  # noqa: E402
 from lib.configPacker import (  # noqa: E402
     BUTTON_IDS,
+    COMBO_COLUMNS,
     NUM_BANKS,
     empty_bank_enter_settings,
     empty_bank_switch_settings,
@@ -49,6 +50,13 @@ BANKS = {
 SETLIST_FROM = 12   # banks 12..29 are "songs"
 GLOBAL_BANK = 30    # the bank set aside for the buttons that are the same everywhere
 PAGE_BANK = 31      # the second page of the first song
+# Two switches pressed together: 3+4 toggles the tuner in every bank, except
+# on the first song, where the same pair clears the looper instead
+COMBOS = [
+    {"Switches": "3+4", "Bank": "All", "Run_Bank": str(GLOBAL_BANK), "Run_Button": "B", "Run_List": "Short"},
+    {"Switches": "3+4", "Bank": str(SETLIST_FROM), "Run_Bank": str(GLOBAL_BANK), "Run_Button": "4",
+     "Run_List": "Short"},
+]
 # The order Bank Up/Down follow with Setlist_Mode on: home, then songs out of
 # numeric order, which is the point of having a setlist at all
 DEMO_SETLIST = [0, 12, 15, 13, 14, 18, 16, 17, 19, 20]
@@ -510,6 +518,10 @@ def build() -> Demo:
     d.tap(GLOBAL_BANK, "D", "TAP", "Tap")
     d.cc(GLOBAL_BANK, "C", "MUTE", "69", toggle="Y", light="AlwaysOn")
     d.bank_cmd(GLOBAL_BANK, "A", "HOME", "GoTo", 0)
+    # What the two switch combinations run (see COMBOS): the tuner, and the
+    # looper's clear on the first song
+    d.cc(GLOBAL_BANK, "B", "TUNR", "68", toggle="Y")
+    d.cc(GLOBAL_BANK, "4", "CLR", "5")
 
     # --- banks 12..29: a setlist, each selecting its patch on entry ----------
     for bank in range(SETLIST_FROM, GLOBAL_BANK):
@@ -627,6 +639,7 @@ def global_settings() -> pd.DataFrame:
                 ("Edit_Lock", "N"),
                 ("Kemper_Mode", "N"),
                 ("Global_Bank", str(GLOBAL_BANK)),
+                ("Combo_ms", "80"),
             )
         ]
     )
@@ -657,6 +670,7 @@ def main() -> int:
             [{"Position": str(i + 1), "Bank_Number": str(b)} for i, b in enumerate(DEMO_SETLIST)],
             columns=["Position", "Bank_Number"],
         ),
+        df_combos=pd.DataFrame(COMBOS, columns=COMBO_COLUMNS),
     )
     print(f"wrote {OUT}")
     return 0

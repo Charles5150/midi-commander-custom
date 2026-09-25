@@ -375,6 +375,7 @@ static const char *const bank_switch_names[] = {"Bank", "Bank+MIDI", "MIDI only"
 static const setting_t settings[] = {
 	{"LONGPRES", GLOBAL_SETTINGS_LONG_PRESS,          S_MS,     5,   200, 50,  true,  NULL},
 	{"DBLPRESS", GLOBAL_SETTINGS_DOUBLE_PRESS,        S_MS,     5,   200, 30,  true,  NULL},
+	{"COMBO",    GLOBAL_SETTINGS_COMBO,               S_MS,     2,    25, 8,   true,  NULL},
 	{"BRIGHT",   GLOBAL_SETTINGS_LED_BRIGHTNESS,      S_PCT,    1,   100, 100, false, NULL},
 	{"RESTBRIG", GLOBAL_SETTINGS_LED_REST_BRIGHTNESS, S_PCT,    0,   100, 100, false, NULL},
 	{"BANKJUMP", GLOBAL_SETTINGS_BANK_JUMP_STEP,      S_NUM,    1,    32, 8,   true,  NULL},

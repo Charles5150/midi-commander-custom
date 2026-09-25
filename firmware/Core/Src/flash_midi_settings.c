@@ -31,6 +31,7 @@ uint8_t *pSetlist        = (uint8_t*)(FLASH_SLOT0_ADDR + CFG_SETLIST_OFF);
 uint8_t *pBankExpSettings = (uint8_t*)(FLASH_SLOT0_ADDR + CFG_BANK_EXP_OFF);
 uint8_t *pBankExpRange   = (uint8_t*)(FLASH_SLOT0_ADDR + CFG_BANK_EXP_RANGE_OFF);
 uint8_t *pCycleLabels    = (uint8_t*)(FLASH_SLOT0_ADDR + CFG_CYCLE_LABELS_OFF);
+uint8_t *pCombos         = (uint8_t*)(FLASH_SLOT0_ADDR + CFG_COMBOS_OFF);
 
 // The whole configuration must fit in the pages the tools erase and write.
 _Static_assert(CFG_TOTAL_SIZE <= FLASH_SETTINGS_SIZE,
@@ -125,6 +126,7 @@ bool flash_settings_select(uint8_t slot){
 	pBankExpSettings = (uint8_t*)(b + CFG_BANK_EXP_OFF);
 	pBankExpRange   = (uint8_t*)(b + CFG_BANK_EXP_RANGE_OFF);
 	pCycleLabels    = (uint8_t*)(b + CFG_CYCLE_LABELS_OFF);
+	pCombos         = (uint8_t*)(b + CFG_COMBOS_OFF);
 	active_slot = slot;
 	target_slot = slot;
 	return true;
