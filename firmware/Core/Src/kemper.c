@@ -94,7 +94,7 @@ static const kemper_module_t modules[] = {
 static uint8_t rx[KEMPER_RX_MAX];
 static uint8_t rx_len = 0;
 static bool rx_over = false;		// and it did not fit, so it is dropped
-static char rig_name[20] = {0};		// the last one shown, so it is written once
+static char rig_name[DISPLAY_TEXT_MAX + 1] = {0};		// the last one shown, so it is written once
 
 static bool started = false;
 static volatile bool ask_modules = false;	// set from the USB interrupt

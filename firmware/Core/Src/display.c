@@ -15,6 +15,8 @@
  *
  * The host can put its own text in the top line over SysEx (the patch or song
  * name): in place of the bank name, of the info line, or across the whole line.
+ * A text wider than its place scrolls across it once, when it arrives or the
+ * bank is entered, and then shows its beginning.
  */
 #include "main.h"
 #include "flash_midi_settings.h"
@@ -32,6 +34,9 @@
 #define ROW_BOT_Y	(45)
 #define LABEL_FONT	Font_7x10
 #define LABEL_CHAR_W	(7)
+#define SCREEN_SHOWN_W	(128)	// the buffer is 130 wide, the glass shows 128
+#define NAME_W		(44)	// 4 large chars
+#define INFO_X		(50)
 
 static volatile uint8_t refresh_pending = 0;
 static uint8_t current_bank = 0;
@@ -47,14 +52,31 @@ static uint32_t overlay_until = 0;
  * from the USB interrupt, drawn from the main loop: a torn string is redrawn
  * right away, since every write asks for a refresh.
  */
-#define HOST_TEXT_MAX	(18)
-static const uint8_t host_text_max[DISPLAY_TEXT_PLACES] = {11, 4, 11, 18};
-static char host_text[DISPLAY_TEXT_PLACES][HOST_TEXT_MAX + 1];
+static char host_text[DISPLAY_TEXT_PLACES][DISPLAY_TEXT_MAX + 1];
 static uint8_t host_keep[DISPLAY_TEXT_PLACES];
 // A text shown for a moment only, waiting for the main loop to draw it
-static char moment_text[HOST_TEXT_MAX + 1];
+static char moment_text[DISPLAY_TEXT_MAX + 1];
 static uint8_t moment_place = 0;
 static volatile uint8_t moment_pending = 0;
+static uint8_t moment_showing = 0;
+
+/*
+ * Scrolling a text too wide for its place: still for a moment at the start,
+ * then moved along until its end shows, still again, and back to the start
+ * for good. Every long text on the line moves by the same scroll_px, each
+ * stopping at its own end; scroll_need is the most any of them has to move,
+ * worked out as the line is drawn.
+ */
+#define SCROLL_HOLD_MS	(800)
+#define SCROLL_STEP_MS	(50)	// about what a whole screen takes to go out
+#define SCROLL_STEP_PX	(2)
+enum { SCROLL_IDLE, SCROLL_HOLD_START, SCROLL_MOVING, SCROLL_HOLD_END };
+static uint8_t scroll_state = SCROLL_IDLE;
+// Asked for from the USB interrupt too, so apart from what the main loop moves
+static volatile uint8_t scroll_fresh = 0;
+static uint16_t scroll_px = 0;
+static uint16_t scroll_need = 0;
+static uint32_t scroll_next = 0;
 
 void display_init(void){
     ssd1306_Init();
@@ -139,6 +161,32 @@ static void drop_bank_text(void){
 }
 
 /*
+ * Text in a place w pixels wide at x, y. A text that does not fit is drawn
+ * scroll_px along, clipped to its place, and counted in scroll_need.
+ */
+static void draw_text(uint8_t x, uint8_t y, uint8_t w, const char *text, FontDef font){
+	uint16_t width = (uint16_t)strlen(text) * font.FontWidth;
+	if(width <= w){
+		ssd1306_SetCursor(x, y);
+		ssd1306_WriteString((char *)text, font, White);
+		return;
+	}
+	uint16_t over = width - w;
+	if(over > scroll_need) scroll_need = over;
+	uint16_t off = (scroll_px < over) ? scroll_px : over;
+	for(uint16_t col=0; col<w; col++){
+		uint16_t px = col + off;
+		char ch = text[px / font.FontWidth];
+		if(ch < 32 || ch > 126) continue;
+		uint8_t j = px % font.FontWidth;
+		const uint16_t *rows = font.data + (ch - 32) * font.FontHeight;
+		for(uint8_t i=0; i<font.FontHeight; i++){
+			if((uint16_t)(rows[i] << j) & 0x8000) ssd1306_DrawPixel(x + col, y + i, White);
+		}
+	}
+}
+
+/*
  * The top line: the bank name and its info, or the host's text in their
  * place. A whole line text hides both. override, when not NULL, stands for
  * the host text of place over_place (a text shown for a moment).
@@ -155,30 +203,29 @@ static void draw_top(uint8_t bank, uint8_t over_place, const char *override){
 	const uint8_t *pString = pBankStrings + (12 * bank);
 
 	fill_rect(0, 0, SSD1306_WIDTH, ROW_TOP_Y - 1, Black);
+	scroll_need = 0;
 
 	if(text[DISPLAY_TEXT_LINE_LARGE][0]){
-		ssd1306_SetCursor(0, 0);
-		ssd1306_WriteString((char *)text[DISPLAY_TEXT_LINE_LARGE], Font_11x18, White);
+		draw_text(0, 0, SCREEN_SHOWN_W, text[DISPLAY_TEXT_LINE_LARGE], Font_11x18);
 		return;
 	}
 	if(text[DISPLAY_TEXT_LINE_SMALL][0]){
-		ssd1306_SetCursor(0, 6);
-		ssd1306_WriteString((char *)text[DISPLAY_TEXT_LINE_SMALL], Font_7x10, White);
+		draw_text(0, 6, SCREEN_SHOWN_W, text[DISPLAY_TEXT_LINE_SMALL], Font_7x10);
 		return;
 	}
 
 	// Bank name, large 4 chars then small 8 chars on the same line
 	ssd1306_SetCursor(0, 0);
 	if(text[DISPLAY_TEXT_NAME][0]){
-		ssd1306_WriteString((char *)text[DISPLAY_TEXT_NAME], Font_11x18, White);
+		draw_text(0, 0, NAME_W, text[DISPLAY_TEXT_NAME], Font_11x18);
 	} else {
 		for(int i=0; i<4; i++){
 			ssd1306_WriteChar((char)pString[i], Font_11x18, White);
 		}
 	}
-	ssd1306_SetCursor(50, 6);
+	ssd1306_SetCursor(INFO_X, 6);
 	if(text[DISPLAY_TEXT_INFO][0]){
-		ssd1306_WriteString((char *)text[DISPLAY_TEXT_INFO], Font_7x10, White);
+		draw_text(INFO_X, 6, SCREEN_SHOWN_W - INFO_X, text[DISPLAY_TEXT_INFO], Font_7x10);
 	} else {
 		for(int i=0; i<8; i++){
 			ssd1306_WriteChar((char)pString[4 + i], Font_7x10, White);
@@ -186,19 +233,69 @@ static void draw_top(uint8_t bank, uint8_t over_place, const char *override){
 	}
 }
 
-void display_showPage(uint8_t bankNumber){
-	current_bank = bankNumber;	// same bank for the song: nothing is dropped
-	display_setBankName(bankNumber);
+// A long text starts scrolling from the beginning the next time it is drawn
+static void scroll_restart(void){
+	scroll_fresh = 1;
 }
 
-void display_setBankName(uint8_t bankNumber){
+// Before drawing the line: back to the start if a fresh scroll was asked for
+static uint8_t scroll_take_fresh(void){
+	uint8_t fresh = scroll_fresh;
+	scroll_fresh = 0;
+	if(fresh) scroll_px = 0;
+	return fresh;
+}
+
+// After drawing it: a fresh scroll starts only if something is long
+static void scroll_start(uint8_t fresh){
+	if(!fresh) return;
+	scroll_state = scroll_need ? SCROLL_HOLD_START : SCROLL_IDLE;
+	scroll_next = HAL_GetTick() + SCROLL_HOLD_MS;
+}
+
+/*
+ * Move the scroll on when it is due. Returns 1 when the top line has to be
+ * drawn again; not while the last screen is still going out, so the main loop
+ * never waits for it.
+ */
+static uint8_t scroll_step(void){
+	if(scroll_state == SCROLL_IDLE || scroll_fresh) return 0;
+	if((int32_t)(HAL_GetTick() - scroll_next) < 0 || ssd1306_Busy()) return 0;
+	if(scroll_state == SCROLL_HOLD_END){
+		scroll_state = SCROLL_IDLE;
+		scroll_px = 0;
+		return 1;
+	}
+	scroll_state = SCROLL_MOVING;
+	scroll_px += SCROLL_STEP_PX;
+	if(scroll_px >= scroll_need){
+		scroll_px = scroll_need;
+		scroll_state = SCROLL_HOLD_END;
+		scroll_next = HAL_GetTick() + SCROLL_HOLD_MS;
+	} else {
+		scroll_next = HAL_GetTick() + SCROLL_STEP_MS;
+	}
+	return 1;
+}
+
+// The bank screen comes back with its long texts still, at their start
+static void moment_done(void){
+	moment_showing = 0;
+	scroll_state = SCROLL_IDLE;
+	scroll_px = 0;
+}
+
+// The bank screen as it stands: a long text keeps its place in its scroll
+static void draw_bank(uint8_t bankNumber){
 	// Cleared first, so a refresh asked for while drawing is not lost
 	refresh_pending = 0;
 	if(bankNumber != current_bank) drop_bank_text();
 	current_bank = bankNumber;
+	uint8_t fresh = scroll_take_fresh();
 
 	ssd1306_Fill(Black);
 	draw_top(bankNumber, 0, NULL);
+	scroll_start(fresh);
 
 	for(uint8_t sw=0; sw<MIDI_NUM_SWITCHES; sw++){
 		draw_cell(bankNumber, sw);
@@ -207,14 +304,30 @@ void display_setBankName(uint8_t bankNumber){
 	ssd1306_UpdateScreen();
 }
 
+// Entering a bank scrolls its long texts
+void display_setBankName(uint8_t bankNumber){
+	if(moment_showing) moment_done();
+	scroll_restart();
+	draw_bank(bankNumber);
+}
+
+void display_showPage(uint8_t bankNumber){
+	current_bank = bankNumber;	// same bank for the song: nothing is dropped
+	display_setBankName(bankNumber);
+}
+
 uint8_t display_host_text(uint8_t place, uint8_t how, const uint8_t *text, uint8_t len){
 	if(place >= DISPLAY_TEXT_PLACES || how > TEXT_KEEP_MOMENT) return 0;
 
 	char *dst = (how == TEXT_KEEP_MOMENT) ? moment_text : host_text[place];
-	if(len > host_text_max[place]) len = host_text_max[place];
+	if(len > DISPLAY_TEXT_MAX) len = DISPLAY_TEXT_MAX;
+	// The same text sent again is left scrolling, or still, as it was
+	uint8_t same = (dst[len] == 0);
 	for(uint8_t i=0; i<len; i++){
 		char c = (char)text[i];
-		dst[i] = (c < 0x20 || c > 0x7E) ? ' ' : c;
+		c = (c < 0x20 || c > 0x7E) ? ' ' : c;
+		if(dst[i] != c) same = 0;
+		dst[i] = c;
 	}
 	dst[len] = 0;
 
@@ -228,6 +341,7 @@ uint8_t display_host_text(uint8_t place, uint8_t how, const uint8_t *text, uint8
 		// The two whole line sizes take each other's place
 		if(len && place == DISPLAY_TEXT_LINE_LARGE) host_text[DISPLAY_TEXT_LINE_SMALL][0] = 0;
 		if(len && place == DISPLAY_TEXT_LINE_SMALL) host_text[DISPLAY_TEXT_LINE_LARGE][0] = 0;
+		if(!same) scroll_restart();
 		refresh_pending = 1;
 	}
 	// A new song name is worth looking at: wake the screen
@@ -284,6 +398,7 @@ void display_editor_end(void){
  * line is redrawn, so the bank name and the button grid stay put.
  */
 static void show_overlay(const char *msg){
+	if(moment_showing) moment_done();
 	fill_rect(50, 6, SSD1306_WIDTH - 50, 10, Black);
 	ssd1306_SetCursor(50, 6);
 	ssd1306_WriteString((char *)msg, Font_7x10, White);
@@ -356,16 +471,30 @@ void display_show_safe_mode(void){
 	refresh_pending = 0;
 }
 
-// A host text for a moment, drawn over the top line like the tempo readout
-static void show_moment_text(void){
-	moment_pending = 0;
+/*
+ * A host text for a moment, drawn over the top line like the tempo readout.
+ * A long one stays up until it has scrolled to its end.
+ */
+static void draw_moment_text(void){
 	draw_top(current_bank, moment_place, moment_text);
 	ssd1306_UpdateScreen();
+}
+
+static void show_moment_text(void){
+	moment_pending = 0;
+	moment_showing = 1;
+	scroll_restart();
+	uint8_t fresh = scroll_take_fresh();
+	draw_moment_text();
+	scroll_start(fresh);
 	overlay_until = HAL_GetTick() + OVERLAY_MS;
 }
 
 void display_task(void){
 	if(editor_on) return;	// the editor draws its own screen
+	// The last screen is still going out: come back rather than wait for it,
+	// so a press is never held up behind a scroll step
+	if(ssd1306_Busy()) return;
 	if(moment_pending){
 		show_moment_text();
 		return;
@@ -377,11 +506,20 @@ void display_task(void){
 	}
 	// Let the tempo readout sit for its moment before the bank screen returns
 	if(overlay_until){
-		if(HAL_GetTick() < overlay_until) return;
+		if(moment_showing){
+			// A moment's text ends at its end, not back at its start
+			uint8_t ending = (scroll_state == SCROLL_HOLD_END);
+			if(scroll_step() && !ending) draw_moment_text();
+		}
+		if(HAL_GetTick() < overlay_until || (moment_showing && scroll_state != SCROLL_IDLE)) return;
 		overlay_until = 0;
+		if(moment_showing) moment_done();
 		refresh_pending = 1;
 	}
 	if(refresh_pending){
-		display_setBankName(current_bank);
+		draw_bank(current_bank);
+	} else if(scroll_step()){
+		draw_top(current_bank, 0, NULL);
+		ssd1306_UpdateScreen();
 	}
 }

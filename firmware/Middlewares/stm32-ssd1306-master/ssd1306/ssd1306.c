@@ -16,8 +16,13 @@ uint8_t line_tx_buffer[SSD1306_WIDTH+6];
 // counter is back at 0 as soon as that line starts, while the DMA is still
 // reading it out of line_tx_buffer
 static void ssd1306_WaitIdle(void){
-	while (display_transmit_line != 0 || display_line_transmitting_flag)
+	while (ssd1306_Busy())
 		__NOP();
+}
+
+// Still sending the last screen: what to ask before drawing without waiting
+uint8_t ssd1306_Busy(void){
+	return display_transmit_line != 0 || display_line_transmitting_flag;
 }
 
 // Call this function periodically from the systick handler to handle loading the DMA with screen updates.

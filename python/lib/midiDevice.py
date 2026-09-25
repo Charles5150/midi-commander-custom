@@ -32,9 +32,12 @@ SYSEX_RSP_ENTER_DFU = 75
 # Two check bytes ("DF") so a stray message cannot restart the pedal in DFU
 ENTER_DFU_CHECK = (0x44, 0x46)
 
-# Where host text goes on the display (firmware 0.46), and the most it shows
+# Where host text goes on the display (firmware 0.46), and what fits there
 TEXT_PLACES = {"info": 0, "name": 1, "line": 2, "small": 3}
-TEXT_MAX = {"info": 11, "name": 4, "line": 11, "small": 18}
+TEXT_FITS = {"info": 11, "name": 4, "line": 11, "small": 18}
+# The most the pedal keeps in any place; a longer text than fits scrolls
+# across it (firmware 0.61), where older firmware keeps only what fits
+TEXT_MAX = 32
 # How long it stays
 TEXT_KEEP = {"bank": 0, "always": 1, "moment": 2}
 
@@ -83,7 +86,7 @@ def text_sysex(text: str, place: str = "line", keep: str = "bank") -> list:
         raise ValueError(f"unknown place: {place} (use {', '.join(TEXT_PLACES)})")
     if keep not in TEXT_KEEP:
         raise ValueError(f"unknown keep: {keep} (use {', '.join(TEXT_KEEP)})")
-    body = [ord(c) if 0x20 <= ord(c) <= 0x7E else 0x20 for c in text[: TEXT_MAX[place]]]
+    body = [ord(c) if 0x20 <= ord(c) <= 0x7E else 0x20 for c in text[:TEXT_MAX]]
     return [0xF0, MIDI_MANUF_ID, SYSEX_CMD_SET_TEXT, TEXT_PLACES[place], TEXT_KEEP[keep]] + body + [0xF7]
 
 

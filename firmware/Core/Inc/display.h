@@ -39,6 +39,7 @@ void display_show_message(const char *msg);
 #define DISPLAY_TEXT_NAME	(1)	// the large bank name, 4 chars
 #define DISPLAY_TEXT_LINE_LARGE	(2)	// the whole top line, 11 large chars
 #define DISPLAY_TEXT_LINE_SMALL	(3)	// the whole top line, 18 small chars
+#define DISPLAY_TEXT_MAX	(32)	// kept whatever the place; more than fits scrolls
 #define DISPLAY_TEXT_PLACES	(4)
 #define TEXT_KEEP_BANK		(0)	// until the bank changes
 #define TEXT_KEEP_ALWAYS	(1)	// until the host changes it

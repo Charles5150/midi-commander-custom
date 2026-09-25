@@ -992,10 +992,16 @@ class HostTextTest(unittest.TestCase):
 
         from lib import midiDevice as md
 
-        m = re.search(r"host_text_max\[DISPLAY_TEXT_PLACES\] = \{([^}]*)\}", self.firmware)
-        lengths = [int(v) for v in m.group(1).split(",")]
-        for name, place in md.TEXT_PLACES.items():
-            self.assertEqual(lengths[place], md.TEXT_MAX[name], name)
+        self.assertEqual(self.macros["DISPLAY_TEXT_MAX"], md.TEXT_MAX)
+
+        def px(name):
+            return int(re.search(rf"#define {name}\s+\((\d+)\)", self.firmware).group(1))
+
+        # What fits without scrolling: the room of each place over its font
+        shown, name_w, info_x = px("SCREEN_SHOWN_W"), px("NAME_W"), px("INFO_X")
+        rooms = {"info": (shown - info_x) // 7, "name": name_w // 11,
+                 "line": shown // 11, "small": shown // 7}
+        self.assertEqual(rooms, md.TEXT_FITS)
 
     def test_message(self):
         from lib.midiDevice import text_sysex
@@ -1008,12 +1014,13 @@ class HostTextTest(unittest.TestCase):
     def test_cut_to_fit_and_seven_bit(self):
         from lib.midiDevice import text_sysex
 
-        self.assertEqual(bytes(text_sysex("Sweet Child O Mine")[5:-1]), b"Sweet Child")
+        self.assertEqual(bytes(text_sysex("Sweet Child O Mine")[5:-1]), b"Sweet Child O Mine")
+        self.assertEqual(len(text_sysex("x" * 40, "name")[5:-1]), 32)
         self.assertEqual(bytes(text_sysex("Canción", "small")[5:-1]), b"Canci n")
         self.assertTrue(all(b < 0x80 for b in text_sysex("\u00f1\u00e9\u20ac\x7f", "small")[1:-1]))
 
     def test_fits_the_receive_buffer(self):
-        """The longest message must fit the firmware's 64 byte SysEx buffer."""
+        """The longest message must fit the firmware's SysEx buffer, with room to spare."""
         from lib.midiDevice import text_sysex
 
         self.assertLessEqual(len(text_sysex("x" * 100, "small")), 64)
