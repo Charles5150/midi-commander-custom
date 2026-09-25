@@ -38,6 +38,7 @@
 #include "tempo.h"
 #include "sleep.h"
 #include "kemper.h"
+#include "dfu_entry.h"
 
 /* USER CODE END Includes */
 
@@ -191,6 +192,7 @@ int main(void)
       display_task();
       sleep_task();
       kemper_task();
+      dfu_entry_task();
 
       /*
        * Nothing here spins waiting for anything, so sleep until the next

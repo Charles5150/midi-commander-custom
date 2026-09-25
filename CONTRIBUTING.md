@@ -30,6 +30,20 @@ every push and pull request.
 
 ## Flashing
 
+With firmware 0.58 or later already on the pedal, nothing has to be held:
+
+```bash
+platformio run -e midi_dfu -t upload     # builds, asks the pedal for DFU mode, flashes, restarts it
+.venv/bin/python python/Update_Firmware.py artifacts/dfu/platformio-latest.dfu   # the same, without building
+```
+
+`firmware/Core/Src/dfu_entry.c` explains how. Keep its `APP_START` and the DFU
+linker script's origin the same; a test checks it. Never write below
+0x08003000: without an ST-Link, losing the bootloader is the one way to brick
+the pedal.
+
+On older firmware, or by hand:
+
 1. Power the pedal on while holding **Bank Down** and **D**. The display stays
    dark and LED 3 lights up: this is the stock DFU bootloader.
 2. `dfu-util -d 0483:df11 --alt 0 --download artifacts/dfu/platformio-latest.dfu`

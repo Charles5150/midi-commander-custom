@@ -59,6 +59,7 @@ from lib.midiDevice import (  # noqa: E402
     MidiCommander, screen_rows, version_at_least,
 )
 from lib import bankClipboard as bank_clipboard  # noqa: E402
+from lib.firmwareUpdate import UpdateError, check_image  # noqa: E402
 
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
@@ -942,6 +943,7 @@ class MidiCommanderGUI(ctk.CTk):
                font=("", 13, "bold"))
         action(9, "Back Up All Slots\u2026", self.backup_slots, fg_color=FIELD, hover_color=FIELD_HOVER)
         action(10, "Restore Backup\u2026", self.restore_slots, fg_color=FIELD, hover_color=FIELD_HOVER)
+        action(11, "Update Firmware\u2026", self.update_firmware, fg_color=FIELD, hover_color=FIELD_HOVER)
 
         self.lbl_file = ctk.CTkLabel(self.sidebar, text="no file loaded", font=FONT_SMALL,
                                      text_color=MUTED, wraplength=170, justify="left")
@@ -2446,6 +2448,37 @@ class MidiCommanderGUI(ctk.CTk):
             messagebox.showerror("Restore Error", detail[-1500:] or f"Exit code {p.returncode}")
             return
         messagebox.showinfo("Restore Complete", p.stdout.strip().splitlines()[-1])
+
+    def update_firmware(self):
+        path = filedialog.askopenfilename(
+            title="Firmware to flash",
+            filetypes=[("DFU images", "*.dfu"), ("All files", "*.*")],
+        )
+        if not path:
+            return
+        try:
+            size = check_image(path)
+        except UpdateError as e:
+            messagebox.showerror("Update Firmware", f"Not flashing {os.path.basename(path)}:\n{e}")
+            return
+        if not messagebox.askyesno(
+            "Update Firmware",
+            f"Flash {os.path.basename(path)} ({size} bytes) to the pedal?\n\n"
+            "With firmware 0.58 or later on it the pedal restarts in DFU mode by itself; "
+            "older firmware needs Bank Down and D held while switching it on first. "
+            "The configuration is left as it is. This takes about half a minute.",
+        ):
+            return
+        try:
+            p = self._run_tool("Update_Firmware.py", path, "--yes")
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("Error", f"Failed to run update script: {e}")
+            return
+        detail = (p.stdout + "\n" + p.stderr).strip()
+        if p.returncode != 0:
+            messagebox.showerror("Update Error", detail[-1500:] or f"Exit code {p.returncode}")
+            return
+        messagebox.showinfo("Update Complete", p.stdout.strip().splitlines()[-1])
 
     def flash_device(self):
         if not self.current_csv_path:

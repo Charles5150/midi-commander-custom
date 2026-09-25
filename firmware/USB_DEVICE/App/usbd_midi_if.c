@@ -13,6 +13,7 @@
 #include "switch_router.h"
 #include "leds.h"
 #include "sleep.h"
+#include "dfu_entry.h"
 #include "ssd1306.h"
 #include "display.h"
 #include "kemper.h"
@@ -324,6 +325,30 @@ void sysex_get_pedals(void){
 	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
 }
 
+/*
+ * Answer first and restart in DFU from the main loop a moment later, so the
+ * answer has left before the USB goes away. The check bytes keep a stray
+ * message from doing it.
+ */
+void sysex_enter_dfu(uint8_t* data_packet_start){
+	if(data_packet_start[0] != 0x44 || data_packet_start[1] != 0x46){
+		return;
+	}
+
+	bool possible = dfu_entry_possible();
+
+	midi_msg_tx_buffer[0] = SYSEX_START;
+	midi_msg_tx_buffer[1] = MIDI_MANUF_ID;
+	midi_msg_tx_buffer[2] = SYSEX_RSP_ENTER_DFU;
+	midi_msg_tx_buffer[3] = possible ? 0 : 1;
+	midi_msg_tx_buffer[4] = SYSEX_END;
+	sysex_send_message(midi_msg_tx_buffer, 5);
+
+	if(possible){
+		dfu_entry_request();
+	}
+}
+
 void process_sysex_message(void){
 	// Check start and end bytes
 	if(sysex_rx_buffer[0] != SYSEX_START ||
@@ -388,6 +413,12 @@ void process_sysex_message(void){
 		break;
 	case SYSEX_CMD_RESET:
 		NVIC_SystemReset();
+		break;
+	case SYSEX_CMD_ENTER_DFU:
+		// F0 7D 74 44 46 F7 = 6 bytes
+		if(sysex_rx_counter >= 6){
+			sysex_enter_dfu(&(pSysexHead->start_parameters));
+		}
 		break;
 	default:
 		break;

@@ -84,7 +84,7 @@ The firmware replaces the stock MeloAudio one but never touches its bootloader, 
 - **Editing on the pedal.** Bank Down and Bank Up held together open an editor on the pedal's own screen: the commands of any button of any bank, short and long press, their labels, and the settings that are a number or a choice, all changed with your foot and written straight to flash. For the wrong Program Change found at soundcheck, with no laptop in sight.
 - **Configuration over USB.** Flash a configuration to the pedal and read it back, from the GUI or the command line, over ordinary USB MIDI SysEx. No special driver.
 - **Backups.** Copy all four configuration slots to a folder in one go, one editable CSV each, and put them all back just as easily.
-- Firmware updates through the stock DFU bootloader with `dfu-util`.
+- **Firmware updates with nothing held.** From firmware 0.58 the pedal restarts in DFU mode when the computer asks, so `Update_Firmware.py` or **Update Firmware…** in the configurator does the whole update in about fifteen seconds: no switches held at power on, no power cycle, and the configuration left as it is. The stock bootloader is never written.
 
 ---
 
@@ -114,6 +114,16 @@ Released images are attached to the [releases](https://github.com/Charles5150/mi
    ```
 
 5. Power cycle the pedal. The firmware version shows on the display for a moment, then the first bank.
+
+**From then on, nothing has to be held.** With firmware 0.58 or later on the pedal, connect it as usual and run
+
+```bash
+.venv/bin/python python/Update_Firmware.py midi-commander-custom-<version>.dfu
+```
+
+or use **Update Firmware…** in the PEDAL section of the configurator. It checks the file first, and refuses one that is not an image for this pedal. Then it asks the pedal to restart in DFU mode, flashes it and starts it again, and says which version it came back with. A pedal already in DFU mode, put there by hand or by an update that did not finish, is flashed straight away.
+
+How it works: the stock bootloader is ST's DFU demo, which starts the firmware only when Bank Down and D are up **and** the firmware's first word, its initial stack pointer, looks valid. Asked over SysEx, the firmware writes zero over that word and restarts, so the bootloader stays in DFU mode, and the new image brings a good word back. While the pedal waits in DFU mode its display says **FIRMWARE UPDATE**. If nothing is flashed it keeps starting in DFU mode, as though the switches were held, until something is.
 
 Flashing firmware does not erase your configuration. When a release changes the configuration format the [changelog](#changelog) says so; re-flash your configuration with the updated tools in that case.
 
@@ -620,11 +630,14 @@ Everything the GUI does is available from the terminal, from the repository root
 
 # Answer the pedal as a Kemper would, to try Kemper_Mode without an amp
 .venv/bin/python python/Kemper_Sim.py
+
+# Update the firmware, with nothing held on 0.58 or later
+.venv/bin/python python/Update_Firmware.py midi-commander-custom-<version>.dfu
 ```
 
 **Backups.** `Backup_Slots.py backup` reads every slot that holds a configuration into a folder, `slot1.csv` to `slot4.csv`, plus a `backup.txt` with the date, the firmware and the name in each slot; with no folder given it makes one named after the date and time. Each CSV is an ordinary configuration, so any of them can be opened in the configurator or flashed on its own. `restore` checks every file before touching the pedal, lists what it will overwrite and asks first (`--yes` skips the question), writes each file to its slot and restarts the pedal once at the end; slots with no file in the folder are left as they are. A backup restored onto the pedal gives the same bytes it was read from, except that settings a configuration from older firmware never had are written with the value the pedal was already using for them.
 
-The tools find the pedal by its USB MIDI name (`MIDI Commander Custom`), check the firmware version, and exchange the configuration as SysEx messages under manufacturer ID `0x7D`: erase (52), write 16-byte chunk (54), read chunk (56), version (58), reset (60), pedal readings (62), and put text on the display (72). The read-back commands need firmware 0.2 or later; the tools tell you if the pedal is older.
+The tools find the pedal by its USB MIDI name (`MIDI Commander Custom`), check the firmware version, and exchange the configuration as SysEx messages under manufacturer ID `0x7D`: erase (52), write 16-byte chunk (54), read chunk (56), version (58), reset (60), pedal readings (62), put text on the display (72), and restart in DFU mode (74, with the check bytes `44 46`). The read-back commands need firmware 0.2 or later; the tools tell you if the pedal is older.
 
 To watch what the pedal sends, use any MIDI monitor (MIDI Monitor on macOS, MIDI-OX on Windows, `aseqdump -p 'MIDI Commander Custom'` on Linux).
 
@@ -639,11 +652,13 @@ platformio run -e midi_dfu      # DFU image, linked at 0x08003000 behind the sto
 platformio run -e midi_debug    # ST-Link image at 0x08000000 (for SWD debugging, replaces the bootloader)
 ```
 
-`midi_dfu` also packages the binary as a DfuSe container through `scripts/post_build_dfuse.py` and `tools/bin_to_dfuse.py`, writing `artifacts/dfu/platformio-<timestamp>.dfu` and a stable `artifacts/dfu/platformio-latest.dfu`. Flash it as in [Getting started](#1-flash-the-firmware), or let PlatformIO drive `dfu-util`:
+`midi_dfu` also packages the binary as a DfuSe container through `scripts/post_build_dfuse.py` and `tools/bin_to_dfuse.py`, writing `artifacts/dfu/platformio-<timestamp>.dfu` and a stable `artifacts/dfu/platformio-latest.dfu`. Flash it as in [Getting started](#1-flash-the-firmware), or let PlatformIO do it:
 
 ```bash
 platformio run -e midi_dfu -t upload
 ```
+
+With the Python environment in `.venv` the upload goes through `Update_Firmware.py`, so a pedal on 0.58 or later needs nothing held and starts the new build by itself. Without it, `dfu-util` is run on its own and the pedal has to be in DFU mode already.
 
 The raw binary can also be flashed directly: `dfu-util --alt 0 -s 0x08003000 --download .pio/build/midi_dfu/firmware.bin`.
 
@@ -663,6 +678,7 @@ Hardware notes (MCU, pinout, I²C addresses) are in `HardwareNotes.txt`; `backup
 
 Firmware versions are shown on the display at boot and reported by the tools.
 
+- **0.58 — Firmware updates with nothing held.** New SysEx `ENTER_DFU` (74, check bytes `44 46`): the firmware answers, and a moment later shows FIRMWARE UPDATE, writes zero over its own initial stack pointer at 0x08003000 and restarts. The stock bootloader is ST's DFU demo, read back from the pedal to confirm it: it starts the firmware only when that word looks like a RAM address, so it stays in DFU mode until a new image is flashed. The F1 lets a programmed halfword be written to zero without erasing its page, and the bootloader pages are never touched. A build linked at the start of flash answers that it cannot and does nothing. New `Update_Firmware.py` and **Update Firmware…** in the configurator. They check the .dfu file, down to the bootloader's own stack pointer test, ask for DFU mode, flash, and start the pedal again by reading back the start of the image with DfuSe's leave request. A plain `dfu-util` download leaves the bootloader in DFU mode until the pedal is switched off. `platformio run -e midi_dfu -t upload` goes through it too.
 - **0.57 — Global buttons.** New global setting `Global_Bank` (byte 44, the bank plus one so a zero means none) names a bank set aside for the buttons that should be the same everywhere, and a new bit 3 of each button's LED mode byte marks a button as following it. A marked button takes everything from the same button of that bank: its three command lists, its label, its light mode and group, its cycle position and its on and off state, which is therefore shared between all the banks that follow it. The redirect sits in the three `get_*_rom_pointer` functions and in what reads the LED mode byte, the label and the toggle bit, so a press, the LED feedback, a `Macro` and the table built at load all follow it without knowing about it; a button of the bank set aside is never redirected. `Global` in the configurator beside the exclusive group and `GLOBBANK` in the pedal's own editor. In the demo, bank 30 holds the tap and the song banks take it from there.
 - **0.56 — Macros.** New `Macro` command type, marked by the low nibble of the empty command type, 13: it runs another button's list in place, named by its bank, its button and which of its lists, so a sequence wanted in many banks is stored once and called with four bytes instead of being copied. A list being run is now a stack of frames rather than a single list, `MACRO_DEPTH` of them, which is what lets a `Wait` inside a macro pause the whole thing and the caller carry on afterwards; the release pass follows macros too, so a momentary command inside one is still let go. An `If` above a `Macro` holds back the whole of it, a list already running is never called again and four lists is as deep as they go, so a macro cannot go round for ever. `Macro` in the configurator's command lists and in the pedal's own editor, which names it and leaves it alone. Held, the demo's 2 on HOME runs bank 11's WAIT list, its 200 ms pause included.
 - **0.55 — Two way with a Kemper.** New global setting `Kemper_Mode` (byte 43). With it on the pedal sends a Kemper Profiler the beacon that asks it to report itself, again every five seconds, and asks for the rig name every second and for the two modules the amp does not report by itself, the delay and the reverb; all eight are asked for at the start and whenever the rig changes. What comes back the new `kemper.c` turns into the two things worth seeing from the floor: the rig name in the info line beside the bank name, and a module switching on or off turned into the Control Change that switches it and handed to the `LED_Feedback` machinery, which grew a way of matching a command whatever channel it carries, since the amp's answers carry none. Nothing is sent back because of what the amp reports, so they cannot chase each other. The Kemper Player template has it on, and the on-pedal editor offers it as `KEMPER`. New `python/Kemper_Sim.py`, a Kemper of make believe that answers over the same USB link a Player uses, which is what this was tried against: there was no Kemper here. See [Two way with a Kemper](#two-way-with-a-kemper).

@@ -7,6 +7,7 @@ Run from the repository root:
 
 import os
 import sys
+import struct
 import unittest
 
 import pandas as pd
@@ -3530,3 +3531,127 @@ class GlobalButtonTest(unittest.TestCase):
 
         # What it saves: one list instead of one per bank
         self.assertEqual(len(followers) * cbp.MIDI_NUM_COMMANDS_PER_SWITCH * 4, 680)
+
+
+class FirmwareUpdateTest(unittest.TestCase):
+    """Entering DFU mode from software, and the files it will flash (0.58)."""
+
+    ROOT = os.path.join(os.path.dirname(__file__), "..", "..")
+
+    def source(self, *name):
+        with open(os.path.join(self.ROOT, *name)) as handle:
+            return handle.read()
+
+    def image(self, payload=None, address=None, **kw):
+        sys.path.insert(0, os.path.join(self.ROOT, "tools"))
+        import bin_to_dfuse
+
+        from lib import firmwareUpdate as fu
+
+        if payload is None:
+            # A stack pointer at the top of RAM, then a reset vector
+            payload = struct.pack("<II", 0x20010000, 0x08003135) + bytes(1000)
+        fields = dict(alt_setting=0, target_name="ST...", vendor=0x0483, product=0xDF11,
+                      device=0, dfu_version=0x011A)
+        fields.update(kw)
+        return bin_to_dfuse.generate_dfuse(
+            payload, load_address=fu.APP_ADDRESS if address is None else address, **fields)
+
+    def check(self, data):
+        import tempfile
+
+        from lib import firmwareUpdate as fu
+
+        with tempfile.NamedTemporaryFile(suffix=".dfu", delete=False) as handle:
+            handle.write(data)
+        try:
+            return fu.check_image(handle.name)
+        finally:
+            os.unlink(handle.name)
+
+    def test_constants_match_firmware(self):
+        import re
+
+        from lib import midiDevice as md
+
+        defines = self.source("firmware", "Core", "Inc", "midi_defines.h")
+        for name in ("SYSEX_CMD_ENTER_DFU", "SYSEX_RSP_ENTER_DFU"):
+            value = re.search(rf"^#define\s+{name}\s+\((\d+)\)", defines, re.M)
+            self.assertIsNotNone(value, name)
+            self.assertEqual(int(value.group(1)), getattr(md, name), name)
+        # The check bytes the firmware wants are the ones the tool sends
+        handler = self.source("firmware", "USB_DEVICE", "App", "usbd_midi_if.c")
+        check = re.search(r"data_packet_start\[0\] != (0x[0-9A-F]+) \|\| data_packet_start\[1\] != "
+                          r"(0x[0-9A-F]+)\)\{\n\t\treturn;\n\t\}\n\n\tbool possible", handler)
+        self.assertIsNotNone(check)
+        self.assertEqual((int(check.group(1), 16), int(check.group(2), 16)), md.ENTER_DFU_CHECK)
+
+    def test_addresses_match_the_linker(self):
+        import re
+
+        from lib import firmwareUpdate as fu
+
+        # Where the firmware zeroes the word is where it is linked, and the
+        # biggest image the tool accepts is the room the linker gives it
+        entry = self.source("firmware", "Core", "Src", "dfu_entry.c")
+        self.assertIn("#define APP_START\t\t(FLASH_BASE + 0x3000U)", entry)
+        ld = self.source("firmware", "STM32F103RETX_FLASH_DFU.ld")
+        m = re.search(r"FLASH\s+\(rx\)\s+:\s+ORIGIN = \(0x8000000 \+ (0x[0-9A-F]+)\),\s+"
+                      r"LENGTH = \((\d+)K - (0x[0-9A-F]+)\)", ld)
+        self.assertIsNotNone(m)
+        self.assertEqual(0x08000000 + int(m.group(1), 16), fu.APP_ADDRESS)
+        self.assertEqual(int(m.group(2)) * 1024 - int(m.group(3), 16), fu.APP_MAX_SIZE)
+        # Only a build that runs behind the bootloader may do it
+        self.assertIn("return (uint32_t)g_pfnVectors == APP_START;", entry)
+
+    def test_the_bootloaders_own_test(self):
+        from lib import firmwareUpdate as fu
+
+        # The stack pointer test the stock bootloader makes before starting the
+        # firmware: zero is what the firmware writes to stay in DFU
+        self.assertTrue(fu._stack_pointer_ok(0x20010000))
+        self.assertTrue(fu._stack_pointer_ok(0x20005000))
+        self.assertFalse(fu._stack_pointer_ok(0x00000000))
+        self.assertFalse(fu._stack_pointer_ok(0xFFFFFFFF))   # erased flash
+        self.assertFalse(fu._stack_pointer_ok(0x08003135))
+
+    def test_a_good_image_passes(self):
+        self.assertEqual(self.check(self.image()), 1008)
+        # And the one the build makes, when it has been built
+        latest = os.path.join(self.ROOT, "artifacts", "dfu", "platformio-latest.dfu")
+        if os.path.exists(latest):
+            with open(latest, "rb") as handle:
+                self.assertGreater(self.check(handle.read()), 40000)
+
+    def test_images_that_would_not_start_are_refused(self):
+        from lib import firmwareUpdate as fu
+
+        good = self.image()
+        bad = {
+            "not a dfu file": b"\x00" * 400,
+            "a raw binary": struct.pack("<II", 0x20010000, 0x08003135) + bytes(1000),
+            "linked at the start of flash": self.image(address=0x08000000),
+            "no stack pointer": self.image(payload=bytes(1008)),
+            "too big": self.image(payload=struct.pack("<II", 0x20010000, 0x08003135)
+                                  + bytes(fu.APP_MAX_SIZE)),
+            "cut short": good[:-100],
+            "damaged": good[:400] + bytes([good[400] ^ 0xFF]) + good[401:],
+            "another device": self.image(product=0x1234),
+        }
+        for why, data in bad.items():
+            with self.assertRaises(fu.UpdateError, msg=why):
+                self.check(data)
+
+    def test_dfu_listing(self):
+        from lib import firmwareUpdate as fu
+
+        # What dfu-util --list printed for the pedal in DFU mode
+        listing = (
+            'Found DFU: [0483:df11] ver=0200, devnum=1, cfg=1, intf=0, path="0-1", alt=2, '
+            'name="@NOR Flash : M29W128F/0x64000000/0256*64Kg", serial="48EB874D3938"\n'
+            'Found DFU: [0483:df11] ver=0200, devnum=1, cfg=1, intf=0, path="0-1", alt=0, '
+            'name="@Internal Flash  /0x08000000/06*002Ka,250*002Kg", serial="48EB874D3938"\n')
+        self.assertTrue(fu.dfu_listed(listing))
+        self.assertFalse(fu.dfu_listed("dfu-util 0.11\n\nCopyright 2005-2009 Weston Schmidt\n"))
+        self.assertFalse(fu.dfu_listed(
+            'Found DFU: [1234:5678] ver=0100, alt=0, name="@Internal Flash  /0x08000000/64*002Kg"\n'))

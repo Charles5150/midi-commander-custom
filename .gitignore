@@ -54,3 +54,6 @@ docs
 
 # Every build leaves a dated DFU behind; the image of a release is attached to it
 artifacts/dfu/platformio-????????-??????.dfu
+
+# The tests import tools/bin_to_dfuse.py
+__pycache__/

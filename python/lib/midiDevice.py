@@ -27,6 +27,10 @@ SYSEX_CMD_GET_SCREEN = 70
 SYSEX_RSP_GET_SCREEN = 71
 SYSEX_CMD_SET_TEXT = 72
 SYSEX_RSP_SET_TEXT = 73
+SYSEX_CMD_ENTER_DFU = 74
+SYSEX_RSP_ENTER_DFU = 75
+# Two check bytes ("DF") so a stray message cannot restart the pedal in DFU
+ENTER_DFU_CHECK = (0x44, 0x46)
 
 # Where host text goes on the display (firmware 0.46), and the most it shows
 TEXT_PLACES = {"info": 0, "name": 1, "line": 2, "small": 3}
@@ -256,6 +260,17 @@ class MidiCommander:
         """Put text on the display (firmware 0.46); see text_sysex."""
         self.outport.send(mido.Message("sysex", data=text_sysex(text, place, keep)[1:-1]))
         self.wait_for_sysex(SYSEX_RSP_SET_TEXT, timeout)
+
+    def enter_dfu(self, timeout=1.0) -> bool:
+        """Restart the pedal in the stock bootloader's DFU mode (firmware 0.58).
+
+        True when it is on its way; False when the firmware is not running
+        behind the bootloader, and nothing was done. Raises DeviceTimeout on
+        older firmware, which does not know the command.
+        """
+        self.send([SYSEX_CMD_ENTER_DFU, *ENTER_DFU_CHECK])
+        data = self.wait_for_sysex(SYSEX_RSP_ENTER_DFU, timeout)
+        return bool(data) and data[0] == 0
 
     def get_state(self, timeout=1.0) -> dict:
         """Bank, slot, toggles, bank name, labels and LED levels (firmware 0.27)."""
