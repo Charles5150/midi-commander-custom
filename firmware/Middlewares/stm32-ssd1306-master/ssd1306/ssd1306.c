@@ -12,6 +12,14 @@ volatile uint8_t display_line_transmitting_flag = 0; // non zero indicates the l
 void ssd1306_DMATxLine(uint8_t line);
 uint8_t line_tx_buffer[SSD1306_WIDTH+6];
 
+// Wait for a screen update to be over, its last line included: the line
+// counter is back at 0 as soon as that line starts, while the DMA is still
+// reading it out of line_tx_buffer
+static void ssd1306_WaitIdle(void){
+	while (display_transmit_line != 0 || display_line_transmitting_flag)
+		__NOP();
+}
+
 // Call this function periodically from the systick handler to handle loading the DMA with screen updates.
 // Note this must have a lower premption priority than the DMA callback priority (i.e. I higher number on the NVIC.)
 // Otherwise it will hang in a deadlock on sending commands from within the systick context.
@@ -42,9 +50,14 @@ void ssd1306_Reset(void) {
  */
 void ssd1306_WriteCommand(uint8_t byte)
 {
+	// Never in the middle of an update, and from a byte that outlives this
+	// call: the DMA reads it after the function has returned
+	static uint8_t command;
+	ssd1306_WaitIdle();
 	while(HAL_I2C_GetState(&SSD1306_I2C_PORT) != HAL_I2C_STATE_READY);
+	command = byte;
 	display_transmit_data_flag = 0;
-	HAL_I2C_Mem_Write_DMA(&SSD1306_I2C_PORT, SSD1306_I2C_ADDR, 0x00, 1, &byte, 1);
+	HAL_I2C_Mem_Write_DMA(&SSD1306_I2C_PORT, SSD1306_I2C_ADDR, 0x00, 1, &command, 1);
 }
 
 void ssd1306_WriteData(uint8_t* buffer, size_t buff_size)
@@ -208,8 +221,7 @@ void ssd1306_DMATxLine(uint8_t line){
 void ssd1306_UpdateScreen(void) {
 
 	// Delay until the previous update has finished
-	while (display_transmit_line != 0)
-		__NOP();
+	ssd1306_WaitIdle();
 
 	SSD1306_FrameCount++;
 
