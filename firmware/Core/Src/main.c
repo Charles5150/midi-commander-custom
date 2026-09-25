@@ -163,11 +163,13 @@ int main(void)
   HAL_GPIO_WritePin(USB_ID_GPIO_Port, USB_ID_Pin, GPIO_PIN_SET);
 
   HAL_Delay(200);
+  // A footswitch held now is safe mode, see switch_router.c
+  bool safe_mode = sw_check_safe_mode();
   f_sys_config_complete = 1; // Don't scan switch changes until everything is init'd
 
   // Restore the last bank and toggle states if this configuration asks for
   // it, and only if they were saved while this same configuration was active
-  if(pGlobalSettings[GLOBAL_SETTINGS_REMEMBER_STATE] == 1
+  if(!safe_mode && pGlobalSettings[GLOBAL_SETTINGS_REMEMBER_STATE] == 1
 		  && have_state && saved_slot == flash_settings_active_slot()){
     sw_restore_state(saved_bank, saved_toggles, saved_long);
   }
@@ -176,6 +178,10 @@ int main(void)
   // ADC DMA will be started in expression_task
 
   expression_init();
+  if(safe_mode){
+	  expression_quiet_start();
+	  display_show_safe_mode();
+  }
   tempo_init();
   sleep_init();
 

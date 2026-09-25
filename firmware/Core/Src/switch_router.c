@@ -128,6 +128,17 @@ static volatile uint8_t is_app_suspended = 0;
 
 extern uint8_t f_sys_config_complete;
 
+/*
+ * Safe mode: a footswitch held at power on starts the pedal without sending
+ * anything, for the configuration that mutes the amp or hangs the rig the
+ * moment it starts. Until the pedal is powered off no bank enter or leave
+ * list runs, the saved bank and toggles are not brought back, the Kemper mode
+ * stays off and the expression pedals keep their position to themselves until
+ * they move. The buttons, the bank switches and the on-pedal editor all work,
+ * the editor even with Edit_Lock on, so the configuration can be put right.
+ */
+static bool safe_mode = false;
+
 uint8_t switch_current_page = 0;
 
 sw_t a_sw_obj[] = {
@@ -1163,7 +1174,7 @@ void update_leds_on_bank_change(void){
  * Bank commands are ignored so entering a bank cannot chain into another one.
  */
 static void fire_bank_enter_cmds(uint8_t bank){
-	if(bank >= MIDI_NUM_BANKS) return;
+	if(bank >= MIDI_NUM_BANKS || safe_mode) return;
 	run_cmd_list(get_bank_enter_pointer(bank, 0), 0, 0, MIDI_CONTROL_ON,
 			PENDING_OWNER_NONE, LIST_SKIP_BANK, true);
 }
@@ -1179,7 +1190,7 @@ static inline bool cmd_is_leave(const uint8_t *pRom){
  * pause at the top of the next bank's enter list spaces them out instead.
  */
 static void fire_bank_leave_cmds(uint8_t bank){
-	if(bank >= MIDI_NUM_BANKS) return;
+	if(bank >= MIDI_NUM_BANKS || safe_mode) return;
 	uint8_t *base = get_bank_enter_pointer(bank, 0);
 	for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
 		if(cmd_is_leave(base + j * MIDI_ROM_CMD_SIZE)){
@@ -2883,7 +2894,7 @@ static bool editor_switches(uint32_t now){
 			both_banks_since = BOTH_BANKS_DONE;	// once per hold
 			if(editor_is_open()){
 				editor_close();
-			} else if(pGlobalSettings[GLOBAL_SETTINGS_EDIT_LOCK] != 1){
+			} else if(pGlobalSettings[GLOBAL_SETTINGS_EDIT_LOCK] != 1 || safe_mode){
 				editor_open();
 			}
 		}
@@ -3164,6 +3175,27 @@ void sw_get_long_toggle_states(uint32_t out[8]){
 	for(int i=0; i<8; i++){
 		out[i] = a_sw_obj[i].long_toggle_state;
 	}
+}
+
+// Called once at boot, before the switches are scanned
+bool sw_check_safe_mode(void){
+	for(uint8_t i=0; i<MIDI_NUM_SWITCHES; i++){
+		if(!HAL_GPIO_ReadPin(a_sw_obj[i].sw_gpio_port, a_sw_obj[i].sw_gpio_pin)){
+			safe_mode = true;
+		}
+	}
+	if(safe_mode){
+		// Start the scan from the switches as they are, so the one held is
+		// never a press; letting go of it finds it idle and does nothing
+		port_A_previous_state = GPIOA->IDR & SW_PORTA_MASK;
+		port_B_previous_state = GPIOB->IDR & SW_PORTB_MASK;
+		port_C_previous_state = GPIOC->IDR & SW_PORTC_MASK;
+	}
+	return safe_mode;
+}
+
+bool sw_safe_mode(void){
+	return safe_mode;
 }
 
 void sw_restore_state(uint8_t page, const uint32_t toggles[8], const uint32_t long_toggles[8]){

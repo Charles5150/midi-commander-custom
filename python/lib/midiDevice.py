@@ -128,6 +128,8 @@ def parse_state(data) -> dict:
         "asleep": bool(data[52]) if len(data) >= 53 else False,
         # The eight stored values a Var command changes; None before firmware 0.54
         "values": data[53:61] if len(data) >= 61 else None,
+        # Started with a footswitch held: nothing sent (firmware 0.60)
+        "safe_mode": bool(data[61]) if len(data) >= 62 else False,
     }
 
 

@@ -9,6 +9,7 @@
 #define INC_SWITCH_ROUTER_H_
 
 #include <stdint.h>
+#include <stdbool.h>
 
 void handle_switches(void);
 void sw_led_init(void);
@@ -23,6 +24,11 @@ uint8_t sw_get_home_bank(void);
 void sw_get_toggle_states(uint32_t out[8]);
 void sw_get_long_toggle_states(uint32_t out[8]);
 void sw_restore_state(uint8_t page, const uint32_t toggles[8], const uint32_t long_toggles[8]);
+
+// Safe mode: true if a footswitch was held at power on, which is then not
+// taken as a press. Checked once at boot; sw_safe_mode tells from then on.
+bool sw_check_safe_mode(void);
+bool sw_safe_mode(void);
 
 // Act as if a button of the current bank was tapped: used by the expression
 // pedals when they cross a threshold. Must be called from the main loop.

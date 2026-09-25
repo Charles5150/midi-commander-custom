@@ -22,7 +22,7 @@
 extern I2C_HandleTypeDef hi2c1;
 
 
-#define SYSEX_MAX_LENGTH 80	// the longest is the GET_STATE answer, 65 bytes
+#define SYSEX_MAX_LENGTH 80	// the longest is the GET_STATE answer, 66 bytes
 uint8_t sysex_rx_buffer[SYSEX_MAX_LENGTH];
 uint8_t sysex_rx_counter = 0;
 uint8_t sysex_tx_assembly_buffer[160];	// room for an 80 byte GET_SCREEN answer as USB MIDI events
@@ -195,7 +195,8 @@ void sysex_press_button(uint8_t* data_packet_start){
  * What the pedal shows, for the configurator's virtual pedal: current bank and
  * slot, which toggle buttons are on, the bank's large name, the eight button
  * labels and the level of all ten LEDs (0-16), so blinking and dimmed LEDs show
- * as they really are, and last the eight stored values. 62 bytes in all.
+ * as they really are, the eight stored values and last whether the pedal
+ * started in safe mode. 63 bytes in all.
  */
 void sysex_get_state(void){
 	uint8_t bank = sw_get_current_page();
@@ -233,6 +234,7 @@ void sysex_get_state(void){
 	for(uint8_t v=0; v<VAR_COUNT; v++){
 		*(p++) = sw_get_value(v) & 0x7F;	// the eight stored values
 	}
+	*(p++) = sw_safe_mode() ? 1 : 0;
 	*(p++) = SYSEX_END;
 	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
 }

@@ -11,6 +11,9 @@
 
 void expression_init(void);
 void expression_task(void);
+// Safe mode: after expression_init, keep the pedals' first position unsent;
+// they speak from their first movement on
+void expression_quiet_start(void);
 
 // Live values for the calibration tool: filtered 12-bit ADC reading and the
 // last CC value sent. pedal is 0 or 1.

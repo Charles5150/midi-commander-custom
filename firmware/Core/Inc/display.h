@@ -25,6 +25,7 @@ void display_show_tempo(void);
 void display_show_cc(uint8_t cc, uint8_t value);
 // Full screen notice after switching configuration: its number and name
 void display_show_config(uint8_t slot);
+void display_show_safe_mode(void);
 // A short message in the bank's info line, for a moment (8 characters fit)
 void display_show_message(const char *msg);
 

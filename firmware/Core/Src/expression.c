@@ -136,6 +136,9 @@ typedef struct {
 
 static exp_pedal_t pedals[EXP_PEDAL_COUNT];
 
+// Safe mode: the first reading after boot is taken as already sent
+static bool quiet_start[EXP_PEDAL_COUNT];
+
 // Set by Exp commands: a CC (or EXP_TARGET_OFF) and channel that win over the
 // bank's. Kept by expression_init, which runs at boot after the saved button
 // states have set them.
@@ -435,6 +438,11 @@ void expression_init(void)
   next_process_tick = 0U;
 }
 
+void expression_quiet_start(void)
+{
+  for (uint32_t i = 0; i < EXP_PEDAL_COUNT; i++) quiet_start[i] = true;
+}
+
 uint16_t expression_get_raw(uint8_t pedal)
 {
   if (pedal >= EXP_PEDAL_COUNT) return 0;
@@ -572,7 +580,7 @@ static void process_pedal(uint32_t i)
   uint8_t target = enabled ? cc : BANK_EXP_CC_OFF;
   if (target != p->target_cc || channel != p->target_channel
       || lo != p->target_min || hi != p->target_max || kind != p->target_kind) {
-      if (p->target_cc != 0xFFU) {
+      if (p->target_cc != 0xFFU || quiet_start[i]) {
           p->last_sent_value = out_value;
           p->last_sent_midi = out_midi;
       }
@@ -582,6 +590,8 @@ static void process_pedal(uint32_t i)
       p->target_max = hi;
       p->target_kind = kind;
   }
+
+  quiet_start[i] = false;
 
   if (p->last_sent_value != out_value) {
       int8_t sent = 0;

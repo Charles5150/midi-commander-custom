@@ -38,6 +38,7 @@ static uint8_t current_bank = 0;
 
 // A transient overlay (the tempo readout) shown instead of the bank info
 #define OVERLAY_MS	(1500)
+#define SAFE_MODE_MS	(3000)
 static uint8_t editor_on = 0;	// the on-pedal editor owns the screen
 static uint32_t overlay_until = 0;
 
@@ -338,6 +339,20 @@ void display_show_config(uint8_t slot){
 
 	// The bank screen comes back once the notice has been read
 	overlay_until = HAL_GetTick() + OVERLAY_MS;
+	refresh_pending = 0;
+}
+
+// Safe mode at power on, over the bank screen until it has been read
+void display_show_safe_mode(void){
+	drop_bank_text();
+	ssd1306_Fill(Black);
+	ssd1306_SetCursor(14, 8);
+	ssd1306_WriteString("SAFE MODE", Font_11x18, White);
+	ssd1306_SetCursor(22, 38);
+	ssd1306_WriteString("NOTHING SENT", Font_7x10, White);
+	ssd1306_UpdateScreen();
+
+	overlay_until = HAL_GetTick() + SAFE_MODE_MS;
 	refresh_pending = 0;
 }
 

@@ -1160,8 +1160,21 @@ class VirtualPedalTest(unittest.TestCase):
             parse_state(data[:20])
 
     def test_state_fits_the_sysex_buffer(self):
-        """Firmware answer: F0 7D code + 53 data bytes + F7 must fit its 64 byte buffer."""
-        self.assertLessEqual(3 + 4 + 4 + 8 * 4 + 10 + 3 + 1, 64)
+        """Firmware answer: F0 7D code + 62 data bytes + F7 must fit its 80 byte buffer."""
+        size = 3 + 4 + 4 + 8 * 4 + 10 + 3 + 8 + 1 + 1
+        self.assertEqual(size, 66)
+        root = os.path.join(os.path.dirname(__file__), "..", "..")
+        with open(os.path.join(root, "firmware", "USB_DEVICE", "App", "usbd_midi_if.c")) as handle:
+            source = handle.read()
+        buffer = int(source.split("#define SYSEX_MAX_LENGTH", 1)[1].split()[0])
+        self.assertLessEqual(size, buffer)
+
+    def test_state_safe_mode(self):
+        from lib.midiDevice import parse_state
+
+        self.assertFalse(parse_state([0] * 61)["safe_mode"])     # before firmware 0.60
+        self.assertFalse(parse_state([0] * 62)["safe_mode"])
+        self.assertTrue(parse_state([0] * 61 + [1])["safe_mode"])
 
     def test_state_frame_and_sleep(self):
         from lib.midiDevice import parse_state
