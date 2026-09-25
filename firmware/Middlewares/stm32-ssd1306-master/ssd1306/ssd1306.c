@@ -7,6 +7,7 @@
 volatile uint8_t display_transmit_line = 0; // The next line to be transmitted to the display via DMA.  0 indicates that it is idle.
 volatile uint8_t display_transmit_data_flag = 0; // non zero indicates the last thing to be transmitted was a data packet. This is required to know how to handle the transfer complete callback.
 volatile uint8_t display_line_transmitting_flag = 0; // non zero indicates the line transfer has started, and a new transfer should not start until this is cleared.
+static volatile uint8_t display_last_line = 7; // the last line of the update going out
 
 
 void ssd1306_DMATxLine(uint8_t line);
@@ -37,7 +38,7 @@ void ssd1306_tick(void){
 	if(display_transmit_line != 0){
 		ssd1306_DMATxLine(display_transmit_line);
 		display_transmit_line++;
-		if(display_transmit_line > 7){
+		if(display_transmit_line > display_last_line){
 			display_transmit_line = 0;
 		}
 	}
@@ -230,8 +231,24 @@ void ssd1306_UpdateScreen(void) {
 
 	SSD1306_FrameCount++;
 
+	display_last_line = 7;
 	ssd1306_DMATxLine(0);
 	display_transmit_line = 1;
+}
+
+// Only the pages first..last (8 pixel rows each) go out: quicker, for a
+// moving band of the screen
+void ssd1306_UpdateLines(uint8_t first, uint8_t last) {
+	if(last > 7) last = 7;
+	if(first > last) return;
+	ssd1306_WaitIdle();
+
+	SSD1306_FrameCount++;
+
+	display_last_line = last;
+	ssd1306_DMATxLine(first);
+	// 0 means idle, so the line after the last one is never 0 here
+	display_transmit_line = (first < last) ? first + 1 : 0;
 }
 
 

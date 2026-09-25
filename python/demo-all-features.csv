@@ -33,6 +33,7 @@ Edit_Lock,N
 Kemper_Mode,N
 Global_Bank,30
 Combo_ms,80
+Boot_Banner,Normal
 ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 * Bank_Naming,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 Bank_Number,Bank_Name_Large,Bank_Info_Small

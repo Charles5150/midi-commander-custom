@@ -273,6 +273,7 @@ def is_yes(val) -> bool:
 GLOBAL_GROUPS = [
     ("Configuration", [
         ("ConfigName", "Configuration name", "shown on the display at boot, 16 characters"),
+        ("Boot_Banner", "Banner at power on", "the name and the version cross the display, any switch skips it"),
         ("MIDI_Channel", "MIDI channel", "used by the expression pedals"),
         ("Global_Channel", "Global channel", "every command goes out on it, whatever channel it carries"),
         ("Exp1_CC", "Expression pedal 1 CC", "0-127"),
@@ -1075,6 +1076,7 @@ class MidiCommanderGUI(ctk.CTk):
                 ("Kemper_Mode", "N"),
                 ("Global_Bank", "Off"),
                 ("Combo_ms", "80"),
+                ("Boot_Banner", "Off"),
             ]
             missing = [{"Label": l, "Value": v} for l, v in defaults if l not in labels]
             if missing:
@@ -1355,6 +1357,8 @@ class MidiCommanderGUI(ctk.CTk):
             return IntEntry(parent, 100, 1000, value, width=70)
         if label == "Combo_ms":
             return IntEntry(parent, 20, 250, value, width=70)
+        if label == "Boot_Banner":
+            return Option(parent, ["Off", "Slow", "Normal", "Fast"], value, width=100)
         if label in ("LED_Brightness", "LED_Rest_Brightness"):
             return IntEntry(parent, 1, 100, value, width=70)
         if label == "Bank_Jump_Step":

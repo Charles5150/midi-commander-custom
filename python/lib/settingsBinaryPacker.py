@@ -26,6 +26,7 @@ GLOBAL_SETTINGS_EDIT_LOCK = 42
 GLOBAL_SETTINGS_KEMPER_MODE = 43
 GLOBAL_SETTINGS_GLOBAL_BANK = 44
 GLOBAL_SETTINGS_COMBO = 45
+GLOBAL_SETTINGS_BANNER = 46
 # Set by configPacker when the image carries double press commands
 GLOBAL_SETTINGS_DOUBLE_STORED = 37
 
@@ -33,6 +34,7 @@ BANK_SWITCH_MODES = {"BANK": 0, "BANK+MIDI": 1, "MIDI": 2}
 
 BANK_CHANGE_MODES = {"OFF": 0, "PC": 1, "CC": 2}
 REMOTE_MODES = {"OFF": 0, "CC": 1, "NOTE": 2}
+BANNER_SPEEDS = {"OFF": 0, "SLOW": 1, "NORMAL": 2, "FAST": 3}
 
 def pack_global_settings(df):
     # global settings will be 32 bytes long
@@ -257,6 +259,15 @@ def pack_global_settings(df):
         except ValueError:
             combo_ms = 80
     bin_list[GLOBAL_SETTINGS_COMBO] = max(2, min(25, round(combo_ms / 10)))
+
+    # The power on banner: the configuration's name and the firmware version
+    # cross the display at this speed, instead of the fixed boot screen
+    banner = str(df.loc["Boot_Banner", "Value"]).strip() if "Boot_Banner" in df.index else "Off"
+    if banner in ("", "nan"):
+        banner = "Off"
+    if banner.upper() not in BANNER_SPEEDS:
+        raise ValueError(f"Boot_Banner must be Off, Slow, Normal or Fast, not {banner!r}")
+    bin_list[GLOBAL_SETTINGS_BANNER] = BANNER_SPEEDS[banner.upper()]
 
     return bin_list
 

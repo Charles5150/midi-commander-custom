@@ -640,6 +640,7 @@ def global_settings() -> pd.DataFrame:
                 ("Kemper_Mode", "N"),
                 ("Global_Bank", str(GLOBAL_BANK)),
                 ("Combo_ms", "80"),
+                ("Boot_Banner", "Normal"),
             )
         ]
     )

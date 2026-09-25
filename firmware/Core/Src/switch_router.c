@@ -192,6 +192,7 @@ void sw_scan(void){
 
 	if(port_A_switches_changed | port_B_switches_changed | port_C_switches_changed){
 		sleep_note_activity();
+		display_skip_banner();
 		debounce_counter = 10; // 10ms debounce delay
 		return;
 	}
@@ -2578,6 +2579,7 @@ static void virtual_set(uint8_t id, bool down){
 	*changed |= pin;
 	__enable_irq();
 	sleep_note_activity();
+	display_skip_banner();
 }
 
 static void virtual_task(void){

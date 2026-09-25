@@ -3718,6 +3718,56 @@ class ComboTest(unittest.TestCase):
         self.assertEqual(table[:8], bytes([0x32, 0, 30, 0x05, 0x32, 13, 30, 0x03]))
 
 
+class BootBannerTest(unittest.TestCase):
+    """The configuration's name crossing the display at power on (0.62)."""
+
+    FIRMWARE = os.path.join(os.path.dirname(__file__), "..", "..", "firmware", "Core")
+
+    def source(self, *name):
+        with open(os.path.join(self.FIRMWARE, *name)) as handle:
+            return handle.read()
+
+    def with_banner(self, value):
+        sections = read_config_csv(DEMO_CSV)
+        df = sections["Global_Settings"].copy()
+        where = df.index[df["Label"] == "Boot_Banner"][0]
+        df.at[where, "Value"] = value
+        return pack_config({**sections, "Global_Settings": df})
+
+    def test_byte_matches_firmware(self):
+        import re
+
+        from lib import settingsBinaryPacker as sbp
+
+        m = re.search(r"#define\s+GLOBAL_SETTINGS_BANNER\s+\((\d+)\)", self.source("Inc", "midi_defines.h"))
+        self.assertIsNotNone(m)
+        self.assertEqual(int(m.group(1)), sbp.GLOBAL_SETTINGS_BANNER)
+        # The firmware takes 1..3 and nothing else as a speed
+        self.assertIn("speed == 0 || speed > 3", self.source("Src", "display.c"))
+        self.assertEqual(sorted(sbp.BANNER_SPEEDS.values()), [0, 1, 2, 3])
+
+    def test_speeds(self):
+        for value, byte, back in (("Off", 0, "Off"), ("slow", 1, "Slow"), ("Normal", 2, "Normal"),
+                                  ("FAST", 3, "Fast"), ("", 0, "Off")):
+            packed = self.with_banner(value)
+            self.assertEqual(packed[46], byte, value)
+            got = unpacker.unpack_global_settings(packed)
+            self.assertEqual(got[got["Label"] == "Boot_Banner"]["Value"].iloc[0], back, value)
+
+    def test_unknown_speed_is_refused(self):
+        with self.assertRaises(ValueError):
+            self.with_banner("Quick")
+
+    def test_older_configurations_have_none(self):
+        # No Boot_Banner row, and erased flash: the fixed boot screen as before
+        self.assertEqual(pack_csv(SAMPLE_CSV)[46], 0)
+        blank = unpacker.unpack_global_settings(b"\xff" * unpacker.CONFIG_SIZE)
+        self.assertEqual(blank[blank["Label"] == "Boot_Banner"]["Value"].iloc[0], "Off")
+
+    def test_demo_shows_it(self):
+        self.assertEqual(pack_csv(DEMO_CSV)[46], 2)
+
+
 class FirmwareUpdateTest(unittest.TestCase):
     """Entering DFU mode from software, and the files it will flash (0.58)."""
 

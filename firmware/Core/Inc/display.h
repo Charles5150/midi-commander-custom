@@ -11,7 +11,12 @@
 #include <stdint.h>
 
 void display_init(void);
+// The configuration's name at boot, or its banner if it has one turned on
 void display_setConfigName(void);
+// Move the power on banner along; the boot's waits call it, then display_task
+void display_banner_task(void);
+// A switch moved: the banner ends at its next step. Safe from SysTick.
+void display_skip_banner(void);
 
 // Draw the bank name and the 2x4 grid of button labels for a bank
 void display_setBankName(uint8_t bankNumber);

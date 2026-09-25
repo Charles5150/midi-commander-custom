@@ -92,6 +92,16 @@ static inline void RelocateVectorTable(void)
   __DSB();
   __ISB();
 }
+
+// The waits of the boot, with the power on banner moving meanwhile
+static void boot_wait(uint32_t ms)
+{
+  uint32_t start = HAL_GetTick();
+  while (HAL_GetTick() - start < ms)
+  {
+    display_banner_task();
+  }
+}
 /* USER CODE END 0 */
 
 /**
@@ -159,10 +169,10 @@ int main(void)
   leds_init();
   sw_led_init();
 
-  HAL_Delay(1000);
+  boot_wait(1000);
   HAL_GPIO_WritePin(USB_ID_GPIO_Port, USB_ID_Pin, GPIO_PIN_SET);
 
-  HAL_Delay(200);
+  boot_wait(200);
   // A footswitch held now is safe mode, see switch_router.c
   bool safe_mode = sw_check_safe_mode();
   f_sys_config_complete = 1; // Don't scan switch changes until everything is init'd

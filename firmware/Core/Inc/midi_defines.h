@@ -271,6 +271,7 @@
 #define GLOBAL_SETTINGS_KEMPER_MODE (43)	// 1 = ask a Kemper for its state and follow what it answers
 #define GLOBAL_SETTINGS_GLOBAL_BANK (44)	// 1-32 = that bank holds the global buttons, 0 = none
 #define GLOBAL_SETTINGS_COMBO (45)		// Two switch window in 10 ms units (0/0xFF = 80 ms)
+#define GLOBAL_SETTINGS_BANNER (46)		// Power on banner: 0/0xFF off, 1 slow, 2 normal, 3 fast
 
 #define GLOBAL_BANK_NONE	(0xFF)	// no bank set aside for global buttons
 

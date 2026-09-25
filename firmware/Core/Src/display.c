@@ -17,9 +17,14 @@
  * name): in place of the bank name, of the info line, or across the whole line.
  * A text wider than its place scrolls across it once, when it arrives or the
  * bank is entered, and then shows its beginning.
+ *
+ * At power on the configuration can have a banner instead: its name and the
+ * firmware version cross the screen in large letters, once. Any switch ends
+ * it, and the bank screen waits for it underneath.
  */
 #include "main.h"
 #include "flash_midi_settings.h"
+#include "midi_defines.h"
 #include "switch_router.h"
 #include "display.h"
 #include <string.h>
@@ -77,6 +82,24 @@ static volatile uint8_t scroll_fresh = 0;
 static uint16_t scroll_px = 0;
 static uint16_t scroll_need = 0;
 static uint32_t scroll_next = 0;
+static void scroll_restart(void);
+
+/*
+ * The power on banner, drawn on the rows BANNER_Y..+18: only the pages that
+ * hold them go out, so a step takes half a whole screen's time. It moves
+ * banner_speed pixels a step, 1 to 3.
+ */
+#define BANNER_Y	(23)
+#define BANNER_FIRST_PAGE	(BANNER_Y / 8)
+#define BANNER_LAST_PAGE	((BANNER_Y + 18 - 1) / 8)
+#define BANNER_STEP_MS	(25)
+#define BANNER_MAX	(16 + 4 + sizeof(FIRMWARE_VERSION))
+static uint8_t banner_on = 0;
+static volatile uint8_t banner_skip = 0;	// set by the switch scan
+static char banner_text[BANNER_MAX];
+static uint8_t banner_speed = 0;
+static uint16_t banner_pos = 0;
+static uint32_t banner_next = 0;
 
 void display_init(void){
     ssd1306_Init();
@@ -98,7 +121,39 @@ void display_init(void){
     __NOP();
 }
 
+/*
+ * Start the banner if the configuration asks for one: the name without its
+ * padding, then the version. It clears what the boot drew.
+ */
+static uint8_t banner_start(void){
+	uint8_t speed = pGlobalSettings[GLOBAL_SETTINGS_BANNER];
+	if(speed == 0 || speed > 3) return 0;
+
+	uint8_t len = 0;
+	for(uint8_t i=0; i<16; i++){
+		char ch = (char)pGlobalSettings[16+i];
+		banner_text[len++] = (ch < 32 || ch > 126) ? ' ' : ch;
+	}
+	while(len && banner_text[len-1] == ' ') len--;
+	if(len){
+		memcpy(banner_text + len, "   ", 3);
+		len += 3;
+	}
+	banner_text[len++] = 'v';
+	strcpy(banner_text + len, FIRMWARE_VERSION);
+
+	banner_speed = speed;
+	banner_pos = 0;
+	banner_skip = 0;
+	banner_next = HAL_GetTick();
+	banner_on = 1;
+	ssd1306_Fill(Black);
+	ssd1306_UpdateScreen();
+	return 1;
+}
+
 void display_setConfigName(void){
+	if(banner_start()) return;
     ssd1306_SetCursor(10, 34);
     for(int i=0; i<16; i++){
     	ssd1306_WriteChar(pGlobalSettings[16+i], Font_7x10, White);
@@ -112,6 +167,53 @@ static void fill_rect(uint8_t x, uint8_t y, uint8_t w, uint8_t h, SSD1306_COLOR 
 			ssd1306_DrawPixel(x+i, y+j, color);
 		}
 	}
+}
+
+// Over for good: the bank screen comes back, its long texts scrolling
+static void banner_end(void){
+	banner_on = 0;
+	scroll_restart();
+	refresh_pending = 1;
+}
+
+void display_skip_banner(void){
+	banner_skip = 1;
+}
+
+// Still up? A switch pressed since the last look ends it here
+static uint8_t banner_running(void){
+	if(banner_on && banner_skip) banner_end();
+	return banner_on;
+}
+
+/*
+ * One step of the banner when it is due: the text comes in on the right and
+ * goes out on the left, then the banner ends.
+ */
+void display_banner_task(void){
+	if(!banner_running() || ssd1306_Busy()) return;
+	if((int32_t)(HAL_GetTick() - banner_next) < 0) return;
+	banner_next = HAL_GetTick() + BANNER_STEP_MS;
+
+	uint16_t width = (uint16_t)strlen(banner_text) * Font_11x18.FontWidth;
+	if(banner_pos > SCREEN_SHOWN_W + width){
+		banner_end();
+		return;
+	}
+	fill_rect(0, BANNER_Y, SSD1306_WIDTH, Font_11x18.FontHeight, Black);
+	// The text's first column is at SCREEN_SHOWN_W - banner_pos
+	for(uint16_t col=0; col<SCREEN_SHOWN_W; col++){
+		int32_t px = (int32_t)col + banner_pos - SCREEN_SHOWN_W;
+		if(px < 0 || px >= width) continue;
+		char ch = banner_text[px / Font_11x18.FontWidth];
+		uint8_t j = px % Font_11x18.FontWidth;
+		const uint16_t *rows = Font_11x18.data + (ch - 32) * Font_11x18.FontHeight;
+		for(uint8_t i=0; i<Font_11x18.FontHeight; i++){
+			if((uint16_t)(rows[i] << j) & 0x8000) ssd1306_DrawPixel(col, BANNER_Y + i, White);
+		}
+	}
+	ssd1306_UpdateLines(BANNER_FIRST_PAGE, BANNER_LAST_PAGE);
+	banner_pos += banner_speed;
 }
 
 // Copy the stored label of a button into buf (up to 4 chars, NUL terminated),
@@ -308,6 +410,13 @@ static void draw_bank(uint8_t bankNumber){
 void display_setBankName(uint8_t bankNumber){
 	if(moment_showing) moment_done();
 	scroll_restart();
+	if(banner_running()){
+		// Drawn when the banner is over
+		if(bankNumber != current_bank) drop_bank_text();
+		current_bank = bankNumber;
+		refresh_pending = 1;
+		return;
+	}
 	draw_bank(bankNumber);
 }
 
@@ -360,6 +469,7 @@ void display_request_refresh(void){
  */
 void display_editor(const char *title, const char lines[][DISPLAY_EDIT_COLS + 1],
 		uint8_t count, uint8_t cursor){
+	banner_on = 0;
 	editor_on = 1;
 	overlay_until = 0;
 	refresh_pending = 0;
@@ -398,6 +508,7 @@ void display_editor_end(void){
  * line is redrawn, so the bank name and the button grid stay put.
  */
 static void show_overlay(const char *msg){
+	if(banner_running()) return;	// the banner is not cut short for a readout
 	if(moment_showing) moment_done();
 	fill_rect(50, 6, SSD1306_WIDTH - 50, 10, Black);
 	ssd1306_SetCursor(50, 6);
@@ -439,6 +550,7 @@ void display_show_message(const char *msg){
 }
 
 void display_show_config(uint8_t slot){
+	banner_on = 0;
 	drop_bank_text();
 	char title[12];
 	snprintf(title, sizeof(title), "CONFIG %u", (unsigned)(slot + 1));
@@ -459,6 +571,7 @@ void display_show_config(uint8_t slot){
 
 // Safe mode at power on, over the bank screen until it has been read
 void display_show_safe_mode(void){
+	banner_on = 0;
 	drop_bank_text();
 	ssd1306_Fill(Black);
 	ssd1306_SetCursor(14, 8);
@@ -495,6 +608,10 @@ void display_task(void){
 	// The last screen is still going out: come back rather than wait for it,
 	// so a press is never held up behind a scroll step
 	if(ssd1306_Busy()) return;
+	if(banner_running()){
+		display_banner_task();
+		return;
+	}
 	if(moment_pending){
 		show_moment_text();
 		return;
