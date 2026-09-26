@@ -935,7 +935,7 @@ Bank_Number,Exp1_CC,Exp1_Channel,Exp1_Min,Exp1_Max,Exp2_CC,Exp2_Channel,Exp2_Min
 3,,,,,,,,
 4,,,,,,,,
 5,,,,,,,,
-6,,,,,,,,
+6,Speed,,37,118,,,,
 7,Off,,,,7,2,40,
 8,,,,,,,,
 9,,,,,,,,

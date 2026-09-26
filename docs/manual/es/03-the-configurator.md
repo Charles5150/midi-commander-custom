@@ -62,7 +62,7 @@ El nombre de 4 caracteres y la línea de información de 8 de cada banco, y adó
 
 Para cada pedal:
 
-- un CC y un canal, cada uno en `Default` para mantener los del propio pedal, o `Off` en el CC para silenciar el pedal en ese banco;
+- un CC y un canal, cada uno en `Default` para mantener los del propio pedal, `Off` en el CC para silenciar el pedal en ese banco, o `Speed` para que marque la [velocidad de los LFO y las secuencias](08-expression.md#velocidad-de-los-lfo-y-las-secuencias);
 - el valor más bajo y el más alto que envía ahí, vacíos para mantener el rango del propio pedal.
 
 ### Mover un banco
@@ -98,7 +98,7 @@ El orden que siguen Bank Up / Down cuando **Follow the setlist** (`Setlist_Mode`
 
 ## Expression
 
-Todo sobre los dos pedales de expresión, pedal a pedal: extremos, curva de respuesta, invertir, canal, los interruptores de punta y talón, el rango de salida, qué envía (CC, Pitch Bend o CC de 14 bits) y el auto-engage. Mira [Pedales de expresión](08-expression.md).
+Todo sobre los dos pedales de expresión, pedal a pedal: extremos, curva de respuesta, invertir, canal, los interruptores de punta y talón, el rango de salida, qué envía (CC, Pitch Bend, CC de 14 bits o la velocidad de los LFO y las secuencias) y el auto-engage. Mira [Pedales de expresión](08-expression.md).
 
 **Connect live view** enseña la posición del pedal y el CC que se está enviando, leídos de la pedalera en tiempo real.
 

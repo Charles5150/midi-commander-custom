@@ -388,6 +388,26 @@ void sysex_banner(uint8_t* data_packet_start, uint8_t text_len){
 	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
 }
 
+/*
+ * Move an expression pedal from the computer, for tests and the Virtual
+ * Pedal: it reads as a real pedal at that position would, filters, curve,
+ * switches and all, until given back to its jack.
+ */
+void sysex_set_pedal(uint8_t* data_packet_start){
+	uint8_t pedal = data_packet_start[0];
+	uint8_t hold = data_packet_start[1] ? 1 : 0;
+	uint16_t position = ((uint16_t)(data_packet_start[2] & 0x7F) << 7) | (data_packet_start[3] & 0x7F);
+	expression_set_virtual(pedal, hold, position);
+	uint8_t *p = midi_msg_tx_buffer;
+	*(p++) = SYSEX_START;
+	*(p++) = MIDI_MANUF_ID;
+	*(p++) = SYSEX_RSP_SET_PEDAL;
+	*(p++) = pedal & 0x7F;
+	*(p++) = hold;
+	*(p++) = SYSEX_END;
+	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
+}
+
 void process_sysex_message(void){
 	// Check start and end bytes
 	if(sysex_rx_buffer[0] != SYSEX_START ||
@@ -463,6 +483,12 @@ void process_sysex_message(void){
 		// F0 7D 78 clear F7 = 5 bytes
 		if(sysex_rx_counter >= 5){
 			sysex_get_latency(&(pSysexHead->start_parameters));
+		}
+		break;
+	case SYSEX_CMD_SET_PEDAL:
+		// F0 7D 80 pedal hold hi lo F7 = 8 bytes
+		if(sysex_rx_counter >= 8){
+			sysex_set_pedal(&(pSysexHead->start_parameters));
 		}
 		break;
 	case SYSEX_CMD_BANNER:

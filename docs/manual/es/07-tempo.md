@@ -97,6 +97,7 @@ Cómo se comporta:
 - Al soltar, o con la pulsación que apaga el toggle, el LFO se para y el CC recibe su `OffValue` como siempre.
 - Un CC sin valor de apagado oscila desde 0. Poner `OnValue` por debajo de `OffValue` invierte la forma.
 - Envía un mensaje como mucho cada 5 ms y solo cuando cambia el valor. Pueden ir ocho LFO a la vez.
+- Un pedal de expresión puede marcar la velocidad con el pie: mira [Velocidad de los LFO y las secuencias](08-expression.md#velocidad-de-los-lfo-y-las-secuencias).
 - Un LFO sigue funcionando al cambiar de banco, como cualquier CC que un botón deja encendido, y los que van en un toggle vuelven a arrancar al apagar y encender la pedalera.
 - Una `Ramp` en el mismo canal y CC toma el relevo de un LFO, y al revés; una secuencia por pasos en él también toma el relevo. `Panic` y un cambio de configuración los paran todos.
 
@@ -128,6 +129,7 @@ Cómo se comporta:
 
 - Como el LFO, va enganchado al pulso con el que parpadea el LED del tap, el reloj del ordenador mientras se sigue: el primer paso cae en el pulso de la pulsación, y un tap o tempo nuevo se sigue al momento.
 - Al soltar, o con la pulsación que apaga el toggle, la secuencia se para, un CC recibe su `OffValue` como siempre y la nota que suena se suelta.
+- Un pedal de expresión en Speed marca cuánto dura un paso, como marca el ciclo de un LFO: mira [Velocidad de los LFO y las secuencias](08-expression.md#velocidad-de-los-lfo-y-las-secuencias).
 - Pueden ir cuatro secuencias a la vez. Siguen funcionando al cambiar de banco, y las que van en un toggle vuelven a arrancar al apagar y encender la pedalera.
 - Una `Ramp` o un `LFO` en el mismo canal y CC ceden el paso a una secuencia. `Panic` y un cambio de configuración las paran todas.
 

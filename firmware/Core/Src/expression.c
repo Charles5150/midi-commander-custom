@@ -30,6 +30,11 @@
  * direction re-arms only once the pedal has moved back out of the threshold by
  * a margin, so resting on the edge does not retrigger.
  *
+ * Or no MIDI at all: a pedal on Speed sets how fast every LFO and sequence
+ * goes, heel slowest and toe fastest through the note divisions, the output
+ * range narrowing them (see speed_index). Its own Output, a bank or an Exp
+ * command can put it there.
+ *
  * And a pedal can switch a wah on and off by itself (auto-engage): leaving the
  * heel switches its button on, resting at the heel for a moment switches it
  * off. See auto_engage.
@@ -107,11 +112,11 @@ typedef struct {
   uint8_t out_max;      // value sent at the toe
   uint8_t auto_button;  // auto-engage button, NO_BUTTON when unused
   uint16_t auto_off_ms; // rest at the heel before switching it off
-  uint8_t out_mode;     // EXP_OUT_CC, EXP_OUT_PITCHBEND or EXP_OUT_CC14
+  uint8_t out_mode;     // EXP_OUT_CC, EXP_OUT_PITCHBEND, EXP_OUT_CC14 or EXP_OUT_SPEED
 } exp_cal_t;
 
 // What a pedal sends at the moment
-typedef enum { SEND_CC7, SEND_CC14, SEND_PB } send_kind_t;
+typedef enum { SEND_CC7, SEND_CC14, SEND_PB, SEND_SPEED } send_kind_t;
 
 typedef struct {
   exp_cal_t cal;
@@ -151,6 +156,11 @@ typedef struct {
 } exp_override_t;
 
 static exp_override_t overrides[EXP_PEDAL_COUNT];
+// Pedals held by SET_PEDAL, at a position 0-16383 through their travel
+static volatile bool virtual_held[EXP_PEDAL_COUNT];
+static volatile uint16_t virtual_pos[EXP_PEDAL_COUNT];
+// The pedal setting the speed of the LFOs and sequences, EXP_PEDAL_COUNT for none
+static uint32_t speed_pedal = EXP_PEDAL_COUNT;
 // The pedal whose pin is settling, and since when; EXP_PEDAL_COUNT for none
 static uint32_t settling = EXP_PEDAL_COUNT;
 static uint32_t settle_tick = 0U;
@@ -254,7 +264,8 @@ static void load_calibration(uint32_t i)
   c->auto_button = (p[13] >= 1 && p[13] <= MIDI_NUM_SWITCHES) ? p[13] - 1U : NO_BUTTON;
   c->auto_off_ms = (p[14] != 0 && p[14] != 0xFF) ? p[14] * AUTO_OFF_UNIT_MS : AUTO_OFF_DEFAULT_MS;
 
-  c->out_mode = (p[15] == EXP_OUT_PITCHBEND || p[15] == EXP_OUT_CC14) ? p[15] : EXP_OUT_CC;
+  c->out_mode = (p[15] == EXP_OUT_PITCHBEND || p[15] == EXP_OUT_CC14
+                 || p[15] == EXP_OUT_SPEED) ? p[15] : EXP_OUT_CC;
 }
 
 static uint8_t adc_to_midi(const exp_cal_t *c, uint32_t sample)
@@ -361,13 +372,13 @@ static bool pedal_target(uint32_t i, uint8_t *cc, uint8_t *channel,
   uint8_t page = sw_get_home_bank();	// a page keeps its bank's pedals
   const uint8_t *b = pBankExpSettings + page * CFG_BANK_EXP_STRIDE + i * 2U;
   const uint8_t *r = pBankExpRange + page * CFG_BANK_EXP_RANGE_STRIDE + i * 2U;
-  *cc = c->cc_number;
+  *cc = (c->out_mode == EXP_OUT_SPEED) ? EXP_TARGET_SPEED : c->cc_number;
   *channel = midi_channel(c);
   *lo = (r[0] <= 127U) ? r[0] : c->out_min;
   *hi = (r[1] <= 127U) ? r[1] : c->out_max;
   bool enabled = (b[0] != BANK_EXP_CC_OFF);
   *own = true;
-  if (b[0] <= 127U && b[0] != c->cc_number) {
+  if ((b[0] <= 127U || b[0] == BANK_EXP_CC_SPEED) && b[0] != *cc) {
       *cc = b[0];
       *own = false;
   }
@@ -392,6 +403,7 @@ static bool pedal_target(uint32_t i, uint8_t *cc, uint8_t *channel,
  */
 static send_kind_t send_kind(const exp_cal_t *c, uint8_t cc, bool own)
 {
+  if (cc == EXP_TARGET_SPEED) return SEND_SPEED;
   if (c->out_mode == EXP_OUT_PITCHBEND && own) return SEND_PB;
   if (c->out_mode == EXP_OUT_CC14 && cc < 32U) return SEND_CC14;
   return SEND_CC7;
@@ -406,13 +418,37 @@ void expression_set_target(uint8_t pedal, uint8_t cc, uint8_t channel)
 {
   if (pedal >= EXP_PEDAL_COUNT) return;
   exp_override_t *o = &overrides[pedal];
-  if (cc == EXP_TARGET_RESET || cc > EXP_TARGET_OFF) {
+  if (cc == EXP_TARGET_RESET || (cc > EXP_TARGET_OFF && cc != EXP_TARGET_SPEED)) {
       o->active = false;
       return;
   }
   o->active = true;
   o->cc = cc;
   o->channel = (channel <= 16U) ? channel : 0U;
+}
+
+/*
+ * Speed: a position in the output range picks a note division, heel the
+ * slowest (4 bars) and toe the fastest (a 1/16 triplet), each taking an equal
+ * share of 0-127, so a range of 37 to 100 sweeps from 1/2 to 1/8.
+ */
+static uint8_t speed_index(uint8_t v)
+{
+  return (uint8_t)(LFO_DIV_COUNT - 1U - (uint32_t)v * LFO_DIV_COUNT / 128U);
+}
+
+static void speed_release(uint32_t i)
+{
+  if (speed_pedal != i) return;
+  speed_pedal = EXP_PEDAL_COUNT;
+  sw_set_mod_speed(MOD_SPEED_OWN);
+}
+
+void expression_set_virtual(uint8_t pedal, bool hold, uint16_t position)
+{
+  if (pedal >= EXP_PEDAL_COUNT) return;
+  virtual_pos[pedal] = (position > 16383U) ? 16383U : position;
+  virtual_held[pedal] = hold;
 }
 
 void expression_clear_targets(void)
@@ -423,6 +459,8 @@ void expression_clear_targets(void)
 // --- Public API --------------------------------------------------------------
 void expression_init(void)
 {
+  speed_pedal = EXP_PEDAL_COUNT;
+  sw_set_mod_speed(MOD_SPEED_OWN);
   for (uint32_t i = 0; i < EXP_PEDAL_COUNT; i++) {
     load_calibration(i);
     pedals[i].last_sent_midi = 0xFFU;
@@ -529,6 +567,10 @@ static void process_pedal(uint32_t i)
 {
   exp_pedal_t *p = &pedals[i];
   uint32_t raw_avg = read_adc_channel(kExpChannels[i]);
+  if (virtual_held[i]) {
+      // Where a real pedal at that position would read
+      raw_avg = p->cal.min_adc + (uint32_t)virtual_pos[i] * (p->cal.max_adc - p->cal.min_adc) / 16383U;
+  }
 
   if (!p->initialised) {
       p->ema_adc_value = raw_avg;
@@ -547,7 +589,8 @@ static void process_pedal(uint32_t i)
   uint32_t diff = (filtered > p->last_stable_adc) ? filtered - p->last_stable_adc
                                                   : p->last_stable_adc - filtered;
   bool at_end = (filtered <= p->cal.min_adc) || (filtered >= p->cal.max_adc);
-  uint32_t hysteresis = (p->cal.out_mode == EXP_OUT_CC) ? EXP_HYSTERESIS : EXP_HYSTERESIS_FINE;
+  bool coarse = (p->cal.out_mode == EXP_OUT_CC || p->cal.out_mode == EXP_OUT_SPEED);
+  uint32_t hysteresis = coarse ? EXP_HYSTERESIS : EXP_HYSTERESIS_FINE;
   if (diff >= hysteresis || at_end) {
       p->last_stable_adc = filtered;
   } else {
@@ -577,18 +620,21 @@ static void process_pedal(uint32_t i)
   auto_engage(p, overrides[i].active, midi_value);
 
   // A bank change can move the pedal to another CC, channel or range, or
-  // silence it. The new target is not sent the old position: it follows the
-  // next movement.
+  // silence it, or put it on Speed. The new target is not sent the old
+  // position: it follows the next movement. Leaving Speed gives the LFOs and
+  // sequences their own speed back.
   uint8_t cc, channel, lo, hi;
   bool own;
   bool enabled = pedal_target(i, &cc, &channel, &lo, &hi, &own);
   send_kind_t kind = send_kind(&p->cal, cc, own);
-  uint16_t out_value = (kind == SEND_CC7) ? scale_output(midi_value, lo, hi)
-                                          : scale_fine(fine_value, lo, hi);
-  uint8_t out_midi = (kind == SEND_CC7) ? (uint8_t)out_value : (uint8_t)(out_value >> 7);
+  bool seven = (kind == SEND_CC7 || kind == SEND_SPEED);
+  uint16_t out_value = seven ? scale_output(midi_value, lo, hi)
+                             : scale_fine(fine_value, lo, hi);
+  uint8_t out_midi = seven ? (uint8_t)out_value : (uint8_t)(out_value >> 7);
   uint8_t target = enabled ? cc : BANK_EXP_CC_OFF;
   if (target != p->target_cc || channel != p->target_channel
       || lo != p->target_min || hi != p->target_max || kind != p->target_kind) {
+      if (target != EXP_TARGET_SPEED) speed_release(i);
       if (p->target_cc != 0xFFU || quiet_start[i]) {
           p->last_sent_value = out_value;
           p->last_sent_midi = out_midi;
@@ -605,7 +651,11 @@ static void process_pedal(uint32_t i)
   if (p->last_sent_value != out_value) {
       int8_t sent = 0;
       if (enabled) {                        // else silent in this bank
-          if (kind == SEND_PB) sent = midiCmd_send_pb(channel, out_value);
+          if (kind == SEND_SPEED) {
+              speed_pedal = i;
+              sw_set_mod_speed(speed_index((uint8_t)out_value));
+          }
+          else if (kind == SEND_PB) sent = midiCmd_send_pb(channel, out_value);
           else if (kind == SEND_CC14) sent = midiCmd_send_cc14(channel, cc, out_value);
           else sent = midiCmd_send_cc(channel, cc, (uint8_t)out_value);
       }

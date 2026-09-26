@@ -378,6 +378,9 @@ def build() -> Demo:
     d.long_press(6, "3", slot="C", CommandType="Note",
                  **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": "60",
                     "Velocity_(Note)": "100", "Toggle_(CC/PB/Note)": "Y"})
+    # Pedal 1 sends nothing here: it sets the speed of TREM and the arpeggio,
+    # a half note at the heel to a sixteenth at the toe
+    d.bank_expression(6, Exp1_CC="Speed", Exp1_Min="37", Exp1_Max="118")
     # Hold STOP for panic: every sound and note off, on every channel
     d.long_press(6, "4", CommandType="Panic")
 

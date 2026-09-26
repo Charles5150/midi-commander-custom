@@ -617,6 +617,7 @@ class FirmwareLayoutTest(unittest.TestCase):
             ("CFG_BANK_EXP_OFF", "BANK_EXP_OFFSET"),
             ("CFG_BANK_EXP_STRIDE", "BANK_EXP_STRIDE"),
             ("BANK_EXP_CC_OFF", "BANK_EXP_CC_OFF"),
+            ("BANK_EXP_CC_SPEED", "BANK_EXP_CC_SPEED"),
             ("SETLIST_MAX", "SETLIST_MAX"),
             ("CFG_CYCLE_LABELS_OFF", "CYCLE_LABELS_OFFSET"),
             ("CYCLE_LABEL_COUNT", "CYCLE_LABEL_COUNT"),
@@ -1134,10 +1135,36 @@ class VirtualPedalTest(unittest.TestCase):
             text = f.read()
         for name in ("SYSEX_CMD_PRESS_BUTTON", "SYSEX_RSP_PRESS_BUTTON",
                      "SYSEX_CMD_GET_STATE", "SYSEX_RSP_GET_STATE",
-                     "SYSEX_CMD_GET_SCREEN", "SYSEX_RSP_GET_SCREEN"):
+                     "SYSEX_CMD_GET_SCREEN", "SYSEX_RSP_GET_SCREEN",
+                     "SYSEX_CMD_SET_PEDAL", "SYSEX_RSP_SET_PEDAL"):
             m = re.search(r"#define\s+" + name + r"\s+\((\d+)\)", text)
             self.assertIsNotNone(m, name)
             self.assertEqual(int(m.group(1)), getattr(md, name), name)
+
+    def test_set_pedal(self):
+        from lib import midiDevice as md
+
+        sent = []
+
+        class Fake(md.MidiCommander):
+            def __init__(self):
+                pass
+
+            def send(self, data):
+                sent.append(list(data))
+
+            def wait_for_sysex(self, rsp, timeout):
+                return [0, 1]
+
+        dev = Fake()
+        dev.set_pedal(0, 0.5)
+        dev.set_pedal(1, 1.0)
+        dev.set_pedal(1, -0.2)
+        dev.set_pedal(0, None)
+        self.assertEqual(sent, [[md.SYSEX_CMD_SET_PEDAL, 0, 1, 64, 0],
+                                [md.SYSEX_CMD_SET_PEDAL, 1, 1, 127, 127],
+                                [md.SYSEX_CMD_SET_PEDAL, 1, 1, 0, 0],
+                                [md.SYSEX_CMD_SET_PEDAL, 0, 0, 0, 0]])
 
     def test_switch_ids(self):
         from lib.midiDevice import switch_id
@@ -1253,6 +1280,15 @@ class BankExpressionTest(unittest.TestCase):
         self.assertEqual(list(df.loc["0"]), [""] * 8)
         again = packer.pack_config({**self.sections, packer.BANK_EXPRESSION_SECTION: df.reset_index()})
         self.assertEqual(again, packed)
+
+    def test_speed(self):
+        df = unpacker.unpack_bank_expression_settings(packer.pack_config(self.sections))
+        df.loc[3, "Exp1_CC"] = "speed"
+        df.loc[3, "Exp2_CC"] = "Speed"
+        packed = packer.pack_config({**self.sections, packer.BANK_EXPRESSION_SECTION: df})
+        self.assertEqual(self.region(packed, 3)[0::2], [0x82, 0x82])
+        back = unpacker.unpack_bank_expression_settings(packed)
+        self.assertEqual(list(back.loc[3, ["Exp1_CC", "Exp2_CC"]]), ["Speed", "Speed"])
 
     def test_missing_section_keeps_pedals_as_they_are(self):
         sections = {k: v for k, v in self.sections.items() if k != packer.BANK_EXPRESSION_SECTION}
@@ -1440,7 +1476,7 @@ class ExpressionOutputTest(unittest.TestCase):
         self.assertEqual(list(exp["Output"]), ["CC", "CC14"])
 
     def test_every_kind_round_trips(self):
-        for name, code in (("CC", 0), ("PitchBend", 1), ("CC14", 2)):
+        for name, code in (("CC", 0), ("PitchBend", 1), ("CC14", 2), ("Speed", 3)):
             packed = self.with_outputs(name, "CC")
             self.assertEqual(self.output_bytes(packed), [code, 0])
             exp = unpacker.unpack_config(packed)[4]
@@ -1474,7 +1510,7 @@ class ExpressionOutputTest(unittest.TestCase):
                             "flash_midi_settings.h")
         with open(path) as handle:
             header = handle.read()
-        for name, code in (("CC", 0), ("PITCHBEND", 1), ("CC14", 2)):
+        for name, code in (("CC", 0), ("PITCHBEND", 1), ("CC14", 2), ("SPEED", 3)):
             m = re.search(rf"#define\s+EXP_OUT_{name}\s+\((\d+)\)", header)
             self.assertEqual(int(m.group(1)), code, name)
             self.assertEqual(packer.EXP_OUTPUTS[name], code)
@@ -2180,6 +2216,9 @@ class ExpCommandTest(unittest.TestCase):
                          [0x05, 1, cbp.EXP_TARGET_OFF, 0])
         self.assertEqual(self.pack(**{"KeyMode_(Key)": "Own", "Channel_(PC/CC/Note/PB)": "5"}),
                          [0x05, 0, cbp.EXP_TARGET_OWN, 0])
+        self.assertEqual(self.pack(**{"OnValue_(CC/PB)": "2", "KeyMode_(Key)": "speed",
+                                      "Channel_(PC/CC/Note/PB)": "5", "Toggle_(CC/PB/Note)": "Y"}),
+                         [0x05, 0x81, cbp.EXP_TARGET_SPEED, 0])
 
     def test_bad_values(self):
         for fields in ({"OnValue_(CC/PB)": "3", "Number_(PC/CC/Note)": "7"},
@@ -2191,7 +2230,8 @@ class ExpCommandTest(unittest.TestCase):
                 self.pack(**fields)
 
     def test_round_trip(self):
-        for raw in ([0x05, 0, 7, 0], [0x05, 0x81, 74, 16], [0x05, 1, 0x80, 0], [0x05, 0x80, 0x81, 0]):
+        for raw in ([0x05, 0, 7, 0], [0x05, 0x81, 74, 16], [0x05, 1, 0x80, 0], [0x05, 0x80, 0x81, 0],
+                    [0x05, 0x81, 0x82, 0]):
             cmd = unpacker.unpack_command(bytes(raw))
             row = pd.Series({f"A_{k}": v for k, v in cmd.items()})
             self.assertEqual(cbp.pack_row(row)[:4], raw, cmd)
@@ -2210,7 +2250,8 @@ class ExpCommandTest(unittest.TestCase):
         with open(path) as handle:
             header = handle.read()
         for name, value in (("CMD_EXP_MODE", cbp.CMD_EXP_MODE), ("EXP_TARGET_OFF", cbp.EXP_TARGET_OFF),
-                            ("EXP_TARGET_RESET", cbp.EXP_TARGET_OWN)):
+                            ("EXP_TARGET_RESET", cbp.EXP_TARGET_OWN),
+                            ("EXP_TARGET_SPEED", cbp.EXP_TARGET_SPEED)):
             m = re.search(rf"#define\s+{name}\s+\((0x[0-9A-Fa-f]+|\d+)\)", header)
             self.assertEqual(int(m.group(1), 0), value, name)
 

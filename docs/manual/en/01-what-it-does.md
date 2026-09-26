@@ -70,6 +70,7 @@ Everything the firmware and its tools can do, grouped the way the manual is. Eac
 - **Auto-engage wah.** Moving an expression pedal up from the heel switches a button on, and resting at the heel for a moment switches it off again, like the auto-engage wahs of Fractal and Line 6: no stomping on the wah before using it.
 - **Expression output range.** A pedal can send only part of the range, 40 to 127 for a volume that never drops to silence for instance, or run backwards; per pedal, and per bank on top of that.
 - **Pitch Bend and 14-bit CC from a pedal.** An expression pedal can send Pitch Bend, for a whammy, or a 14-bit CC pair, with 16384 steps instead of 128, for sweeps without zipper noise on synths and plugins that read them.
+- **An expression pedal as the speed of the LFOs and sequences.** Instead of a CC, a pedal can set how fast every LFO and step sequence goes, heel slow and toe fast, always on a note division of the tempo: a tremolo that speeds up under your foot and stays in time.
 
 ## The display
 

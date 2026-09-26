@@ -66,6 +66,8 @@
 #define SYSEX_RSP_BANNER	(77) // 0 done or 1 refused, then the text stored
 #define SYSEX_CMD_GET_LATENCY	(78) // 1 clears after answering, 0 only reads
 #define SYSEX_RSP_GET_LATENCY	(79) // presses timed (2 bytes), slowest, then the last up to 16, oldest first; microseconds in 3 bytes each
+#define SYSEX_CMD_SET_PEDAL	(80) // pedal 0-1, 1 hold it at the position that follows (high 7, low 7 bits, 0 heel to 16383 toe) or 0 give it back its jack
+#define SYSEX_RSP_SET_PEDAL	(81) // echoes the pedal and hold
 
 #define SYSEX_START (0xF0)
 #define SYSEX_END	(0xF7)
@@ -93,11 +95,13 @@
 // sends until another Exp command or a bank change. Byte 1 is the pedal (0 or
 // 1), with the top bit marking a toggling command, which puts the pedal back
 // to its own target when switched off. Byte 2 is the CC, EXP_TARGET_OFF to
-// silence the pedal or EXP_TARGET_RESET to give it back its own target. Byte 3
-// is the channel 1-16, or 0 to keep the pedal's own.
+// silence the pedal, EXP_TARGET_RESET to give it back its own target or
+// EXP_TARGET_SPEED to set the speed of the LFOs and sequences. Byte 3 is the
+// channel 1-16, or 0 to keep the pedal's own.
 #define CMD_EXP_MODE		(5)
 #define EXP_TARGET_OFF		(0x80)
 #define EXP_TARGET_RESET	(0x81)
+#define EXP_TARGET_SPEED	(0x82)
 // LFO: same empty command type, low nibble 6. Like a Ramp, turns the CC
 // command right below it into an LFO that swings between its Off and On
 // values, locked to the tempo. Byte 2 is the length of one cycle, an index

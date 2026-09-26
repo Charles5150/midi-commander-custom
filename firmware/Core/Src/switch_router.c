@@ -1565,6 +1565,11 @@ static void ramp_task(void){
  *
  * An LFO keeps running when the bank changes, like any CC the button left on,
  * and the toggled ones start again after a power cycle.
+ *
+ * An expression pedal sent to Speed changes the division of every LFO and
+ * sequence while it is there (see sw_set_mod_speed). The cycle carries on from
+ * where it is, only faster or slower, so the sound does not jump; the offset
+ * keeps the cycle's place once the division has changed under it.
  */
 #define LFO_SLOTS		(8)
 #define LFO_STEP_MS		(5)		// at most one message per LFO this often
@@ -1574,7 +1579,9 @@ typedef struct {
 	uint32_t start_beat;	// beat the LFO started on
 	uint32_t last_tick;		// when the last step went out
 	uint32_t last_pos;		// position in the cycle at the last step
-	uint16_t div;			// cycle length, in 24ths of a beat
+	uint32_t offset;		// added to the position, in thousandths of a 24th
+	uint16_t div;			// cycle length in use, in 24ths of a beat
+	uint16_t own;			// and the one the LFO command gives
 	uint8_t channel;
 	uint8_t cc;
 	uint8_t lo;				// value at the bottom of the shape
@@ -1587,6 +1594,39 @@ typedef struct {
 
 static lfo_t lfos[LFO_SLOTS];
 static const uint16_t lfo_div_ticks[LFO_DIV_COUNT] = LFO_DIV_TICKS;
+
+// The division an expression pedal on Speed has chosen, MOD_SPEED_OWN for none
+static uint8_t mod_speed = MOD_SPEED_OWN;
+
+static uint16_t speed_div(uint16_t own){
+	return mod_speed < LFO_DIV_COUNT ? lfo_div_ticks[mod_speed] : own;
+}
+
+/*
+ * Where something locked to the beat is in a cycle of `period` 24ths of a
+ * beat, in thousandths of a 24th, counted from the beat it started on.
+ */
+static uint32_t beat_pos(uint32_t start_beat, uint32_t period, uint32_t offset){
+	uint32_t beat, ms;
+	tempo_beat_now(&beat, &ms);
+	if(ms > 60000) ms = 60000;
+	uint32_t frac = ms * tempo_get_bpm() * 2 / 5;	// ms * bpm * 24000 / 60000
+	if(frac > 23999) frac = 23999;	// a late beat: wait for it at the end
+	uint32_t pos = ((beat - start_beat) % period) * 24000 + frac;
+	return (pos + offset) % (period * 1000);
+}
+
+/*
+ * A cycle of `was` 24ths, now at pos, becoming one of `period`: starts it
+ * again from this beat and returns the offset that keeps it as far through.
+ */
+static uint32_t beat_rescale(uint32_t *start_beat, uint32_t pos, uint32_t was, uint32_t period){
+	uint32_t target = (uint32_t)((uint64_t)pos * period / was);
+	uint32_t ms;
+	tempo_beat_now(start_beat, &ms);
+	uint32_t now = beat_pos(*start_beat, period, 0);
+	return (target + period * 1000 - now) % (period * 1000);
+}
 
 // sin^2 over half a cycle, the bottom-to-top half of the Sine shape
 static const uint16_t lfo_sine[33] = {
@@ -1608,13 +1648,7 @@ static inline bool cmd_is_lfo(const uint8_t *pRom){
 
 // Where the LFO is in its cycle, in thousandths of a clock (24th of a beat)
 static uint32_t lfo_pos(const lfo_t *l){
-	uint32_t beat, ms;
-	tempo_beat_now(&beat, &ms);
-	if(ms > 60000) ms = 60000;
-	uint32_t frac = ms * tempo_get_bpm() * 2 / 5;	// ms * bpm * 24000 / 60000
-	if(frac > 23999) frac = 23999;	// a late beat: wait for it at the end
-	uint32_t pos = ((beat - l->start_beat) % l->div) * 24000 + frac;
-	return pos % ((uint32_t)l->div * 1000);
+	return beat_pos(l->start_beat, l->div, l->offset);
 }
 
 // The shape at pos, 0 at the bottom to LFO_SHAPE_MAX at the top
@@ -1681,7 +1715,9 @@ static void lfo_start(const uint8_t *lfo, const uint8_t *pRom){
 
 	uint32_t ms;
 	tempo_beat_now(&l->start_beat, &ms);
-	l->div = lfo_div_ticks[lfo[2] < LFO_DIV_COUNT ? lfo[2] : LFO_DIV_COUNT - 1];
+	l->own = lfo_div_ticks[lfo[2] < LFO_DIV_COUNT ? lfo[2] : LFO_DIV_COUNT - 1];
+	l->div = speed_div(l->own);
+	l->offset = 0;
 	l->channel = channel;
 	l->cc = cc;
 	l->hi = pRom[2] & 0x7F;
@@ -1753,7 +1789,9 @@ static void lfo_restart_all(void){
 
 typedef struct {
 	uint32_t start_beat;	// beat the sequence started on
+	uint32_t offset;		// added to the position, as the LFO's
 	uint16_t div;			// how long a step lasts, in 24ths of a beat
+	uint16_t own;			// and how long the Seq command makes it
 	uint8_t steps[SEQ_MAX_STEPS];
 	uint8_t count;			// steps in the sequence
 	uint8_t at;				// step last sent, 0xFF before the first
@@ -1779,14 +1817,8 @@ static inline bool cmd_is_seq(const uint8_t *pRom){
 
 // The step a sequence is on now
 static uint8_t seq_step_now(const seq_t *s){
-	uint32_t beat, ms;
-	tempo_beat_now(&beat, &ms);
-	if(ms > 60000) ms = 60000;
-	uint32_t frac = ms * tempo_get_bpm() * 2 / 5;	// ms * bpm * 24000 / 60000
-	if(frac > 23999) frac = 23999;	// a late beat: wait for it at the end
 	uint32_t span = (uint32_t)s->div * s->count;	// the whole sequence, in 24ths
-	uint32_t pos = ((beat - s->start_beat) % span) * 24000 + frac;
-	pos %= span * 1000;
+	uint32_t pos = beat_pos(s->start_beat, span, s->offset);
 	return (uint8_t)(pos / ((uint32_t)s->div * 1000));
 }
 
@@ -1862,7 +1894,9 @@ static void seq_start(const uint8_t *seq, uint8_t cmds, const uint8_t *pRom){
 	}
 	uint32_t ms;
 	tempo_beat_now(&s->start_beat, &ms);
-	s->div = lfo_div_ticks[(seq[1] & 0x0F) < LFO_DIV_COUNT ? (seq[1] & 0x0F) : 3];
+	s->own = lfo_div_ticks[(seq[1] & 0x0F) < LFO_DIV_COUNT ? (seq[1] & 0x0F) : 3];
+	s->div = speed_div(s->own);
+	s->offset = 0;
 	s->count = count;
 	s->at = 0xFF;
 	s->channel = channel;
@@ -1923,6 +1957,45 @@ static void seq_task(void){
 		if(!s->active) continue;
 		uint8_t step = seq_step_now(s);
 		if(step != s->at) seq_send(s, step);
+	}
+}
+
+static const char *const speed_names[LFO_DIV_COUNT] = {
+	"1/16T", "1/16", "1/8T", "1/8", "1/4T", "1/8.", "1/4",
+	"1/2T", "1/4.", "1/2", "1/2.", "1/1", "2/1", "4/1"
+};
+
+/*
+ * An expression pedal on Speed: every LFO and sequence, running or started
+ * from now on, goes at division `index` (one of the LFO_DIV_ ones), or back
+ * to its own with MOD_SPEED_OWN. Each carries on from where it is in its
+ * cycle, so a sweep of the pedal speeds the sound up without a jump.
+ */
+void sw_set_mod_speed(uint8_t index){
+	if(index >= LFO_DIV_COUNT) index = MOD_SPEED_OWN;
+	if(index == mod_speed) return;
+	mod_speed = index;
+	for(uint8_t i=0; i<LFO_SLOTS; i++){
+		lfo_t *l = &lfos[i];
+		uint16_t div = speed_div(l->own);
+		if(!l->active || div == l->div) continue;
+		l->offset = beat_rescale(&l->start_beat, lfo_pos(l), l->div, div);
+		l->div = div;
+		l->last_pos = lfo_pos(l);
+	}
+	for(uint8_t i=0; i<SEQ_SLOTS; i++){
+		seq_t *s = &seqs[i];
+		uint16_t div = speed_div(s->own);
+		if(!s->active || div == s->div) continue;
+		uint32_t span = (uint32_t)s->div * s->count;
+		s->offset = beat_rescale(&s->start_beat, beat_pos(s->start_beat, span, s->offset),
+				span, (uint32_t)div * s->count);
+		s->div = div;
+	}
+	if(index < LFO_DIV_COUNT){
+		char msg[9] = "Sp ";
+		strcpy(msg + 3, speed_names[index]);
+		display_show_message(msg);
 	}
 }
 

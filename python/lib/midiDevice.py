@@ -33,6 +33,8 @@ SYSEX_CMD_BANNER = 76
 SYSEX_RSP_BANNER = 77
 SYSEX_CMD_GET_LATENCY = 78
 SYSEX_RSP_GET_LATENCY = 79
+SYSEX_CMD_SET_PEDAL = 80
+SYSEX_RSP_SET_PEDAL = 81
 # Two check bytes ("DF") so a stray message cannot restart the pedal in DFU
 ENTER_DFU_CHECK = (0x44, 0x46)
 
@@ -281,6 +283,17 @@ class MidiCommander:
             hi, lo, cc = data[3 * i : 3 * i + 3]
             out.append(((hi << 7) | lo, cc))
         return out
+
+    def set_pedal(self, pedal, position=None, timeout=0.5):
+        """Hold expression pedal 0 or 1 at a position, 0.0 at the heel to 1.0 at
+        the toe of its calibrated travel, as if by foot; None gives it back its
+        jack. Firmware 0.70 or later."""
+        if position is None:
+            self.send([SYSEX_CMD_SET_PEDAL, pedal, 0, 0, 0])
+        else:
+            v = max(0, min(16383, round(position * 16383)))
+            self.send([SYSEX_CMD_SET_PEDAL, pedal, 1, v >> 7, v & 0x7F])
+        self.wait_for_sysex(SYSEX_RSP_SET_PEDAL, timeout)
 
     def select_slot(self, slot=None, timeout=1.0):
         """Choose the configuration slot (0-3) the next erase, write and read

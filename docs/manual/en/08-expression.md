@@ -70,6 +70,46 @@ The demo's pedal 2 sends a 14-bit CC pair, CC 4 and 36.
 
 *Firmware 0.44 or later; older firmware ignores the setting and sends the CC.*
 
+## Speed of the LFOs and sequences
+
+A pedal can send no MIDI at all and set instead how fast the pedal's own modulation goes: every running [LFO](07-tempo.md#tempo-synced-lfo) and [step sequence](07-tempo.md#step-sequencer) follows it, a tremolo sweeping from slow to fast under your foot, always in time with the tempo.
+
+Put it there in any of three ways:
+
+- **Output** `Speed` in the Expression tab, for good;
+- `Speed` as the pedal's CC in a bank, in the Banks tab (`Exp1_CC` or `Exp2_CC` in [BankExpression_Settings](#bankexpression_settings)), for that bank;
+- an [`Exp` command](06-commands.md#changing-an-expression-pedals-target) with `KeyMode` `Speed`, from a button.
+
+How it behaves:
+
+- The heel is the slowest and the toe the fastest, and every position in between is a note division, from four bars to a sixteenth triplet, so the speed is never out of time.
+- The output range narrows it: each division takes its share of 0–127, as in the table below, so `Out_Min` 37 and `Out_Max` 118 sweep from a half note at the heel to a sixteenth at the toe.
+- Every LFO and sequence goes at the pedal's division, running or started while the pedal is on Speed, whatever division its own command gives. Each carries on from where it is in its cycle, only faster or slower, so the sound does not jump.
+- The pedal takes over on its first movement, as on any change of target. Moving it elsewhere, by a bank change or an `Exp`, gives every LFO and sequence its own division back.
+- The display shows the division for a moment, `Sp 1/8`.
+- Curve, Invert, the toe and heel switches and auto-engage work as before.
+
+| Pedal range | Division |
+|---|---|
+| 0–9 | `4/1` |
+| 10–18 | `2/1` |
+| 19–27 | `1/1` |
+| 28–36 | `1/2.` |
+| 37–45 | `1/2` |
+| 46–54 | `1/4.` |
+| 55–63 | `1/2T` |
+| 64–73 | `1/4` |
+| 74–82 | `1/8.` |
+| 83–91 | `1/4T` |
+| 92–100 | `1/8` |
+| 101–109 | `1/8T` |
+| 110–118 | `1/16` |
+| 119–127 | `1/16T` |
+
+In the demo's bank 6, pedal 1 sets the speed of TREM and of the arpeggio held on STRT, from `1/2` to `1/16`.
+
+*Firmware 0.70 or later; older firmware sends the pedal's own CC instead.*
+
 <details><summary>Under the hood</summary>
 
 Stored in byte 15 of each pedal's record, 0 for CC, 1 for Pitch Bend and 2 for 14-bit CC, where older tools wrote a zero.
@@ -153,7 +193,7 @@ Optional; two rows, `Pedal` 1 and 2.
 | `Out_Min`, `Out_Max` | 0–127 | Values sent at the heel and at the toe. Defaults 0 and 127. |
 | `Auto_Button` | None or 1–4, A–D | Button switched on as the pedal leaves the heel and off after resting there (auto-engage). |
 | `Auto_Off_ms` | 10–2540 | How long the pedal must rest at the heel before that button goes off. Default 500. |
-| `Output` | CC, PitchBend or CC14 | What the pedal sends: its CC with 7 bits, Pitch Bend, or a 14-bit CC pair. Default CC. |
+| `Output` | CC, PitchBend, CC14 or Speed | What the pedal sends: its CC with 7 bits, Pitch Bend, a 14-bit CC pair, or nothing but the [speed of the LFOs and sequences](#speed-of-the-lfos-and-sequences). Default CC. |
 
 ### BankExpression_Settings
 
@@ -161,7 +201,7 @@ Optional; one row per `Bank_Number` (0–31), rows may be missing or in any orde
 
 | Column | Values | Meaning |
 |---|---|---|
-| `Exp1_CC`, `Exp2_CC` | empty, 0–127 or Off | CC the pedal sends while this bank is selected. Empty keeps `Exp1_CC` / `Exp2_CC` from `Global_Settings`; Off silences the pedal in this bank. |
+| `Exp1_CC`, `Exp2_CC` | empty, 0–127, Off or Speed | CC the pedal sends while this bank is selected. Empty keeps `Exp1_CC` / `Exp2_CC` from `Global_Settings`; Off silences the pedal in this bank; Speed makes it set the [speed of the LFOs and sequences](#speed-of-the-lfos-and-sequences), stored as 0x82 (firmware 0.70). |
 | `Exp1_Channel`, `Exp2_Channel` | empty or 1–16 | Channel for that pedal in this bank. Empty keeps the pedal's `Channel` from `Expression_Settings`. |
 | `Exp1_Min`, `Exp1_Max`, `Exp2_Min`, `Exp2_Max` | empty or 0–127 | Values the pedal sends at the heel and at the toe in this bank. Empty keeps its `Out_Min` / `Out_Max` from `Expression_Settings`; each end is taken on its own. Firmware 0.33 or later. |
 

@@ -97,6 +97,7 @@ How it behaves:
 - On the release, or the press that switches the toggle off, the LFO stops and the CC gets its `OffValue` as usual.
 - A CC with no off value swings from 0. Setting `OnValue` below `OffValue` turns the shape upside down.
 - It sends a message at most every 5 ms and only when the value changes. Eight LFOs can run at once.
+- An expression pedal can set the speed with your foot instead: see [Speed of the LFOs and sequences](08-expression.md#speed-of-the-lfos-and-sequences).
 - An LFO keeps running when the bank changes, like any CC a button leaves on, and the toggled ones start again after switching the pedal off and on.
 - A `Ramp` on the same channel and CC takes over from an LFO, and the other way round; a step sequence on it takes over too. `Panic` and a configuration switch stop them all.
 
@@ -128,6 +129,7 @@ How it behaves:
 
 - Like the LFO it is locked to the beat the tap LED flashes, the host's clock while it is followed: the first step falls on the beat of the press, and a new tap or tempo is followed straight away.
 - On the release, or the press that switches the toggle off, the sequence stops, a CC gets its `OffValue` as usual and a sounding note is let go.
+- An expression pedal on Speed sets how long a step lasts, as it does an LFO's cycle: see [Speed of the LFOs and sequences](08-expression.md#speed-of-the-lfos-and-sequences).
 - Four sequences can run at once. They keep running when the bank changes, and the toggled ones start again after switching the pedal off and on.
 - A `Ramp` or an `LFO` on the same channel and CC gives way to a sequence. `Panic` and a configuration switch stop them all.
 

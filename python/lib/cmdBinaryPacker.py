@@ -37,13 +37,14 @@ CYCLE_LABEL_LEN = 4
 CMD_LEAVE_MODE = 4
 # And a change of what an expression pedal sends, until another one or a bank
 # change. Byte 1 is the pedal (0 or 1) with the toggle bit, byte 2 the CC,
-# EXP_TARGET_OFF to silence the pedal or EXP_TARGET_OWN to give it back its own
-# target, byte 3 the channel 1-16 or 0 for the pedal's own. A toggling one gives
+# EXP_TARGET_OFF to silence the pedal, EXP_TARGET_OWN to give it back its own
+# target or EXP_TARGET_SPEED to set the speed of the LFOs and sequences, byte 3 the channel 1-16 or 0 for the pedal's own. A toggling one gives
 # the pedal back its own target when switched off.
 CMD_EXP_MODE = 5
 EXP_TARGET_OFF = 0x80
 EXP_TARGET_OWN = 0x81
-EXP_TARGETS = ["CC", "Off", "Own"]
+EXP_TARGET_SPEED = 0x82
+EXP_TARGETS = ["CC", "Off", "Own", "Speed"]
 # And an LFO: turns the CC command right below it into an LFO locked to the
 # tempo, swinging between its Off and On values. Byte 2 is the cycle length,
 # an index into LFO_DIVISIONS, byte 3 the shape, an index into LFO_SHAPES.
@@ -588,7 +589,8 @@ def cmd_exp(cmd):
 
     OnValue is the pedal, 1 or 2. KeyMode says where to: CC (the default) sends
     it to CC Number, on Channel if one is given or else on the pedal's own;
-    Off silences it; Own gives it back its own target.
+    Off silences it; Own gives it back its own target; Speed makes it set how
+    fast the LFOs and sequences go.
     """
     pedal = safe_int(cmd.get("OnValue_(CC/PB)"), 1)
     if pedal not in (1, 2):
@@ -602,8 +604,10 @@ def cmd_exp(cmd):
         cc = EXP_TARGET_OFF
     elif target == "OWN":
         cc = EXP_TARGET_OWN
+    elif target == "SPEED":
+        cc = EXP_TARGET_SPEED
     else:
-        raise ValueError(f"Exp target must be CC, Off or Own, not {cmd.get('KeyMode_(Key)')!r}")
+        raise ValueError(f"Exp target must be CC, Off, Own or Speed, not {cmd.get('KeyMode_(Key)')!r}")
     channel = 0
     ch = str(cmd.get("Channel_(PC/CC/Note/PB)", "")).strip().upper()
     if cc < 0x80 and ch not in ("", "NAN", "OWN"):

@@ -70,6 +70,46 @@ El pedal 2 de la demo envía una pareja de CC de 14 bits, CC 4 y 36.
 
 *Firmware 0.44 o posterior; un firmware anterior ignora el ajuste y envía el CC.*
 
+## Velocidad de los LFO y las secuencias
+
+Un pedal puede no enviar nada de MIDI y marcar en cambio la velocidad de la modulación de la propia pedalera: todos los [LFO](07-tempo.md#lfo-sincronizado-al-tempo) y [secuencias por pasos](07-tempo.md#secuenciador-por-pasos) en marcha lo siguen, un trémolo que pasa de lento a rápido bajo tu pie, siempre a tempo.
+
+Se pone ahí de tres maneras:
+
+- **Output** `Speed` en la pestaña Expression, para siempre;
+- `Speed` como CC del pedal en un banco, en la pestaña Banks (`Exp1_CC` o `Exp2_CC` en [BankExpression_Settings](#bankexpression_settings)), para ese banco;
+- un [comando `Exp`](06-commands.md#cambiar-el-destino-de-un-pedal-de-expresión) con `KeyMode` `Speed`, desde un botón.
+
+Cómo se comporta:
+
+- El talón es lo más lento y la punta lo más rápido, y cada posición intermedia es una división de nota, de cuatro compases a un tresillo de semicorchea, así que la velocidad nunca se sale de tempo.
+- El rango de salida lo acota: cada división ocupa su parte de 0–127, como en la tabla de abajo, así que `Out_Min` 37 y `Out_Max` 118 van de una blanca en el talón a una semicorchea en la punta.
+- Todos los LFO y secuencias van a la división del pedal, los que ya suenan y los que arrancan mientras el pedal está en Speed, sea cual sea la división de su propio comando. Cada uno sigue desde donde está en su ciclo, solo que más rápido o más lento, así que el sonido no salta.
+- El pedal toma el control en su primer movimiento, como en cualquier cambio de destino. Llevarlo a otro sitio, con un cambio de banco o un `Exp`, devuelve a cada LFO y secuencia su propia división.
+- La pantalla enseña la división un momento, `Sp 1/8`.
+- La curva, Invert, los pulsadores de punta y talón y el auto-engage funcionan igual que antes.
+
+| Rango del pedal | División |
+|---|---|
+| 0–9 | `4/1` |
+| 10–18 | `2/1` |
+| 19–27 | `1/1` |
+| 28–36 | `1/2.` |
+| 37–45 | `1/2` |
+| 46–54 | `1/4.` |
+| 55–63 | `1/2T` |
+| 64–73 | `1/4` |
+| 74–82 | `1/8.` |
+| 83–91 | `1/4T` |
+| 92–100 | `1/8` |
+| 101–109 | `1/8T` |
+| 110–118 | `1/16` |
+| 119–127 | `1/16T` |
+
+En el banco 6 de la demo, el pedal 1 marca la velocidad de TREM y del arpegio que suena al mantener STRT, de `1/2` a `1/16`.
+
+*Firmware 0.70 o posterior; un firmware anterior envía en su lugar el CC propio del pedal.*
+
 <details><summary>Por dentro</summary>
 
 Se guarda en el byte 15 del registro de cada pedal: 0 para CC, 1 para Pitch Bend y 2 para CC de 14 bits, donde las herramientas antiguas escribían un cero.
@@ -153,7 +193,7 @@ Opcional; dos filas, `Pedal` 1 y 2.
 | `Out_Min`, `Out_Max` | 0–127 | Valores que se envían en el talón y en la punta. Por defecto 0 y 127. |
 | `Auto_Button` | None o 1–4, A–D | Botón que se enciende cuando el pedal sale del talón y se apaga tras quedarse ahí (auto-engage). |
 | `Auto_Off_ms` | 10–2540 | Cuánto tiempo tiene que quedarse el pedal en el talón antes de que se apague ese botón. Por defecto 500. |
-| `Output` | CC, PitchBend o CC14 | Qué envía el pedal: su CC con 7 bits, Pitch Bend o una pareja de CC de 14 bits. Por defecto CC. |
+| `Output` | CC, PitchBend, CC14 o Speed | Qué envía el pedal: su CC con 7 bits, Pitch Bend, una pareja de CC de 14 bits, o nada más que la [velocidad de los LFO y las secuencias](#velocidad-de-los-lfo-y-las-secuencias). Por defecto CC. |
 
 ### BankExpression_Settings
 
@@ -161,7 +201,7 @@ Opcional; una fila por `Bank_Number` (0–31); pueden faltar filas o venir en cu
 
 | Columna | Valores | Significado |
 |---|---|---|
-| `Exp1_CC`, `Exp2_CC` | vacío, 0–127 u Off | El CC que envía el pedal mientras este banco está seleccionado. Vacío mantiene `Exp1_CC` / `Exp2_CC` de `Global_Settings`; Off silencia el pedal en este banco. |
+| `Exp1_CC`, `Exp2_CC` | vacío, 0–127, Off o Speed | El CC que envía el pedal mientras este banco está seleccionado. Vacío mantiene `Exp1_CC` / `Exp2_CC` de `Global_Settings`; Off silencia el pedal en este banco; Speed hace que marque la [velocidad de los LFO y las secuencias](#velocidad-de-los-lfo-y-las-secuencias), guardado como 0x82 (firmware 0.70). |
 | `Exp1_Channel`, `Exp2_Channel` | vacío o 1–16 | Canal de ese pedal en este banco. Vacío mantiene el `Channel` del pedal de `Expression_Settings`. |
 | `Exp1_Min`, `Exp1_Max`, `Exp2_Min`, `Exp2_Max` | vacío o 0–127 | Valores que envía el pedal en el talón y en la punta en este banco. Vacío mantiene su `Out_Min` / `Out_Max` de `Expression_Settings`; cada extremo se toma por separado. Firmware 0.33 o posterior. |
 

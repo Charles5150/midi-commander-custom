@@ -60,7 +60,7 @@ Each bank's 4 character name and 8 character info line, and where the expression
 
 For each pedal:
 
-- a CC and a channel, each `Default` to keep the pedal's own, or `Off` for the CC to silence the pedal in that bank;
+- a CC and a channel, each `Default` to keep the pedal's own, `Off` for the CC to silence the pedal in that bank, or `Speed` for it to set the [speed of the LFOs and sequences](08-expression.md#speed-of-the-lfos-and-sequences);
 - the lowest and highest value it sends there, left empty to keep the pedal's own range.
 
 ### Moving a bank
@@ -96,7 +96,7 @@ The order Bank Up / Down follow when **Follow the setlist** (`Setlist_Mode`) is 
 
 ## Expression
 
-Everything about the two expression pedals, per pedal: end points, response curve, invert, channel, the toe and heel switches, the output range, what it sends (CC, Pitch Bend or 14-bit CC) and auto-engage. See [Expression pedals](08-expression.md).
+Everything about the two expression pedals, per pedal: end points, response curve, invert, channel, the toe and heel switches, the output range, what it sends (CC, Pitch Bend, 14-bit CC or the speed of the LFOs and sequences) and auto-engage. See [Expression pedals](08-expression.md).
 
 **Connect live view** shows the pedal position and the CC being sent, read from the pedal in real time.
 

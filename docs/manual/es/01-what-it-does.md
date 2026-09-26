@@ -70,6 +70,7 @@ Todo lo que pueden hacer el firmware y sus herramientas, agrupado igual que el m
 - **Wah con auto-engage.** Levantar un pedal de expresión desde el talón enciende un botón, y dejarlo un momento en el talón lo vuelve a apagar, como los wah con auto-engage de Fractal y Line 6: no hay que pisar el wah antes de usarlo.
 - **Rango de salida del pedal.** Un pedal puede enviar solo parte del rango, de 40 a 127 para un volumen que nunca llega al silencio por ejemplo, o funcionar al revés; por pedal, y además por banco.
 - **Pitch Bend y CC de 14 bits desde un pedal.** Un pedal de expresión puede enviar Pitch Bend, para un whammy, o una pareja de CC de 14 bits, con 16384 pasos en lugar de 128, para barridos sin escalones en los sintes y plugins que los leen.
+- **Un pedal de expresión como velocidad de los LFO y las secuencias.** En lugar de un CC, un pedal puede marcar lo rápido que van todos los LFO y secuencias por pasos, lento en el talón y rápido en la punta, siempre en una división de nota del tempo: un trémolo que se acelera bajo tu pie sin salirse de tempo.
 
 ## La pantalla
 
