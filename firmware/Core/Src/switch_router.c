@@ -88,6 +88,10 @@ typedef struct {
 	// Tap LED: bit per bank, the button holds a Tap command in Tap / Clock mode
 	uint32_t tap_blink;
 	uint32_t clock_blink;
+	// How a Listen asked the LED to show the on state, bit per bank, the
+	// LISTEN_ looks split over two masks. A press puts it back to steady.
+	uint32_t listen_look_lo;
+	uint32_t listen_look_hi;
 	uint32_t press_tick;         // HAL tick when the button went down
 	uint32_t release_tick;       // HAL tick when a possible first press of a double ended
 	uint8_t press_state;         // PRESS_IDLE / PRESS_PENDING / PRESS_SHORT / PRESS_LONG
@@ -249,7 +253,11 @@ static inline uint8_t get_sw_toggle_state(sw_t *sw){
 }
 
 static inline void toggle_sw_state(sw_t *sw){
-	sw->switch_toggle_state ^= (1UL << sw_bank((uint8_t)(sw - a_sw_obj)));
+	uint32_t bit = 1UL << sw_bank((uint8_t)(sw - a_sw_obj));
+	sw->switch_toggle_state ^= bit;
+	// The press is the pedal's word now, until the device reports again
+	sw->listen_look_lo &= ~bit;
+	sw->listen_look_hi &= ~bit;
 	state_store_mark_dirty();
 	if(sw->led_cmd_toggle & (1UL << switch_current_page)){
 		display_request_refresh();
@@ -692,6 +700,8 @@ static void reset_bank_buttons(uint8_t bank){
 		a_sw_obj[i].switch_toggle_state &= keep;
 		a_sw_obj[i].long_toggle_state &= keep;
 		a_sw_obj[i].double_toggle_state &= keep;
+		a_sw_obj[i].listen_look_lo &= keep;
+		a_sw_obj[i].listen_look_hi &= keep;
 		cycle_pos[b * MIDI_NUM_SWITCHES + i] = CYCLE_NONE;
 	}
 }
@@ -861,6 +871,29 @@ uint8_t calculate_led_state(uint8_t pressed, uint8_t mode){
 		return pressed ? 0 : leds_level_rest();
 	} else { // Normal
 		return pressed ? leds_level_active() : 0;
+	}
+}
+
+static uint8_t listen_look(const sw_t *sw, uint8_t b){
+	return (uint8_t)(((sw->listen_look_lo >> b) & 1U) | (((sw->listen_look_hi >> b) & 1U) << 1));
+}
+
+static void set_listen_look(sw_t *sw, uint8_t b, uint8_t look){
+	uint32_t bit = 1UL << b;
+	sw->listen_look_lo = (look & 1U) ? (sw->listen_look_lo | bit) : (sw->listen_look_lo & ~bit);
+	sw->listen_look_hi = (look & 2U) ? (sw->listen_look_hi | bit) : (sw->listen_look_hi & ~bit);
+}
+
+// Brightness of a toggle button's LED: its light mode, unless a Listen
+// reported a state that blinks or is dimmed
+static uint8_t toggle_led_level(uint8_t i, uint8_t active){
+	uint8_t look = active ? listen_look(&a_sw_obj[i], sw_bank(i)) : LISTEN_STEADY;
+	uint32_t tick = HAL_GetTick();
+	switch(look){
+	case LISTEN_SLOW:	return ((tick % 1000) < 500) ? leds_level_active() : 0;
+	case LISTEN_FAST:	return ((tick % 250) < 125) ? leds_level_active() : 0;
+	case LISTEN_DIM:	return leds_level_rest();
+	default:			return calculate_led_state(active, get_button_led_mode(i));
 	}
 }
 
@@ -1252,10 +1285,7 @@ static uint8_t page_led_on(uint8_t i){
 void update_leds_on_bank_change(void){
 	for(int i=0; i<8; i++){
 		if(a_sw_obj[i].led_cmd_toggle & (1UL<<switch_current_page)){
-			uint8_t mode = get_button_led_mode(i);
-			uint8_t active = get_sw_toggle_state(&a_sw_obj[i]);
-			uint8_t state = calculate_led_state(active, mode);
-			set_led(i, state);
+			set_led(i, toggle_led_level(i, get_sw_toggle_state(&a_sw_obj[i])));
 		} else {
 			// Update based on mode (assuming released state)
 			uint8_t mode = get_button_led_mode(i);
@@ -2717,6 +2747,8 @@ static void switch_config(uint8_t target){
 		a_sw_obj[i].switch_toggle_state = 0;
 		a_sw_obj[i].long_toggle_state = 0;
 		a_sw_obj[i].double_toggle_state = 0;
+		a_sw_obj[i].listen_look_lo = 0;
+		a_sw_obj[i].listen_look_hi = 0;
 	}
 	memset(cycle_pos, CYCLE_NONE, sizeof(cycle_pos));
 	combo_toggle = 0;
@@ -2961,12 +2993,13 @@ static int8_t feedback_state_for(const uint8_t *pRom, const uint8_t *msg){
 }
 
 /*
- * What an incoming CC says to a Listen command: 1 on, 0 off, -1 nothing. The
- * value counts as whichever of the Listen's On and Off it is nearer, so a
- * device reporting 1 for on, or 0 for on and 127 for off, is understood.
- * `channel` is the list's, 0xFF when it has none to go by.
+ * What an incoming CC says to a Listen command: 0 off, 1 plus the Listen's
+ * LED look for on, -1 nothing. The value counts as whichever of the Listen's
+ * On and Off it is nearer, so a device reporting 1 for on, or 0 for on and
+ * 127 for off, is understood; how near goes to *dist. `channel` is the
+ * list's, 0xFF when it has none to go by.
  */
-static int8_t listen_state_for(const uint8_t *pRom, const uint8_t *msg, uint8_t channel){
+static int8_t listen_state_for(const uint8_t *pRom, const uint8_t *msg, uint8_t channel, uint8_t *dist){
 	if(!cmd_is_listen(pRom) || (pRom[1] & 0x7F) != msg[1]) return -1;
 	if((msg[0] & 0xF0) != 0xB0) return -1;
 	if(!msg[3] && channel != 0xFF && channel != (msg[0] & 0x0F)) return -1;
@@ -2975,7 +3008,12 @@ static int8_t listen_state_for(const uint8_t *pRom, const uint8_t *msg, uint8_t 
 	uint8_t off = pRom[3] & 0x7F;
 	uint8_t d_on  = (value > on)  ? value - on  : on - value;
 	uint8_t d_off = (value > off) ? value - off : off - value;
-	return (d_on <= d_off) ? 1 : 0;
+	if(d_on <= d_off){
+		*dist = d_on;
+		return (int8_t)(1 + LISTEN_LOOK(pRom));
+	}
+	*dist = d_off;
+	return 0;
 }
 
 // The channel of a list's first toggling command, which is where its Listen
@@ -2993,10 +3031,12 @@ static uint8_t listen_channel(const uint8_t *pRom){
 }
 
 /*
- * The state one command list asks for, or -1. The last matching command wins.
+ * The state one command list asks for: 0 off, 1 plus an LED look on, or -1.
  * A list with a Listen follows that alone: the CC it sends coming back, or
- * any other, changes nothing. The others follow what they send, when
- * LED_Feedback is on or the message is one of the Kemper's answers.
+ * any other, changes nothing. Of its Listens on the CC that came, the one
+ * with the value nearest wins, the last on a tie. The others follow what they
+ * send, the last matching command winning, when LED_Feedback is on or the
+ * message is one of the Kemper's answers.
  */
 static int8_t feedback_list_state(uint8_t *(*rom)(uint8_t, uint8_t, uint8_t),
 		uint8_t bank, uint8_t sw, const uint8_t *msg){
@@ -3012,10 +3052,15 @@ static int8_t feedback_list_state(uint8_t *(*rom)(uint8_t, uint8_t, uint8_t),
 	}
 	if(listens){
 		uint8_t channel = listen_channel(base);
+		uint8_t best = 0xFF;
 		pRom = base;
 		for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++, pRom += MIDI_ROM_CMD_SIZE){
-			int8_t s = listen_state_for(pRom, msg, channel);
-			if(s >= 0) want = s;
+			uint8_t d;
+			int8_t s = listen_state_for(pRom, msg, channel, &d);
+			if(s >= 0 && d <= best){
+				best = d;
+				want = s;
+			}
 		}
 		return want;
 	}
@@ -3040,21 +3085,27 @@ static void feedback_apply(const uint8_t *msg){
 
 			if(sw->led_cmd_toggle & bit){
 				int8_t want = feedback_list_state(get_rom_pointer, b, i, msg);
-				if(want >= 0 && ((sw->switch_toggle_state & bit) != 0) != (want == 1)){
-					sw->switch_toggle_state ^= bit;
-					changed = true;
+				bool on = want >= 1;
+				uint8_t look = on ? (uint8_t)(want - 1) : LISTEN_STEADY;
+				bool flip = want >= 0 && ((sw->switch_toggle_state & bit) != 0) != on;
+				if(flip || (want >= 0 && listen_look(sw, b) != look)){
+					if(flip){
+						sw->switch_toggle_state ^= bit;
+						changed = true;
+					}
+					set_listen_look(sw, b, look);
 					if(b == sw_bank(i)){
 						if(!sleep_is_asleep()){
-							set_led(i, calculate_led_state(want, get_button_led_mode(i)));
+							set_led(i, toggle_led_level(i, on));
 						}
-						display_request_refresh();
+						if(flip) display_request_refresh();
 					}
 				}
 			}
 
 			if(sw->long_cmd_toggle & bit){
 				int8_t want = feedback_list_state(get_long_rom_pointer, b, i, msg);
-				if(want >= 0 && ((sw->long_toggle_state & bit) != 0) != (want == 1)){
+				if(want >= 0 && ((sw->long_toggle_state & bit) != 0) != (want >= 1)){
 					sw->long_toggle_state ^= bit;
 					changed = true;
 				}
@@ -3062,7 +3113,7 @@ static void feedback_apply(const uint8_t *msg){
 
 			if(sw->double_cmd_toggle & bit){
 				int8_t want = feedback_list_state(get_double_rom_pointer, b, i, msg);
-				if(want >= 0 && ((sw->double_toggle_state & bit) != 0) != (want == 1)){
+				if(want >= 0 && ((sw->double_toggle_state & bit) != 0) != (want >= 1)){
 					sw->double_toggle_state ^= bit;
 					changed = true;
 				}
@@ -3411,8 +3462,15 @@ void handle_switches(void){
 
 	handle_delayed_cmds();
 	
-	// Continuous Blink Update Loop for AlwaysOn Buttons
+	// Continuous Blink Update Loop for AlwaysOn Buttons, and for the looks a
+	// Listen gave a toggle button that is on
 	for(int i=0; i<8; i++){
+		if((a_sw_obj[i].led_cmd_toggle & (1UL<<switch_current_page))
+				&& listen_look(&a_sw_obj[i], sw_bank(i)) != LISTEN_STEADY
+				&& get_sw_toggle_state(&a_sw_obj[i])){
+			if(!sleep_is_asleep()) set_led(i, toggle_led_level(i, 1));
+			continue;
+		}
 		uint8_t mode = get_button_led_mode(i);
 		if(mode == 2){ // AlwaysOn (Blink)
 			uint8_t is_active = 0;
@@ -3550,6 +3608,8 @@ void sw_restore_state(uint8_t page, const uint32_t toggles[8], const uint32_t lo
 	for(int i=0; i<8; i++){
 		a_sw_obj[i].switch_toggle_state = toggles[i];
 		a_sw_obj[i].long_toggle_state = long_toggles[i];
+		a_sw_obj[i].listen_look_lo = 0;
+		a_sw_obj[i].listen_look_hi = 0;
 	}
 	exp_targets_for_bank();
 	lfo_restart_all();

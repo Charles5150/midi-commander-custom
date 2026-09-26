@@ -121,7 +121,9 @@ MACRO_DEPTH = 4
 # Listen: sends nothing; the CC a device reports the list's state on, when it
 # is not the one the list sends. Byte 1 is the CC, byte 2 the value meaning on
 # and byte 3 the value meaning off; one arriving counts as the nearer of them.
+# The top bits of bytes 2 (low) and 3 (high) are how the LED shows the on value.
 CMD_LISTEN_MODE = 14
+LISTEN_LOOKS = ["Steady", "Slow", "Fast", "Dim"]
 
 # A relative Program Change is a PC whose Bank Select MSB byte, where 0x80 and
 # above already meant "none", holds one of these markers
@@ -864,14 +866,24 @@ def cmd_listen(cmd):
     OffValue the value meaning off (0 when empty); a value arriving counts as
     whichever of the two it is nearer. The list's toggle then follows that CC
     alone, on the channel of its first toggling command, with LED_Feedback on
-    or off.
+    or off. KeyMode is how the LED shows the on value, one of LISTEN_LOOKS
+    (Steady when empty); several Listens on one CC give a device's states each
+    their own, the nearest value winning.
     """
     number = max(0, min(127, safe_int(cmd.get("Number_(PC/CC/Note)", 0))))
     on_text = str(cmd.get("OnValue_(CC/PB)", "")).strip()
     off_text = str(cmd.get("OffValue_(CC)", "")).strip()
     on = 127 if on_text in ("", "nan") else max(0, min(127, safe_int(on_text)))
     off = 0 if off_text in ("", "nan") else max(0, min(127, safe_int(off_text)))
-    return [CMD_NO_CMD_NIBBLE | CMD_LISTEN_MODE, number, on, off]
+    look_text = str(cmd.get("KeyMode_(Key)", "")).strip()
+    if look_text in ("", "nan"):
+        look_text = LISTEN_LOOKS[0]
+    looks = {m.upper(): i for i, m in enumerate(LISTEN_LOOKS)}
+    if look_text.upper() not in looks:
+        raise ValueError(f"Listen LED must be one of {', '.join(LISTEN_LOOKS)}, not {look_text!r}")
+    look = looks[look_text.upper()]
+    return [CMD_NO_CMD_NIBBLE | CMD_LISTEN_MODE, number,
+            on | ((look & 1) << 7), off | ((look & 2) << 6)]
 
 
 def cmd_none(cmd):

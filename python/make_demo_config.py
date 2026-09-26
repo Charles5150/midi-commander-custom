@@ -252,6 +252,14 @@ def build() -> Demo:
 
     # --- bank 1: looper, the everyday case -------------------------------
     d.cc(1, "1", "REC", "1", toggle="Y", light="AlwaysOn")
+    # It reports recording and overdubbing on CC 23, 1 and 2, 0 when neither:
+    # REC's LED blinks fast while it records and slowly while it overdubs
+    d.button(1, "1", slot="B", CommandType="Listen",
+             **{"Number_(PC/CC/Note)": "23", "OnValue_(CC/PB)": "1", "OffValue_(CC)": "0",
+                "KeyMode_(Key)": "Fast"})
+    d.button(1, "1", slot="C", CommandType="Listen",
+             **{"Number_(PC/CC/Note)": "23", "OnValue_(CC/PB)": "2", "OffValue_(CC)": "0",
+                "KeyMode_(Key)": "Slow"})
     d.cc(1, "2", "PLAY", "2", toggle="Y")
     # The looper reports whether it is playing on a CC of its own, CC 22 at 1
     # while it plays: PLAY's LED follows that rather than its own CC 2

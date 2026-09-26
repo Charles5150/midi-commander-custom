@@ -406,6 +406,7 @@ In the demo, holding 2 on HOME runs the list stored on bank 11's WAIT button, pa
 | `Number` | The CC the device reports on |
 | `OnValue` | The value it sends for on, 127 when empty |
 | `OffValue` | The value it sends for off, 0 when empty |
+| `KeyMode` | How the LED shows on: `Steady` (or empty), `Slow` blink, `Fast` blink or `Dim` |
 
 A value arriving counts as whichever of the two it is nearer, so a device that reports 0 for on and 127 for off is understood too, and one that sends 100 for on with an `OnValue` of 127 still lights the button.
 
@@ -416,11 +417,29 @@ A value arriving counts as whichever of the two it is nearer, so a device that r
 - A `Listen` sends nothing and stands in no one's way: it can sit between a `Chan`, `Ramp`, `LFO`, `Seq` or `If` and the command they reach. It works in the short, long and double press lists; only the short press list has an LED.
 - Several `Listen` commands in one list listen on several CCs, the last one that arrived counting.
 
-In the configurator, **Learn** on a `Listen` slot fills it from the device: switch the block on at the device itself and the CC and the value it reports are taken. In the demo, bank 1's PLAY sends CC 2 and follows CC 22, 1 while the looper plays.
+#### A state for every value
+
+A looper or a DAW reports more than on and off: recording, overdubbing, playing, stopped. Several `Listen` commands on the **same CC** give each state its own look: of all their `OnValue` and `OffValue`, the one nearest the value that arrived wins, and with it the LED's look. Three commands cover a looper that reports 0 stopped, 1 recording, 2 overdubbing and 3 playing:
+
+| `Number` | `OnValue` | `OffValue` | `KeyMode` |
+|---|---|---|---|
+| 23 | 1 | 0 | `Fast` |
+| 23 | 2 | 0 | `Slow` |
+| 23 | 3 | 0 | `Steady` |
+
+- The LED blinks fast (four times a second) while it records, slowly (once a second) while it overdubs, is lit while it plays and goes out at 0.
+- `Dim` lights it at [`LED_Rest_Brightness`](12-configuration-file.md#global_settings), the level of a Reverse or AlwaysOn LED at rest, 100 % unless set lower: for a state such as "there is a loop, stopped" on a button whose LED is otherwise out.
+- The look is kept per bank, like the state, and shown on coming back to the bank.
+- Pressing the button puts its LED back to its own light mode until the device reports again, which it usually does straight away.
+- The look is only for the LED; the display cell and the next press see on or off.
+
+In the configurator, **Learn** on a `Listen` slot fills it from the device: switch the block on at the device itself and the CC and the value it reports are taken; the **LED** list beside it picks the look. In the demo, bank 1's PLAY sends CC 2 and follows CC 22, 1 while the looper plays, and REC follows CC 23, blinking fast at 1, recording, and slowly at 2, overdubbing.
+
+*The look needs firmware 0.72 or later; older firmware shows every state as steady.*
 
 <details><summary>Under the hood</summary>
 
-`Listen` is marked by the low nibble of the empty command type, 14, with the CC in byte 1, the value for on in byte 2 and for off in byte 3, so the layout is unchanged. Older firmware ignores it, and the button follows the CC it sends, with `LED_Feedback` on, as before.
+`Listen` is marked by the low nibble of the empty command type, 14, with the CC in byte 1, the value for on in byte 2 and for off in byte 3, so the layout is unchanged. Older firmware ignores it, and the button follows the CC it sends, with `LED_Feedback` on, as before. The look takes the top bits of bytes 2 (low bit) and 3 (high bit), which the values leave free: 0 steady, 1 slow, 2 fast, 3 dim. Firmware 0.69 to 0.71 masks them off.
 
 </details>
 
@@ -442,7 +461,7 @@ The reference: every column of a command slot in the CSV, and what each command 
 | `Toggle_(CC/PB/Note)` | | ✓ | ✓ | ✓ | ✓ | Y: alternate on / off on successive presses. Key / Media: hold until the next press |
 | `Velocity_(Note)` | | | ✓ | | | 0–127 |
 | `Duration_(Note/PB)` | | | ✓ | ✓ | ✓ | In 10 ms steps, 0–127 (max 1.27 s). Media: same as Key. Wait: the pause in milliseconds, up to 2550. Ramp: its time in milliseconds, up to 655350 |
-| `KeyMode_(Key)` | | | | | ✓ | Normal / Down / Up. CCInc and PCInc: Up / Down / Up Repeat / Down Repeat. Tap: Tap / Clock / Set / Up / Down / Up Repeat / Down Repeat. Exp: CC / Off / Own / Speed. LFO: Sine / Triangle / SawUp / SawDown / Square / Random (empty for Sine). Seq: how long a step lasts, the same note divisions as the LFO (empty for `1/8`), read from the first command of the run. MMC: Play / Stop / Record / RecordExit / Pause / FastForward / Rewind / Locate / DeferredPlay / Chase / Eject / Reset (empty for Play). Song: Select / Position. Value: Set / Add / Sub (empty for Set). If: Button on / Button off / Value = / Value <> / Value < / Value >= / Bank is / Bank is not. Bank: GoTo / Up / Down / Back / Page / Config / NextConfig. Macro: Short / Long / Double |
+| `KeyMode_(Key)` | | | | | ✓ | Normal / Down / Up. CCInc and PCInc: Up / Down / Up Repeat / Down Repeat. Tap: Tap / Clock / Set / Up / Down / Up Repeat / Down Repeat. Listen: Steady / Slow / Fast / Dim. Exp: CC / Off / Own / Speed. LFO: Sine / Triangle / SawUp / SawDown / Square / Random (empty for Sine). Seq: how long a step lasts, the same note divisions as the LFO (empty for `1/8`), read from the first command of the run. MMC: Play / Stop / Record / RecordExit / Pause / FastForward / Rewind / Locate / DeferredPlay / Chase / Eject / Reset (empty for Play). Song: Select / Position. Value: Set / Add / Sub (empty for Set). If: Button on / Button off / Value = / Value <> / Value < / Value >= / Bank is / Bank is not. Bank: GoTo / Up / Down / Back / Page / Config / NextConfig. Macro: Short / Long / Double |
 
 ---
 

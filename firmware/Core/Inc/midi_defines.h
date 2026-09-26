@@ -216,8 +216,15 @@
 // as toggling), byte 2 the value meaning on and byte 3 the value meaning off;
 // a value arriving counts as whichever of the two it is nearer. The channel is
 // that of the list's first toggling command. It works whether LED_Feedback is
-// on or not.
+// on or not. The top bits of bytes 2 (low) and 3 (high) say how the LED shows
+// the on value: steady, blinking slowly or fast, or dimmed. Several Listens on
+// one CC give a device's states each a look: the nearest value of them all wins.
 #define CMD_LISTEN_MODE		(14)
+#define LISTEN_LOOK(c)		((uint8_t)((((c)[2] >> 7) & 1U) | (((c)[3] >> 6) & 2U)))
+#define LISTEN_STEADY		(0)
+#define LISTEN_SLOW			(1)
+#define LISTEN_FAST			(2)
+#define LISTEN_DIM			(3)
 #define CMD_PC_NIBBLE		(0xC0)
 // Relative Program Change: a PC whose byte 2 (the Bank Select MSB, 0x80 and up
 // meaning none) holds one of these markers. Byte 1 is the step, byte 3 the last

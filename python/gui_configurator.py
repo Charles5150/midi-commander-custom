@@ -27,7 +27,7 @@ from lib.cmdBinaryPacker import (  # noqa: E402
     EXP_TARGETS, HID_SPECIAL_KEYS, LFO_DIVISIONS, LFO_SHAPES, MEDIA_KEYS, RAMP_MAX_MS,
     MMC_COMMANDS, MMC_LOCATE_MAX, SONG_MODES, SONG_POSITION_MAX,
     VAR_MODES, VAR_COUNT, VAR_DEFAULT_TOP, IF_TESTS, IF_BUTTON_TESTS, IF_VALUE_TESTS,
-    SCENE_BUTTONS, MACRO_LISTS,
+    SCENE_BUTTONS, MACRO_LISTS, LISTEN_LOOKS,
 )
 from lib.configCsv import read_config_csv, write_config_csv  # noqa: E402
 from lib.configPacker import NUM_BANKS, BUTTON_IDS  # noqa: E402
@@ -884,9 +884,14 @@ class SlotEditor:
             self._int("number", "CC", "Number_(PC/CC/Note)", 0, 127)
             self._int("on", "On", "OnValue_(CC/PB)", 0, 127)
             self._int("off", "Off", "OffValue_(CC)", 0, 127)
+            self._label("LED")
+            w = Option(self.params, LISTEN_LOOKS,
+                       clean(self.initial.get("KeyMode_(Key)")) or LISTEN_LOOKS[0], width=75)
+            w.pack(side="left")
+            self.widgets["listenlook"] = w
             ctk.CTkLabel(
                 self.params,
-                text="(the CC the device reports on; empty: 127/0)",
+                text="(the CC the device reports on; empty: 127/0. LED: how On shows)",
                 text_color=MUTED,
             ).pack(side="left", padx=8)
         elif cmd_type == "Exp":
@@ -996,6 +1001,9 @@ class SlotEditor:
                 out["Number_(PC/CC/Note)"] = w["ifwhich"].value()
             if "ifvalue" in w:
                 out["OnValue_(CC/PB)"] = w["ifvalue"].value()
+        if cmd_type == "Listen":
+            look = w["listenlook"].value()
+            out["KeyMode_(Key)"] = "" if look == LISTEN_LOOKS[0] else look
         if cmd_type == "Macro":
             out["OnValue_(CC/PB)"] = w["macrobank"].value()
             out["Number_(PC/CC/Note)"] = w["macrobutton"].value()

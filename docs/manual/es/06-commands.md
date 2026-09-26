@@ -406,6 +406,7 @@ En la demo, mantener 2 en HOME ejecuta la lista guardada en el botón WAIT del b
 | `Number` | El CC en el que informa el equipo |
 | `OnValue` | El valor que envía para encendido; 127 si está vacío |
 | `OffValue` | El valor que envía para apagado; 0 si está vacío |
+| `KeyMode` | Cómo muestra el LED el encendido: `Steady` (o vacío) fijo, `Slow` parpadeo lento, `Fast` parpadeo rápido o `Dim` tenue |
 
 Un valor que llega cuenta como el de los dos al que esté más cerca, así que también se entiende un equipo que informa 0 para encendido y 127 para apagado, y uno que envía 100 para encendido con un `OnValue` de 127 sigue encendiendo el botón.
 
@@ -416,11 +417,29 @@ Un valor que llega cuenta como el de los dos al que esté más cerca, así que t
 - Un `Listen` no envía nada y no estorba a nadie: puede ir entre un `Chan`, `Ramp`, `LFO`, `Seq` o `If` y el comando al que afectan. Funciona en las listas de pulsación corta, larga y doble; solo la corta tiene LED.
 - Varios `Listen` en una lista escuchan varios CC, y cuenta el último que llegó.
 
-En el configurador, **Learn** en una casilla `Listen` la rellena desde el equipo: activa el bloque en el propio equipo y se toman el CC y el valor que informa. En la demo, PLAY del banco 1 envía el CC 2 y sigue al CC 22, que vale 1 mientras el looper reproduce.
+#### Un estado para cada valor
+
+Un looper o un DAW informan de algo más que encendido y apagado: grabando, sobregrabando, reproduciendo, parado. Varios `Listen` en el **mismo CC** dan a cada estado su propio aspecto: de todos sus `OnValue` y `OffValue`, gana el más cercano al valor que llegó, y con él el aspecto del LED. Tres comandos cubren un looper que informa 0 parado, 1 grabando, 2 sobregrabando y 3 reproduciendo:
+
+| `Number` | `OnValue` | `OffValue` | `KeyMode` |
+|---|---|---|---|
+| 23 | 1 | 0 | `Fast` |
+| 23 | 2 | 0 | `Slow` |
+| 23 | 3 | 0 | `Steady` |
+
+- El LED parpadea rápido (cuatro veces por segundo) mientras graba, despacio (una vez por segundo) mientras sobregraba, queda encendido mientras reproduce y se apaga con el 0.
+- `Dim` lo enciende a [`LED_Rest_Brightness`](12-configuration-file.md#global_settings), el nivel de un LED Reverse o AlwaysOn en reposo, 100 % salvo que lo bajes: para un estado como «hay un loop, parado» en un botón cuyo LED, si no, está apagado.
+- El aspecto se guarda por banco, como el estado, y se ve al volver al banco.
+- Pulsar el botón devuelve su LED a su propio modo de luz hasta que el equipo vuelve a informar, que suele ser al instante.
+- El aspecto es solo para el LED; la casilla de la pantalla y la siguiente pulsación ven encendido o apagado.
+
+En el configurador, **Learn** en una casilla `Listen` la rellena desde el equipo: activa el bloque en el propio equipo y se toman el CC y el valor que informa; la lista **LED** de al lado elige el aspecto. En la demo, PLAY del banco 1 envía el CC 2 y sigue al CC 22, que vale 1 mientras el looper reproduce, y REC sigue al CC 23, parpadeando rápido con 1, grabando, y despacio con 2, sobregrabando.
+
+*El aspecto necesita el firmware 0.72 o posterior; los anteriores muestran todos los estados fijos.*
 
 <details><summary>Por dentro</summary>
 
-`Listen` se marca por el nibble bajo del tipo de comando vacío, 14, con el CC en el byte 1, el valor de encendido en el byte 2 y el de apagado en el byte 3, así que la disposición no cambia. El firmware anterior lo ignora, y el botón sigue al CC que envía, con `LED_Feedback` activado, como antes.
+`Listen` se marca por el nibble bajo del tipo de comando vacío, 14, con el CC en el byte 1, el valor de encendido en el byte 2 y el de apagado en el byte 3, así que la disposición no cambia. El firmware anterior lo ignora, y el botón sigue al CC que envía, con `LED_Feedback` activado, como antes. El aspecto ocupa los bits altos de los bytes 2 (bit bajo) y 3 (bit alto), que los valores dejan libres: 0 fijo, 1 lento, 2 rápido, 3 tenue. Los firmwares 0.69 a 0.71 los descartan.
 
 </details>
 
@@ -442,7 +461,7 @@ La referencia: cada columna de una casilla de comando en el CSV, y qué hace con
 | `Toggle_(CC/PB/Note)` | | ✓ | ✓ | ✓ | ✓ | Y: alterna on / off en pulsaciones sucesivas. Key / Media: mantener hasta la siguiente pulsación |
 | `Velocity_(Note)` | | | ✓ | | | 0–127 |
 | `Duration_(Note/PB)` | | | ✓ | ✓ | ✓ | En pasos de 10 ms, 0–127 (máx. 1,27 s). Media: igual que Key. Wait: la pausa en milisegundos, hasta 2550. Ramp: su tiempo en milisegundos, hasta 655350 |
-| `KeyMode_(Key)` | | | | | ✓ | Normal / Down / Up. CCInc y PCInc: Up / Down / Up Repeat / Down Repeat. Tap: Tap / Clock / Set / Up / Down / Up Repeat / Down Repeat. Exp: CC / Off / Own / Speed. LFO: Sine / Triangle / SawUp / SawDown / Square / Random (vacío es Sine). Seq: cuánto dura un paso, las mismas divisiones que el LFO (vacío es `1/8`), leído del primer comando de la serie. MMC: Play / Stop / Record / RecordExit / Pause / FastForward / Rewind / Locate / DeferredPlay / Chase / Eject / Reset (vacío es Play). Song: Select / Position. Value: Set / Add / Sub (vacío es Set). If: Button on / Button off / Value = / Value <> / Value < / Value >= / Bank is / Bank is not. Bank: GoTo / Up / Down / Back / Page / Config / NextConfig. Macro: Short / Long / Double |
+| `KeyMode_(Key)` | | | | | ✓ | Normal / Down / Up. CCInc y PCInc: Up / Down / Up Repeat / Down Repeat. Tap: Tap / Clock / Set / Up / Down / Up Repeat / Down Repeat. Listen: Steady / Slow / Fast / Dim. Exp: CC / Off / Own / Speed. LFO: Sine / Triangle / SawUp / SawDown / Square / Random (vacío es Sine). Seq: cuánto dura un paso, las mismas divisiones que el LFO (vacío es `1/8`), leído del primer comando de la serie. MMC: Play / Stop / Record / RecordExit / Pause / FastForward / Rewind / Locate / DeferredPlay / Chase / Eject / Reset (vacío es Play). Song: Select / Position. Value: Set / Add / Sub (vacío es Set). If: Button on / Button off / Value = / Value <> / Value < / Value >= / Bank is / Bank is not. Bank: GoTo / Up / Down / Back / Page / Config / NextConfig. Macro: Short / Long / Double |
 
 ---
 

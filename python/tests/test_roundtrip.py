@@ -3604,6 +3604,49 @@ class ListenTest(unittest.TestCase):
                          ("Listen", "22", "1", "0"))
 
 
+class ListenLookTest(unittest.TestCase):
+    """How a Listen's LED shows the on value (firmware 0.72)."""
+
+    FIRMWARE = MacroTest.FIRMWARE
+    pack = staticmethod(MacroTest.pack)
+
+    def test_looks_match_firmware(self):
+        import re
+
+        with open(os.path.join(self.FIRMWARE, "Inc", "midi_defines.h")) as handle:
+            text = handle.read()
+        looks = dict(re.findall(r"^#define\s+LISTEN_(STEADY|SLOW|FAST|DIM)\s+\((\d+)\)", text, re.M))
+        self.assertEqual({name.title(): int(v) for name, v in looks.items()},
+                         {name: i for i, name in enumerate(cbp.LISTEN_LOOKS)})
+
+    def test_top_bits_carry_the_look(self):
+        for look, packed in (("", [0x0E, 23, 1, 0]), ("Steady", [0x0E, 23, 1, 0]),
+                             ("Slow", [0x0E, 23, 0x81, 0]), ("fast", [0x0E, 23, 1, 0x80]),
+                             ("Dim", [0x0E, 23, 0x81, 0x80])):
+            raw = self.pack("Listen", **{"Number_(PC/CC/Note)": "23", "OnValue_(CC/PB)": "1",
+                                         "OffValue_(CC)": "0", "KeyMode_(Key)": look})
+            self.assertEqual(list(raw), packed, look)
+            back = unpacker.unpack_command(raw)
+            self.assertEqual((back["OnValue_(CC/PB)"], back["OffValue_(CC)"]), ("1", "0"))
+            want = "" if look.title() in ("", "Steady") else look.title()
+            self.assertEqual(norm(back.get("KeyMode_(Key)", "")), want)
+
+    def test_unknown_look_is_an_error(self):
+        with self.assertRaises(ValueError):
+            self.pack("Listen", **{"Number_(PC/CC/Note)": "23", "KeyMode_(Key)": "Strobe"})
+
+    def test_demo_rec_blinks_while_recording(self):
+        packed = packer.pack_config(read_config_csv(DEMO_CSV))
+        frames = unpacker.unpack_config(packed)
+        buttons = next(f for f in frames if "Label" in f.columns and "A_CommandType" in f.columns)
+        row = buttons[(buttons["Bank_Number"].astype(str) == "1")
+                      & (buttons["Button_Identifier"].astype(str) == "1")].iloc[0]
+        self.assertEqual([(norm(row[f"{c}_CommandType"]), norm(row[f"{c}_Number_(PC/CC/Note)"]),
+                           norm(row[f"{c}_OnValue_(CC/PB)"]), norm(row[f"{c}_KeyMode_(Key)"]))
+                          for c in "BC"],
+                         [("Listen", "23", "1", "Fast"), ("Listen", "23", "2", "Slow")])
+
+
 class GlobalButtonTest(unittest.TestCase):
     """Global buttons: one bank holds what is the same everywhere (0.57)."""
 
