@@ -463,7 +463,9 @@ def pack_double_press(sections: dict):
             packed = cbp.pack_row(row) if row is not None else [0] * (cbp.MIDI_NUM_COMMANDS_PER_SWITCH * 4)
             for i in range(0, len(packed), 4):
                 cmd = packed[i:i + 4]
-                out += bytes(cmd) if (cmd[0] & 0xF0) != 0 else b"\xff" * 4
+                # Only an empty slot is left erased: the commands that share
+                # the empty type (Wait, If, Macro, Button...) are kept
+                out += bytes(cmd) if any(cmd) else b"\xff" * 4
     if out.count(0xFF) == len(out):
         return None
     return bytes(out)

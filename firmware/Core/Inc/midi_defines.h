@@ -209,6 +209,20 @@
 #define MACRO_LIST_LONG		(1)
 #define MACRO_LIST_DOUBLE	(2)
 #define MACRO_LIST_COUNT	(3)
+// Button: a Macro whose byte 3 is not 0. Instead of running the list in place
+// it works the named button as a foot would, with its own toggle state, LED and
+// display cell: byte 3 is what it does, one of the BUTTON_ACT_ values. Press
+// toggles it and sends its list; On and Off only press it when it is not
+// already there; Set On and Set Off change its state and LED and send nothing.
+// Byte 1 may be BUTTON_THIS_BANK for whichever bank is showing. Bank changes in
+// the list it sends are ignored, and a list a Button sent does not work other
+// buttons in turn.
+#define BUTTON_ACT_PRESS	(1)
+#define BUTTON_ACT_ON		(2)
+#define BUTTON_ACT_OFF		(3)
+#define BUTTON_ACT_SET_ON	(4)
+#define BUTTON_ACT_SET_OFF	(5)
+#define BUTTON_THIS_BANK	(0x7F)
 // Listen: same empty command type, low nibble 14. Sends nothing: it names the
 // Control Change a device reports this list's state on, when that is not the
 // one the list sends, and the list's toggle then follows that CC alone. Byte 1

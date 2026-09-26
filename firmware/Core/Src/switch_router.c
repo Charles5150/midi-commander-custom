@@ -37,6 +37,7 @@ static bool switch_down(GPIO_TypeDef *port, uint16_t pin);
 #define LIST_SKIP_BANK		(0x01)	// bank change commands are ignored in this list
 #define LIST_UP_AFTER		(0x02)	// the release pass follows the press pass
 #define LIST_KEY_WAITED		(0x04)	// resumed at a Key whose delay is already over
+#define LIST_NO_BUTTON		(0x08)	// Button commands are passed over, see run_button_cmd
 /*
  * A list being run. A Macro command runs another button's list in place, so
  * one is a stack of these: the frame at the top is the list running now, the
@@ -53,6 +54,7 @@ typedef struct {
 static bool run_cmd_list(uint8_t *base, uint8_t first, uint8_t start, uint8_t toggle, uint8_t owner, uint8_t flags, bool allow_wait);
 static bool run_list_stack(frame_t *st, uint8_t depth, uint8_t toggle, uint8_t owner, uint8_t flags, bool allow_wait);
 static void run_list_up(uint8_t *base, uint8_t first, uint8_t toggle, uint8_t flags);
+static void run_button_cmd(const uint8_t *pRom);
 static bool pending_defer_release(uint8_t owner);
 static void pending_flush_owner(uint8_t owner);
 static bool pending_any(void);
@@ -539,13 +541,13 @@ static uint8_t cycle_first(const uint8_t *base, uint8_t state){
 	return (marker == 0xFF) ? 0 : (uint8_t)(marker + 1);
 }
 
-// Step a button of the current bank on to its next state and return the first
-// command of that state; 0 for a button that does not cycle
-static uint8_t cycle_advance(uint8_t i){
-	const uint8_t *base = get_rom_pointer(switch_current_page, i, 0);
+// Step a button of a bank on to its next state and return the first command
+// of that state; 0 for a button that does not cycle
+static uint8_t cycle_advance(uint8_t bank, uint8_t i){
+	const uint8_t *base = get_rom_pointer(bank, i, 0);
 	uint8_t n = cycle_states(base);
 	if(n == 1) return 0;
-	uint8_t *pos = &cycle_pos[sw_bank(i) * MIDI_NUM_SWITCHES + i];
+	uint8_t *pos = &cycle_pos[button_bank(bank, i) * MIDI_NUM_SWITCHES + i];
 	*pos = (*pos == CYCLE_NONE || *pos + 1 >= n) ? 0 : (uint8_t)(*pos + 1);
 	display_request_refresh();
 	return cycle_first(base, *pos);
@@ -2244,6 +2246,10 @@ static bool run_list_stack(frame_t *st, uint8_t depth, uint8_t toggle,
 			skip = false;
 			continue;
 		}
+		if(cmd_is_macro(pRom) && pRom[3]){
+			if(!(flags & LIST_NO_BUTTON)) run_button_cmd(pRom);
+			continue;
+		}
 		if(cmd_is_macro(pRom)){
 			uint8_t *target = macro_list(pRom);
 			// Nothing to call, too deep, or a list already running: passed over
@@ -2331,6 +2337,7 @@ static void run_list_up(uint8_t *base, uint8_t first, uint8_t toggle, uint8_t fl
 		uint8_t *pRom = base + j * MIDI_ROM_CMD_SIZE;
 		if(cmd_is_cycle(pRom)) break;
 		if(cmd_is_listen(pRom)) continue;
+		if(cmd_is_macro(pRom) && pRom[3] && !skip) continue;	// all done on the press
 		if(cmd_is_macro(pRom) && !skip){
 			uint8_t *target = macro_list(pRom);
 			if(target == NULL || depth >= MACRO_DEPTH || macro_on_stack(st, depth, target)){
@@ -2501,7 +2508,7 @@ static void fire_short_down(uint8_t i){
 		set_momentary_led(i, 1);
 	}
 
-	uint8_t first = cycle_advance(i);
+	uint8_t first = cycle_advance(switch_current_page, i);
 	sw->press_bank = switch_current_page;
 	repeat_arm(sw, get_rom_pointer(switch_current_page, i, 0), first);
 	run_cmd_list(get_rom_pointer(switch_current_page, i, 0), first, first, get_sw_toggle_state(sw), i, 0, true);
@@ -2809,6 +2816,78 @@ static void apply_scene(uint8_t mask, uint8_t states){
 
 	if(pending_bank == 0xFF) pending_bank = saved_pending;
 	applying = false;
+}
+
+/*
+ * Button: work another button, of this bank or any other, as a foot would, see
+ * BUTTON_ACT_ in midi_defines.h. A press of a button of the bank showing goes
+ * through its exclusive group, and one of a cycle button sends its next state.
+ * The list it sends cannot change the bank, nor work buttons of its own: a
+ * Button in it is passed over, even after a Wait, so buttons cannot press each
+ * other round and round.
+ */
+static void run_button_cmd(const uint8_t *pRom){
+	uint8_t action = pRom[3];
+	uint8_t bank = pRom[1] & 0x7F;
+	uint8_t i = pRom[2] & 0x07;
+	uint8_t which = (pRom[2] >> 4) & 0x03;
+	if(bank == BUTTON_THIS_BANK) bank = switch_current_page;
+	if(bank >= MIDI_NUM_BANKS || action > BUTTON_ACT_SET_OFF) return;
+
+	sw_t *sw = &a_sw_obj[i];
+	uint8_t *base;
+	uint32_t *state;
+	uint32_t toggles;
+	switch(which){
+	case MACRO_LIST_LONG:
+		base = get_long_rom_pointer(bank, i, 0);
+		state = &sw->long_toggle_state;
+		toggles = sw->long_cmd_toggle;
+		break;
+	case MACRO_LIST_DOUBLE:
+		if(!flash_settings_double_stored()) return;
+		base = get_double_rom_pointer(bank, i, 0);
+		state = &sw->double_toggle_state;
+		toggles = sw->double_cmd_toggle;
+		break;
+	default:
+		base = get_rom_pointer(bank, i, 0);
+		state = &sw->switch_toggle_state;
+		toggles = sw->led_cmd_toggle;
+		break;
+	}
+	uint32_t bit = 1UL << button_bank(bank, i);
+	bool on = (*state & bit) != 0;
+	if(action != BUTTON_ACT_PRESS){
+		if(!(toggles & (1UL << bank))) return;	// no state to set
+		bool want = (action == BUTTON_ACT_ON || action == BUTTON_ACT_SET_ON);
+		if(on == want) return;
+	}
+	bool here = (bank == switch_current_page);
+	bool send = (action <= BUTTON_ACT_OFF);
+
+	uint8_t saved_bank = pending_bank;	// the calling list's, applied when it ends
+	uint8_t saved_page = pending_page;
+	uint8_t first = 0;
+	if(which == MACRO_LIST_SHORT){
+		if(here && send) release_group(i);
+		if(send) first = cycle_advance(bank, i);
+		// The button's word now, not what a device last reported
+		sw->listen_look_lo &= ~bit;
+		sw->listen_look_hi &= ~bit;
+	}
+	*state ^= bit;
+	state_store_mark_dirty();
+	if(here){
+		if(!sleep_is_asleep()) update_leds_on_bank_change();
+		display_request_refresh();
+	}
+	if(send){
+		run_cmd_list(base, first, first, (*state & bit) ? 1 : 0, PENDING_OWNER_NONE,
+				LIST_SKIP_BANK | LIST_UP_AFTER | LIST_NO_BUTTON, true);
+	}
+	pending_bank = saved_bank;
+	pending_page = saved_page;
 }
 
 /*

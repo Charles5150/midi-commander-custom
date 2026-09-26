@@ -32,6 +32,7 @@ En el configurador, una lista son diez casillas, de la A a la J. Elige el tipo d
 | `Value` | Fija o cuenta uno de los ocho valores de la pedalera | [Valores y condiciones](#valores-y-condiciones) |
 | `If` | Retiene el comando de abajo si no se cumple una condición | [Valores y condiciones](#valores-y-condiciones) |
 | `Macro` | Ejecuta la lista de otro botón en su sitio | [Macros](#macros) |
+| `Button` | Pulsa otro botón, o lo enciende o apaga, con su LED | [Pulsar otro botón](#pulsar-otro-botón) |
 | `Listen` | El CC en el que un equipo informa del estado del botón | [Escuchar otro CC](#escuchar-otro-cc) |
 | `Tap` | Tap tempo, el reloj MIDI, fijar o retocar el tempo | [Tempo](07-tempo.md#tap-tempo) |
 | `LFO` | Hace oscilar a tempo el CC de abajo | [Tempo](07-tempo.md#lfo-sincronizado-al-tempo) |
@@ -391,11 +392,45 @@ En la demo, mantener 2 en HOME ejecuta la lista guardada en el botón WAIT del b
 
 <details><summary>Por dentro</summary>
 
-`Macro` se marca por el nibble bajo del tipo de comando vacío, 13, con el banco en el byte 1 y el botón y la lista en el byte 2, así que la disposición no cambia. El firmware anterior lo ignora y no envía nada en su lugar.
+`Macro` se marca por el nibble bajo del tipo de comando vacío, 13, con el banco en el byte 1, el botón y la lista en el byte 2 y un 0 en el byte 3, así que la disposición no cambia. El firmware anterior lo ignora y no envía nada en su lugar.
 
 </details>
 
 *Firmware 0.56 o posterior.*
+
+### Pulsar otro botón
+
+`CommandType` `Button` acciona otro botón como lo haría tu pie: su toggle cambia, su LED y su sitio en la pantalla lo siguen, y se envía su propia lista. El botón de la intro de una canción enciende el delay y lo ilumina; un cambio de preset devuelve un botón a apagado sin enviar nada.
+
+| Campo | Significado |
+|---|---|
+| `OnValue` | El banco de ese botón, de 0 a 31, o vacío para el banco que se esté viendo |
+| `Number` | El botón, `1`–`4` o `A`–`D` |
+| `KeyMode` | Qué hacer, `Press` si está vacío, seguido de `Long` o `Double` para accionar esa lista en vez de la de pulsación corta: `On Long`, `Set Off Double` |
+
+| `KeyMode` | Qué hace |
+|---|---|
+| `Press` | Pisar y soltar, igual que con el pie: el toggle cambia y se envía la lista |
+| `On`, `Off` | Lo mismo, pero solo si el botón no está ya encendido (o apagado), así que pisar dos veces no envía nada la segunda |
+| `Set On`, `Set Off` | Cambian el toggle y el LED y no se envía nada: para cuando el aparato ya está donde el botón debería decir |
+
+Cómo funciona:
+
+- Un botón del banco que se ve se enciende o se apaga en el acto. Uno de otro banco guarda su nuevo estado y lo enseña cuando llegas allí.
+- Pulsar un botón de un [grupo exclusivo](05-buttons.md#grupos-exclusivos) del banco que se ve suelta antes a los demás de su grupo, como con el pie, y un [botón de ciclo](05-buttons.md#botones-de-ciclo) envía su siguiente estado.
+- `On`, `Off`, `Set On` y `Set Off` solo llegan a una lista con toggle: un botón momentáneo no tiene estado que poner, y se deja como está. `Press` sirve para cualquiera.
+- La lista que envía no puede cambiar de banco: sus comandos `Bank` se saltan. Tampoco puede accionar otros botones a su vez: un `Button` dentro de ella también se salta, incluso después de un `Wait`, así que dos botones no pueden pulsarse el uno al otro sin fin.
+- No es una [`Macro`](#macros): una macro ejecuta una lista con el toggle del botón que la llama, y solo ilumina a ese; un `Button` acciona el otro botón, con su propio estado. Y a diferencia de una [`Scene`](05-buttons.md#escenas), llega a cualquier banco y a cualquiera de las tres listas de un botón.
+
+En la demo, mantener WAIT en el banco 11 enciende TGLS, a su lado, y FX4 en la segunda página de la primera canción (banco 31), cada uno solo si está apagado.
+
+<details><summary>Por dentro</summary>
+
+`Button` es un `Macro` cuyo byte 3, antes siempre 0, no lo es: 1 `Press`, 2 `On`, 3 `Off`, 4 `Set On`, 5 `Set Off`. El byte 1 es el banco, 0x7F para el que se esté viendo, y el byte 2 el botón en su nibble bajo y la lista en el alto, como en una macro. El firmware anterior lo toma por un `Macro` y ejecuta la lista de ese botón en su sitio.
+
+</details>
+
+*Firmware 0.73 o posterior.*
 
 ### Escuchar otro CC
 
@@ -451,17 +486,17 @@ La referencia: cada columna de una casilla de comando en el CSV, y qué hace con
 
 | Campo | PC | CC | Note | PB | Key | Significado |
 |---|---|---|---|---|---|---|
-| `CommandType` | | | | | | `PC`, `PCInc`, `CC`, `CCInc`, `Note`, `PB`, `Key`, `Media`, `Bank`, `SysEx`, `Tap`, `Start`, `Stop`, `MMC`, `Song`, `Panic`, `Scene`, `Wait`, `Ramp`, `LFO`, `Seq`, `Exp`, `Chan`, `Value`, `If`, `Macro`, `Listen`, `Cycle` (solo pulsación corta), `Leave` (solo en la lista de entrada de un banco), o vacío para ninguno |
+| `CommandType` | | | | | | `PC`, `PCInc`, `CC`, `CCInc`, `Note`, `PB`, `Key`, `Media`, `Bank`, `SysEx`, `Tap`, `Start`, `Stop`, `MMC`, `Song`, `Panic`, `Scene`, `Wait`, `Ramp`, `LFO`, `Seq`, `Exp`, `Chan`, `Value`, `If`, `Macro`, `Button`, `Listen`, `Cycle` (solo pulsación corta), `Leave` (solo en la lista de entrada de un banco), o vacío para ninguno |
 | `Channel_(PC/CC/Note/PB)` | ✓ | ✓ | ✓ | ✓ | | Canal MIDI 1–16. Exp: vacío para el propio del pedal. Chan: la lista de canales, `1 2 3` o `1-3` |
-| `Number_(PC/CC/Note)` | ✓ | ✓ | ✓ | | ✓ | PC: programa 0–127. CC: número de controlador. Note: número de nota. Key: máscara de modificadores. Exp: el CC que envía el pedal. Value: cuál de los ocho, 1–8. If: el botón al que mira, `1`–`4` o `A`–`D`, o el valor, 1–8. Macro: el botón, `1`–`4` o `A`–`D`. Listen: el CC que escucha |
-| `OnValue_(CC/PB)` | | ✓ | | ✓ | ✓ | CC: valor al pisar (0–127). PB: −8192..8191. Key: nombre de la tecla. Media: nombre de la tecla multimedia. Cycle: la etiqueta del estado, hasta 4 caracteres. Exp: el pedal, 1 o 2. MMC `Locate`: adónde ir, en segundos. Song: el número de canción 0–127, o la posición en semicorcheas. LFO: la duración de un ciclo, `1/16T` `1/16` `1/8T` `1/8` `1/4T` `1/8.` `1/4` `1/2T` `1/4.` `1/2` `1/2.` `1/1` `2/1` `4/1` (vacío es `1/4`). Seq: sus dos pasos, un valor 0–127 o `-` para uno en silencio, `100 -`. Value: la cantidad. If: con qué se compara el valor, o el banco. Bank: el banco, o cuántos moverse. Macro: el banco en el que está el botón. Listen: el valor que significa encendido; 127 si está vacío |
+| `Number_(PC/CC/Note)` | ✓ | ✓ | ✓ | | ✓ | PC: programa 0–127. CC: número de controlador. Note: número de nota. Key: máscara de modificadores. Exp: el CC que envía el pedal. Value: cuál de los ocho, 1–8. If: el botón al que mira, `1`–`4` o `A`–`D`, o el valor, 1–8. Macro y Button: el botón, `1`–`4` o `A`–`D`. Listen: el CC que escucha |
+| `OnValue_(CC/PB)` | | ✓ | | ✓ | ✓ | CC: valor al pisar (0–127). PB: −8192..8191. Key: nombre de la tecla. Media: nombre de la tecla multimedia. Cycle: la etiqueta del estado, hasta 4 caracteres. Exp: el pedal, 1 o 2. MMC `Locate`: adónde ir, en segundos. Song: el número de canción 0–127, o la posición en semicorcheas. LFO: la duración de un ciclo, `1/16T` `1/16` `1/8T` `1/8` `1/4T` `1/8.` `1/4` `1/2T` `1/4.` `1/2` `1/2.` `1/1` `2/1` `4/1` (vacío es `1/4`). Seq: sus dos pasos, un valor 0–127 o `-` para uno en silencio, `100 -`. Value: la cantidad. If: con qué se compara el valor, o el banco. Bank: el banco, o cuántos moverse. Macro: el banco en el que está el botón. Button: lo mismo, o vacío para el banco que se vea. Listen: el valor que significa encendido; 127 si está vacío |
 | `OffValue_(CC)` | | ✓ | | | | CC: valor al soltar / al apagar el toggle (0–127). Value: hasta dónde llega como máximo; 127 si está vacío. Listen: el valor que significa apagado; 0 si está vacío |
 | `BankSelect_(PC)` | ✓ | | | | | 0–16383, enviado como CC#32 (LSB) antes del PC |
 | `BankSelectHighByte_(PC)` | ✓ | | | | | Y: envía también CC#0 (MSB) |
 | `Toggle_(CC/PB/Note)` | | ✓ | ✓ | ✓ | ✓ | Y: alterna on / off en pulsaciones sucesivas. Key / Media: mantener hasta la siguiente pulsación |
 | `Velocity_(Note)` | | | ✓ | | | 0–127 |
 | `Duration_(Note/PB)` | | | ✓ | ✓ | ✓ | En pasos de 10 ms, 0–127 (máx. 1,27 s). Media: igual que Key. Wait: la pausa en milisegundos, hasta 2550. Ramp: su tiempo en milisegundos, hasta 655350 |
-| `KeyMode_(Key)` | | | | | ✓ | Normal / Down / Up. CCInc y PCInc: Up / Down / Up Repeat / Down Repeat. Tap: Tap / Clock / Set / Up / Down / Up Repeat / Down Repeat. Listen: Steady / Slow / Fast / Dim. Exp: CC / Off / Own / Speed. LFO: Sine / Triangle / SawUp / SawDown / Square / Random (vacío es Sine). Seq: cuánto dura un paso, las mismas divisiones que el LFO (vacío es `1/8`), leído del primer comando de la serie. MMC: Play / Stop / Record / RecordExit / Pause / FastForward / Rewind / Locate / DeferredPlay / Chase / Eject / Reset (vacío es Play). Song: Select / Position. Value: Set / Add / Sub (vacío es Set). If: Button on / Button off / Value = / Value <> / Value < / Value >= / Bank is / Bank is not. Bank: GoTo / Up / Down / Back / Page / Config / NextConfig. Macro: Short / Long / Double |
+| `KeyMode_(Key)` | | | | | ✓ | Normal / Down / Up. CCInc y PCInc: Up / Down / Up Repeat / Down Repeat. Tap: Tap / Clock / Set / Up / Down / Up Repeat / Down Repeat. Listen: Steady / Slow / Fast / Dim. Exp: CC / Off / Own / Speed. LFO: Sine / Triangle / SawUp / SawDown / Square / Random (vacío es Sine). Seq: cuánto dura un paso, las mismas divisiones que el LFO (vacío es `1/8`), leído del primer comando de la serie. MMC: Play / Stop / Record / RecordExit / Pause / FastForward / Rewind / Locate / DeferredPlay / Chase / Eject / Reset (vacío es Play). Song: Select / Position. Value: Set / Add / Sub (vacío es Set). If: Button on / Button off / Value = / Value <> / Value < / Value >= / Bank is / Bank is not. Bank: GoTo / Up / Down / Back / Page / Config / NextConfig. Macro: Short / Long / Double. Button: Press / On / Off / Set On / Set Off, y detrás Long o Double para esas listas |
 
 ---
 

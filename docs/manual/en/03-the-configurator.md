@@ -73,7 +73,7 @@ Everything the bank owns goes with it: its name, its buttons with all three comm
 
 - `Bank` commands in `GoTo` and `Page` modes (`Up`, `Down` and `Back` are relative and stay as they are);
 - `If` commands testing `Bank is` or `Bank is not`;
-- `Macro` commands, which name the bank of the list they run;
+- `Macro` commands, which name the bank of the list they run, and `Button` commands naming a bank;
 - the [setlist](04-banks.md#setlist), the [global buttons bank](05-buttons.md#global-buttons) and the [combinations](05-buttons.md#two-switches-together).
 
 A host that changes banks by number, with **Change bank from MIDI** (`Bank_Change_Mode`) in the Global tab, is outside the configuration: if it names a bank you moved, change it there too.

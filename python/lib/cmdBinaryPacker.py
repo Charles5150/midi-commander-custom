@@ -118,6 +118,11 @@ IF_BANK_TESTS = (6, 7)
 CMD_MACRO_MODE = 13
 MACRO_LISTS = ["Short", "Long", "Double"]
 MACRO_DEPTH = 4
+# Button: a Macro whose byte 3 is not 0 works another button as a foot would,
+# with its toggle state and LED. Byte 3 is the action, its index in
+# BUTTON_ACTIONS plus one; byte 1 may be BUTTON_THIS_BANK for the bank showing.
+BUTTON_ACTIONS = ["Press", "On", "Off", "Set On", "Set Off"]
+BUTTON_THIS_BANK = 0x7F
 # Listen: sends nothing; the CC a device reports the list's state on, when it
 # is not the one the list sends. Byte 1 is the CC, byte 2 the value meaning on
 # and byte 3 the value meaning off; one arriving counts as the nearer of them.
@@ -859,6 +864,48 @@ def cmd_macro(cmd):
             (lists[list_text.upper()] << 4) | button, 0]
 
 
+def button_mode(text):
+    """(action index, list index) of a Button's KeyMode: an action of
+    BUTTON_ACTIONS, Press when empty, optionally followed by the list of
+    MACRO_LISTS it works, the short press list when left out."""
+    text = " ".join(str(text).split())
+    if text.lower() == "nan":
+        text = ""
+    which = 0
+    for i, name in enumerate(MACRO_LISTS):
+        if text.upper() == name.upper() or text.upper().endswith(" " + name.upper()):
+            which = i
+            text = text[: len(text) - len(name)].strip()
+            break
+    actions = {a.upper(): i for i, a in enumerate(BUTTON_ACTIONS)}
+    if text == "":
+        text = BUTTON_ACTIONS[0]
+    if text.upper() not in actions:
+        raise ValueError(f"Button must be one of {', '.join(BUTTON_ACTIONS)} "
+                         f"(then Long or Double for those lists), not {text!r}")
+    return actions[text.upper()], which
+
+
+def cmd_button(cmd):
+    """Work another button as a foot would, with its toggle state and LED.
+
+    Number is the button ("1"-"4", "A"-"D"), OnValue its bank 0-31, the bank
+    showing when empty, and KeyMode what to do (BUTTON_ACTIONS, Press when
+    empty) with "Long" or "Double" after it to work that list instead of the
+    short press one. Press toggles it and sends its list, On and Off only
+    press it when it is not already there, Set On and Set Off change its state
+    and LED and send nothing.
+    """
+    bank_text = str(cmd.get("OnValue_(CC/PB)", "")).strip()
+    if bank_text in ("", "nan"):
+        bank = BUTTON_THIS_BANK
+    else:
+        bank = max(0, min(31, safe_int(bank_text)))
+    button = button_index(cmd.get("Number_(PC/CC/Note)", "1"))
+    action, which = button_mode(cmd.get("KeyMode_(Key)", ""))
+    return [CMD_NO_CMD_NIBBLE | CMD_MACRO_MODE, bank, (which << 4) | button, action + 1]
+
+
 def cmd_listen(cmd):
     """The CC a device reports this list's state on.
 
@@ -917,6 +964,7 @@ cmd_route_table = {
     "Value": cmd_var,
     "If": cmd_if,
     "Macro": cmd_macro,
+    "Button": cmd_button,
     "Listen": cmd_listen,
 }
 

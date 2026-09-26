@@ -8,7 +8,8 @@ follows it too, so a configuration behaves the same after the move:
 
 - the Bank command in GoTo and Page modes (Up, Down and Back are relative);
 - the If tests "Bank is" and "Bank is not";
-- Macro, which names the bank the called list lives in;
+- Macro, which names the bank the called list lives in, and Button, the bank
+  of the button it works (unless it works one of the bank showing);
 - the setlist, Global_Bank, and the combinations' bank and Run_Bank.
 
 A host changing banks by Bank_Change_CC names banks by number from outside the
@@ -59,7 +60,7 @@ def _names_a_bank(cmd_type: str, key_mode: str) -> bool:
         return mode in ("", "GOTO") or mode.startswith("PAGE")
     if cmd_type == "If":
         return key_mode.strip().upper() in IF_BANK_TESTS
-    return cmd_type == "Macro"
+    return cmd_type in ("Macro", "Button")
 
 
 def remap_commands(df, mapping):

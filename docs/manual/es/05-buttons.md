@@ -156,6 +156,8 @@ Una escena es un comando, `CommandType` `Scene`, que el configurador muestra com
 - Los botones sin comando toggle no tienen estado y se saltan.
 - Una escena no puede disparar otra escena.
 
+Una escena solo llega al banco que se ve y a las listas de pulsación corta. Para accionar un botón de otro banco, una lista larga o doble, o poner un estado sin enviar nada, usa un comando [`Button`](06-commands.md#pulsar-otro-botón) por botón.
+
 La demo pone tres en las pulsaciones largas del banco de modos de LED.
 
 ## Botones de ciclo

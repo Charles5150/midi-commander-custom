@@ -489,6 +489,15 @@ def build() -> Demo:
     d.pc(11, "B", "WAIT", "6")
     d.button(11, "B", slot="B", CommandType="Wait", **{"Duration_(Note/PB)": "200"})
     d.cc(11, "B", None, "58", slot="C")   # None: keep the label the first slot set
+    # Held, WAIT sets the stage for a song: it switches TGLS on, sending its CC
+    # and lighting it as a foot would, and FX4 on the first song's second page
+    # (bank 31), which is lit when you get there. Neither is pressed again if
+    # it is on already.
+    d.long_press(11, "B", CommandType="Button",
+                 **{"Number_(PC/CC/Note)": "3", "KeyMode_(Key)": "On"})
+    d.long_press(11, "B", slot="B", CommandType="Button",
+                 **{"OnValue_(CC/PB)": str(PAGE_BANK), "Number_(PC/CC/Note)": "4",
+                    "KeyMode_(Key)": "On"})
     d.ccinc(11, "C", "NUDG", "57", "Up", 4, 0, wrap="Y")
     # A cycle button: four amp channels on one switch, one per press. Each
     # Cycle command starts the next state and names it on the display

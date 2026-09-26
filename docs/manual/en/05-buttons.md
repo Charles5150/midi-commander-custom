@@ -156,6 +156,8 @@ A scene is a command, `CommandType` `Scene`, which the configurator shows as eig
 - Buttons without a toggle command have no state and are skipped.
 - A scene cannot trigger another scene.
 
+A scene reaches only the bank showing and the buttons' short press lists. To work a button of another bank, a long or double press list, or to set a state without sending anything, use a [`Button`](06-commands.md#pressing-another-button) command per button.
+
 The demo puts three on the long presses of the LED modes bank.
 
 ## Cycle buttons

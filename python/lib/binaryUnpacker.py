@@ -38,6 +38,8 @@ from lib.cmdBinaryPacker import (
     CMD_IF_MODE,
     CMD_MACRO_MODE,
     MACRO_LISTS,
+    BUTTON_ACTIONS,
+    BUTTON_THIS_BANK,
     CMD_LISTEN_MODE,
     LISTEN_LOOKS,
     IF_TESTS,
@@ -331,6 +333,14 @@ def unpack_command(raw: bytes, cycle_labels=None) -> dict:
             cmd["OnValue_(CC/PB)"] = str(b3 & 0x7F)
         else:
             cmd["OnValue_(CC/PB)"] = str(b3 & 0x7F)
+    elif cmd_type == CMD_NO_CMD_NIBBLE and (b0 & 0x0F) == CMD_MACRO_MODE and b3:
+        cmd["CommandType"] = "Button"
+        bank = b1 & 0x7F
+        cmd["OnValue_(CC/PB)"] = "" if bank == BUTTON_THIS_BANK else str(bank)
+        cmd["Number_(PC/CC/Note)"] = button_name(b2 & 0x07)
+        action = BUTTON_ACTIONS[b3 - 1] if b3 <= len(BUTTON_ACTIONS) else BUTTON_ACTIONS[0]
+        which = (b2 >> 4) & 0x03
+        cmd["KeyMode_(Key)"] = action + (f" {MACRO_LISTS[which]}" if 0 < which < len(MACRO_LISTS) else "")
     elif cmd_type == CMD_NO_CMD_NIBBLE and (b0 & 0x0F) == CMD_MACRO_MODE:
         cmd["CommandType"] = "Macro"
         cmd["OnValue_(CC/PB)"] = str(b1 & 0x7F)

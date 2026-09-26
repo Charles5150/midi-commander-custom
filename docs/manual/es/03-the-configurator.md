@@ -75,7 +75,7 @@ Todo lo que es del banco se va con él: su nombre, sus botones con sus tres list
 
 - los comandos `Bank` en modo `GoTo` y `Page` (`Up`, `Down` y `Back` son relativos y se quedan como están);
 - los comandos `If` que miran `Bank is` o `Bank is not`;
-- los comandos `Macro`, que nombran el banco de la lista que ejecutan;
+- los comandos `Macro`, que nombran el banco de la lista que ejecutan, y los `Button` que nombran un banco;
 - el [setlist](04-banks.md#setlist), el [banco de los botones globales](05-buttons.md#botones-globales) y las [combinaciones](05-buttons.md#dos-pulsadores-a-la-vez).
 
 Un host que cambia de banco por número, con **Change bank from MIDI** (`Bank_Change_Mode`) en la pestaña Global, está fuera de la configuración: si nombra un banco que has movido, cámbialo también allí.

@@ -27,7 +27,7 @@ from lib.cmdBinaryPacker import (  # noqa: E402
     EXP_TARGETS, HID_SPECIAL_KEYS, LFO_DIVISIONS, LFO_SHAPES, MEDIA_KEYS, RAMP_MAX_MS,
     MMC_COMMANDS, MMC_LOCATE_MAX, SONG_MODES, SONG_POSITION_MAX,
     VAR_MODES, VAR_COUNT, VAR_DEFAULT_TOP, IF_TESTS, IF_BUTTON_TESTS, IF_VALUE_TESTS,
-    SCENE_BUTTONS, MACRO_LISTS, LISTEN_LOOKS,
+    SCENE_BUTTONS, MACRO_LISTS, LISTEN_LOOKS, BUTTON_ACTIONS, button_mode,
 )
 from lib.configCsv import read_config_csv, write_config_csv  # noqa: E402
 from lib.configPacker import NUM_BANKS, BUTTON_IDS  # noqa: E402
@@ -177,7 +177,8 @@ LED_MODES = ["Normal", "Reverse", "AlwaysOn"]
 BUTTON_GROUPS = ["None", "1", "2", "3", "4"]
 CHANNELS = [str(i) for i in range(1, 17)]
 NO_COMMAND = "(none)"
-COMMAND_TYPES = [NO_COMMAND, "PC", "PCInc", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "MMC", "Song", "Panic", "Scene", "Wait", "Ramp", "LFO", "Seq", "Exp", "Chan", "Value", "If", "Macro", "Listen"]
+THIS_BANK = "This bank"
+COMMAND_TYPES = [NO_COMMAND, "PC", "PCInc", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "MMC", "Song", "Panic", "Scene", "Wait", "Ramp", "LFO", "Seq", "Exp", "Chan", "Value", "If", "Macro", "Button", "Listen"]
 # Cycle splits a button's short press list into states, so only that list offers it
 SHORT_COMMAND_TYPES = COMMAND_TYPES + ["Cycle"]
 # Leave splits a bank's enter list into the commands on entering and on leaving
@@ -880,6 +881,35 @@ class SlotEditor:
                 text="(that button's list is run here, so a sequence used in many banks is stored once)",
                 text_color=MUTED,
             ).pack(side="left", padx=8)
+        elif cmd_type == "Button":
+            try:
+                action, which = button_mode(self.initial.get("KeyMode_(Key)", ""))
+            except ValueError:
+                action, which = 0, 0
+            self._label("Bank")
+            bank = clean(self.initial.get("OnValue_(CC/PB)"))
+            w = Option(self.params, [THIS_BANK] + [str(b) for b in range(32)],
+                       bank if bank else THIS_BANK, width=90)
+            w.pack(side="left")
+            self.widgets["buttonbank"] = w
+            self._label("Button")
+            w = Option(self.params, list(SCENE_BUTTONS),
+                       clean(self.initial.get("Number_(PC/CC/Note)")) or "1", width=50)
+            w.pack(side="left")
+            self.widgets["buttonsw"] = w
+            self._label("List")
+            w = Option(self.params, MACRO_LISTS, MACRO_LISTS[which], width=80)
+            w.pack(side="left")
+            self.widgets["buttonlist"] = w
+            self._label("Do")
+            w = Option(self.params, BUTTON_ACTIONS, BUTTON_ACTIONS[action], width=80)
+            w.pack(side="left")
+            self.widgets["buttonaction"] = w
+            ctk.CTkLabel(
+                self.params,
+                text="(as a foot would; Set sends nothing)",
+                text_color=MUTED,
+            ).pack(side="left", padx=8)
         elif cmd_type == "Listen":
             self._int("number", "CC", "Number_(PC/CC/Note)", 0, 127)
             self._int("on", "On", "OnValue_(CC/PB)", 0, 127)
@@ -1008,6 +1038,13 @@ class SlotEditor:
             out["OnValue_(CC/PB)"] = w["macrobank"].value()
             out["Number_(PC/CC/Note)"] = w["macrobutton"].value()
             out["KeyMode_(Key)"] = w["macrolist"].value()
+        if cmd_type == "Button":
+            bank = w["buttonbank"].value()
+            out["OnValue_(CC/PB)"] = "" if bank == THIS_BANK else bank
+            out["Number_(PC/CC/Note)"] = w["buttonsw"].value()
+            which = w["buttonlist"].value()
+            mode = w["buttonaction"].value() + ("" if which == MACRO_LISTS[0] else f" {which}")
+            out["KeyMode_(Key)"] = "" if mode == BUTTON_ACTIONS[0] else mode
         if cmd_type == "Scene":
             code = {"On": "+", "Off": "-"}
             out["OnValue_(CC/PB)"] = "".join(code.get(w[f"scene_{i}"].value(), ".") for i in range(8))

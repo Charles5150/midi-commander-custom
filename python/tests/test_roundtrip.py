@@ -1072,6 +1072,25 @@ class DoublePressTest(unittest.TestCase):
         self.assertEqual(row["B_CommandType"], "")
         self.assertEqual((df["A_CommandType"] != "").sum(), 1)
 
+    def test_commands_of_the_empty_type_are_kept(self):
+        """Wait, If, Macro, Button and the rest share the empty command type's
+        nibble; only a slot with nothing in it is left erased (0.73)."""
+        df = self.sections[packer.DOUBLE_PRESS_SECTION].copy()
+        i = df[(df["Bank_Number"].astype(str) == "1") & (df["Button_Identifier"] == "3")].index[0]
+        for slot, fields in (("A", {"CommandType": "Wait", "Duration_(Note/PB)": "200"}),
+                             ("B", {"CommandType": "Button", "Number_(PC/CC/Note)": "B",
+                                    "KeyMode_(Key)": "Set Off"})):
+            for field, value in fields.items():
+                df.at[i, f"{slot}_{field}"] = value
+        image = packer.pack_flash_image({**self.sections, packer.DOUBLE_PRESS_SECTION: df})
+        U = unpacker
+        off = U.DOUBLE_PRESS_OFFSET + (1 * 8 + 2) * U.BUTTON_STRIDE
+        self.assertEqual(list(image[off : off + 12]),
+                         [0x01, 0, 20, 0, 0x0D, 0x7F, 0x05, 5] + [0xFF] * 4)
+        back = unpacker.unpack_double_press_settings(image)
+        row = back[(back["Bank_Number"] == "1") & (back["Button_Identifier"] == "3")].iloc[0]
+        self.assertEqual((row["A_CommandType"], row["B_CommandType"]), ("Wait", "Button"))
+
     def test_without_double_press_image_is_the_config(self):
         sections = {k: v for k, v in self.sections.items() if k != packer.DOUBLE_PRESS_SECTION}
         self.assertEqual(packer.pack_flash_image(sections), packer.pack_config(sections))
@@ -3645,6 +3664,75 @@ class ListenLookTest(unittest.TestCase):
                            norm(row[f"{c}_OnValue_(CC/PB)"]), norm(row[f"{c}_KeyMode_(Key)"]))
                           for c in "BC"],
                          [("Listen", "23", "1", "Fast"), ("Listen", "23", "2", "Slow")])
+
+
+class ButtonCommandTest(unittest.TestCase):
+    """The Button command: work another button as a foot would (firmware 0.73)."""
+
+    FIRMWARE = MacroTest.FIRMWARE
+    pack = staticmethod(MacroTest.pack)
+
+    def test_actions_match_firmware(self):
+        import re
+
+        with open(os.path.join(self.FIRMWARE, "Inc", "midi_defines.h")) as handle:
+            text = handle.read()
+        acts = dict(re.findall(r"^#define\s+BUTTON_ACT_(\w+)\s+\((\d+)\)", text, re.M))
+        self.assertEqual({name.replace("_", " ").title(): int(v) for name, v in acts.items()},
+                         {name: i + 1 for i, name in enumerate(cbp.BUTTON_ACTIONS)})
+        this = re.search(r"^#define\s+BUTTON_THIS_BANK\s+\((0x[0-9A-Fa-f]+)\)", text, re.M)
+        self.assertEqual(int(this.group(1), 16), cbp.BUTTON_THIS_BANK)
+
+    def test_packs_as_a_macro_with_an_action(self):
+        cases = (
+            ({"Number_(PC/CC/Note)": "3"}, [0x0D, 0x7F, 0x02, 1], ("", "3", "")),
+            ({"OnValue_(CC/PB)": "31", "Number_(PC/CC/Note)": "4", "KeyMode_(Key)": "On"},
+             [0x0D, 31, 0x03, 2], ("31", "4", "On")),
+            ({"OnValue_(CC/PB)": "0", "Number_(PC/CC/Note)": "A", "KeyMode_(Key)": "off long"},
+             [0x0D, 0, 0x14, 3], ("0", "A", "Off Long")),
+            ({"Number_(PC/CC/Note)": "D", "KeyMode_(Key)": "Set On  Double"},
+             [0x0D, 0x7F, 0x27, 4], ("", "D", "Set On Double")),
+            ({"Number_(PC/CC/Note)": "1", "KeyMode_(Key)": "Set Off Short"},
+             [0x0D, 0x7F, 0x00, 5], ("", "1", "Set Off")),
+        )
+        for fields, packed, back in cases:
+            raw = self.pack("Button", **fields)
+            self.assertEqual(list(raw), packed, fields)
+            cmd = unpacker.unpack_command(raw)
+            self.assertEqual(cmd["CommandType"], "Button")
+            self.assertEqual((norm(cmd["OnValue_(CC/PB)"]), cmd["Number_(PC/CC/Note)"],
+                              norm(cmd.get("KeyMode_(Key)", "")).replace("Press", "")), back)
+
+    def test_a_macro_still_packs_a_zero(self):
+        raw = self.pack("Macro", **{"OnValue_(CC/PB)": "11", "Number_(PC/CC/Note)": "B"})
+        self.assertEqual(raw[3], 0)
+        self.assertEqual(unpacker.unpack_command(raw)["CommandType"], "Macro")
+
+    def test_unknown_action_is_an_error(self):
+        with self.assertRaises(ValueError):
+            self.pack("Button", **{"Number_(PC/CC/Note)": "1", "KeyMode_(Key)": "Flip"})
+
+    def test_moving_a_bank_follows_it(self):
+        from lib import bankReorder
+
+        df = pd.DataFrame([{"A_CommandType": "Button", "A_OnValue_(CC/PB)": "5",
+                            "A_KeyMode_(Key)": "On"},
+                           {"A_CommandType": "Button", "A_OnValue_(CC/PB)": "",
+                            "A_KeyMode_(Key)": ""}])
+        out = bankReorder.remap_commands(df, bankReorder.move_map(5, 2))
+        self.assertEqual(list(out["A_OnValue_(CC/PB)"]), ["2", ""])
+
+    def test_demo_wait_sets_the_stage(self):
+        packed = packer.pack_config(read_config_csv(DEMO_CSV))
+        frames = unpacker.unpack_config(packed)
+        longs = next(f for f in frames if "Label" not in f.columns and "A_CommandType" in f.columns
+                     and "Button_Identifier" in f.columns)
+        row = longs[(longs["Bank_Number"].astype(str) == "11")
+                    & (longs["Button_Identifier"].astype(str) == "B")].iloc[0]
+        self.assertEqual([(norm(row[f"{c}_CommandType"]), norm(row[f"{c}_OnValue_(CC/PB)"]),
+                           norm(row[f"{c}_Number_(PC/CC/Note)"]), norm(row[f"{c}_KeyMode_(Key)"]))
+                          for c in "AB"],
+                         [("Button", "", "3", "On"), ("Button", "31", "4", "On")])
 
 
 class GlobalButtonTest(unittest.TestCase):
