@@ -27,6 +27,7 @@
 #include "ssd1306.h"
 #include "ssd1306_tests.h"
 #include <stdbool.h>
+#include <string.h>
 #include "usbd_midi_if.h"
 #include "midi_defines.h"
 #include "midi_cmds.h"
@@ -35,6 +36,7 @@
 #include "expression.h"
 #include "flash_midi_settings.h"
 #include "state_store.h"
+#include "restart_state.h"
 #include "leds.h"
 #include "tempo.h"
 #include "sleep.h"
@@ -177,11 +179,21 @@ int main(void)
   }
 
   // Come back on the configuration slot the pedal was left on, if it still
-  // holds one. Every configuration pointer follows from here.
+  // holds one. Every configuration pointer follows from here. After the
+  // watchdog restarted it, the state it had that moment wins over the saved
+  // one: see restart_state.c
   uint8_t saved_bank = 0, saved_slot = 0;
   uint32_t saved_toggles[8] = {0}, saved_long[8] = {0};
   bool have_state = state_store_load(&saved_bank, saved_toggles, saved_long, &saved_slot);
-  if(have_state && saved_slot != 0 && flash_settings_slot_valid(saved_slot)){
+  live_state_t live;
+  bool restarted = restart_state_load(&live);
+  if(restarted){
+	  saved_bank = live.bank;
+	  saved_slot = live.slot;
+	  memcpy(saved_toggles, live.toggles, sizeof(saved_toggles));
+	  memcpy(saved_long, live.long_toggles, sizeof(saved_long));
+  }
+  if((have_state || restarted) && saved_slot != 0 && flash_settings_slot_valid(saved_slot)){
 	  flash_settings_select(saved_slot);
   }
 
@@ -201,8 +213,8 @@ int main(void)
 
   // Restore the last bank and toggle states if this configuration asks for
   // it, and only if they were saved while this same configuration was active
-  if(!safe_mode && pGlobalSettings[GLOBAL_SETTINGS_REMEMBER_STATE] == 1
-		  && have_state && saved_slot == flash_settings_active_slot()){
+  if(!safe_mode && (restarted || (pGlobalSettings[GLOBAL_SETTINGS_REMEMBER_STATE] == 1
+		  && have_state)) && saved_slot == flash_settings_active_slot()){
     sw_restore_state(saved_bank, saved_toggles, saved_long);
   }
   display_setBankName(sw_get_current_page());
@@ -211,8 +223,11 @@ int main(void)
   if(safe_mode){
 	  expression_quiet_start();
 	  display_show_safe_mode();
+  } else if(restarted){
+	  display_show_restarted();	// so a lock-up does not go unnoticed
   }
   tempo_init();
+  if(restarted && !safe_mode) tempo_set_bpm(live.bpm);
   sleep_init();
   watchdog_start();
 
@@ -225,6 +240,7 @@ int main(void)
 	  handle_switches();
       expression_task();
       state_store_task();
+      restart_state_task();
       tempo_task();
       display_task();
       sleep_task();

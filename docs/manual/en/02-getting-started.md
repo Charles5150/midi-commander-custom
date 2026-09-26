@@ -94,7 +94,7 @@ The configuration stays as it was. When a release changes the configuration form
 - **The pedal stays on FIRMWARE UPDATE, or starts with a dark display as in step 1.** It is waiting in DFU mode for an image, after an update that did not finish. It keeps starting that way until something is flashed. Run `Update_Firmware.py` or **Update Firmware…** again, or flash it with `dfu-util` as in [step 1](#1-flash-the-firmware).
 - **You want the stock firmware back.** The bootloader is never touched, so the vendor image can be flashed the same way as in step 1. The configuration of this firmware lives in the microcontroller's own flash, and the stock configuration in the external EEPROM is left untouched.
 - **A configuration upsets the rig at power on.** Start the pedal in [safe mode](10-editing-on-the-pedal.md#safe-mode).
-- **The pedal restarted by itself, as though just switched on.** Its watchdog found it locked up and restarted it. Please [open an issue](https://github.com/Charles5150/midi-commander-custom/issues) saying what it was doing: a lock-up is a bug.
+- **The pedal restarted by itself and showed RESTARTED.** Its watchdog found it locked up and restarted it, back on the bank, toggles and tempo it had. Please [open an issue](https://github.com/Charles5150/midi-commander-custom/issues) saying what it was doing: a lock-up is a bug.
 
 <details><summary>Under the hood</summary>
 

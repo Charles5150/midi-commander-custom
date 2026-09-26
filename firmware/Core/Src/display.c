@@ -617,18 +617,27 @@ void display_show_config(uint8_t slot){
 }
 
 // Safe mode at power on, over the bank screen until it has been read
-void display_show_safe_mode(void){
+// A word in large type and a line under it, for a few seconds after boot
+static void show_notice(const char *big, const char *small){
 	banner_on = 0;
 	drop_bank_text();
 	ssd1306_Fill(Black);
-	ssd1306_SetCursor(14, 8);
-	ssd1306_WriteString("SAFE MODE", Font_11x18, White);
-	ssd1306_SetCursor(22, 38);
-	ssd1306_WriteString("NOTHING SENT", Font_7x10, White);
+	ssd1306_SetCursor((uint8_t)((128 - 11 * strlen(big)) / 2), 8);
+	ssd1306_WriteString((char *)big, Font_11x18, White);
+	ssd1306_SetCursor((uint8_t)((128 - 7 * strlen(small)) / 2), 38);
+	ssd1306_WriteString((char *)small, Font_7x10, White);
 	ssd1306_UpdateScreen();
 
 	overlay_until = HAL_GetTick() + SAFE_MODE_MS;
 	refresh_pending = 0;
+}
+
+void display_show_safe_mode(void){
+	show_notice("SAFE MODE", "NOTHING SENT");
+}
+
+void display_show_restarted(void){
+	show_notice("RESTARTED", "AFTER A LOCK-UP");
 }
 
 /*

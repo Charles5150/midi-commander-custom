@@ -94,7 +94,7 @@ La configuración se queda como estaba. Cuando una release cambia el formato de 
 - **La pedalera se queda en FIRMWARE UPDATE, o arranca con la pantalla a oscuras como en el paso 1.** Está esperando una imagen en modo DFU, después de una actualización que no terminó. Seguirá arrancando así hasta que se flashee algo. Vuelve a ejecutar `Update_Firmware.py` o **Update Firmware…**, o flashéala con `dfu-util` como en el [paso 1](#1-flashea-el-firmware).
 - **Quieres volver al firmware de fábrica.** El bootloader nunca se toca, así que la imagen del fabricante se puede flashear igual que en el paso 1. La configuración de este firmware vive en la propia flash del microcontrolador, y la configuración de fábrica, en la EEPROM externa, no se toca.
 - **Una configuración te descoloca el equipo al encender.** Arranca la pedalera en [modo seguro](10-editing-on-the-pedal.md#modo-seguro).
-- **La pedalera se ha reiniciado sola, como recién encendida.** Su watchdog la encontró colgada y la reinició. [Abre una incidencia](https://github.com/Charles5150/midi-commander-custom/issues) contando qué estaba haciendo: un cuelgue es un fallo.
+- **La pedalera se ha reiniciado sola y ha mostrado RESTARTED.** Su watchdog la encontró colgada y la reinició, de vuelta en el banco, los toggles y el tempo que tenía. [Abre una incidencia](https://github.com/Charles5150/midi-commander-custom/issues) contando qué estaba haciendo: un cuelgue es un fallo.
 
 <details><summary>Por dentro</summary>
 
