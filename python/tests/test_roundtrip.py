@@ -3768,6 +3768,65 @@ class BootBannerTest(unittest.TestCase):
         self.assertEqual(pack_csv(DEMO_CSV)[46], 2)
 
 
+class BannerTextTest(unittest.TestCase):
+    """The banner's own text, kept by the pedal outside the slots (0.63)."""
+
+    FIRMWARE = os.path.join(os.path.dirname(__file__), "..", "..", "firmware")
+
+    def source(self, *name):
+        with open(os.path.join(self.FIRMWARE, *name)) as handle:
+            return handle.read()
+
+    def define(self, name, *path):
+        import re
+
+        m = re.search(rf"#define\s+{name}\s+\((\d+)\)", self.source(*path))
+        self.assertIsNotNone(m, name)
+        return int(m.group(1))
+
+    def test_numbers_match_firmware(self):
+        from lib import midiDevice as md
+
+        self.assertEqual(self.define("SYSEX_CMD_BANNER", "Core", "Inc", "midi_defines.h"), md.SYSEX_CMD_BANNER)
+        self.assertEqual(self.define("SYSEX_RSP_BANNER", "Core", "Inc", "midi_defines.h"), md.SYSEX_RSP_BANNER)
+        self.assertEqual(self.define("BANNER_TEXT_MAX", "Core", "Inc", "banner_store.h"), md.BANNER_TEXT_MAX)
+
+    def test_message_fits_the_pedal_buffer(self):
+        from lib import midiDevice as md
+
+        import re
+
+        m = re.search(r"#define\s+SYSEX_MAX_LENGTH\s+(\d+)", self.source("USB_DEVICE", "App", "usbd_midi_if.c"))
+        msg = md.banner_sysex("x" * md.BANNER_TEXT_MAX)
+        self.assertLessEqual(len(msg), int(m.group(1)))
+        self.assertEqual(msg[:4], [0xF0, md.MIDI_MANUF_ID, md.SYSEX_CMD_BANNER, 1])
+        self.assertEqual(msg[-1], 0xF7)
+
+    def test_text_is_cleaned(self):
+        from lib import midiDevice as md
+
+        self.assertEqual(md.banner_sysex("Añil  \t"), [0xF0, md.MIDI_MANUF_ID, md.SYSEX_CMD_BANNER, 1,
+                                                          ord("A"), 0x20, ord("i"), ord("l"), 0xF7])
+        self.assertEqual(md.banner_sysex(""), [0xF0, md.MIDI_MANUF_ID, md.SYSEX_CMD_BANNER, 1, 0xF7])
+
+    def test_too_long_is_refused(self):
+        from lib import midiDevice as md
+
+        with self.assertRaises(ValueError):
+            md.banner_sysex("x" * (md.BANNER_TEXT_MAX + 1))
+        md.banner_sysex("x" * md.BANNER_TEXT_MAX + "   ")   # trailing spaces do not count
+
+    def test_page_is_outside_everything_else(self):
+        # 0x0803A000: past slot 3 and below 256 kB, never written by the tools
+        header = self.source("Core", "Inc", "flash_midi_settings.h")
+        self.assertIn("#define FLASH_BANNER_ADDR		(FLASH_SLOTN_ADDR(CONFIG_SLOTS))", header)
+        page, slot = 0x800, 12 * 0x800
+        slot0, journal = 0x08020000, 4 * 0x800
+        banner = slot0 + slot + journal + 3 * slot
+        self.assertEqual(banner, 0x0803A000)
+        self.assertLessEqual(banner + page, 0x08000000 + 256 * 1024)
+
+
 class FirmwareUpdateTest(unittest.TestCase):
     """Entering DFU mode from software, and the files it will flash (0.58)."""
 

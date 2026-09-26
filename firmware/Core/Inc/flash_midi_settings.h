@@ -100,13 +100,16 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
 /*
  * Configuration slots. Slot 0 keeps the address the configuration always had,
  * so a pedal that never uses the others behaves exactly as before. The state
- * journal follows it, then slots 1-3, which end at 256 kB.
+ * journal follows it, then slots 1-3, then the power on banner's own text.
+ * Nothing goes above 256 kB.
  *
  *   0x08020000  slot 0     12 pages
  *   0x08026000  journal     4 pages
- *   0x0802E000  slot 1     12 pages
- *   0x08034000  slot 2     12 pages
- *   0x0803A000  slot 3     12 pages
+ *   0x08028000  slot 1     12 pages
+ *   0x0802E000  slot 2     12 pages
+ *   0x08034000  slot 3     12 pages
+ *   0x0803A000  banner      1 page
+ *   0x0803A800  free       11 pages
  *   0x08040000  end
  */
 #define CONFIG_SLOTS			(4)
@@ -115,6 +118,7 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
 #define FLASH_SLOT0_ADDR		(FLASH_BASE + FLASH_SETTINGS_OFFSET)
 #define FLASH_STATE_ADDR		(FLASH_SLOT0_ADDR + FLASH_SETTINGS_SIZE)
 #define FLASH_SLOTN_ADDR(n)		(FLASH_STATE_ADDR + FLASH_STATE_PAGES * FLASH_PAGE_SIZE + ((n) - 1U) * FLASH_SETTINGS_SIZE)
+#define FLASH_BANNER_ADDR		(FLASH_SLOTN_ADDR(CONFIG_SLOTS))
 
 /*
  * Extension area. The double press commands did not fit in the 12 pages of a

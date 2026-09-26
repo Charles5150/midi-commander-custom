@@ -29,6 +29,8 @@ SYSEX_CMD_SET_TEXT = 72
 SYSEX_RSP_SET_TEXT = 73
 SYSEX_CMD_ENTER_DFU = 74
 SYSEX_RSP_ENTER_DFU = 75
+SYSEX_CMD_BANNER = 76
+SYSEX_RSP_BANNER = 77
 # Two check bytes ("DF") so a stray message cannot restart the pedal in DFU
 ENTER_DFU_CHECK = (0x44, 0x46)
 
@@ -40,6 +42,10 @@ TEXT_FITS = {"info": 11, "name": 4, "line": 11, "small": 18}
 TEXT_MAX = 32
 # How long it stays
 TEXT_KEEP = {"bank": 0, "always": 1, "moment": 2}
+
+# The power on banner's own text (firmware 0.63), kept by the pedal outside
+# the configurations
+BANNER_TEXT_MAX = 60
 
 # The pedal's screen buffer: one byte per column for every 8 rows
 SCREEN_WIDTH = 130      # columns in the buffer; the firmware draws in 0..127
@@ -88,6 +94,18 @@ def text_sysex(text: str, place: str = "line", keep: str = "bank") -> list:
         raise ValueError(f"unknown keep: {keep} (use {', '.join(TEXT_KEEP)})")
     body = [ord(c) if 0x20 <= ord(c) <= 0x7E else 0x20 for c in text[:TEXT_MAX]]
     return [0xF0, MIDI_MANUF_ID, SYSEX_CMD_SET_TEXT, TEXT_PLACES[place], TEXT_KEEP[keep]] + body + [0xF7]
+
+
+def banner_sysex(text: str) -> list:
+    """The whole SysEx message, F0 to F7, that stores the banner's own text.
+
+    Characters the display cannot draw become spaces and trailing spaces go;
+    an empty text clears it. Raises ValueError for more than BANNER_TEXT_MAX.
+    """
+    body = "".join(c if 0x20 <= ord(c) <= 0x7E else " " for c in text).rstrip()
+    if len(body) > BANNER_TEXT_MAX:
+        raise ValueError(f"the banner text is {len(body)} characters, at most {BANNER_TEXT_MAX} fit")
+    return [0xF0, MIDI_MANUF_ID, SYSEX_CMD_BANNER, 1] + [ord(c) for c in body] + [0xF7]
 
 
 def unpack7(data) -> bytes:
@@ -265,6 +283,21 @@ class MidiCommander:
         """Put text on the display (firmware 0.46); see text_sysex."""
         self.outport.send(mido.Message("sysex", data=text_sysex(text, place, keep)[1:-1]))
         self.wait_for_sysex(SYSEX_RSP_SET_TEXT, timeout)
+
+    def get_banner(self, timeout=1.0) -> str:
+        """The banner's own text the pedal holds, "" for none (firmware 0.63)."""
+        self.send([SYSEX_CMD_BANNER, 0])
+        data = self.wait_for_sysex(SYSEX_RSP_BANNER, timeout)
+        return bytes(data[1:]).decode("ascii", errors="replace")
+
+    def set_banner(self, text: str, timeout=2.0) -> str:
+        """Store the banner's own text, "" to clear it (firmware 0.63); see
+        banner_sysex. Returns the text the pedal now holds."""
+        self.outport.send(mido.Message("sysex", data=banner_sysex(text)[1:-1]))
+        data = self.wait_for_sysex(SYSEX_RSP_BANNER, timeout)
+        if data and data[0]:
+            raise ValueError("the pedal refused the banner text")
+        return bytes(data[1:]).decode("ascii", errors="replace")
 
     def enter_dfu(self, timeout=1.0) -> bool:
         """Restart the pedal in the stock bootloader's DFU mode (firmware 0.58).

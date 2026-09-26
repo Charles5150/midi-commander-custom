@@ -62,6 +62,8 @@
 #define SYSEX_RSP_SET_TEXT	(73) // echoes the place and how
 #define SYSEX_CMD_ENTER_DFU	(74) // two check bytes 0x44 0x46 ("DF"): restart in the stock bootloader's DFU mode
 #define SYSEX_RSP_ENTER_DFU	(75) // one byte: 0 restarting in DFU, 1 not behind the bootloader so nothing done
+#define SYSEX_CMD_BANNER	(76) // 1 then the power on banner's own text (none clears it), or 0 only asks
+#define SYSEX_RSP_BANNER	(77) // 0 done or 1 refused, then the text stored
 
 #define SYSEX_START (0xF0)
 #define SYSEX_END	(0xF7)

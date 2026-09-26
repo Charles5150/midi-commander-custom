@@ -60,7 +60,7 @@ from lib.configPacker import (  # noqa: E402
 )
 from lib.midiDevice import (  # noqa: E402
     LED_LEVELS, SCREEN_HEIGHT, SCREEN_VISIBLE_WIDTH, VIRTUAL_SWITCHES, DeviceNotFound, DeviceTimeout,
-    MidiCommander, screen_rows, version_at_least,
+    BANNER_TEXT_MAX, MidiCommander, banner_sysex, screen_rows, version_at_least,
 )
 from lib import bankClipboard as bank_clipboard  # noqa: E402
 from lib.firmwareUpdate import UpdateError, check_image  # noqa: E402
@@ -273,7 +273,7 @@ def is_yes(val) -> bool:
 GLOBAL_GROUPS = [
     ("Configuration", [
         ("ConfigName", "Configuration name", "shown on the display at boot, 16 characters"),
-        ("Boot_Banner", "Banner at power on", "the name and the version cross the display, any switch skips it"),
+        ("Boot_Banner", "Banner at power on", "the pedal's Banner Text or this name, then the version, cross the display; any switch skips it"),
         ("MIDI_Channel", "MIDI channel", "used by the expression pedals"),
         ("Global_Channel", "Global channel", "every command goes out on it, whatever channel it carries"),
         ("Exp1_CC", "Expression pedal 1 CC", "0-127"),
@@ -952,6 +952,7 @@ class MidiCommanderGUI(ctk.CTk):
         action(9, "Back Up All Slots\u2026", self.backup_slots, fg_color=FIELD, hover_color=FIELD_HOVER)
         action(10, "Restore Backup\u2026", self.restore_slots, fg_color=FIELD, hover_color=FIELD_HOVER)
         action(11, "Update Firmware\u2026", self.update_firmware, fg_color=FIELD, hover_color=FIELD_HOVER)
+        action(12, "Banner Text\u2026", self.banner_text, fg_color=FIELD, hover_color=FIELD_HOVER)
 
         self.lbl_file = ctk.CTkLabel(self.sidebar, text="no file loaded", font=FONT_SMALL,
                                      text_color=MUTED, wraplength=170, justify="left")
@@ -2580,6 +2581,68 @@ class MidiCommanderGUI(ctk.CTk):
             messagebox.showerror("Update Error", detail[-1500:] or f"Exit code {p.returncode}")
             return
         messagebox.showinfo("Update Complete", p.stdout.strip().splitlines()[-1])
+
+    def banner_text(self):
+        """The power on banner's own text, which the pedal keeps outside the
+        configurations (firmware 0.63): read it, then edit, clear or keep it."""
+        try:
+            p = self._run_tool("Send_Text.py", "--banner")
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("Error", f"Failed to run Send_Text.py: {e}")
+            return
+        if p.returncode != 0:
+            messagebox.showerror("Banner Text", (p.stdout + p.stderr).strip() or f"Exit code {p.returncode}")
+            return
+        current = p.stdout.rstrip("\n")
+        if current.startswith("(no text"):
+            current = ""
+
+        win = ctk.CTkToplevel(self)
+        win.title("Banner Text")
+        win.transient(self)
+        ctk.CTkLabel(
+            win, font=FONT_SMALL, text_color=MUTED, justify="left", wraplength=460,
+            text=f"Up to {BANNER_TEXT_MAX} characters: a band, a show, a phone number in case the "
+                 "pedal is lost. It crosses the display at power on when Boot_Banner is on, in "
+                 "place of the configuration's name, and it belongs to the pedal: it stays "
+                 "whatever configuration is loaded and through firmware updates. Empty shows "
+                 "the name again.",
+        ).pack(padx=16, pady=(14, 8), anchor="w")
+        entry = ctk.CTkEntry(win, width=460)
+        entry.insert(0, current)
+        entry.pack(padx=16, pady=4)
+        count = ctk.CTkLabel(win, font=FONT_SMALL, text_color=MUTED)
+        count.pack(padx=16, anchor="e")
+
+        def update_count(*_):
+            n = len(entry.get().rstrip())
+            count.configure(text=f"{n} / {BANNER_TEXT_MAX}", text_color=DANGER if n > BANNER_TEXT_MAX else MUTED)
+
+        entry.bind("<KeyRelease>", update_count)
+        update_count()
+
+        def store(text):
+            try:
+                banner_sysex(text)
+            except ValueError as e:
+                messagebox.showerror("Banner Text", str(e), parent=win)
+                return
+            q = self._run_tool("Send_Text.py", "--banner", text)
+            if q.returncode != 0:
+                messagebox.showerror("Banner Text", (q.stdout + q.stderr).strip(), parent=win)
+                return
+            win.destroy()
+            messagebox.showinfo("Banner Text", f"The pedal now holds:\n{q.stdout.strip()}")
+
+        buttons = ctk.CTkFrame(win, fg_color="transparent")
+        buttons.pack(padx=16, pady=(8, 14), fill="x")
+        ctk.CTkButton(buttons, text="Store", width=100, command=lambda: store(entry.get())).pack(side="right")
+        ctk.CTkButton(buttons, text="Clear", width=100, fg_color=FIELD, hover_color=FIELD_HOVER,
+                      command=lambda: store("")).pack(side="right", padx=8)
+        ctk.CTkButton(buttons, text="Cancel", width=100, fg_color=FIELD, hover_color=FIELD_HOVER,
+                      command=win.destroy).pack(side="left")
+        win.grab_set()
+        entry.focus_set()
 
     def flash_device(self):
         if not self.current_csv_path:

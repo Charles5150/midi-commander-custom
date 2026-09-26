@@ -39,6 +39,8 @@ _Static_assert(CFG_TOTAL_SIZE <= FLASH_SETTINGS_SIZE,
 // All four slots must fit below 256 kB, the smallest chip the firmware accepts.
 _Static_assert(FLASH_SLOTN_ADDR(CONFIG_SLOTS) <= FLASH_BASE + 256U * 1024U,
 		"configuration slots do not fit in 256 kB");
+_Static_assert(FLASH_BANNER_ADDR + FLASH_PAGE_SIZE <= FLASH_BASE + 256U * 1024U,
+		"the banner page does not fit in 256 kB");
 _Static_assert(CFG_PAGE_SIZE == FLASH_PAGE_SIZE, "CFG_PAGE_SIZE must be the flash page size");
 _Static_assert(CFG_DOUBLE_CMDS_SIZE <= FLASH_DOUBLE_PAGES * FLASH_PAGE_SIZE,
 		"double press commands do not fit in the extension pages");

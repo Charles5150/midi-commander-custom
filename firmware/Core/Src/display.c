@@ -18,15 +18,17 @@
  * A text wider than its place scrolls across it once, when it arrives or the
  * bank is entered, and then shows its beginning.
  *
- * At power on the configuration can have a banner instead: its name and the
- * firmware version cross the screen in large letters, once. Any switch ends
- * it, and the bank screen waits for it underneath.
+ * At power on the configuration can have a banner instead: the pedal's own
+ * text (banner_store.c) or the configuration's name, then the firmware
+ * version, cross the screen in large letters, once. Any switch ends it, and
+ * the bank screen waits for it underneath.
  */
 #include "main.h"
 #include "flash_midi_settings.h"
 #include "midi_defines.h"
 #include "switch_router.h"
 #include "display.h"
+#include "banner_store.h"
 #include <string.h>
 #include <stdio.h>
 #include "ssd1306.h"
@@ -93,7 +95,7 @@ static void scroll_restart(void);
 #define BANNER_FIRST_PAGE	(BANNER_Y / 8)
 #define BANNER_LAST_PAGE	((BANNER_Y + 18 - 1) / 8)
 #define BANNER_STEP_MS	(25)
-#define BANNER_MAX	(16 + 4 + sizeof(FIRMWARE_VERSION))
+#define BANNER_MAX	(BANNER_TEXT_MAX + 4 + sizeof(FIRMWARE_VERSION))
 static uint8_t banner_on = 0;
 static volatile uint8_t banner_skip = 0;	// set by the switch scan
 static char banner_text[BANNER_MAX];
@@ -122,17 +124,23 @@ void display_init(void){
 }
 
 /*
- * Start the banner if the configuration asks for one: the name without its
- * padding, then the version. It clears what the boot drew.
+ * Start the banner if the configuration asks for one: the pedal's own text or
+ * the configuration's name, without trailing spaces, then the version. It clears what the boot drew.
  */
 static uint8_t banner_start(void){
 	uint8_t speed = pGlobalSettings[GLOBAL_SETTINGS_BANNER];
 	if(speed == 0 || speed > 3) return 0;
 
-	uint8_t len = 0;
-	for(uint8_t i=0; i<16; i++){
-		char ch = (char)pGlobalSettings[16+i];
-		banner_text[len++] = (ch < 32 || ch > 126) ? ' ' : ch;
+	// The pedal's own text when it has one, otherwise the configuration's name
+	const char *own = 0;
+	uint8_t len = banner_store_get(&own);
+	if(len){
+		memcpy(banner_text, own, len);
+	}else{
+		for(uint8_t i=0; i<16; i++){
+			char ch = (char)pGlobalSettings[16+i];
+			banner_text[len++] = (ch < 32 || ch > 126) ? ' ' : ch;
+		}
 	}
 	while(len && banner_text[len-1] == ' ') len--;
 	if(len){

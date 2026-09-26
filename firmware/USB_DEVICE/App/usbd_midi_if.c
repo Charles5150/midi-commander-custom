@@ -17,6 +17,7 @@
 #include "ssd1306.h"
 #include "display.h"
 #include "kemper.h"
+#include "banner_store.h"
 #include <string.h>
 
 extern I2C_HandleTypeDef hi2c1;
@@ -351,6 +352,29 @@ void sysex_enter_dfu(uint8_t* data_packet_start){
 	}
 }
 
+/*
+ * The power on banner's own text: F0 7D 76 1 text... F7 stores it (an empty
+ * one clears it), F0 7D 76 0 F7 only asks. The answer says whether a store
+ * was refused and gives the text the pedal now holds.
+ */
+void sysex_banner(uint8_t* data_packet_start, uint8_t text_len){
+	uint8_t refused = 0;
+	if(data_packet_start[0] == 1){
+		refused = banner_store_set(data_packet_start + 1, text_len) ? 0 : 1;
+	}
+
+	const char *text = 0;
+	uint8_t len = banner_store_get(&text);
+	uint8_t *p = midi_msg_tx_buffer;
+	*(p++) = SYSEX_START;
+	*(p++) = MIDI_MANUF_ID;
+	*(p++) = SYSEX_RSP_BANNER;
+	*(p++) = refused;
+	for(uint8_t i=0; i<len; i++) *(p++) = (uint8_t)text[i];
+	*(p++) = SYSEX_END;
+	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
+}
+
 void process_sysex_message(void){
 	// Check start and end bytes
 	if(sysex_rx_buffer[0] != SYSEX_START ||
@@ -420,6 +444,12 @@ void process_sysex_message(void){
 		// F0 7D 74 44 46 F7 = 6 bytes
 		if(sysex_rx_counter >= 6){
 			sysex_enter_dfu(&(pSysexHead->start_parameters));
+		}
+		break;
+	case SYSEX_CMD_BANNER:
+		// F0 7D 76 write F7 = 5 bytes, then the text
+		if(sysex_rx_counter >= 5){
+			sysex_banner(&(pSysexHead->start_parameters), sysex_rx_counter - 5);
 		}
 		break;
 	default:
