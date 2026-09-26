@@ -65,13 +65,9 @@ DMA_HandleTypeDef hdma_i2c1_tx;
 UART_HandleTypeDef huart2;
 DMA_HandleTypeDef hdma_usart2_tx;
 ADC_HandleTypeDef hadc1;
-DMA_HandleTypeDef hdma_adc1;
 
 /* USER CODE BEGIN PV */
 uint8_t f_sys_config_complete = 0;
-// Buffer for ADC values (DMA writes here automatically)
-// Index 0: EXP1 (PA7/ADC7), Index 1: EXP2 (PB0/ADC8) 
-volatile uint16_t adc_dma_buffer[2]; 
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -176,7 +172,7 @@ int main(void)
   uint16_t min_size = 256;
   if(flash_size < min_size) {
 	  char msg[25];
-	  sprintf(msg, "Mem %3dkb < %3dkb", flash_size, min_size);
+	  snprintf(msg, sizeof(msg), "Mem %3dkb < %3dkb", flash_size, min_size);
 	  Error(msg);
   }
 
@@ -192,6 +188,7 @@ int main(void)
   display_setConfigName();
 
   leds_init();
+  sw_init();
   sw_led_init();
 
   boot_wait(1000);
@@ -209,8 +206,6 @@ int main(void)
     sw_restore_state(saved_bank, saved_toggles, saved_long);
   }
   display_setBankName(sw_get_current_page());
-
-  // ADC DMA will be started in expression_task
 
   expression_init();
   if(safe_mode){
@@ -374,9 +369,6 @@ static void MX_DMA_Init(void)
   __HAL_RCC_DMA1_CLK_ENABLE();
 
   /* DMA interrupt init */
-  /* DMA1_Channel1_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0); // High priority
-  HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
   /* DMA1_Channel6_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel6_IRQn, 1, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel6_IRQn);
@@ -467,8 +459,6 @@ static void MX_GPIO_Init(void)
 
 static void MX_ADC1_Init(void)
 {
-  ADC_ChannelConfTypeDef sConfig = {0};
-
   hadc1.Instance = ADC1;
   hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE; // Disable scan
   hadc1.Init.ContinuousConvMode = DISABLE;
@@ -485,18 +475,6 @@ static void MX_ADC1_Init(void)
   {
     Error_Handler();
   }
-
-  /* DMA interrupt init */
-  /* DMA1_Channel1_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0); // High priority
-  HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
-  /* DMA1_Channel6_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Channel6_IRQn, 1, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Channel6_IRQn);
-  /* DMA1_Channel7_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Channel7_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Channel7_IRQn);
-  // The closing brace '}' from the provided snippet was removed as it was syntactically incorrect here.
 
   // Channel configuration will be done in expression.c dynamically
 }

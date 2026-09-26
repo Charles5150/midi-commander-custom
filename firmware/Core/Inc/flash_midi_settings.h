@@ -117,6 +117,13 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
  *   0x0803A000  banner      1 page
  *   0x0803A800  free       11 pages
  *   0x08040000  end
+ *
+ * The slots are full to the last byte and so are the global bytes, so the
+ * next settings that need flash go in the free pages: two per slot from
+ * 0x0803A800, a second extension area that the tools see as the
+ * configuration going on after the double press area. With no global byte
+ * left to say the tools wrote it, it will start with a marker of its own and
+ * count only when that is there. That leaves three pages over.
  */
 #define CONFIG_SLOTS			(4)
 #define FLASH_STATE_PAGES		(4)

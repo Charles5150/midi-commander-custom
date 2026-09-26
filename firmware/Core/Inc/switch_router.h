@@ -27,6 +27,7 @@ void sw_restore_state(uint8_t page, const uint32_t toggles[8], const uint32_t lo
 
 // Safe mode: true if a footswitch was held at power on, which is then not
 // taken as a press. Checked once at boot; sw_safe_mode tells from then on.
+void sw_init(void);
 bool sw_check_safe_mode(void);
 bool sw_safe_mode(void);
 

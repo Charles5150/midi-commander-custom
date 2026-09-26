@@ -72,11 +72,6 @@ static void seq_stop_all(void);
  * in a loop to simplify code and reduce duplication;
  */
 typedef struct {
-	GPIO_TypeDef *sw_gpio_port;
-	uint16_t sw_gpio_pin;
-	volatile uint16_t *pSwChangeState;
-	GPIO_TypeDef *led_gpio_port;
-	uint16_t led_gpio_pin;
 	uint32_t switch_toggle_state; // Bit per bank (0..MIDI_NUM_BANKS-1)
 	uint32_t led_cmd_toggle;
 	// Long press: a second command set fired when the button is held
@@ -159,17 +154,26 @@ static bool safe_mode = false;
 
 uint8_t switch_current_page = 0;
 
-sw_t a_sw_obj[] = {
-		{ .sw_gpio_port = SW_1_GPIO_Port, .sw_gpio_pin = SW_1_Pin, .pSwChangeState = &port_A_switches_changed, .led_gpio_port = LED_1_GPIO_Port, .led_gpio_pin = LED_1_Pin, .switch_toggle_state = 0, .press_bank = 0xFF},
-		{ .sw_gpio_port = SW_2_GPIO_Port, .sw_gpio_pin = SW_2_Pin, .pSwChangeState = &port_A_switches_changed, .led_gpio_port = LED_2_GPIO_Port, .led_gpio_pin = LED_2_Pin, .switch_toggle_state = 0, .press_bank = 0xFF},
-		{ .sw_gpio_port = SW_3_GPIO_Port, .sw_gpio_pin = SW_3_Pin, .pSwChangeState = &port_B_switches_changed, .led_gpio_port = LED_3_GPIO_Port, .led_gpio_pin = LED_3_Pin, .switch_toggle_state = 0, .press_bank = 0xFF},
-		{ .sw_gpio_port = SW_4_GPIO_Port, .sw_gpio_pin = SW_4_Pin, .pSwChangeState = &port_B_switches_changed, .led_gpio_port = LED_4_GPIO_Port, .led_gpio_pin = LED_4_Pin, .switch_toggle_state = 0, .press_bank = 0xFF},
+// Where each switch is read, kept in flash apart from the state below
+typedef struct {
+	GPIO_TypeDef *port;
+	volatile uint16_t *changed;
+	uint16_t pin;
+} sw_pins_t;
 
-		{ .sw_gpio_port = SW_A_GPIO_Port, .sw_gpio_pin = SW_A_Pin, .pSwChangeState = &port_B_switches_changed, .led_gpio_port = LED_A_GPIO_Port, .led_gpio_pin = LED_A_Pin, .switch_toggle_state = 0, .press_bank = 0xFF},
-		{ .sw_gpio_port = SW_B_GPIO_Port, .sw_gpio_pin = SW_B_Pin, .pSwChangeState = &port_C_switches_changed, .led_gpio_port = LED_B_GPIO_Port, .led_gpio_pin = LED_B_Pin, .switch_toggle_state = 0, .press_bank = 0xFF},
-		{ .sw_gpio_port = SW_C_GPIO_Port, .sw_gpio_pin = SW_C_Pin, .pSwChangeState = &port_A_switches_changed, .led_gpio_port = LED_C_GPIO_Port, .led_gpio_pin = LED_C_Pin, .switch_toggle_state = 0, .press_bank = 0xFF},
-		{ .sw_gpio_port = SW_D_GPIO_Port, .sw_gpio_pin = SW_D_Pin, .pSwChangeState = &port_A_switches_changed, .led_gpio_port = LED_D_GPIO_Port, .led_gpio_pin = LED_D_Pin, .switch_toggle_state = 0, .press_bank = 0xFF}
+static const sw_pins_t sw_pins[MIDI_NUM_SWITCHES] = {
+	{ SW_1_GPIO_Port, &port_A_switches_changed, SW_1_Pin },
+	{ SW_2_GPIO_Port, &port_A_switches_changed, SW_2_Pin },
+	{ SW_3_GPIO_Port, &port_B_switches_changed, SW_3_Pin },
+	{ SW_4_GPIO_Port, &port_B_switches_changed, SW_4_Pin },
+	{ SW_A_GPIO_Port, &port_B_switches_changed, SW_A_Pin },
+	{ SW_B_GPIO_Port, &port_C_switches_changed, SW_B_Pin },
+	{ SW_C_GPIO_Port, &port_A_switches_changed, SW_C_Pin },
+	{ SW_D_GPIO_Port, &port_A_switches_changed, SW_D_Pin },
 };
+
+// press_bank starts at 0xFF, see sw_init()
+sw_t a_sw_obj[MIDI_NUM_SWITCHES];
 
 #define MAX_DELAYED_CMDS (32)
 
@@ -511,7 +515,7 @@ static inline bool cmd_is_listen(const uint8_t *pRom){
  * or a power cycle starts them all again.
  */
 #define CYCLE_NONE	(0xFF)	// nothing sent yet
-static uint8_t cycle_pos[CFG_BUTTONS] = { [0 ... CFG_BUTTONS - 1] = CYCLE_NONE };
+static uint8_t cycle_pos[CFG_BUTTONS];	// all CYCLE_NONE from sw_init()
 
 static inline bool cmd_is_cycle(const uint8_t *pRom){
 	return (pRom[0] & 0xF0) == CMD_NO_CMD_NIBBLE && (pRom[0] & 0x0F) == CMD_CYCLE_MODE;
@@ -1662,7 +1666,8 @@ static uint32_t beat_pos(uint32_t start_beat, uint32_t period, uint32_t offset){
  * again from this beat and returns the offset that keeps it as far through.
  */
 static uint32_t beat_rescale(uint32_t *start_beat, uint32_t pos, uint32_t was, uint32_t period){
-	uint32_t target = (uint32_t)((uint64_t)pos * period / was);
+	// pos * period / was, split so it never needs 64 bits
+	uint32_t target = pos / was * period + pos % was * period / was;
 	uint32_t ms;
 	tempo_beat_now(start_beat, &ms);
 	uint32_t now = beat_pos(*start_beat, period, 0);
@@ -2436,7 +2441,9 @@ static void repeat_task(sw_t *sw, uint32_t now){
 		sw->repeat_list = NULL;	// released, or never held
 		return;
 	}
-	if((now - sw->repeat_tick) < sw->repeat_interval) return;
+	// Signed: the list may have fired, and set repeat_tick, a tick after
+	// handle_switches read now, which unsigned would take for a long wait
+	if((int32_t)(now - sw->repeat_tick) < (int32_t)sw->repeat_interval) return;
 	// Step the clock by the interval, not to now, so the main loop's pace
 	// does not stretch every gap; after a long stall, start again from now
 	sw->repeat_tick += sw->repeat_interval;
@@ -2638,15 +2645,15 @@ static void bank_switch_press(uint8_t which, int16_t delta, bool long_press){
 static void preview_switches(uint32_t now){
 	for(uint8_t i=0; i<MIDI_NUM_SWITCHES; i++){
 		sw_t *sw = &a_sw_obj[i];
-		if(!(*sw->pSwChangeState & sw->sw_gpio_pin)) continue;
-		bool down = switch_down(sw->sw_gpio_port, sw->sw_gpio_pin);
+		if(!(*sw_pins[i].changed & sw_pins[i].pin)) continue;
+		bool down = switch_down(sw_pins[i].port, sw_pins[i].pin);
 		if(preview_held & (1U << i)){
-			clear_changed(sw->pSwChangeState, sw->sw_gpio_pin);
+			clear_changed(sw_pins[i].changed, sw_pins[i].pin);
 			if(!down) preview_held &= (uint8_t)~(1U << i);
 			continue;
 		}
 		if(preview_bank == 0xFF || !down || sw->press_state != PRESS_IDLE) continue;
-		clear_changed(sw->pSwChangeState, sw->sw_gpio_pin);
+		clear_changed(sw_pins[i].changed, sw_pins[i].pin);
 		preview_held |= (uint8_t)(1U << i);
 		uint8_t target = preview_bank;
 		latency_begin();
@@ -2922,9 +2929,9 @@ void sw_virtual_press(uint8_t id, uint8_t down){
 
 static void virtual_pin(uint8_t id, GPIO_TypeDef **port, uint16_t *pin, volatile uint16_t **changed){
 	if(id < MIDI_NUM_SWITCHES){
-		*port = a_sw_obj[id].sw_gpio_port;
-		*pin = a_sw_obj[id].sw_gpio_pin;
-		*changed = a_sw_obj[id].pSwChangeState;
+		*port = sw_pins[id].port;
+		*pin = sw_pins[id].pin;
+		*changed = sw_pins[id].changed;
 	} else if(id == SW_VIRTUAL_BANK_DOWN){
 		*port = SW_E_GPIO_Port;
 		*pin = SW_E_Pin;
@@ -3378,10 +3385,9 @@ static bool editor_switches(uint32_t now){
 	if(!editor_is_open()) return false;
 
 	for(int i=0; i<8; i++){
-		sw_t *sw = &a_sw_obj[i];
-		if(*sw->pSwChangeState & sw->sw_gpio_pin){
-			clear_changed(sw->pSwChangeState, sw->sw_gpio_pin);
-			editor_press((uint8_t)i, switch_down(sw->sw_gpio_port, sw->sw_gpio_pin));
+		if(*sw_pins[i].changed & sw_pins[i].pin){
+			clear_changed(sw_pins[i].changed, sw_pins[i].pin);
+			editor_press((uint8_t)i, switch_down(sw_pins[i].port, sw_pins[i].pin));
 		}
 	}
 	if(port_A_switches_changed & SW_E_Pin){
@@ -3466,10 +3472,10 @@ void handle_switches(void){
 			fire_short_up(i);
 		}
 
-		if(*sw->pSwChangeState & sw->sw_gpio_pin){
-			clear_changed(sw->pSwChangeState, sw->sw_gpio_pin);
+		if(*sw_pins[i].changed & sw_pins[i].pin){
+			clear_changed(sw_pins[i].changed, sw_pins[i].pin);
 
-			if(switch_down(sw->sw_gpio_port, sw->sw_gpio_pin)){
+			if(switch_down(sw_pins[i].port, sw_pins[i].pin)){
 				// Switch Down
 				if(sw->press_state == PRESS_WAIT_SECOND){
 					// The second press of a double press
@@ -3558,7 +3564,7 @@ void handle_switches(void){
 				is_active = get_sw_toggle_state(&a_sw_obj[i]);
 			} else {
 				// Momentary Mode: Active if physically pressed
-				if(switch_down(a_sw_obj[i].sw_gpio_port, a_sw_obj[i].sw_gpio_pin)){
+				if(switch_down(sw_pins[i].port, sw_pins[i].pin)){
 					is_active = 1;
 				}
 			}
@@ -3658,10 +3664,16 @@ void sw_get_long_toggle_states(uint32_t out[8]){
 	}
 }
 
+// Called once at boot, before anything else here
+void sw_init(void){
+	for(uint8_t i=0; i<MIDI_NUM_SWITCHES; i++) a_sw_obj[i].press_bank = 0xFF;
+	memset(cycle_pos, CYCLE_NONE, sizeof(cycle_pos));
+}
+
 // Called once at boot, before the switches are scanned
 bool sw_check_safe_mode(void){
 	for(uint8_t i=0; i<MIDI_NUM_SWITCHES; i++){
-		if(!HAL_GPIO_ReadPin(a_sw_obj[i].sw_gpio_port, a_sw_obj[i].sw_gpio_pin)){
+		if(!HAL_GPIO_ReadPin(sw_pins[i].port, sw_pins[i].pin)){
 			safe_mode = true;
 		}
 	}
