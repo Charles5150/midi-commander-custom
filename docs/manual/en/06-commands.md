@@ -2,6 +2,8 @@
 
 What a button can send. Every list, short, long or double press, a bank's commands on entry and leaving, and the bank switches', holds up to ten of these, sent in order.
 
+![A command list with a pause, a ramp, a condition and a macro](../images/command-list-en.svg)
+
 ## Command fields
 
 | Field | PC | CC | Note | PB | Key | Meaning |

@@ -1,5 +1,9 @@
 # Templates and devices
 
+The pedal talks to a computer over USB and to the rest of your gear through its MIDI OUT socket. Everything a button sends goes out of both; what arrives over USB can change bank, light LEDs, press switches, set the tempo or go on to the DIN output.
+
+![Where MIDI goes in and out](../images/midi-routes-en.svg)
+
 ## Fractal Audio FM3 template
 
 **`python/templates/FM3.csv`** is ready to flash for a Fractal Audio FM3 driven over the DIN output, and should suit an Axe-Fx III or FM9 too, which are set up the same way. Connect the pedal's MIDI OUT to the FM3's MIDI IN and power the pedal over USB.

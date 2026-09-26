@@ -52,6 +52,8 @@ With `Bank_Preview` set to a number of seconds in the [global settings](12-confi
 
 ## Setlist
 
+![Bank Up with and without a setlist](../images/setlist-en.svg)
+
 Optional; rows of `Position` and `Bank_Number` (0–31). Up to 32 entries, ordered by `Position`, so rows may be in any order and positions may skip numbers; invalid bank numbers are dropped. It only takes effect while `Setlist_Mode` is on, so you can keep a list stored and switch it off. A bank may appear more than once, but stepping from it always continues from its first appearance. Edit it in the configurator's **Setlist** tab.
 
 ---

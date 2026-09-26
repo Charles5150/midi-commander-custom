@@ -2,6 +2,8 @@
 
 Every button has three command lists, a short, a long and a double press, a label on the display, a light and a few options that change how it behaves.
 
+![When the short, long, double press and combination lists go out](../images/press-types-en.svg)
+
 ## Button_Settings
 
 One row per button, 256 rows in bank order and, within a bank, in the order `1, 2, 3, 4, A, B, C, D` (top row of the pedal, then bottom row). Columns:

@@ -6,6 +6,7 @@ Run from the repository root:
 """
 
 import glob
+import importlib.util
 import os
 import re
 import unittest
@@ -66,6 +67,19 @@ class LinkTest(unittest.TestCase):
                 elif anchor and dest.endswith(".md") and anchor not in anchors(dest):
                     broken.append(f"{rel}: {target} (no such heading)")
         self.assertEqual(broken, [], "\n".join(broken))
+
+
+class PictureTest(unittest.TestCase):
+    def test_pictures_are_drawn_from_the_script(self):
+        """Each picture exists in both languages, as docs/manual/pictures.py draws it now."""
+        spec = importlib.util.spec_from_file_location("pictures", os.path.join(MANUAL, "pictures.py"))
+        pictures = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(pictures)
+        for name, draw in pictures.PICTURES.items():
+            for lang in ("en", "es"):
+                path = os.path.join(pictures.IMAGES, f"{name}-{lang}.svg")
+                self.assertTrue(os.path.exists(path), f"{path} missing: run docs/manual/pictures.py")
+                self.assertEqual(read(path), draw(lang), f"{path} is out of date: run docs/manual/pictures.py")
 
 
 if __name__ == "__main__":
