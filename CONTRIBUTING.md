@@ -12,6 +12,7 @@ for questions.
 | `firmware/` | STM32F103 firmware (HAL, USB MIDI + HID composite device) |
 | `python/` | Configuration tools: GUI, `CSV_to_Flash.py`, `Flash_to_CSV.py`, `Backup_Slots.py`, packers and `slotIO.py` (reading and writing a slot) under `lib/` |
 | `python/tests/` | Round-trip tests for the CSV packers |
+| `docs/manual/` | The user manual, `en/` and `es/` with the same chapters, and the pictures both share |
 | `artifacts/` | Built firmware images. Current ones are attached to GitHub releases |
 | `tools/`, `scripts/` | DFU packaging helpers used by the PlatformIO build |
 
@@ -27,6 +28,18 @@ platformio run -e midi_debug    # ST-Link image at 0x08000000
 
 The first build downloads the ARM toolchain. CI builds both environments on
 every push and pull request.
+
+`midi_dfu` also packages the binary as a DfuSe container through `scripts/post_build_dfuse.py` and `tools/bin_to_dfuse.py`, writing `artifacts/dfu/platformio-<timestamp>.dfu` and a stable `artifacts/dfu/platformio-latest.dfu`. Flash it as in [Getting started](docs/manual/en/02-getting-started.md#1-flash-the-firmware), or let PlatformIO do it:
+
+```bash
+platformio run -e midi_dfu -t upload
+```
+
+With the Python environment in `.venv` the upload goes through `Update_Firmware.py`, so a pedal on 0.58 or later needs nothing held and starts the new build by itself. Without it, `dfu-util` is run on its own and the pedal has to be in DFU mode already.
+
+The raw binary can also be flashed directly: `dfu-util --alt 0 -s 0x08003000 --download .pio/build/midi_dfu/firmware.bin`.
+
+Hardware notes (MCU, pinout, I²C addresses) are in `HardwareNotes.txt`; `backup/` holds a dump of the original firmware and EEPROM.
 
 ## Flashing
 
@@ -50,7 +63,7 @@ On older firmware, or by hand:
 3. Power cycle. The version shows on the display at boot.
 
 The configuration lives in separate flash pages, so flashing firmware does not
-touch it. When a release changes the configuration format the README says so;
+touch it. When a release changes the configuration format the changelog says so;
 re-flash the configuration with the updated tools in that case.
 
 ## Python tools
@@ -67,6 +80,26 @@ python3 -m venv .venv
 
 On macOS with Homebrew Python you also need `brew install python-tk`.
 
+## Tests
+
+The Python tools have tests: round trips through the configuration packers, and checks that the numbers the tools and the firmware share still agree:
+
+```bash
+.venv/bin/python -m unittest discover -s python/tests
+```
+
+GitHub Actions builds both firmware images and runs these tests on every push and pull request.
+
+**Before a release**, with the pedal on USB and the demo configuration (`python/demo-all-features.csv`) active, run the stress test as well. It needs nothing else, no foot and no DIN device, and takes about a minute:
+
+```bash
+.venv/bin/python python/Stress_Test.py
+```
+
+It plays the same sequence of presses and bank changes twice, over SysEx and through `Remote_Mode`: short, long and double presses, two switches together, scenes, a note held while the bank changes. The first time the line is quiet; the second time the pedal also gets MIDI clock, CCs and notes for `LED_Feedback` to look up, messages for the DIN output, texts over SysEx and a stream of state and screen reads, a few hundred messages a second. Both runs must send the same messages in the same order and leave the same banks and toggles, with no note or momentary CC left on and every SysEx answered. Then `LED_Feedback` gets a snapshot of 125 CCs in one go, and 150 bank changes arrive in bursts, some of them spaced to land as the previous screen finishes going out: every bank entered must be left again with its Bank Enter and Leave commands, and the pedal must end on the last bank asked for, with that bank's screen. Changes that arrive before the pedal has handled the one before are merged, the last one winning, as they always have been. The screen is checked in the pedal's buffer, so look at the panel itself when it finishes; the pedal is put back on the bank it started on. Last, the pedal's own MIDI clock, an LFO and a step sequence are started in bank 6 and the presses and bank changes go on for 15 seconds under the same flood, the pedal now sending on its own as well: it must keep answering, and from firmware 0.65 no press may take more than 5 ms from the switch to its first MIDI message. It exits with 1 when a check fails, and `--seed` repeats a run's random parts. Firmware 0.60 or later.
+
+**Latency.** From 0.65 the pedal times its own presses: from the moment it sees a switch change, or a press from the computer arrives, to the moment the first MIDI message of that press is handed to USB, with the processor's cycle counter. SysEx `GET_LATENCY` (78) returns how many presses it timed, the slowest and the last 16, in microseconds. A press that waits on purpose, one with a long or double press list, is not timed, and a bank switch is timed from its release, which is when it acts. `Latency_Test.py` presses a toggle button and Bank Up forty times each over SysEx, first with the line quiet and then under the stress test's load with the pedal's clock, LFO and sequence running, and prints what the pedal measured next to the computer's own round trip for comparison; on a Mac that round trip alone is about 6 ms, in steps of about 5 ms, which is why the computer cannot time the pedal's part itself. On 0.65 a press takes about 0.25 ms and a bank change about 0.4 ms; the slowest are a press that lands while a screen is being drawn, about 2 ms more. Firmware 0.65 or later.
+
 ## Making changes
 
 - Keep the flash layout in `firmware/Core/Src/flash_midi_settings.c`,
@@ -75,5 +108,6 @@ On macOS with Homebrew Python you also need `brew install python-tk`.
 - Bump `FIRMWARE_VERSION` in `firmware/Core/Inc/main.h` when the SysEx
   protocol or the configuration format changes, and publish the image as a
   GitHub release rather than committing another `artifacts/release-x.y.dfu`.
-- Describe user-visible changes in the README under "Changelog".
+- Describe user-visible changes in `CHANGELOG.md`, and in the user manual,
+  `docs/manual/en/` and `docs/manual/es/`, both languages at once.
 - If you can, say in the pull request what you verified on hardware.

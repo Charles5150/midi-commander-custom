@@ -47,9 +47,10 @@ dkms.conf
 
 
 flash_error.log
-docs
-# ...but the screenshots the README shows are part of the project
+docs/*
+# ...but the screenshots and the user manual are part of the project
 !docs/images/
+!docs/manual/
 .venv/
 
 # Every build leaves a dated DFU behind; the image of a release is attached to it
