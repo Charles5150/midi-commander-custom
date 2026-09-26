@@ -322,11 +322,16 @@ def cmd_pc(cmd):
     return cmd_bytes
 
 
+# The firmware sends no off message for a CC whose off byte is above 0x7F
+CC_NO_OFF = 0x80
+
+
 def cc_off_value(val) -> int:
-    """A CC's OffValue byte: 0-127, or 128 and above for no off message."""
+    """A CC's OffValue byte: 0-127, or 128 and above for no off message.
+    Empty is no off message too, as the manual has always said."""
     text = cell_text(val)
     if text == "":
-        return 0
+        return CC_NO_OFF
     try:
         number = float(text)
     except ValueError:

@@ -2409,14 +2409,14 @@ class Fm3TemplateTest(unittest.TestCase):
             self.assertEqual(row["A_CommandType"], "CC")
             self.assertEqual(norm(row["A_Number_(PC/CC/Note)"]), "34")
             self.assertEqual(norm(row["A_OnValue_(CC/PB)"]), str(value))
-            self.assertEqual(norm(row["A_OffValue_(CC)"]), "128")   # sends nothing
+            self.assertEqual(norm(row["A_OffValue_(CC)"]), "")   # sends nothing
             self.assertEqual(row["A_Toggle_(CC/PB/Note)"], "Y")
             self.assertEqual(norm(row["Group"]), "1")
 
     def test_tap_sends_only_on_the_press(self):
         row = self.button(0, "D")
         self.assertEqual(norm(row["A_Number_(PC/CC/Note)"]), "14")
-        self.assertEqual(norm(row["A_OffValue_(CC)"]), "128")
+        self.assertEqual(norm(row["A_OffValue_(CC)"]), "")
         self.assertEqual(row["A_Toggle_(CC/PB/Note)"], "N")
 
     def test_looper_and_fx_banks(self):
@@ -2453,7 +2453,7 @@ class HxStompTemplateTest(unittest.TestCase):
             row = self.button(5, btn)
             self.assertEqual(norm(row["A_Number_(PC/CC/Note)"]), "69")
             self.assertEqual(norm(row["A_OnValue_(CC/PB)"]), str(value))
-            self.assertEqual(norm(row["A_OffValue_(CC)"]), "128")   # sends nothing
+            self.assertEqual(norm(row["A_OffValue_(CC)"]), "")   # sends nothing
             self.assertEqual(norm(row["Group"]), "1")
 
     def test_footswitches_tuner_and_tap(self):
@@ -2463,7 +2463,7 @@ class HxStompTemplateTest(unittest.TestCase):
             self.assertEqual(row["A_Toggle_(CC/PB/Note)"], "Y")
         tap = self.button(0, "D")
         self.assertEqual(norm(tap["A_Number_(PC/CC/Note)"]), "64")
-        self.assertEqual(norm(tap["A_OffValue_(CC)"]), "128")
+        self.assertEqual(norm(tap["A_OffValue_(CC)"]), "")
 
     def test_looper_and_stomp_banks(self):
         self.assertEqual(norm(self.button(30, "1")["A_Number_(PC/CC/Note)"]), "60")
@@ -2505,7 +2505,7 @@ class KemperPlayerTemplateTest(unittest.TestCase):
             row = self.button(7, btn)
             self.assertEqual(norm(row["A_Number_(PC/CC/Note)"]), number)
             self.assertEqual(norm(row["A_OnValue_(CC/PB)"]), "1")
-            self.assertEqual(norm(row["A_OffValue_(CC)"]), "128")   # sends nothing
+            self.assertEqual(norm(row["A_OffValue_(CC)"]), "")   # sends nothing
             self.assertEqual(row["A_Toggle_(CC/PB/Note)"], "Y")
             self.assertEqual(norm(row["Group"]), "1")
 
@@ -2516,7 +2516,7 @@ class KemperPlayerTemplateTest(unittest.TestCase):
             self.assertEqual(row["A_Toggle_(CC/PB/Note)"], "Y")
         tap = self.button(0, "D")
         self.assertEqual(norm(tap["A_Number_(PC/CC/Note)"]), "30")
-        self.assertEqual(norm(tap["A_OffValue_(CC)"]), "128")
+        self.assertEqual(norm(tap["A_OffValue_(CC)"]), "")
 
     def test_fx_and_tool_banks(self):
         names = self.banks.set_index(self.banks["Bank_Number"].astype(str))["Bank_Name_Large"]

@@ -617,6 +617,10 @@ class SlotEditor:
             self._channel()
             self._int("number", "CC#", "Number_(PC/CC/Note)", 0, 127)
             self._int("on", "On", "OnValue_(CC/PB)", 0, 127)
+            # Empty, or 128 and above in a CSV, is a CC with no off message
+            off = clean(self.initial.get("OffValue_(CC)"))
+            if off and to_int(off) > 127:
+                self.initial = dict(self.initial, **{"OffValue_(CC)": ""})
             self._int("off", "Off", "OffValue_(CC)", 0, 127)
             self._check("toggle", "Toggle", "Toggle_(CC/PB/Note)")
         elif cmd_type == "Note":

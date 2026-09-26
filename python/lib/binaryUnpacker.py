@@ -392,7 +392,8 @@ def unpack_command(raw: bytes, cycle_labels=None) -> dict:
         cmd["Channel_(PC/CC/Note/PB)"] = channel
         cmd["Number_(PC/CC/Note)"] = str(b1 & 0x7F)
         cmd["OnValue_(CC/PB)"] = str(b2 & 0x7F)
-        cmd["OffValue_(CC)"] = str(b3)
+        # Above 0x7F the CC has no off message: an empty cell, as it is written
+        cmd["OffValue_(CC)"] = str(b3) if b3 <= 0x7F else ""
         cmd["Toggle_(CC/PB/Note)"] = toggle
     elif cmd_type == CMD_NOTE_NIBBLE:
         cmd["CommandType"] = "Note"

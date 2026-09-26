@@ -128,11 +128,19 @@ class ValueTest(unittest.TestCase):
 
     def test_cc_off_value(self):
         self.assertEqual(self.pack_one(**cc(**{"OffValue_(CC)": "128"}))[3], 128)
-        self.assertEqual(self.pack_one(**cc(**{"OffValue_(CC)": ""}))[3], 0)
+        # Empty is no off message, as the manual says; 0 is written as 0
+        self.assertEqual(self.pack_one(**cc(**{"OffValue_(CC)": ""}))[3], 128)
+        self.assertEqual(self.pack_one(**cc(**{"OffValue_(CC)": "0"}))[3], 0)
         for value in ("256", "-1", "x"):
             with self.assertRaises(ValueError) as e:
                 self.pack_one(**cc(**{"OffValue_(CC)": value}))
             self.assertIn("OffValue", str(e.exception))
+
+    def test_cc_off_value_reads_back(self):
+        from lib.binaryUnpacker import unpack_command
+        for written, read in (("", ""), ("128", ""), ("0", "0"), ("64", "64")):
+            raw = bytes(self.pack_one(**cc(**{"OffValue_(CC)": written})))
+            self.assertEqual(unpack_command(raw)["OffValue_(CC)"], read, written)
 
     def test_channel(self):
         self.assertEqual(self.pack_one(**cc(**{"Channel_(PC/CC/Note/PB)": ""}))[0] & 0x0F, 0)
@@ -143,7 +151,7 @@ class ValueTest(unittest.TestCase):
 
     def test_missing_columns_read_empty(self):
         self.assertEqual(self.pack_one(CommandType="cc", **{"Number_(PC/CC/Note)": "7"}),
-                         [cbp.CMD_CC_NIBBLE, 7, 0, 0])
+                         [cbp.CMD_CC_NIBBLE, 7, 0, 128])
 
     def test_sysex_number(self):
         sysex = {"CommandType": "SysEx"}
