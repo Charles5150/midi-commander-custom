@@ -112,7 +112,10 @@ class LineTest(unittest.TestCase):
 
 class MonitorTest(unittest.TestCase):
     def test_stamps_on_arrival(self):
-        virt = mido.open_output("Monitor Test", virtual=True)
+        try:
+            virt = mido.open_output("Monitor Test", virtual=True)
+        except Exception as exc:  # no MIDI system, as on the CI's Linux runner
+            self.skipTest(f"no virtual MIDI ports here: {exc}")
         try:
             ticks = iter([10.0, 10.5, 11.25])
             mon = mm.Monitor(names=["Monitor Test"], clock=lambda: next(ticks))
