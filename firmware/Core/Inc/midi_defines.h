@@ -64,6 +64,8 @@
 #define SYSEX_RSP_ENTER_DFU	(75) // one byte: 0 restarting in DFU, 1 not behind the bootloader so nothing done
 #define SYSEX_CMD_BANNER	(76) // 1 then the power on banner's own text (none clears it), or 0 only asks
 #define SYSEX_RSP_BANNER	(77) // 0 done or 1 refused, then the text stored
+#define SYSEX_CMD_GET_LATENCY	(78) // 1 clears after answering, 0 only reads
+#define SYSEX_RSP_GET_LATENCY	(79) // presses timed (2 bytes), slowest, then the last up to 16, oldest first; microseconds in 3 bytes each
 
 #define SYSEX_START (0xF0)
 #define SYSEX_END	(0xF7)

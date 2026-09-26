@@ -17,7 +17,11 @@ note or momentary CC may be left on and every SysEx must get its answer.
 A snapshot of 125 CCs must reach LED_Feedback whole. Then bursts of bank
 changes, some spaced to land on the end of the previous screen update, must
 end on the right bank with the right screen, every bank entered being left
-again with its Bank Enter and Leave commands.
+again with its Bank Enter and Leave commands. Last, the pedal's own clock,
+LFO and step sequence are started and the presses go on under the flood with
+the pedal sending on its own too: it must keep answering and, from firmware
+0.65, which times its presses itself, no press may take more than 5 ms from
+the switch to its first MIDI message.
 
 The screen is checked in the pedal's buffer, which is what GET_SCREEN reads;
 the panel itself is only seen by eye, so look at it when the script ends.
@@ -36,16 +40,19 @@ from lib.midiDevice import (  # noqa: E402
     MIDI_MANUF_ID,
     SCREEN_PARTS,
     SCREEN_PART_BYTES,
+    SYSEX_CMD_GET_LATENCY,
     SYSEX_CMD_GET_SCREEN,
     SYSEX_CMD_GET_STATE,
     SYSEX_CMD_GET_VERSION,
     SYSEX_CMD_PRESS_BUTTON,
     SYSEX_CMD_SET_TEXT,
+    SYSEX_RSP_GET_LATENCY,
     SYSEX_RSP_GET_SCREEN,
     SYSEX_RSP_GET_STATE,
     SYSEX_RSP_GET_VERSION,
     DeviceNotFound,
     MidiCommander,
+    parse_latency,
     parse_state,
     switch_id,
     text_sysex,
@@ -76,6 +83,10 @@ LEAVE_SENDS = {11: [("control_change", 0, 59, 0)]}
 # Incoming traffic for the loaded run: numbers no button of the demo uses
 FLOOD_CCS = range(90, 100)
 FLOOD_NOTES = range(100, 111)
+# The most a press may take from the switch to its first MIDI message, as the
+# pedal times it (firmware 0.65): the pass of the main loop it lands in, whose
+# longest step is drawing a whole screen, about 2 ms
+PRESS_LIMIT_MS = 5.0
 TEXTS = ["STRESS", "LOAD 1234", "A LONGER TEXT THAT HAS TO SCROLL", "X", "MIDI FLOOD"]
 
 results = []
@@ -115,6 +126,7 @@ class Link:
         self.midi = []            # what the pedal sent, as key() tuples
         self.states = []          # GET_STATE answers, parsed
         self.screen = {}          # GET_SCREEN part -> bytes
+        self.latency = None       # the last GET_LATENCY answer, parsed
 
     def out(self, msg):
         self.dev.outport.send(msg)
@@ -153,6 +165,8 @@ class Link:
                 self.states.append(parse_state(data))
             elif rsp == SYSEX_RSP_GET_SCREEN and data:
                 self.screen[data[0]] = unpack7(data[1:])
+            elif rsp == SYSEX_RSP_GET_LATENCY:
+                self.latency = parse_latency(data)
 
     def wait(self, seconds, flood=None):
         end = time.monotonic() + seconds
@@ -174,6 +188,16 @@ class Link:
             self.poll()
             time.sleep(0.002)
         return self.states[-1] if len(self.states) > before else None
+
+    def ask_latency(self, clear=True, timeout=1.0):
+        """What the pedal timed since the last clear (firmware 0.65), None if no answer."""
+        self.latency = None
+        self.sysex(SYSEX_CMD_GET_LATENCY, 1 if clear else 0)
+        end = time.monotonic() + timeout
+        while self.latency is None and time.monotonic() < end:
+            self.poll()
+            time.sleep(0.002)
+        return self.latency
 
     def ask_screen(self, timeout=1.0):
         self.screen = {}
@@ -407,9 +431,69 @@ def bursts(link, rng, count):
     ]
 
 
+def own_streams(link, on):
+    """Start or stop, in bank 6, the pedal's own clock, the LFO under TREM and
+    the arpeggio under STRT, which keep sending from the pedal whatever the
+    bank. Ends on bank 2."""
+    link.bank(6)
+    link.wait(0.3)
+    order = [("2", 0.08), ("A", 0.08), ("3", 1.2)]    # STRT held: the sequence
+    for name, hold in (order if on else order[::-1]):
+        link.press(name, True)
+        link.wait(hold)
+        link.press(name, False)
+        link.wait(0.2)
+    link.bank(2)
+    link.wait(0.4)
+
+
+def streams(link, rng, seconds, timed):
+    """Presses and bank changes while the pedal sends on its own and the flood
+    comes in: sending to the DIN output from both the main loop and the USB
+    interrupt hung the pedal before 0.65. Yields (name, ok, detail)."""
+    reset(link)
+    own_streams(link, True)
+    if timed:
+        link.ask_latency()
+    flood = Flood(link, rng)
+    presses = 0
+    end = time.monotonic() + seconds
+    while time.monotonic() < end:
+        for name in ("B", "UP"):
+            link.press(name, True)
+            link.wait(0.06, flood)
+            link.press(name, False)
+            link.wait(0.1, flood)
+            presses += 1
+        link.bank(2)
+        link.wait(0.12, flood)
+    flood.finish()
+    link.wait(0.3)
+    got = link.ask_latency() if timed else None
+    yield ("with its own clock, LFO and sequence running it still answers",
+           got is not None if timed else link.ask_state() is not None, f"{presses} presses")
+    if timed and got:
+        yield (f"no press took more than {PRESS_LIMIT_MS:g} ms to send", 0 < got["count"] and got["max"] < PRESS_LIMIT_MS,
+               f"slowest {got['max']:.2f} ms of {got['count']}")
+    own_streams(link, False)
+    reset(link)
+
+
+def is_demo(link):
+    """Whether the demo configuration is the one active, by a few banks' labels."""
+    for bank, labels in DEMO_LABELS.items():
+        link.bank(bank)
+        link.wait(0.3)
+        st = link.ask_state()
+        if not st or st["labels"] != labels:
+            return False
+    return True
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--bursts", type=int, default=150, help="bank changes in the bursts (default 150)")
+    parser.add_argument("--streams", type=float, default=15, help="seconds of presses with the pedal's own streams (default 15)")
     parser.add_argument("--seed", type=int, default=None, help="seed for the random parts, to repeat a run")
     args = parser.parse_args()
     seed = args.seed if args.seed is not None else random.randrange(1 << 16)
@@ -427,15 +511,9 @@ def main():
             sys.exit(f"Firmware {version}: this test needs 0.60 or later")
         link = Link(dev)
         start = link.ask_state()
-        link.bank(1)
-        link.wait(0.3)
-        for bank, labels in DEMO_LABELS.items():
-            link.bank(bank)
-            link.wait(0.3)
-            st = link.ask_state()
-            if not st or st["labels"] != labels:
-                link.bank(start["bank"])
-                sys.exit("This test runs on the demo configuration: load python/demo-all-features.csv first")
+        if not is_demo(link):
+            link.bank(start["bank"])
+            sys.exit("This test runs on the demo configuration: load python/demo-all-features.csv first")
         print(f"firmware {version}, demo configuration, starting from bank {start['bank']}")
         link.midi = []
         link.sent_sysex.clear()
@@ -466,7 +544,11 @@ def main():
         for name, ok, detail in bursts(link, rng, args.bursts):
             check(name, ok, detail)
 
-        # --- 3. still sound
+        # --- 3. the pedal sending on its own as well
+        for name, ok, detail in streams(link, rng, args.streams, version_at_least(version, 0, 65)):
+            check(name, ok, detail)
+
+        # --- 4. still sound
         link.sysex(SYSEX_CMD_GET_VERSION)
         link.wait(0.3)
         check("still answers", link.answers[SYSEX_RSP_GET_VERSION] >= 1)

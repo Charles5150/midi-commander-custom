@@ -8,6 +8,11 @@ volatile uint8_t display_transmit_line = 0; // The next line to be transmitted t
 volatile uint8_t display_transmit_data_flag = 0; // non zero indicates the last thing to be transmitted was a data packet. This is required to know how to handle the transfer complete callback.
 volatile uint8_t display_line_transmitting_flag = 0; // non zero indicates the line transfer has started, and a new transfer should not start until this is cleared.
 static volatile uint8_t display_last_line = 7; // the last line of the update going out
+// An update asked for while another was going out: the pages to send once it
+// is over, first 0xFF for none. Drawing into the buffer meanwhile is safe, as
+// each page is copied out of it only when its turn comes.
+static volatile uint8_t display_pending_first = 0xFF;
+static volatile uint8_t display_pending_last = 0;
 
 
 void ssd1306_DMATxLine(uint8_t line);
@@ -21,9 +26,11 @@ static void ssd1306_WaitIdle(void){
 		__NOP();
 }
 
-// Still sending the last screen: what to ask before drawing without waiting
+// Still sending the last screen, or another one after it: what to ask
+// before drawing without waiting
 uint8_t ssd1306_Busy(void){
-	return display_transmit_line != 0 || display_line_transmitting_flag;
+	return display_transmit_line != 0 || display_line_transmitting_flag
+			|| display_pending_first != 0xFF;
 }
 
 // Call this function periodically from the systick handler to handle loading the DMA with screen updates.
@@ -41,6 +48,13 @@ void ssd1306_tick(void){
 		if(display_transmit_line > display_last_line){
 			display_transmit_line = 0;
 		}
+	} else if(display_pending_first != 0xFF){
+		// The update asked for while the last one was going out
+		uint8_t first = display_pending_first;
+		display_last_line = display_pending_last;
+		display_pending_first = 0xFF;
+		ssd1306_DMATxLine(first);
+		display_transmit_line = (first < display_last_line) ? first + 1 : 0;
 	}
 }
 
@@ -225,25 +239,34 @@ void ssd1306_DMATxLine(uint8_t line){
 // is only started on systick 1ms boundaries, but expect somewhere < 30ms.  Real world tests have shown between 25-30ms.
 // However these times are somewhat irrelevant now, since the processor isn't blocked and these displays aren't really much good for animation.
 void ssd1306_UpdateScreen(void) {
-
-	// Delay until the previous update has finished
-	ssd1306_WaitIdle();
-
-	SSD1306_FrameCount++;
-
-	display_last_line = 7;
-	ssd1306_DMATxLine(0);
-	display_transmit_line = 1;
+	ssd1306_UpdateLines(0, 7);
 }
 
 // Only the pages first..last (8 pixel rows each) go out: quicker, for a
-// moving band of the screen
+// moving band of the screen.
+// Never waits: while the last update is still going out, this one is noted
+// and sent after it by ssd1306_tick. Waiting here held up whatever came next,
+// the MIDI of a bank change among them, for up to a whole screen's transfer.
 void ssd1306_UpdateLines(uint8_t first, uint8_t last) {
 	if(last > 7) last = 7;
 	if(first > last) return;
-	ssd1306_WaitIdle();
 
 	SSD1306_FrameCount++;
+
+	__disable_irq();
+	if(ssd1306_Busy()){
+		if(display_pending_first == 0xFF){
+			display_pending_first = first;
+			display_pending_last = last;
+		} else {
+			if(first < display_pending_first) display_pending_first = first;
+			if(last > display_pending_last) display_pending_last = last;
+		}
+		__enable_irq();
+		return;
+	}
+	display_line_transmitting_flag = 1;	// ours: ssd1306_tick leaves it alone
+	__enable_irq();
 
 	display_last_line = last;
 	ssd1306_DMATxLine(first);
@@ -282,8 +305,6 @@ void ssd1306_DrawPixel(uint8_t x, uint8_t y, SSD1306_COLOR color) {
 // Font     => Font waarmee we gaan schrijven
 // color    => Black or White
 char ssd1306_WriteChar(char ch, FontDef Font, SSD1306_COLOR color) {
-    uint32_t i, b, j;
-    
     // Check if character is valid
     if (ch < 32 || ch > 126)
         return 0;
@@ -296,14 +317,21 @@ char ssd1306_WriteChar(char ch, FontDef Font, SSD1306_COLOR color) {
         return 0;
     }
     
-    // Use the font to write
-    for(i = 0; i < Font.FontHeight; i++) {
-        b = Font.data[(ch - 32) * Font.FontHeight + i];
-        for(j = 0; j < Font.FontWidth; j++) {
-            if((b << j) & 0x8000)  {
-                ssd1306_DrawPixel(SSD1306.CurrentX + j, (SSD1306.CurrentY + i), (SSD1306_COLOR) color);
+    // Straight into the buffer a row at a time, not a call per pixel: a
+    // whole bank screen took 11 ms that way, holding up the MIDI of a bank
+    // change behind it
+    uint8_t white = (color == White) ^ (SSD1306.Inverted ? 1 : 0);
+    const uint16_t *rows = Font.data + (ch - 32) * Font.FontHeight;
+    for(uint32_t i = 0; i < Font.FontHeight; i++) {
+        uint8_t y = SSD1306.CurrentY + i;
+        uint8_t *p = &SSD1306_Buffer[(y / 8) * SSD1306_WIDTH + SSD1306.CurrentX];
+        uint8_t bit = 1 << (y % 8);
+        uint16_t b = rows[i];
+        for(uint32_t j = 0; j < Font.FontWidth; j++, b <<= 1) {
+            if(((b & 0x8000) != 0) == white) {
+                p[j] |= bit;
             } else {
-                ssd1306_DrawPixel(SSD1306.CurrentX + j, (SSD1306.CurrentY + i), (SSD1306_COLOR)!color);
+                p[j] &= ~bit;
             }
         }
     }
@@ -313,6 +341,24 @@ char ssd1306_WriteChar(char ch, FontDef Font, SSD1306_COLOR color) {
     
     // Return written char for validation
     return ch;
+}
+
+// A filled rectangle, clipped to the screen, a byte (8 rows) at a time
+void ssd1306_FillRect(uint8_t x, uint8_t y, uint8_t w, uint8_t h, SSD1306_COLOR color) {
+    if(x >= SSD1306_WIDTH || y >= SSD1306_HEIGHT) return;
+    if(w > SSD1306_WIDTH - x) w = SSD1306_WIDTH - x;
+    if(h > SSD1306_HEIGHT - y) h = SSD1306_HEIGHT - y;
+    uint8_t white = (color == White) ^ (SSD1306.Inverted ? 1 : 0);
+    uint8_t end = y + h;
+    for(uint8_t top = y & ~7; top < end; top += 8) {
+        uint8_t from = (y > top) ? y - top : 0;
+        uint8_t to = (end < top + 8) ? end - top : 8;
+        uint8_t mask = (uint8_t)((0xFF >> (8 - to)) & (0xFF << from));
+        uint8_t *p = &SSD1306_Buffer[(top / 8) * SSD1306_WIDTH + x];
+        for(uint8_t i = 0; i < w; i++) {
+            if(white) p[i] |= mask; else p[i] &= ~mask;
+        }
+    }
 }
 
 // Write full string to screenbuffer

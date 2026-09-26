@@ -91,35 +91,37 @@ uint32_t midiCmd_get_delay(uint8_t *pRom){
 	return (uint32_t)*(pRom+3) * 10;
 }
 
+/*
+ * Start the next buffer waiting for the DIN output, if the UART is free.
+ * Called from the main loop, from the USB interrupt (MIDI passed through to
+ * DIN) and from the end of the last transfer, so it decides and starts with
+ * interrupts off: before 0.65 it spun until HAL_UART_Transmit_DMA gave in,
+ * and an interrupt landing while the main loop was inside that call spun for
+ * ever on the lock the main loop held, hanging the pedal. A busy UART is
+ * simply left alone: its end of transfer starts the next buffer.
+ */
 void midi_serial_start_next_dma(void){
-	uint8_t buffer_to_transmit = 0xFF;
-	// Find the next buffer ready for transmit
-	for(int i=0; i<NO_BUFFERS; i++){
-		uint8_t n = (last_transmitted_buffer + i + 1) % NO_BUFFERS;
-		if(midi_uart_out_buffer_bytes_to_tx[n] != 0){
-			buffer_to_transmit = n;
-			break;
+	uint32_t primask = __get_PRIMASK();
+	__disable_irq();
+	if(huart2.gState == HAL_UART_STATE_READY){
+		// Find the next buffer ready for transmit
+		for(int i=0; i<NO_BUFFERS; i++){
+			uint8_t n = (last_transmitted_buffer + i + 1) % NO_BUFFERS;
+			if(midi_uart_out_buffer_bytes_to_tx[n] != 0){
+				if(HAL_UART_Transmit_DMA(&huart2, midi_uart_out_buffer[n],
+						midi_uart_out_buffer_bytes_to_tx[n]) == HAL_OK){
+					last_transmitted_buffer = n;
+				}
+				break;
+			}
 		}
 	}
-
-	if(buffer_to_transmit < NO_BUFFERS){
-		// We've found a valid buffer to transmit
-		while(HAL_UART_Transmit_DMA(&huart2, midi_uart_out_buffer[buffer_to_transmit],
-				midi_uart_out_buffer_bytes_to_tx[buffer_to_transmit]) != HAL_OK);
-		last_transmitted_buffer = buffer_to_transmit;
-	}
-
+	if(!primask) __enable_irq();
 }
 
 static void midi_serial_transmit(void){
-	if(huart2.gState == HAL_UART_STATE_READY){
-		// This means the UART is idle, so the next buffer needs to be loaded.
-		midi_serial_start_next_dma();
-	}
-
-	// If the UART isn't ready, then it will currently be in a DMA transfer.
-	// The DMA complete callback will then load the next buffer for transfer, so
-	// nothing to be done.
+	// Idle: load the next buffer. In a transfer: its end loads the next one
+	midi_serial_start_next_dma();
 }
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)

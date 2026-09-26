@@ -170,11 +170,7 @@ void display_setConfigName(void){
 }
 
 static void fill_rect(uint8_t x, uint8_t y, uint8_t w, uint8_t h, SSD1306_COLOR color){
-	for(uint8_t j=0; j<h; j++){
-		for(uint8_t i=0; i<w; i++){
-			ssd1306_DrawPixel(x+i, y+j, color);
-		}
-	}
+	ssd1306_FillRect(x, y, w, h, color);
 }
 
 // Over for good: the bank screen comes back, its long texts scrolling
@@ -396,7 +392,8 @@ static void moment_done(void){
 }
 
 // The bank screen as it stands: a long text keeps its place in its scroll
-static void draw_bank(uint8_t bankNumber){
+// The bank screen into the buffer, without sending it
+static void render_bank(uint8_t bankNumber){
 	// Cleared first, so a refresh asked for while drawing is not lost
 	refresh_pending = 0;
 	if(bankNumber != current_bank) drop_bank_text();
@@ -410,22 +407,27 @@ static void draw_bank(uint8_t bankNumber){
 	for(uint8_t sw=0; sw<MIDI_NUM_SWITCHES; sw++){
 		draw_cell(bankNumber, sw);
 	}
+}
 
+static void draw_bank(uint8_t bankNumber){
+	render_bank(bankNumber);
 	ssd1306_UpdateScreen();
 }
 
-// Entering a bank scrolls its long texts
+/*
+ * Entering a bank scrolls its long texts. The screen is only asked for here
+ * and drawn by display_task, on the same pass of the main loop, so the
+ * bank's enter commands and whatever else the change sends are not held up
+ * behind it. A readout those commands show (a tempo, a value) is drawn over
+ * the new bank, see show_overlay.
+ */
 void display_setBankName(uint8_t bankNumber){
 	if(moment_showing) moment_done();
 	scroll_restart();
-	if(banner_running()){
-		// Drawn when the banner is over
-		if(bankNumber != current_bank) drop_bank_text();
-		current_bank = bankNumber;
-		refresh_pending = 1;
-		return;
-	}
-	draw_bank(bankNumber);
+	if(bankNumber != current_bank) drop_bank_text();
+	current_bank = bankNumber;
+	overlay_until = 0;	// the new bank takes the place of a readout
+	refresh_pending = 1;
 }
 
 void display_showPage(uint8_t bankNumber){
@@ -518,6 +520,7 @@ void display_editor_end(void){
 static void show_overlay(const char *msg){
 	if(banner_running()) return;	// the banner is not cut short for a readout
 	if(moment_showing) moment_done();
+	if(refresh_pending) render_bank(current_bank);	// a bank just entered, under the readout
 	fill_rect(50, 6, SSD1306_WIDTH - 50, 10, Black);
 	ssd1306_SetCursor(50, 6);
 	ssd1306_WriteString((char *)msg, Font_7x10, White);
@@ -603,6 +606,7 @@ static void draw_moment_text(void){
 
 static void show_moment_text(void){
 	moment_pending = 0;
+	if(refresh_pending) render_bank(current_bank);	// a bank just entered, under the text
 	moment_showing = 1;
 	scroll_restart();
 	uint8_t fresh = scroll_take_fresh();

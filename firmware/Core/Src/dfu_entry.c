@@ -24,7 +24,6 @@
 #define DFU_REPLY_MS	(100U)	// long enough for the answer to leave over USB
 #define DFU_SCREEN_MS	(100U)	// the most the screen takes to be sent
 
-extern volatile uint8_t display_transmit_line;	// ssd1306.c: 0 once the screen has gone out
 extern const uint32_t g_pfnVectors[];	// the startup file's vector table, where the linker put it
 
 static volatile bool pending = false;
@@ -56,7 +55,7 @@ static void show_update_screen(void){
 	ssd1306_UpdateScreen();
 
 	uint32_t start = HAL_GetTick();
-	while(display_transmit_line != 0 && HAL_GetTick() - start < DFU_SCREEN_MS){
+	while(ssd1306_Busy() && HAL_GetTick() - start < DFU_SCREEN_MS){
 		__NOP();
 	}
 }

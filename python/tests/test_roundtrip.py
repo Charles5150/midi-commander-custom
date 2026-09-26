@@ -3827,6 +3827,48 @@ class BannerTextTest(unittest.TestCase):
         self.assertLessEqual(banner + page, 0x08000000 + 256 * 1024)
 
 
+class LatencyTest(unittest.TestCase):
+    """The pedal times its own presses (0.65): the SysEx that reads them."""
+
+    def source(self, *path):
+        root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "firmware")
+        with open(os.path.join(root, *path)) as f:
+            return f.read()
+
+    def define(self, name, *path):
+        import re
+
+        m = re.search(rf"#define\s+{name}\s+\((\d+)\)", self.source(*path))
+        self.assertIsNotNone(m, name)
+        return int(m.group(1))
+
+    def test_numbers_match_firmware(self):
+        from lib import midiDevice as md
+
+        self.assertEqual(self.define("SYSEX_CMD_GET_LATENCY", "Core", "Inc", "midi_defines.h"), md.SYSEX_CMD_GET_LATENCY)
+        self.assertEqual(self.define("SYSEX_RSP_GET_LATENCY", "Core", "Inc", "midi_defines.h"), md.SYSEX_RSP_GET_LATENCY)
+
+    def test_answer_fits_the_pedal_buffer(self):
+        import re
+
+        samples = self.define("LATENCY_SAMPLES", "Core", "Inc", "latency.h")
+        m = re.search(r"#define\s+SYSEX_MAX_LENGTH\s+(\d+)", self.source("USB_DEVICE", "App", "usbd_midi_if.c"))
+        # F0 7D 79, count (2), slowest (3), the samples (3 each), F7
+        self.assertLessEqual(3 + 2 + 3 + 3 * samples + 1, int(m.group(1)))
+
+    def test_parse(self):
+        from lib import midiDevice as md
+
+        def us(v):
+            return [(v >> 14) & 0x7F, (v >> 7) & 0x7F, v & 0x7F]
+
+        got = md.parse_latency([1, 2] + us(4500) + us(250) + us(123456))
+        self.assertEqual(got["count"], 130)
+        self.assertEqual(got["max"], 4.5)
+        self.assertEqual(got["samples"], [0.25, 123.456])
+        self.assertEqual(md.parse_latency([0, 0, 0, 0, 0]), {"count": 0, "max": 0.0, "samples": []})
+
+
 class FirmwareUpdateTest(unittest.TestCase):
     """Entering DFU mode from software, and the files it will flash (0.58)."""
 

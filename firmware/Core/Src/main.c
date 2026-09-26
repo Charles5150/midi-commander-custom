@@ -23,6 +23,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "latency.h"
 #include "ssd1306.h"
 #include "ssd1306_tests.h"
 #include <stdbool.h>
@@ -143,6 +144,8 @@ int main(void)
 
   // Reset the USB interface in case it's still plugged in.
   HAL_GPIO_WritePin(USB_ID_GPIO_Port, USB_ID_Pin, GPIO_PIN_RESET);
+
+  latency_init();	// the cycle counter that times presses
 
   display_init();
 

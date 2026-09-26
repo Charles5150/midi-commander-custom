@@ -31,6 +31,8 @@ SYSEX_CMD_ENTER_DFU = 74
 SYSEX_RSP_ENTER_DFU = 75
 SYSEX_CMD_BANNER = 76
 SYSEX_RSP_BANNER = 77
+SYSEX_CMD_GET_LATENCY = 78
+SYSEX_RSP_GET_LATENCY = 79
 # Two check bytes ("DF") so a stray message cannot restart the pedal in DFU
 ENTER_DFU_CHECK = (0x44, 0x46)
 
@@ -106,6 +108,15 @@ def banner_sysex(text: str) -> list:
     if len(body) > BANNER_TEXT_MAX:
         raise ValueError(f"the banner text is {len(body)} characters, at most {BANNER_TEXT_MAX} fit")
     return [0xF0, MIDI_MANUF_ID, SYSEX_CMD_BANNER, 1] + [ord(c) for c in body] + [0xF7]
+
+
+def parse_latency(data) -> dict:
+    """A GET_LATENCY answer: presses timed, the slowest and the last ones, in ms."""
+    def us(i):
+        return (data[i] << 14) | (data[i + 1] << 7) | data[i + 2]
+    count = (data[0] << 7) | data[1]
+    samples = [us(i) / 1000 for i in range(5, len(data) - 2, 3)]
+    return {"count": count, "max": us(2) / 1000, "samples": samples}
 
 
 def unpack7(data) -> bytes:
@@ -249,6 +260,15 @@ class MidiCommander:
         self.send([SYSEX_CMD_GET_VERSION])
         data = self.wait_for_sysex(SYSEX_RSP_GET_VERSION, timeout)
         return bytes(data).decode("ascii", errors="replace")
+
+    def get_latency(self, clear=False, timeout=1.0) -> dict:
+        """What the pedal measured from a press to its first MIDI message (0.65).
+
+        count presses timed since the last clear, max the slowest and samples
+        the last ones, oldest first, both in milliseconds.
+        """
+        self.send([SYSEX_CMD_GET_LATENCY, 1 if clear else 0])
+        return parse_latency(self.wait_for_sysex(SYSEX_RSP_GET_LATENCY, timeout))
 
     def get_pedals(self, timeout=0.5):
         """Return [(raw_adc, cc_value), (raw_adc, cc_value)] for the two pedals."""

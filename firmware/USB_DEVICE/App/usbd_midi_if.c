@@ -18,6 +18,7 @@
 #include "display.h"
 #include "kemper.h"
 #include "banner_store.h"
+#include "latency.h"
 #include <string.h>
 
 extern I2C_HandleTypeDef hi2c1;
@@ -172,6 +173,17 @@ void sysex_select_slot(uint8_t* data_packet_start){
 	*(p++) = (flash_kb >> 7) & 0x7F;
 	*(p++) = flash_kb & 0x7F;
 	*(p++) = 1;
+	*(p++) = SYSEX_END;
+	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
+}
+
+// The last presses' latency, see latency.c
+void sysex_get_latency(uint8_t* data_packet_start){
+	uint8_t *p = midi_msg_tx_buffer;
+	*(p++) = SYSEX_START;
+	*(p++) = MIDI_MANUF_ID;
+	*(p++) = SYSEX_RSP_GET_LATENCY;
+	p += latency_report(p, data_packet_start[0] == 1);
 	*(p++) = SYSEX_END;
 	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
 }
@@ -446,6 +458,12 @@ void process_sysex_message(void){
 			sysex_enter_dfu(&(pSysexHead->start_parameters));
 		}
 		break;
+	case SYSEX_CMD_GET_LATENCY:
+		// F0 7D 78 clear F7 = 5 bytes
+		if(sysex_rx_counter >= 5){
+			sysex_get_latency(&(pSysexHead->start_parameters));
+		}
+		break;
 	case SYSEX_CMD_BANNER:
 		// F0 7D 76 write F7 = 5 bytes, then the text
 		if(sysex_rx_counter >= 5){
@@ -690,6 +708,7 @@ uint16_t MIDI_DataRx(uint8_t *msg, uint16_t length)
 
 uint16_t MIDI_DataTx(uint8_t *msg, uint16_t length)
 {
+  latency_sent();
   USBD_MIDI_SendPacket(msg, length);
   return USBD_OK;
 }

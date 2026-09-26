@@ -20,6 +20,7 @@
 #include "expression.h"
 #include "switch_router.h"
 #include "editor.h"
+#include "latency.h"
 #include <string.h>
 
 void update_leds_on_bank_change(void);
@@ -192,6 +193,7 @@ void sw_scan(void){
 	port_C_previous_state = current_port_C;
 
 	if(port_A_switches_changed | port_B_switches_changed | port_C_switches_changed){
+		latency_mark(latency_now());
 		sleep_note_activity();
 		display_skip_banner();
 		debounce_counter = 10; // 10ms debounce delay
@@ -2427,10 +2429,12 @@ static void handle_bank_switch(bank_press_t *bp, GPIO_TypeDef *port, uint16_t pi
 	} else {
 		// Released: a press that never reached the threshold steps one bank
 		if(bp->state == PRESS_PENDING){
+			latency_begin();
 			if(bank_switch_mode() != BANK_SWITCH_MIDI_ONLY){
 				goto_bank(bank_step(direction));
 			}
 			fire_bank_switch_cmds(which, false);
+			latency_end();
 		}
 		bp->state = PRESS_IDLE;
 		leds_set(led_id, calculate_led_state(0, led_mode));
@@ -2577,6 +2581,7 @@ static void apply_scene(uint8_t mask, uint8_t states){
 #define VIRTUAL_MAX_HOLD_MS		(10000U)
 
 static uint8_t virtual_queue[VIRTUAL_QUEUE_LEN];	// id | 0x80 when down
+static uint32_t virtual_when[VIRTUAL_QUEUE_LEN];	// when it came, for latency.c
 static volatile uint8_t virtual_head = 0;	// written by the USB interrupt only
 static volatile uint8_t virtual_tail = 0;	// written by the main loop only
 static uint16_t virtual_down = 0;			// bit per virtual switch id
@@ -2587,6 +2592,7 @@ void sw_virtual_press(uint8_t id, uint8_t down){
 	uint8_t next = (uint8_t)((virtual_head + 1) % VIRTUAL_QUEUE_LEN);
 	if(next == virtual_tail) return;
 	virtual_queue[virtual_head] = id | (down ? 0x80 : 0);
+	virtual_when[virtual_head] = latency_now();
 	virtual_head = next;
 }
 
@@ -2636,6 +2642,7 @@ static void virtual_task(void){
 		uint16_t bit = (uint16_t)(1U << (e & 0x7F));
 		if(touched & bit) break;
 		touched |= bit;
+		latency_mark(virtual_when[virtual_tail]);
 		virtual_tail = (uint8_t)((virtual_tail + 1) % VIRTUAL_QUEUE_LEN);
 		virtual_set(e & 0x7F, (e & 0x80) != 0);
 	}
@@ -2993,6 +3000,7 @@ void handle_switches(void){
 	if(is_app_suspended) return;
 
 	virtual_task();
+	latency_take_mark();	// the switch changes this pass handles
 
 	// A bank change asked for from interrupt context (incoming MIDI)
 	if(requested_bank != 0xFF){
@@ -3066,7 +3074,9 @@ void handle_switches(void){
 				if(sw->press_state == PRESS_WAIT_SECOND){
 					// The second press of a double press
 					set_momentary_led(i, 1);
+					latency_begin();
 					fire_double_down(i);
+					latency_end();
 					sw->press_state = PRESS_DOUBLE;
 				} else if(combo_member(i)){
 					// Maybe half of a combination: wait for the other switch
@@ -3078,7 +3088,9 @@ void handle_switches(void){
 					set_momentary_led(i, 1);
 				} else {
 					sw->press_tick = now;
+					latency_begin();
 					fire_short_down(i);
+					latency_end();
 					sw->press_state = PRESS_SHORT;
 				}
 			} else {
