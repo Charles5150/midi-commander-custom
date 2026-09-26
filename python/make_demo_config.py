@@ -641,6 +641,7 @@ def global_settings() -> pd.DataFrame:
                 ("Global_Bank", str(GLOBAL_BANK)),
                 ("Combo_ms", "80"),
                 ("Boot_Banner", "Normal"),
+                ("Bank_Preview", "0"),
             )
         ]
     )

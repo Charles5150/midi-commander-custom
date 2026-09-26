@@ -27,6 +27,8 @@ GLOBAL_SETTINGS_KEMPER_MODE = 43
 GLOBAL_SETTINGS_GLOBAL_BANK = 44
 GLOBAL_SETTINGS_COMBO = 45
 GLOBAL_SETTINGS_BANNER = 46
+GLOBAL_SETTINGS_BANK_PREVIEW = 47
+BANK_PREVIEW_MAX_S = 60
 # Set by configPacker when the image carries double press commands
 GLOBAL_SETTINGS_DOUBLE_STORED = 37
 
@@ -268,6 +270,19 @@ def pack_global_settings(df):
     if banner.upper() not in BANNER_SPEEDS:
         raise ValueError(f"Boot_Banner must be Off, Slow, Normal or Fast, not {banner!r}")
     bin_list[GLOBAL_SETTINGS_BANNER] = BANNER_SPEEDS[banner.upper()]
+
+    # Bank preview: Bank Up / Down only show the bank there, and one of the
+    # eight buttons confirms it within this many seconds. 0 or Off = off.
+    preview = str(df.loc["Bank_Preview", "Value"]).strip() if "Bank_Preview" in df.index else "0"
+    if preview in ("", "nan") or preview.upper() in ("OFF", "N", "NO"):
+        preview = "0"
+    try:
+        seconds = int(float(preview))
+    except ValueError:
+        raise ValueError(f"Bank_Preview must be 0 (off) or 1-{BANK_PREVIEW_MAX_S} seconds, not {preview!r}")
+    if not 0 <= seconds <= BANK_PREVIEW_MAX_S:
+        raise ValueError(f"Bank_Preview must be 0 (off) or 1-{BANK_PREVIEW_MAX_S} seconds, not {preview!r}")
+    bin_list[GLOBAL_SETTINGS_BANK_PREVIEW] = seconds
 
     return bin_list
 

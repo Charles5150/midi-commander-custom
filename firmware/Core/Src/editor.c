@@ -358,7 +358,7 @@ static void own_field_step(uint8_t i, int8_t d){
 
 /* --------------------------------------------------------------- settings */
 
-enum { S_NUM, S_ONOFF, S_CHOICE, S_MS, S_PCT, S_MIN, S_CHAN };
+enum { S_NUM, S_ONOFF, S_CHOICE, S_MS, S_PCT, S_MIN, S_CHAN, S_SEC };
 
 typedef struct {
 	const char *name;
@@ -383,6 +383,7 @@ static const setting_t settings[] = {
 	{"GLOBCHAN", GLOBAL_SETTINGS_GLOBAL_CHANNEL,      S_CHAN,   0,    16, 0,   false, NULL},
 	{"GLOBBANK", GLOBAL_SETTINGS_GLOBAL_BANK,         S_NUM,    0,    32, 0,   false, NULL},
 	{"BANK SW",  GLOBAL_SETTINGS_BANK_SWITCH_MODE,    S_CHOICE, 0,     2, 0,   false, bank_switch_names},
+	{"PREVIEW",  GLOBAL_SETTINGS_BANK_PREVIEW,        S_SEC,    0,    60, 0,   false, NULL},
 	{"SETLIST",  GLOBAL_SETTINGS_SETLIST_MODE,        S_ONOFF,  0,     1, 0,   false, NULL},
 	{"REMEMBER", GLOBAL_SETTINGS_REMEMBER_STATE,      S_ONOFF,  0,     1, 0,   false, NULL},
 	{"CLOCKFLW", GLOBAL_SETTINGS_CLOCK_FOLLOW,        S_ONOFF,  0,     1, 0,   false, NULL},
@@ -411,6 +412,8 @@ static void setting_text(const setting_t *s, uint8_t v, char *out, uint8_t size)
 	case S_PCT:    snprintf(out, size, "%u %%", v); break;
 	case S_MIN:    if(v == 0) snprintf(out, size, "never");
 	               else snprintf(out, size, "%u min", v); break;
+	case S_SEC:    if(v == 0) snprintf(out, size, "off");
+	               else snprintf(out, size, "%u s", v); break;
 	case S_CHAN:   if(v == 0) snprintf(out, size, "off");
 	               else snprintf(out, size, "%u", v); break;
 	case S_ONOFF:  snprintf(out, size, "%s", v ? "Yes" : "No"); break;

@@ -276,6 +276,8 @@
 #define GLOBAL_SETTINGS_GLOBAL_BANK (44)	// 1-32 = that bank holds the global buttons, 0 = none
 #define GLOBAL_SETTINGS_COMBO (45)		// Two switch window in 10 ms units (0/0xFF = 80 ms)
 #define GLOBAL_SETTINGS_BANNER (46)		// Power on banner: 0/0xFF off, 1 slow, 2 normal, 3 fast
+#define GLOBAL_SETTINGS_BANK_PREVIEW (47)	// Bank Up/Down only preview: 1-60 = seconds it waits for a button, 0/0xFF off
+#define BANK_PREVIEW_MAX_S	(60)
 
 #define GLOBAL_BANK_NONE	(0xFF)	// no bank set aside for global buttons
 

@@ -23,6 +23,9 @@ void display_setBankName(uint8_t bankNumber);
 // A page of the bank: redraw as another bank, keeping what the computer wrote
 void display_showPage(uint8_t bankNumber);
 
+// A bank stepped to but not confirmed yet (Bank_Preview); 0xFF ends it
+void display_preview(uint8_t bankNumber);
+
 // Show the current tempo (and whether the clock runs) for a moment, then
 // fall back to the bank screen.
 void display_show_tempo(void);

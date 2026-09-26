@@ -248,6 +248,7 @@ void sysex_get_state(void){
 		*(p++) = sw_get_value(v) & 0x7F;	// the eight stored values
 	}
 	*(p++) = sw_safe_mode() ? 1 : 0;
+	*(p++) = sw_preview_bank() & 0x7F;	// 0x7F when no bank is previewed
 	*(p++) = SYSEX_END;
 	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
 }

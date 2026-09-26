@@ -629,7 +629,35 @@ static uint8_t home_bank(void){
 	return (page_home != 0xFF) ? page_home : switch_current_page;
 }
 
+/*
+ * Bank preview (Bank_Preview): the bank switches only step through the banks
+ * on the display, and nothing is sent until one of the eight buttons confirms
+ * the bank shown, so brushing a bank switch mid-song cannot change the patch.
+ * The confirming press does nothing else. Stepping back to the bank you are
+ * in, or no button for Bank_Preview seconds, drops the preview.
+ */
+static uint8_t preview_bank = 0xFF;
+static uint32_t preview_tick = 0;
+static uint8_t preview_held = 0;	// buttons whose press confirmed, until let go
+
+static uint32_t bank_preview_ms(void){
+	uint8_t v = pGlobalSettings[GLOBAL_SETTINGS_BANK_PREVIEW];
+	if(v == 0 || v > BANK_PREVIEW_MAX_S) return 0;
+	return (uint32_t)v * 1000;
+}
+
+static void preview_end(void){
+	if(preview_bank == 0xFF) return;
+	preview_bank = 0xFF;
+	display_preview(0xFF);
+}
+
+uint8_t sw_preview_bank(void){
+	return preview_bank;
+}
+
 static void goto_bank(uint8_t bank){
+	preview_end();	// however the bank changes, a bank being chosen is dropped
 	if(bank >= MIDI_NUM_BANKS) return;
 	if(page_home == 0xFF && bank == switch_current_page) return;
 	previous_bank = home_bank();
@@ -696,10 +724,10 @@ static uint8_t setlist_len(void){
 	return n;
 }
 
-static uint8_t setlist_step(uint8_t n, int16_t delta){
+static uint8_t setlist_step(uint8_t n, uint8_t from, int16_t delta){
 	int16_t idx = -1;
 	for(uint8_t i=0; i<n; i++){
-		if(pSetlist[i] == home_bank()){ idx = i; break; }
+		if(pSetlist[i] == from){ idx = i; break; }
 	}
 	// Off the list: Up enters at the start, Down at the end
 	if(idx < 0) return pSetlist[(delta >= 0) ? 0 : n - 1];
@@ -709,15 +737,20 @@ static uint8_t setlist_step(uint8_t n, int16_t delta){
 	return pSetlist[j];
 }
 
-// Step through the banks, wrapping around at both ends
-static uint8_t bank_step(int16_t delta){
+// Step through the banks from a bank, wrapping around at both ends
+static uint8_t bank_step_from(uint8_t from, int16_t delta){
 	uint8_t n = setlist_len();
-	if(n) return setlist_step(n, delta);
+	if(n) return setlist_step(n, from, delta);
 
-	int16_t b = (int16_t)home_bank() + delta;
+	int16_t b = (int16_t)from + delta;
 	while(b < 0) b += MIDI_NUM_BANKS;
 	while(b >= MIDI_NUM_BANKS) b -= MIDI_NUM_BANKS;
 	return (uint8_t)b;
+}
+
+// ... from the bank the song is in
+static uint8_t bank_step(int16_t delta){
+	return bank_step_from(home_bank(), delta);
 }
 
 static uint32_t long_press_threshold_ms(void){
@@ -2401,16 +2434,61 @@ static void fire_bank_switch_cmds(uint8_t which, bool long_press){
 	run_cmd_list(base, 0, 0, toggle, PENDING_OWNER_NONE, LIST_SKIP_BANK | LIST_UP_AFTER, true);
 }
 
+// A bank switch pressed: step delta banks, or only preview the bank there
+static void bank_switch_press(uint8_t which, int16_t delta, bool long_press){
+	if(bank_switch_mode() == BANK_SWITCH_MIDI_ONLY){
+		fire_bank_switch_cmds(which, long_press);
+		return;
+	}
+	if(!bank_preview_ms()){
+		goto_bank(bank_step(delta));
+		fire_bank_switch_cmds(which, long_press);
+		return;
+	}
+	uint8_t from = (preview_bank != 0xFF) ? preview_bank : home_bank();
+	uint8_t to = bank_step_from(from, delta);
+	if(to == home_bank()){
+		preview_end();	// back where you are: nothing to confirm
+		return;
+	}
+	preview_bank = to;
+	preview_tick = HAL_GetTick();
+	display_preview(to);
+}
+
+/*
+ * While a bank is previewed, the first button to go down confirms it. That
+ * press, and its release, are the preview's: the button does nothing. A
+ * button already down when the preview began is left to finish its press.
+ */
+static void preview_switches(uint32_t now){
+	for(uint8_t i=0; i<MIDI_NUM_SWITCHES; i++){
+		sw_t *sw = &a_sw_obj[i];
+		if(!(*sw->pSwChangeState & sw->sw_gpio_pin)) continue;
+		bool down = switch_down(sw->sw_gpio_port, sw->sw_gpio_pin);
+		if(preview_held & (1U << i)){
+			*sw->pSwChangeState &= ~sw->sw_gpio_pin;
+			if(!down) preview_held &= (uint8_t)~(1U << i);
+			continue;
+		}
+		if(preview_bank == 0xFF || !down || sw->press_state != PRESS_IDLE) continue;
+		*sw->pSwChangeState &= ~sw->sw_gpio_pin;
+		preview_held |= (uint8_t)(1U << i);
+		uint8_t target = preview_bank;
+		latency_begin();
+		goto_bank(target);
+		latency_end();
+	}
+	if(preview_bank != 0xFF && (now - preview_tick) >= bank_preview_ms()) preview_end();
+}
+
 static void handle_bank_switch(bank_press_t *bp, GPIO_TypeDef *port, uint16_t pin,
 		volatile uint16_t *pChanged, uint8_t led_id, uint8_t led_mode,
 		int16_t direction, uint32_t now, uint8_t which){
 	// Held past the threshold: jump by the configured step, once per press
 	if(bp->state == PRESS_PENDING && (now - bp->press_tick) >= long_press_threshold_ms()){
 		bp->state = PRESS_LONG;
-		if(bank_switch_mode() != BANK_SWITCH_MIDI_ONLY){
-			goto_bank(bank_step(direction * (int16_t)bank_jump_step()));
-		}
-		fire_bank_switch_cmds(which, true);
+		bank_switch_press(which, direction * (int16_t)bank_jump_step(), true);
 	}
 
 	// Keep blinking LED modes alive while the switch is held
@@ -2430,10 +2508,7 @@ static void handle_bank_switch(bank_press_t *bp, GPIO_TypeDef *port, uint16_t pi
 		// Released: a press that never reached the threshold steps one bank
 		if(bp->state == PRESS_PENDING){
 			latency_begin();
-			if(bank_switch_mode() != BANK_SWITCH_MIDI_ONLY){
-				goto_bank(bank_step(direction));
-			}
-			fire_bank_switch_cmds(which, false);
+			bank_switch_press(which, direction, false);
 			latency_end();
 		}
 		bp->state = PRESS_IDLE;
@@ -2468,6 +2543,7 @@ static void flush_delayed_cmds(void){
 }
 
 static void switch_config(uint8_t target){
+	preview_end();
 	uint8_t from = flash_settings_active_slot();
 	uint8_t slot = target;
 
@@ -2962,6 +3038,8 @@ static bool editor_switches(uint32_t now){
 			if(editor_is_open()){
 				editor_close();
 			} else if(pGlobalSettings[GLOBAL_SETTINGS_EDIT_LOCK] != 1 || safe_mode){
+				preview_end();
+				preview_held = 0;	// the editor takes the releases now
 				editor_open();
 			}
 		}
@@ -3025,6 +3103,7 @@ void handle_switches(void){
 
 	uint32_t now = HAL_GetTick();
 	if(editor_switches(now)) return;	// the editor has the switches
+	preview_switches(now);
 
 	// The Command switches
 	for(int i=0; i<8; i++){

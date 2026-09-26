@@ -296,6 +296,7 @@ GLOBAL_GROUPS = [
     ("Banks", [
         ("Bank_Switch_Mode", "Bank switches", "what Bank Up / Down do, see the Bank Switch tab"),
         ("Bank_Jump_Step", "Long press jumps", "banks, 1-31"),
+        ("Bank_Preview", "Preview banks", "seconds a bank shown by Bank Up / Down waits for a button to confirm it, 0 = off"),
         ("Setlist_Mode", "Follow the setlist", "Bank Up / Down use the order in the Setlist tab"),
         ("Bank_Change_Mode", "Change bank from MIDI", "an incoming PC or CC selects the bank"),
         ("Bank_Change_Channel", "\u2026 listening on channel", ""),
@@ -1078,6 +1079,7 @@ class MidiCommanderGUI(ctk.CTk):
                 ("Global_Bank", "Off"),
                 ("Combo_ms", "80"),
                 ("Boot_Banner", "Off"),
+                ("Bank_Preview", "0"),
             ]
             missing = [{"Label": l, "Value": v} for l, v in defaults if l not in labels]
             if missing:
@@ -1362,6 +1364,8 @@ class MidiCommanderGUI(ctk.CTk):
             return Option(parent, ["Off", "Slow", "Normal", "Fast"], value, width=100)
         if label in ("LED_Brightness", "LED_Rest_Brightness"):
             return IntEntry(parent, 1, 100, value, width=70)
+        if label == "Bank_Preview":
+            return IntEntry(parent, 0, 60, value, width=70)
         if label == "Bank_Jump_Step":
             return IntEntry(parent, 1, 31, value, width=70)
         if label == "Bank_Change_Mode":

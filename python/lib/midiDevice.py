@@ -162,6 +162,8 @@ def parse_state(data) -> dict:
         "values": data[53:61] if len(data) >= 61 else None,
         # Started with a footswitch held: nothing sent (firmware 0.60)
         "safe_mode": bool(data[61]) if len(data) >= 62 else False,
+        # The bank Bank Up / Down are showing, not yet confirmed (Bank_Preview, firmware 0.66)
+        "preview": data[62] if len(data) >= 63 and data[62] < 0x7F else None,
     }
 
 

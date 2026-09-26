@@ -213,6 +213,7 @@ def unpack_global_settings(data: bytes) -> pd.DataFrame:
         ("Global_Bank", str(g[44] - 1) if 1 <= g[44] <= 32 else "Off"),
         ("Combo_ms", str((g[45] if 0 < g[45] < 0xFF else 8) * 10)),
         ("Boot_Banner", {1: "Slow", 2: "Normal", 3: "Fast"}.get(g[46], "Off")),
+        ("Bank_Preview", str(g[47] if 0 < g[47] <= 60 else 0)),
     ]
     return pd.DataFrame(rows, columns=["Label", "Value"])
 

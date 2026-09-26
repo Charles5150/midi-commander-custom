@@ -1167,9 +1167,9 @@ class VirtualPedalTest(unittest.TestCase):
             parse_state(data[:20])
 
     def test_state_fits_the_sysex_buffer(self):
-        """Firmware answer: F0 7D code + 62 data bytes + F7 must fit its 80 byte buffer."""
-        size = 3 + 4 + 4 + 8 * 4 + 10 + 3 + 8 + 1 + 1
-        self.assertEqual(size, 66)
+        """Firmware answer: F0 7D code + 63 data bytes + F7 must fit its 80 byte buffer."""
+        size = 3 + 4 + 4 + 8 * 4 + 10 + 3 + 8 + 1 + 1 + 1
+        self.assertEqual(size, 67)
         root = os.path.join(os.path.dirname(__file__), "..", "..")
         with open(os.path.join(root, "firmware", "USB_DEVICE", "App", "usbd_midi_if.c")) as handle:
             source = handle.read()
@@ -3867,6 +3867,66 @@ class LatencyTest(unittest.TestCase):
         self.assertEqual(got["max"], 4.5)
         self.assertEqual(got["samples"], [0.25, 123.456])
         self.assertEqual(md.parse_latency([0, 0, 0, 0, 0]), {"count": 0, "max": 0.0, "samples": []})
+
+
+class BankPreviewTest(unittest.TestCase):
+    """Bank Up / Down only show a bank until a button confirms it (0.66)."""
+
+    FIRMWARE = os.path.join(os.path.dirname(__file__), "..", "..", "firmware", "Core")
+
+    def source(self, *name):
+        with open(os.path.join(self.FIRMWARE, *name)) as handle:
+            return handle.read()
+
+    def with_preview(self, value):
+        sections = read_config_csv(DEMO_CSV)
+        df = sections["Global_Settings"].copy()
+        where = df.index[df["Label"] == "Bank_Preview"][0]
+        df.at[where, "Value"] = value
+        return pack_config({**sections, "Global_Settings": df})
+
+    def test_byte_matches_firmware(self):
+        import re
+
+        from lib import settingsBinaryPacker as sbp
+
+        defines = self.source("Inc", "midi_defines.h")
+        m = re.search(r"#define\s+GLOBAL_SETTINGS_BANK_PREVIEW\s+\((\d+)\)", defines)
+        self.assertIsNotNone(m)
+        self.assertEqual(int(m.group(1)), sbp.GLOBAL_SETTINGS_BANK_PREVIEW)
+        m = re.search(r"#define\s+BANK_PREVIEW_MAX_S\s+\((\d+)\)", defines)
+        self.assertEqual(int(m.group(1)), sbp.BANK_PREVIEW_MAX_S)
+        # The last byte of the global block
+        self.assertEqual(sbp.GLOBAL_SETTINGS_BANK_PREVIEW, 47)
+
+    def test_seconds(self):
+        for value, byte, back in (("0", 0, "0"), ("Off", 0, "0"), ("", 0, "0"), ("1", 1, "1"),
+                                  ("5", 5, "5"), ("60", 60, "60")):
+            packed = self.with_preview(value)
+            self.assertEqual(packed[47], byte, value)
+            got = unpacker.unpack_global_settings(packed)
+            self.assertEqual(got[got["Label"] == "Bank_Preview"]["Value"].iloc[0], back, value)
+
+    def test_out_of_range_is_refused(self):
+        for value in ("61", "-1", "soon"):
+            with self.assertRaises(ValueError, msg=value):
+                self.with_preview(value)
+
+    def test_older_configurations_have_none(self):
+        self.assertEqual(pack_csv(SAMPLE_CSV)[47], 0)
+        blank = unpacker.unpack_global_settings(b"\xff" * unpacker.CONFIG_SIZE)
+        self.assertEqual(blank[blank["Label"] == "Bank_Preview"]["Value"].iloc[0], "0")
+
+    def test_demo_leaves_it_off(self):
+        # The stress and latency tests time Bank Up on the demo
+        self.assertEqual(pack_csv(DEMO_CSV)[47], 0)
+
+    def test_state_reports_it(self):
+        from lib.midiDevice import parse_state
+
+        self.assertIsNone(parse_state([0] * 62)["preview"])           # before firmware 0.66
+        self.assertIsNone(parse_state([0] * 62 + [0x7F])["preview"])  # none
+        self.assertEqual(parse_state([0] * 62 + [5])["preview"], 5)
 
 
 class FirmwareUpdateTest(unittest.TestCase):

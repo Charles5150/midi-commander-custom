@@ -52,6 +52,7 @@ static uint8_t current_bank = 0;
 #define OVERLAY_MS	(1500)
 #define SAFE_MODE_MS	(3000)
 static uint8_t editor_on = 0;	// the on-pedal editor owns the screen
+static uint8_t preview_bank = 0xFF;	// a bank shown before it is confirmed
 static uint32_t overlay_until = 0;
 
 /*
@@ -430,6 +431,39 @@ void display_setBankName(uint8_t bankNumber){
 	refresh_pending = 1;
 }
 
+/*
+ * A bank the bank switches stepped to but that is not confirmed yet: its own
+ * name, inverted, and its buttons, in place of the bank you are in. Host
+ * texts, readouts and scrolls wait until it is over. 0xFF ends it.
+ */
+void display_preview(uint8_t bankNumber){
+	preview_bank = bankNumber;
+	if(bankNumber == 0xFF){
+		overlay_until = 0;	// back to the bank screen, not a stale readout
+		if(moment_showing) moment_done();
+	}
+	refresh_pending = 1;
+}
+
+static void draw_preview(void){
+	refresh_pending = 0;
+	const uint8_t *pString = pBankStrings + (12 * preview_bank);
+	ssd1306_Fill(Black);
+	fill_rect(0, 0, SSD1306_WIDTH, ROW_TOP_Y - 3, White);
+	ssd1306_SetCursor(1, 1);
+	for(int i=0; i<4; i++){
+		ssd1306_WriteChar((char)pString[i], Font_11x18, Black);
+	}
+	ssd1306_SetCursor(INFO_X, 6);
+	for(int i=0; i<8; i++){
+		ssd1306_WriteChar((char)pString[4 + i], Font_7x10, Black);
+	}
+	for(uint8_t sw=0; sw<MIDI_NUM_SWITCHES; sw++){
+		draw_cell(preview_bank, sw);
+	}
+	ssd1306_UpdateScreen();
+}
+
 void display_showPage(uint8_t bankNumber){
 	current_bank = bankNumber;	// same bank for the song: nothing is dropped
 	display_setBankName(bankNumber);
@@ -519,6 +553,7 @@ void display_editor_end(void){
  */
 static void show_overlay(const char *msg){
 	if(banner_running()) return;	// the banner is not cut short for a readout
+	if(preview_bank != 0xFF) return;	// nor the bank being chosen
 	if(moment_showing) moment_done();
 	if(refresh_pending) render_bank(current_bank);	// a bank just entered, under the readout
 	fill_rect(50, 6, SSD1306_WIDTH - 50, 10, Black);
@@ -622,6 +657,10 @@ void display_task(void){
 	if(ssd1306_Busy()) return;
 	if(banner_running()){
 		display_banner_task();
+		return;
+	}
+	if(preview_bank != 0xFF){
+		if(refresh_pending) draw_preview();
 		return;
 	}
 	if(moment_pending){
