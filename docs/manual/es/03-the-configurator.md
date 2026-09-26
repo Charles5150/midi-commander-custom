@@ -1,0 +1,118 @@
+# El configurador
+
+[English](../en/03-the-configurator.md) · **Español**
+
+El configurador, `python/gui_configurator.py`, es donde se monta una configuración: edita un CSV de configuración y lo intercambia con la pedalera por MIDI USB, sin drivers especiales. Arráncalo desde la raíz del repositorio:
+
+```bash
+.venv/bin/python python/gui_configurator.py
+```
+
+<img src="../../images/gui_workflow.png" width="500">
+
+A la izquierda está la barra lateral, con el archivo y la pedalera. A la derecha, las pestañas, en el orden en que se suele montar una configuración. Cada pestaña empieza con un resumen de una línea; la **?** de al lado abre los detalles.
+
+El programa está en inglés, así que aquí los nombres de botones, pestañas y campos van tal como los verás en pantalla.
+
+## Barra lateral
+
+Dos grupos, FILE (archivo) y PEDAL (pedalera), con el nombre del archivo abierto abajo.
+
+**FILE**
+
+- **Load CSV…** abre un archivo de configuración. Al arrancar se carga `python/demo-all-features.csv`, así que tienes todas las funciones a la vista desde el principio.
+- **Save CSV** guarda los ajustes actuales en el archivo abierto.
+
+**PEDAL**
+
+- **Slot** elige cuál de las cuatro [ranuras de configuración](04-banks.md#cuatro-configuraciones) usan los dos botones de debajo. `Active` es la que está usando la pedalera. Cargar una ranura nunca toca las demás.
+- **Read from Device** trae esa configuración de la pedalera conectada a un CSV que eliges, y lo carga.
+- **Flash to Device**, el único botón rojo, guarda el CSV, lo envía a la pedalera y la reinicia.
+- **Back Up All Slots…** lee cada ranura que tenga una configuración a una carpeta nueva con fecha, un CSV por ranura.
+- **Restore Backup…** vuelve a escribir una carpeta así, cada archivo en su ranura, después de enseñarte qué ranuras va a sustituir. Mira [Copias de seguridad](13-command-line-tools.md#copias-de-seguridad).
+- **Update Firmware…** flashea un archivo `.dfu`, sin mantener nada pisado con el firmware 0.58 o posterior. Mira [Primeros pasos](02-getting-started.md#actualizar-el-firmware-más-adelante).
+- **Banner Text…** lee de la pedalera el [texto propio del banner](09-the-display.md#el-texto-propio-del-banner), y lo guarda, lo borra o lo deja como está.
+
+## Buttons
+
+Donde se ponen los comandos de cada botón. Mira [Botones](05-buttons.md) y [Comandos](06-commands.md).
+
+1. Elige un banco y luego un botón de los ocho, colocados como en la pedalera: del 1 al 4 arriba, de la A a la D abajo. El que estás editando sale resaltado.
+2. Arriba, pon su **display label** (etiqueta en pantalla), **LED light mode** (modo del LED) y **exclusive group** (grupo exclusivo), y marca **Momentary when held**, **Flash at the tempo** o **Global** si hace falta.
+3. Debajo hay diez casillas de comando, de la A a la J. Elige el tipo de comando de una casilla y solo aparecen los campos que usa ese tipo.
+4. **Short press / Long press / Double press** cambia las casillas entre las tres listas de comandos del botón: corta, larga y doble.
+
+Lo que editas se guarda en memoria solo al cambiar de botón, de banco o de pestaña.
+
+**Copy bank** y **Paste bank** copian un banco entero sobre otro: etiquetas, modos de LED, grupos, los comandos de pulsación corta, larga y doble, y los comandos que se envían al entrar en el banco. El destino queda idéntico al origen, así que lo que tuviera y el origen no, desaparece. Su nombre se conserva, porque una copia suele ser el principio de una variante. Pegar pide confirmación antes.
+
+<img src="../../images/gui_button_config.png" width="500">
+
+## Banks
+
+El nombre de 4 caracteres y la línea de información de 8 de cada banco, y adónde envían los pedales de expresión mientras está elegido. Mira [Bank_Naming](04-banks.md#bank_naming) y [BankExpression_Settings](08-expression.md#bankexpression_settings).
+
+Para cada pedal:
+
+- un CC y un canal, cada uno en `Default` para mantener los del propio pedal, o `Off` en el CC para silenciar el pedal en ese banco;
+- el valor más bajo y el más alto que envía ahí, vacíos para mantener el rango del propio pedal.
+
+## Bank Enter
+
+Los comandos que envía cada banco cuando llegas a él y, debajo de un comando `Leave`, cuando sales. Mira [BankEnter_Settings](04-banks.md#bankenter_settings).
+
+## Bank Switch
+
+Las listas de comandos de los pulsadores Bank Down y Bank Up, una por pulsador y duración de pulsación. Solo salen cuando lo dice **Bank switches** (`Bank_Switch_Mode`) en la pestaña Global. Mira [BankSwitch_Settings](04-banks.md#bankswitch_settings).
+
+<img src="../../images/gui_bank_switch.png" width="500">
+
+## Combos
+
+Dos pulsadores pisados a la vez, una combinación por fila: los dos pulsadores, el banco en el que cuenta o todos los bancos, y la lista que ejecuta, indicada por banco, botón y pulsación corta, larga o doble. Cuánto espera un pulsador al otro es **Two switches together within** en la pestaña Global. Mira [Combo_Settings](05-buttons.md#combo_settings).
+
+## Setlist
+
+El orden que siguen Bank Up / Down cuando **Follow the setlist** (`Setlist_Mode`) está activado: un desplegable por posición, con cada banco por número y nombre. La lista termina en la primera fila vacía. Mira [Setlist](04-banks.md#setlist).
+
+## Expression
+
+Todo sobre los dos pedales de expresión, pedal a pedal: extremos, curva de respuesta, invertir, canal, los interruptores de punta y talón, el rango de salida, qué envía (CC, Pitch Bend o CC de 14 bits) y el auto-engage. Mira [Pedales de expresión](08-expression.md).
+
+**Connect live view** enseña la posición del pedal y el CC que se está enviando, leídos de la pedalera en tiempo real.
+
+Para calibrar un pedal:
+
+1. Pulsa **Calibrate**.
+2. Recorre el pedal despacio del talón a la punta y vuelta, un par de veces.
+3. Pulsa **Done**.
+
+Los extremos se rellenan con un pequeño margen, para que siempre se llegue a 0 y a 127.
+
+## SysEx
+
+Los dieciséis mensajes SysEx guardados, con el número de bytes, o un aviso cuando una línea no se puede leer, según escribes. Mira [SysEx_Strings](06-commands.md#sysex_strings).
+
+## Global
+
+Los ajustes de toda la pedalera, en grupos: Configuration, Presses, LEDs, Banks, USB MIDI y Power. Cada ajuste tiene un nombre claro, una pista corta y, en letra pequeña, su etiqueta en el CSV, que es el nombre que usa la [referencia](12-configuration-file.md#global_settings). Los ajustes con pocas opciones son desplegables o casillas, y los números se quedan dentro de su rango válido.
+
+## Virtual Pedal
+
+La pedalera tal como está ahora mismo, para probar una configuración sin ponerte encima.
+
+- Está dibujada como la pedalera: cinco pulsadores por fila, con Bank Up y Bank Down a la derecha.
+- Cada LED sale con su brillo real, incluidos los que parpadean y los atenuados.
+- Entre las filas está la pantalla de la pedalera, copiada píxel a píxel, así que los avisos superpuestos y las celdas de toggle invertidas se ven exactamente como en la pedalera.
+
+Pulsa **Connect**, y luego haz clic en un pulsador para darle un toque, mantén el botón del ratón para una pulsación larga, o haz doble clic rápido para una doble. La pulsación sigue exactamente el mismo camino que un pie, así que las pulsaciones largas y dobles, los pulsadores de banco y todo lo que envían se comportan como en la pedalera. Un pulsador que mantienes aquí se suelta solo a los 10 segundos. Debajo de la pedalera están los ocho valores que guardan los comandos `Value`.
+
+Comparte la conexión con la pestaña Expression.
+
+*Necesita el firmware 0.27 o posterior.*
+
+<img src="../../images/gui_virtual_pedal.png" width="500">
+
+---
+
+[← Primeros pasos](02-getting-started.md) · [Índice](README.md) · [Bancos →](04-banks.md)

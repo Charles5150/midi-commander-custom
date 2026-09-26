@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1220 634" width="1220" height="634" role="img">
+<title>Where MIDI goes in and out</title>
+<defs><marker id="head-ff9f0a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#ff9f0a"/></marker>
+<marker id="head-9a9aa0" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9a9aa0"/></marker>
+<marker id="head-30d158" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#30d158"/></marker>
+<marker id="head-64d2ff" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#64d2ff"/></marker></defs>
+<rect x="1" y="1" width="1218" height="632" rx="18" fill="#1c1c1e" stroke="#3a3a3c" stroke-width="2"/>
+<text x="610.0" y="50" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="24" font-weight="700" fill="#f2f2f7" text-anchor="middle">Where MIDI goes in and out</text>
+<rect x="430" y="100" width="470" height="470" rx="16" fill="#202022" stroke="#ff9f0a" stroke-width="2"/>
+<text x="665.0" y="130" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#ff9f0a" text-anchor="middle">The pedal</text>
+<rect x="450" y="152" width="430" height="56" rx="10" fill="#2c2c2e" stroke="#3a3a3c"/>
+<text x="665.0" y="185" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#f2f2f7" text-anchor="middle">Switches · expression pedals · tempo, LFO, sequencer</text>
+<text x="454" y="252" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#64d2ff" text-anchor="start">What arrives over USB</text>
+<rect x="450" y="268" width="430" height="38" rx="8" fill="#64d2ff" fill-opacity="0.08" stroke="#64d2ff" stroke-opacity="0.5"/>
+<text x="464" y="292" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#64d2ff" text-anchor="start">Bank_Change_Mode</text>
+<text x="614" y="292" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="normal" fill="#f2f2f7" text-anchor="start">a PC or CC selects a bank</text>
+<rect x="450" y="314" width="430" height="38" rx="8" fill="#64d2ff" fill-opacity="0.08" stroke="#64d2ff" stroke-opacity="0.5"/>
+<text x="464" y="338" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#64d2ff" text-anchor="start">LED_Feedback</text>
+<text x="614" y="338" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="normal" fill="#f2f2f7" text-anchor="start">a CC or note lights the toggles that send it</text>
+<rect x="450" y="360" width="430" height="38" rx="8" fill="#64d2ff" fill-opacity="0.08" stroke="#64d2ff" stroke-opacity="0.5"/>
+<text x="464" y="384" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#64d2ff" text-anchor="start">Remote_Mode</text>
+<text x="614" y="384" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="normal" fill="#f2f2f7" text-anchor="start">ten CCs or notes press the switches</text>
+<rect x="450" y="406" width="430" height="38" rx="8" fill="#64d2ff" fill-opacity="0.08" stroke="#64d2ff" stroke-opacity="0.5"/>
+<text x="464" y="430" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#64d2ff" text-anchor="start">Clock_Follow</text>
+<text x="614" y="430" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="normal" fill="#f2f2f7" text-anchor="start">the host's clock sets the tempo</text>
+<rect x="450" y="452" width="430" height="38" rx="8" fill="#64d2ff" fill-opacity="0.08" stroke="#64d2ff" stroke-opacity="0.5"/>
+<text x="464" y="476" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#64d2ff" text-anchor="start">SysEx</text>
+<text x="614" y="476" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="normal" fill="#f2f2f7" text-anchor="start">display text, the Kemper, configuration</text>
+<rect x="36" y="140" width="220" height="110" rx="12" fill="#232325" stroke="#3a3a3c" stroke-width="2"/>
+<text x="146.0" y="189.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#f2f2f7" text-anchor="middle">Computer</text>
+<text x="146.0" y="213.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#9a9aa0" text-anchor="middle">DAW, MainStage, a Kemper</text>
+<rect x="1040" y="140" width="150" height="110" rx="12" fill="#232325" stroke="#3a3a3c" stroke-width="2"/>
+<text x="1115.0" y="189.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#f2f2f7" text-anchor="middle">Your gear</text>
+<text x="1115.0" y="213.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#9a9aa0" text-anchor="middle">amp, pedals, synth</text>
+<line x1="424" y1="210" x2="266" y2="210" stroke="#30d158" stroke-width="3" marker-end="url(#head-30d158)"/>
+<text x="343.0" y="184" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#30d158" text-anchor="middle">MIDI, and keyboard</text>
+<text x="343.0" y="200" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#30d158" text-anchor="middle">and media keys</text>
+<line x1="906" y1="210" x2="1030" y2="210" stroke="#30d158" stroke-width="3" marker-end="url(#head-30d158)"/>
+<text x="970.0" y="200" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#30d158" text-anchor="middle">the same MIDI</text>
+<text x="970.0" y="232" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#9a9aa0" text-anchor="middle">MIDI OUT (DIN)</text>
+<text x="343.0" y="232" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#9a9aa0" text-anchor="middle">USB</text>
+<path d="M146.0,256 L146.0,379 L420,379" fill="none" stroke="#64d2ff" stroke-width="3" marker-end="url(#head-64d2ff)"/>
+<text x="158.0" y="314.5" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#64d2ff" text-anchor="start">USB</text>
+<path d="M146.0,379 L146.0,520 L1115.0,520 L1115.0,258" fill="none" stroke="#9a9aa0" stroke-width="2.5" stroke-dasharray="7 6" marker-end="url(#head-9a9aa0)"/>
+<rect x="450" y="504" width="430" height="32" rx="8" fill="#202022"/>
+<text x="665.0" y="525" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#9a9aa0" text-anchor="middle">USB_MIDI_Thru · RealTime_Passthrough: the rest, on to the DIN output</text>
+<text x="610.0" y="606" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="normal" fill="#9a9aa0" text-anchor="middle">The pedal has no MIDI IN socket: only USB comes in.</text>
+</svg>

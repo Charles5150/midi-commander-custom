@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 590" width="1080" height="590" role="img">
+<title>Short, long, double, two together: when each list goes out</title>
+<defs><marker id="head-ff9f0a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#ff9f0a"/></marker>
+<marker id="head-9a9aa0" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9a9aa0"/></marker>
+<marker id="head-30d158" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#30d158"/></marker>
+<marker id="head-64d2ff" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#64d2ff"/></marker></defs>
+<rect x="1" y="1" width="1078" height="588" rx="18" fill="#1c1c1e" stroke="#3a3a3c" stroke-width="2"/>
+<text x="540.0" y="50" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="24" font-weight="700" fill="#f2f2f7" text-anchor="middle">Short, long, double, two together: when each list goes out</text>
+<line x1="400.0" y1="94" x2="1020.0" y2="94" stroke="#3a3a3c" stroke-width="2"/>
+<line x1="400.0" y1="89" x2="400.0" y2="99" stroke="#3a3a3c" stroke-width="2"/>
+<line x1="400.0" y1="102" x2="400.0" y2="560" stroke="#3a3a3c" stroke-opacity="0.35" stroke-width="1"/>
+<text x="400.0" y="82" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#9a9aa0" text-anchor="middle">0</text>
+<line x1="462.0" y1="89" x2="462.0" y2="99" stroke="#3a3a3c" stroke-width="2"/>
+<line x1="462.0" y1="102" x2="462.0" y2="560" stroke="#3a3a3c" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="524.0" y1="89" x2="524.0" y2="99" stroke="#3a3a3c" stroke-width="2"/>
+<line x1="524.0" y1="102" x2="524.0" y2="560" stroke="#3a3a3c" stroke-opacity="0.35" stroke-width="1"/>
+<text x="524.0" y="82" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#9a9aa0" text-anchor="middle">200</text>
+<line x1="586.0" y1="89" x2="586.0" y2="99" stroke="#3a3a3c" stroke-width="2"/>
+<line x1="586.0" y1="102" x2="586.0" y2="560" stroke="#3a3a3c" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="648.0" y1="89" x2="648.0" y2="99" stroke="#3a3a3c" stroke-width="2"/>
+<line x1="648.0" y1="102" x2="648.0" y2="560" stroke="#3a3a3c" stroke-opacity="0.35" stroke-width="1"/>
+<text x="648.0" y="82" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#9a9aa0" text-anchor="middle">400</text>
+<line x1="710.0" y1="89" x2="710.0" y2="99" stroke="#3a3a3c" stroke-width="2"/>
+<line x1="710.0" y1="102" x2="710.0" y2="560" stroke="#3a3a3c" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="772.0" y1="89" x2="772.0" y2="99" stroke="#3a3a3c" stroke-width="2"/>
+<line x1="772.0" y1="102" x2="772.0" y2="560" stroke="#3a3a3c" stroke-opacity="0.35" stroke-width="1"/>
+<text x="772.0" y="82" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#9a9aa0" text-anchor="middle">600</text>
+<line x1="834.0" y1="89" x2="834.0" y2="99" stroke="#3a3a3c" stroke-width="2"/>
+<line x1="834.0" y1="102" x2="834.0" y2="560" stroke="#3a3a3c" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="896.0" y1="89" x2="896.0" y2="99" stroke="#3a3a3c" stroke-width="2"/>
+<line x1="896.0" y1="102" x2="896.0" y2="560" stroke="#3a3a3c" stroke-opacity="0.35" stroke-width="1"/>
+<text x="896.0" y="82" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#9a9aa0" text-anchor="middle">800</text>
+<line x1="958.0" y1="89" x2="958.0" y2="99" stroke="#3a3a3c" stroke-width="2"/>
+<line x1="958.0" y1="102" x2="958.0" y2="560" stroke="#3a3a3c" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="1020.0" y1="89" x2="1020.0" y2="99" stroke="#3a3a3c" stroke-width="2"/>
+<line x1="1020.0" y1="102" x2="1020.0" y2="560" stroke="#3a3a3c" stroke-opacity="0.35" stroke-width="1"/>
+<text x="1020.0" y="82" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#9a9aa0" text-anchor="middle">1000 ms</text>
+<rect x="16" y="110" width="1048" height="92" rx="10" fill="#ffffff" fill-opacity="0.025"/>
+<text x="40" y="146" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#f2f2f7" text-anchor="start">A button with a short press list only</text>
+<text x="40" y="167" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="normal" fill="#9a9aa0" text-anchor="start">sends at once, as the switch goes down</text>
+<rect x="400.0" y="141" width="235.6" height="18" rx="9" fill="#ff9f0a" fill-opacity="0.85"/>
+<text x="410.0" y="155" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#1c1c1e" text-anchor="start">switch held</text>
+<circle cx="400.0" cy="150" r="8" fill="#30d158" stroke="#1c1c1e" stroke-width="3"/>
+<text x="400.0" y="128" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#30d158" text-anchor="middle">short</text>
+<circle cx="635.6" cy="150" r="8" fill="#9a9aa0" stroke="#1c1c1e" stroke-width="3"/>
+<text x="635.6" y="128" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#9a9aa0" text-anchor="middle">release</text>
+<text x="40" y="238" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#f2f2f7" text-anchor="start">… and a long press list: a tap</text>
+<text x="40" y="259" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="normal" fill="#9a9aa0" text-anchor="start">the short list goes out when you let go</text>
+<rect x="400.0" y="222" width="310.0" height="40" rx="6" fill="#64d2ff" fill-opacity="0.10" stroke="#64d2ff" stroke-opacity="0.6" stroke-dasharray="5 4"/>
+<text x="555.0" y="278" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#64d2ff" text-anchor="middle">Long_Press_ms 500</text>
+<rect x="400.0" y="233" width="161.2" height="18" rx="9" fill="#ff9f0a" fill-opacity="0.85"/>
+<circle cx="561.2" cy="242" r="8" fill="#30d158" stroke="#1c1c1e" stroke-width="3"/>
+<text x="561.2" y="220" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#30d158" text-anchor="middle">short</text>
+<rect x="16" y="294" width="1048" height="92" rx="10" fill="#ffffff" fill-opacity="0.025"/>
+<text x="40" y="330" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#f2f2f7" text-anchor="start">… and a long press list: held</text>
+<text x="40" y="351" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="normal" fill="#9a9aa0" text-anchor="start">the long list goes out at Long_Press_ms, still held</text>
+<rect x="400.0" y="314" width="310.0" height="40" rx="6" fill="#64d2ff" fill-opacity="0.10" stroke="#64d2ff" stroke-opacity="0.6" stroke-dasharray="5 4"/>
+<text x="555.0" y="370" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#64d2ff" text-anchor="middle">Long_Press_ms 500</text>
+<rect x="400.0" y="325" width="558.0" height="18" rx="9" fill="#ff9f0a" fill-opacity="0.85"/>
+<circle cx="710.0" cy="334" r="8" fill="#30d158" stroke="#1c1c1e" stroke-width="3"/>
+<text x="710.0" y="312" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#30d158" text-anchor="middle">long</text>
+<circle cx="958.0" cy="334" r="8" fill="#9a9aa0" stroke="#1c1c1e" stroke-width="3"/>
+<text x="958.0" y="312" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#9a9aa0" text-anchor="middle">release</text>
+<text x="40" y="422" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#f2f2f7" text-anchor="start">A button with a double press list</text>
+<text x="40" y="443" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="normal" fill="#9a9aa0" text-anchor="start">a second press within Double_Press_ms</text>
+<rect x="400.0" y="417" width="86.8" height="18" rx="9" fill="#ff9f0a" fill-opacity="0.85"/>
+<rect x="486.8" y="406" width="186.0" height="40" rx="6" fill="#64d2ff" fill-opacity="0.10" stroke="#64d2ff" stroke-opacity="0.6" stroke-dasharray="5 4"/>
+<text x="579.8" y="462" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#64d2ff" text-anchor="middle">Double_Press_ms 300</text>
+<rect x="586.0" y="417" width="62.0" height="18" rx="9" fill="#ff9f0a" fill-opacity="0.85"/>
+<circle cx="586.0" cy="426" r="8" fill="#30d158" stroke="#1c1c1e" stroke-width="3"/>
+<text x="586.0" y="404" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#30d158" text-anchor="middle">double</text>
+<text x="686.8" y="431" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#9a9aa0" text-anchor="start">or, no second press: short</text>
+<rect x="16" y="478" width="1048" height="92" rx="10" fill="#ffffff" fill-opacity="0.025"/>
+<text x="40" y="514" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#f2f2f7" text-anchor="start">Two switches of a combination</text>
+<text x="40" y="535" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="normal" fill="#9a9aa0" text-anchor="start">the second within Combo_ms of the first</text>
+<rect x="400.0" y="498" width="49.6" height="40" rx="6" fill="#64d2ff" fill-opacity="0.10" stroke="#64d2ff" stroke-opacity="0.6" stroke-dasharray="5 4"/>
+<text x="424.8" y="554" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#64d2ff" text-anchor="middle">Combo_ms 80</text>
+<rect x="400.0" y="506" width="372.0" height="9" rx="4.5" fill="#ff9f0a" fill-opacity="0.85"/>
+<rect x="427.9" y="521" width="344.1" height="9" rx="4.5" fill="#ff9f0a" fill-opacity="0.85"/>
+<text x="782.0" y="515" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#ff9f0a" text-anchor="start">3</text>
+<text x="782.0" y="530" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#ff9f0a" text-anchor="start">4</text>
+<circle cx="427.9" cy="518" r="8" fill="#30d158" stroke="#1c1c1e" stroke-width="3"/>
+<text x="427.9" y="496" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#30d158" text-anchor="middle">combo</text>
+</svg>

@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 624" width="1240" height="624" role="img">
+<title>One press, ten commands: a list runs top to bottom</title>
+<defs><marker id="head-ff9f0a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#ff9f0a"/></marker>
+<marker id="head-9a9aa0" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9a9aa0"/></marker>
+<marker id="head-30d158" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#30d158"/></marker>
+<marker id="head-64d2ff" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#64d2ff"/></marker></defs>
+<rect x="1" y="1" width="1238" height="622" rx="18" fill="#1c1c1e" stroke="#3a3a3c" stroke-width="2"/>
+<text x="620.0" y="50" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="24" font-weight="700" fill="#f2f2f7" text-anchor="middle">One press, ten commands: a list runs top to bottom</text>
+<text x="40" y="106" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#9a9aa0" text-anchor="start">Slot</text>
+<text x="100" y="106" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#9a9aa0" text-anchor="start">Command</text>
+<text x="700" y="106" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#9a9aa0" text-anchor="start">When it goes out after the press</text>
+<line x1="700.0" y1="538" x2="1180.0" y2="538" stroke="#3a3a3c" stroke-width="2"/>
+<line x1="700.0" y1="120" x2="700.0" y2="538" stroke="#3a3a3c" stroke-opacity="0.35"/>
+<text x="700.0" y="558" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#9a9aa0" text-anchor="middle">0</text>
+<line x1="780.0" y1="120" x2="780.0" y2="538" stroke="#3a3a3c" stroke-opacity="0.35"/>
+<text x="780.0" y="558" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#9a9aa0" text-anchor="middle">400</text>
+<line x1="860.0" y1="120" x2="860.0" y2="538" stroke="#3a3a3c" stroke-opacity="0.35"/>
+<text x="860.0" y="558" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#9a9aa0" text-anchor="middle">800</text>
+<line x1="940.0" y1="120" x2="940.0" y2="538" stroke="#3a3a3c" stroke-opacity="0.35"/>
+<text x="940.0" y="558" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#9a9aa0" text-anchor="middle">1200</text>
+<line x1="1020.0" y1="120" x2="1020.0" y2="538" stroke="#3a3a3c" stroke-opacity="0.35"/>
+<text x="1020.0" y="558" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#9a9aa0" text-anchor="middle">1600</text>
+<line x1="1100.0" y1="120" x2="1100.0" y2="538" stroke="#3a3a3c" stroke-opacity="0.35"/>
+<text x="1100.0" y="558" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#9a9aa0" text-anchor="middle">2000</text>
+<line x1="1180.0" y1="120" x2="1180.0" y2="538" stroke="#3a3a3c" stroke-opacity="0.35"/>
+<text x="1180.0" y="558" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#9a9aa0" text-anchor="middle">2400 ms</text>
+<rect x="32" y="128" width="644" height="42" rx="8" fill="#ffffff" fill-opacity="0.03"/>
+<text x="52" y="154.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#9a9aa0" text-anchor="middle">A</text>
+<rect x="90" y="136.0" width="64" height="26" rx="13" fill="#30d158" fill-opacity="0.16" stroke="#30d158" stroke-width="1.5"/>
+<text x="122" y="154.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#30d158" text-anchor="middle">PC</text>
+<text x="168" y="154.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#f2f2f7" text-anchor="start">Program 12</text>
+<circle cx="700.0" cy="149.0" r="8" fill="#30d158" stroke="#1c1c1e" stroke-width="3"/>
+<rect x="32" y="178" width="644" height="42" rx="8" fill="#ffffff" fill-opacity="0.03"/>
+<text x="52" y="204.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#9a9aa0" text-anchor="middle">B</text>
+<rect x="90" y="186.0" width="64" height="26" rx="13" fill="#64d2ff" fill-opacity="0.16" stroke="#64d2ff" stroke-width="1.5"/>
+<text x="122" y="204.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#64d2ff" text-anchor="middle">Wait</text>
+<text x="168" y="204.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#f2f2f7" text-anchor="start">200 ms</text>
+<text x="340" y="204.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#9a9aa0" text-anchor="start">holds the rest of the list back</text>
+<rect x="700.0" y="194.0" width="40.0" height="10" rx="5" fill="#64d2ff" fill-opacity="0.5"/>
+<rect x="32" y="228" width="644" height="42" rx="8" fill="#ffffff" fill-opacity="0.03"/>
+<text x="52" y="254.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#9a9aa0" text-anchor="middle">C</text>
+<rect x="90" y="236.0" width="64" height="26" rx="13" fill="#30d158" fill-opacity="0.16" stroke="#30d158" stroke-width="1.5"/>
+<text x="122" y="254.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#30d158" text-anchor="middle">CC</text>
+<text x="168" y="254.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#f2f2f7" text-anchor="start">20 = 127, delay on</text>
+<circle cx="740.0" cy="249.0" r="8" fill="#30d158" stroke="#1c1c1e" stroke-width="3"/>
+<rect x="32" y="278" width="644" height="42" rx="8" fill="#ffffff" fill-opacity="0.03"/>
+<text x="52" y="304.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#9a9aa0" text-anchor="middle">D</text>
+<rect x="90" y="286.0" width="64" height="26" rx="13" fill="#64d2ff" fill-opacity="0.16" stroke="#64d2ff" stroke-width="1.5"/>
+<text x="122" y="304.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#64d2ff" text-anchor="middle">Ramp</text>
+<text x="168" y="304.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#f2f2f7" text-anchor="start">2000 ms</text>
+<text x="340" y="304.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#9a9aa0" text-anchor="start">turns the CC below into a ramp</text>
+<rect x="32" y="328" width="644" height="42" rx="8" fill="#ffffff" fill-opacity="0.03"/>
+<text x="52" y="354.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#9a9aa0" text-anchor="middle">E</text>
+<rect x="90" y="336.0" width="64" height="26" rx="13" fill="#30d158" fill-opacity="0.16" stroke="#30d158" stroke-width="1.5"/>
+<text x="122" y="354.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#30d158" text-anchor="middle">CC</text>
+<text x="168" y="354.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#f2f2f7" text-anchor="start">7: 0 → 127, a swell</text>
+<path d="M740.0,359.0 L1140.0,337.0 L1140.0,359.0 z" fill="#30d158" fill-opacity="0.35" stroke="#30d158" stroke-width="2"/>
+<rect x="32" y="378" width="644" height="42" rx="8" fill="#ffffff" fill-opacity="0.03"/>
+<text x="52" y="404.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#9a9aa0" text-anchor="middle">F</text>
+<rect x="90" y="386.0" width="64" height="26" rx="13" fill="#64d2ff" fill-opacity="0.16" stroke="#64d2ff" stroke-width="1.5"/>
+<text x="122" y="404.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#64d2ff" text-anchor="middle">If</text>
+<text x="168" y="404.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#f2f2f7" text-anchor="start">Button 4 on</text>
+<text x="340" y="404.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#9a9aa0" text-anchor="start">the command below only if it holds</text>
+<rect x="32" y="428" width="644" height="42" rx="8" fill="#ffffff" fill-opacity="0.03"/>
+<text x="52" y="454.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#9a9aa0" text-anchor="middle">G</text>
+<rect x="90" y="436.0" width="64" height="26" rx="13" fill="#30d158" fill-opacity="0.16" stroke="#30d158" stroke-width="1.5"/>
+<text x="122" y="454.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#30d158" text-anchor="middle">CC</text>
+<text x="168" y="454.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#f2f2f7" text-anchor="start">21 = 127, a boost</text>
+<circle cx="740.0" cy="449.0" r="8" fill="none" stroke="#30d158" stroke-width="2.5" stroke-dasharray="3 3"/>
+<text x="756.0" y="454.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#9a9aa0" text-anchor="start">only if 4 is on</text>
+<rect x="32" y="478" width="644" height="42" rx="8" fill="#ffffff" fill-opacity="0.03"/>
+<text x="52" y="504.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#9a9aa0" text-anchor="middle">H</text>
+<rect x="90" y="486.0" width="64" height="26" rx="13" fill="#ff9f0a" fill-opacity="0.16" stroke="#ff9f0a" stroke-width="1.5"/>
+<text x="122" y="504.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#ff9f0a" text-anchor="middle">Macro</text>
+<text x="168" y="504.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#f2f2f7" text-anchor="start">bank 30, D, short</text>
+<text x="340" y="504.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#9a9aa0" text-anchor="start">runs that list here, in place</text>
+<circle cx="740.0" cy="499.0" r="6" fill="#ff9f0a" stroke="#1c1c1e" stroke-width="2"/>
+<circle cx="756.0" cy="499.0" r="6" fill="#ff9f0a" stroke="#1c1c1e" stroke-width="2"/>
+<circle cx="772.0" cy="499.0" r="6" fill="#ff9f0a" stroke="#1c1c1e" stroke-width="2"/>
+<text x="790.0" y="504.0" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="normal" fill="#ff9f0a" text-anchor="start">its commands</text>
+<path d="M90,299.0 C66,299.0 66,349.0 86,349.0" fill="none" stroke="#64d2ff" stroke-width="2" marker-end="url(#head-64d2ff)"/>
+<path d="M90,399.0 C66,399.0 66,449.0 86,449.0" fill="none" stroke="#64d2ff" stroke-width="2" marker-end="url(#head-64d2ff)"/>
+<text x="620.0" y="596" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="normal" fill="#9a9aa0" text-anchor="middle">Nothing waits for the ramp: the pedal carries on, and its switches keep working while a list pauses.</text>
+</svg>
