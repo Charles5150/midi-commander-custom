@@ -434,6 +434,9 @@ static void setting_text(const setting_t *s, uint8_t v, char *out, uint8_t size)
 static void save(void){
 	bool wrote = false;
 
+	// A Duration still running points into the page about to be rewritten
+	if(ed.cmd_dirty || ed.label_dirty || ed.set_dirty) sw_release_all();
+
 	if(ed.cmd_dirty){
 		wrote |= flash_settings_patch(cmd_ptr(), ed.cmd, MIDI_ROM_CMD_SIZE);
 		ed.cmd_dirty = false;

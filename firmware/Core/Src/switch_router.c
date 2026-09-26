@@ -322,6 +322,21 @@ static void send_media_usage(uint16_t usage){
     HID_SendReport_FS(report, sizeof(report));
 }
 
+// Let go of every key and media key the pedal holds on the computer
+static void release_all_keys(void){
+    bool held = false;
+    for(int i=0; i<8; i++){
+        if(mod_press_count[i]) held = true;
+        mod_press_count[i] = 0;
+    }
+    for(int i=0; i<256; i++){
+        if(key_press_count[i]) held = true;
+        key_press_count[i] = 0;
+    }
+    if(held) update_keyboard_state(0, 0, 0);
+    send_media_usage(0);
+}
+
 static inline uint16_t media_usage_from_rom(const uint8_t *pRom){
     return pRom[1] | ((pRom[2] & 0x03) << 8);
 }
@@ -2730,6 +2745,17 @@ static void flush_delayed_cmds(void){
 	handle_delayed_cmds();
 }
 
+/*
+ * Before the configuration under the pedal changes (a switch, an editor save):
+ * the timed releases go now, while their commands still read right, no key
+ * stays held on the computer and no ramp keeps moving a CC.
+ */
+void sw_release_all(void){
+	flush_delayed_cmds();
+	release_all_keys();
+	ramp_stop_all();
+}
+
 static void switch_config(uint8_t target){
 	preview_end();
 	uint8_t from = flash_settings_active_slot();
@@ -2756,7 +2782,7 @@ static void switch_config(uint8_t target){
 
 	if(page_home != 0xFF) fire_bank_leave_cmds(switch_current_page);
 	fire_bank_leave_cmds(home_bank());
-	flush_delayed_cmds();
+	sw_release_all();
 	pending_clear();	// their commands live in the configuration we are leaving
 	flash_settings_select(slot);
 

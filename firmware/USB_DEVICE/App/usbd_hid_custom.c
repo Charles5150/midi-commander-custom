@@ -9,6 +9,7 @@
 #include "usbd_ctlreq.h"
 
 static USBD_HandleTypeDef *pInstanceHID = NULL;
+static void hid_queue_clear(void);
 
 static uint8_t  USBD_HID_Init (USBD_HandleTypeDef *pdev,
                                uint8_t cfgidx);
@@ -203,6 +204,7 @@ static uint8_t  USBD_HID_Init (USBD_HandleTypeDef *pdev,
   {
     ((USBD_HID_HandleTypeDef *)pdev->pClassData)->state = HID_IDLE;
   }
+  hid_queue_clear();	// a new connection starts with nothing waiting
   pInstanceHID = pdev;
   return ret;
 }
@@ -340,9 +342,66 @@ uint8_t USBD_HID_SendReport (USBD_HandleTypeDef  *pdev,
   return USBD_OK;
 }
 
+/*
+ * The endpoint takes one report every 10 ms, and a list can press and release
+ * faster than that (two Key commands, a Key and a Media, a short Duration).
+ * Every report waits here instead of being dropped, so a release always
+ * reaches the computer and no key is left repeating. The one being sent stays
+ * at the tail until DataIn says it went.
+ */
+#define HID_QUEUE_LEN  16
+#define HID_REPORT_MAX 9
+static uint8_t hid_queue[HID_QUEUE_LEN][HID_REPORT_MAX];
+static uint8_t hid_queue_len[HID_QUEUE_LEN];
+static volatile uint8_t hid_head, hid_tail;
+static volatile uint8_t hid_sending;
+
+static void hid_queue_clear(void)
+{
+  hid_head = hid_tail = 0;
+  hid_sending = 0;
+}
+
+// Called with interrupts masked, or from the USB interrupt itself
+static void hid_start_next(void)
+{
+  if(hid_sending || hid_head == hid_tail || pInstanceHID == NULL) return;
+  USBD_HID_HandleTypeDef *hhid = (USBD_HID_HandleTypeDef*) pInstanceHID->pClassData;
+  if(hhid == NULL || pInstanceHID->dev_state != USBD_STATE_CONFIGURED) return;
+  hid_sending = 1;
+  hhid->state = HID_BUSY;
+  USBD_LL_Transmit(pInstanceHID, HID_EPIN_ADDR, hid_queue[hid_tail], hid_queue_len[hid_tail]);
+}
+
 uint8_t HID_SendReport_FS(uint8_t *report, uint16_t len) {
-    if(pInstanceHID == NULL) return 1;
-    return USBD_HID_SendReport(pInstanceHID, report, len);
+    if(pInstanceHID == NULL || len == 0 || len > HID_REPORT_MAX) return 1;
+    // Nobody is listening (unplugged, or the computer asleep): nothing to keep
+    if(pInstanceHID->dev_state != USBD_STATE_CONFIGURED) return 1;
+
+    uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    uint8_t next = (uint8_t)((hid_head + 1) % HID_QUEUE_LEN);
+    uint8_t slot = hid_head;
+    if(next == hid_tail){
+        // Full: a report is the whole state of its kind, so the newest one
+        // queued of the same kind can simply become this one
+        slot = 0xFF;
+        for(uint8_t i = hid_head; i != hid_tail; ){
+            i = (uint8_t)((i + HID_QUEUE_LEN - 1) % HID_QUEUE_LEN);
+            if(i == hid_tail && hid_sending) break;
+            if(hid_queue[i][0] == report[0]){ slot = i; break; }
+        }
+        if(slot == 0xFF){
+            __set_PRIMASK(primask);
+            return 1;
+        }
+    }
+    for(uint16_t k = 0; k < len; k++) hid_queue[slot][k] = report[k];
+    hid_queue_len[slot] = (uint8_t)len;
+    if(slot == hid_head) hid_head = next;
+    hid_start_next();
+    __set_PRIMASK(primask);
+    return 0;
 }
 
 /**
@@ -400,6 +459,13 @@ static uint8_t  USBD_HID_DataIn (USBD_HandleTypeDef *pdev,
   /* Ensure that the FIFO is empty before a new transfer, this condition could
   be caused by  a new transfer before the end of the previous transfer */
   ((USBD_HID_HandleTypeDef *)pdev->pClassData)->state = HID_IDLE;
+
+  // The report at the tail went; send the next one waiting
+  if(hid_sending && hid_head != hid_tail){
+    hid_tail = (uint8_t)((hid_tail + 1) % HID_QUEUE_LEN);
+  }
+  hid_sending = 0;
+  hid_start_next();
 
   return USBD_OK;
 }
