@@ -209,31 +209,16 @@ void HAL_PCD_SuspendCallback(PCD_HandleTypeDef *hpcd)
   /* Enter in STOP mode. */
   /* USER CODE BEGIN 2 */
   /*
-   * Only a host that configured the pedal can suspend it. Without one, on a
-   * USB charger or power bank, the bus is idle from the start and the core
-   * reports a suspend a few milliseconds after boot; honouring it switched the
-   * display off and ignored every switch, so the pedal could not be used
-   * without a computer. It now keeps running: DIN MIDI works as usual and USB
-   * MIDI is discarded until a host appears.
+   * A suspend never stops the pedal. The bus goes idle when the computer goes
+   * to sleep and keeps powering the port, when a powered hub loses its link to
+   * the computer, and from the start on a USB charger or power bank with no
+   * computer at all. Honouring it
+   * switched the display off and ignored every switch, so a pedal driving an
+   * amp over DIN went dead when the laptop lid closed. It keeps running now:
+   * DIN MIDI works as usual, and USB MIDI and HID reports are discarded while
+   * the device is not configured. The pedal's own Sleep setting is what
+   * darkens it when idle.
    */
-  if (((USBD_HandleTypeDef*)hpcd->pData)->dev_old_state != USBD_STATE_CONFIGURED)
-  {
-    return;
-  }
-  // Turn off Display and LEDs, and block main loop updates
-  ssd1306_SetDisplayOn(0);
-  
-  // Explicitly disable JTAG again to ensure PB3 (LED_1) is GPIO
-  __HAL_RCC_AFIO_CLK_ENABLE();
-  __HAL_AFIO_REMAP_SWJ_NOJTAG();
-
-  setIsSuspended(1); // This turns off LEDs and sets flag
-
-  if (hpcd->Init.low_power_enable)
-  {
-    /* Set SLEEPDEEP bit and SleepOnExit of Cortex System Control Register. */
-    SCB->SCR |= (uint32_t)((uint32_t)(SCB_SCR_SLEEPDEEP_Msk | SCB_SCR_SLEEPONEXIT_Msk));
-  }
   /* USER CODE END 2 */
 }
 
@@ -250,10 +235,6 @@ void HAL_PCD_ResumeCallback(PCD_HandleTypeDef *hpcd)
 #endif /* USE_HAL_PCD_REGISTER_CALLBACKS */
 {
   /* USER CODE BEGIN 3 */
-  // Restore state
-  setIsSuspended(0);
-  ssd1306_SetDisplayOn(1);
-  update_leds_on_bank_change();
   /* USER CODE END 3 */
   USBD_LL_Resume((USBD_HandleTypeDef*)hpcd->pData);
 }

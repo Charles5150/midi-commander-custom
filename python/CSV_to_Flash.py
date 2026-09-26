@@ -12,7 +12,7 @@ from lib.midiDevice import (
     DeviceTimeout,
     MidiCommander,
 )
-from lib.slotIO import SlotError, pack_sections, select_slot, write_image
+from lib.slotIO import FlashWriteError, SlotError, pack_sections, select_slot, write_image
 
 
 def main(args: argparse.Namespace) -> int:
@@ -57,6 +57,9 @@ def main(args: argparse.Namespace) -> int:
     except DeviceTimeout as e:
         print(f"Device stopped responding: {e}")
         return 3
+    except FlashWriteError as e:
+        print(f"ERROR: {e}. The slot is incomplete: flash it again.")
+        return 4
 
     return 0
 

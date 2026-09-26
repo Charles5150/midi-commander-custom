@@ -3280,6 +3280,9 @@ class MidiCommanderGUI(ctk.CTk):
             msg = "Midi Commander not found or disconnected.\nPlease check the USB connection."
         elif "stopped responding" in out:
             msg = "The device stopped responding while flashing. Power cycle it and try again."
+        elif "could not write its flash" in out or "could not erase its flash" in out:
+            msg = ("The pedal could not write its flash, so the slot is incomplete. "
+                   "Flash it again; if it keeps failing, switch the pedal off and on first.")
         else:
             msg = (
                 "Failed to access MIDI device.\n\nMost likely, the device is being used by "

@@ -480,18 +480,22 @@ static void MX_ADC1_Init(void)
 /* USER CODE BEGIN 4 */
 
 /*
- * @brief This function can be called to display an error message on the screen,
- * if the display is on, before calling Error_Handler() to stop all operations.
+ * @brief Show an error message on the screen, if the display is on, then call
+ * Error_Handler() to stop all operations. The screen goes out a line at a
+ * time from SysTick, so it waits for that, up to a moment, before stopping:
+ * Error_Handler switches interrupts off, which used to leave it unsent.
  */
 void Error(char *msg) {
-	if (ssd1306_GetDisplayOn() == 0) {
-		/* Display is on */
+	if (ssd1306_GetDisplayOn()) {
 		ssd1306_Fill(Black);
 		ssd1306_SetCursor(2, 0);
 		ssd1306_WriteString("Error:", Font_6x8, White);
 		ssd1306_SetCursor(2, 9);
 		ssd1306_WriteString(msg, Font_6x8, White);
 		ssd1306_UpdateScreen();
+		uint32_t start = HAL_GetTick();
+		while (ssd1306_Busy() && HAL_GetTick() - start < 200) {
+		}
 	}
 
 	Error_Handler();

@@ -86,18 +86,27 @@ void sysex_send_message(uint8_t* buffer, uint8_t length){
 }
 
 
+/*
+ * The answer to an erase or a write: F0 7D rsp F7 when it worked, as always,
+ * and F0 7D rsp 01 F7 when the flash could not be written, for the tool to
+ * report instead of the pedal stopping.
+ */
+static void sysex_flash_answer(uint8_t rsp, bool ok){
+	uint8_t *p = midi_msg_tx_buffer;
+	*(p++) = SYSEX_START;
+	*(p++) = MIDI_MANUF_ID;
+	*(p++) = rsp;
+	if(!ok) *(p++) = 1;
+	*(p++) = SYSEX_END;
+	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
+}
+
 void sysex_erase_settings(uint8_t* data_packet_start){
 	if(data_packet_start[0] != 0x42 || data_packet_start[1] != 0x24){
 		return;
 	}
 
-	flash_settings_erase();
-
-	midi_msg_tx_buffer[0] = SYSEX_START;
-	midi_msg_tx_buffer[1] = MIDI_MANUF_ID;
-	midi_msg_tx_buffer[2] = SYSEX_RSP_ERASE_FLASH;
-	midi_msg_tx_buffer[3] = SYSEX_END;
-	sysex_send_message(midi_msg_tx_buffer, 4);
+	sysex_flash_answer(SYSEX_RSP_ERASE_FLASH, flash_settings_erase());
 }
 
 void sysex_write_flash(uint8_t* data_packet_start){
@@ -106,17 +115,14 @@ void sysex_write_flash(uint8_t* data_packet_start){
 	uint8_t reassembled_array[16];
 	data_packet_start += 2;
 	for (int i=0; i<16; i++){
+		if((data_packet_start[2*i] | data_packet_start[2*i + 1]) > 0x0F){
+			return;	// not nibbles: a garbled message, never written
+		}
 		reassembled_array[i] = data_packet_start[2*i] << 4 | data_packet_start[2*i + 1];
 	}
 
-	flash_settings_write(reassembled_array, flash_byte_offset);
-
-	midi_msg_tx_buffer[0] = SYSEX_START;
-	midi_msg_tx_buffer[1] = MIDI_MANUF_ID;
-	midi_msg_tx_buffer[2] = SYSEX_RSP_WRITE_FLASH;
-	midi_msg_tx_buffer[3] = SYSEX_END;
-	sysex_send_message(midi_msg_tx_buffer, 4);
-
+	sysex_flash_answer(SYSEX_RSP_WRITE_FLASH,
+			flash_settings_write(reassembled_array, flash_byte_offset));
 }
 
 /*
@@ -424,12 +430,22 @@ void process_sysex_message(void){
 	}
 
 	switch(pSysexHead->msg_cmd){
+	/*
+	 * Exact lengths for the two that write flash: a shorter message would
+	 * take the rest of its fields from whatever an earlier one left in the
+	 * buffer, and write that.
+	 */
 	case SYSEX_CMD_ERASE_FLASH:
-		sysex_erase_settings(&(pSysexHead->start_parameters));
+		// F0 7D 52 42 24 F7
+		if(sysex_rx_counter == 6){
+			sysex_erase_settings(&(pSysexHead->start_parameters));
+		}
 		break;
 	case SYSEX_CMD_WRITE_FLASH:
-		// TODO: check data length
-		sysex_write_flash(&(pSysexHead->start_parameters));
+		// F0 7D 54 hi lo, 16 bytes as 32 nibbles, F7
+		if(sysex_rx_counter == 38){
+			sysex_write_flash(&(pSysexHead->start_parameters));
+		}
 		break;
 	case SYSEX_CMD_READ_FLASH:
 		// F0 7D 56 hi lo F7 = 6 bytes minimum

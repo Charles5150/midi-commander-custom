@@ -32,6 +32,10 @@ class SlotError(Exception):
     """The pedal refused the slot, or holds nothing in it."""
 
 
+class FlashWriteError(Exception):
+    """The pedal answered that it could not erase or write its flash (0.71 on)."""
+
+
 def _quiet(*_args):
     pass
 
@@ -125,7 +129,8 @@ def write_image(dev, config, image, log=_quiet, progress=None):
 
     log("Erasing Flash Settings")
     dev.send([SYSEX_CMD_ERASE_FLASH, 0x42, 0x24])
-    dev.wait_for_sysex(SYSEX_RSP_ERASE_FLASH, timeout=5.0)
+    if dev.wait_for_sysex(SYSEX_RSP_ERASE_FLASH, timeout=5.0):
+        raise FlashWriteError("the pedal could not erase its flash")
     log("Erase Complete")
 
     chunks = ceil(len(image) / 16)
@@ -139,5 +144,8 @@ def write_image(dev, config, image, log=_quiet, progress=None):
         for byte in chunk:
             data += [byte >> 4, byte & 0x0F]
         dev.send(data)
-        dev.wait_for_sysex(SYSEX_RSP_WRITE_FLASH, timeout=2.0)
+        # Empty when written; firmware 0.71 on answers 01 when it could not be
+        if dev.wait_for_sysex(SYSEX_RSP_WRITE_FLASH, timeout=2.0):
+            raise FlashWriteError(
+                f"the pedal could not write its flash at byte {x * 16} of {len(image)}")
         time.sleep(0.005)

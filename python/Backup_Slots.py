@@ -27,7 +27,7 @@ from lib.midiDevice import (
     DeviceTimeout,
     MidiCommander,
 )
-from lib.slotIO import SlotError, pack_sections, read_image, save_csv, select_slot, write_image
+from lib.slotIO import FlashWriteError, SlotError, pack_sections, read_image, save_csv, select_slot, write_image
 
 SLOT_FILE = re.compile(r"^slot([1-9])\.csv$", re.IGNORECASE)
 
@@ -145,6 +145,9 @@ def restore(args: argparse.Namespace) -> int:
     except SlotError as e:
         print(f"ERROR: {e}")
         return 1
+    except FlashWriteError as e:
+        print(f"ERROR: {e}. That slot is incomplete: restore it again.")
+        return 4
 
     print(f"Restored {len(packed)} configuration(s)")
     return 0

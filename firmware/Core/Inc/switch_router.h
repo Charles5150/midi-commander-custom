@@ -15,7 +15,6 @@ void handle_switches(void);
 void sw_led_init(void);
 void update_leds_on_bank_change(void);
 void set_all_leds(uint8_t state);
-void setIsSuspended(uint8_t suspended);
 
 // Current bank and per-button toggle bitmasks, for persisting/restoring state
 uint8_t sw_get_current_page(void);

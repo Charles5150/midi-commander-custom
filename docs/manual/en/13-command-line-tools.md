@@ -127,6 +127,9 @@ The tools exchange the configuration as SysEx messages under manufacturer ID `0x
 | restart in DFU mode, with the check bytes `44 46` | 74 |
 | the banner's own text | 76 |
 | the latency of the last presses | 78 |
+| hold an expression pedal at a position | 80 |
+
+Each is answered with its number plus one. An erase or a write that the flash could not take is answered with one more byte, `01`, from firmware 0.71 on, and the tools stop and say so; a message of the wrong length is ignored.
 
 The read-back commands need firmware 0.2 or later; the tools tell you if the pedal is older.
 

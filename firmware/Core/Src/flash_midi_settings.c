@@ -134,8 +134,12 @@ bool flash_settings_select(uint8_t slot){
 	return true;
 }
 
-void flash_settings_erase(void){
-	// Erase the pages of the target slot. Must be done before re-writing them.
+/*
+ * Erase the pages of the target slot, before writing them again. A failure is
+ * reported to the tool, never a reason to stop the pedal: this runs from the
+ * USB interrupt, and stopping there left it dead until switched off.
+ */
+bool flash_settings_erase(void){
 	uint32_t pageError;
 
 	FLASH_EraseInitTypeDef eraseInit ={
@@ -156,9 +160,7 @@ void flash_settings_erase(void){
 	}
 	HAL_FLASH_Lock();
 
-	if(status != HAL_OK){
-		Error("Flash erase error");
-	}
+	return status == HAL_OK;
 }
 
 /*
@@ -208,23 +210,30 @@ bool flash_settings_patch(uint8_t *dst, const uint8_t *data, uint8_t len){
 	return status == HAL_OK;
 }
 
-void flash_settings_write(uint8_t* data, uint32_t offset){
+/*
+ * Write one 16 byte chunk of the target slot. False when it cannot be done,
+ * for the tool to report: an offset outside the slot, or flash that is
+ * neither erased nor already holding the data. A half word already holding
+ * its value is left alone, so a chunk sent twice is written once; programming
+ * it again would fail on the F1, and that used to stop the pedal for good.
+ */
+bool flash_settings_write(uint8_t* data, uint32_t offset){
 	// Never write outside the slot: the offset comes straight from a SysEx message
 	uint32_t flash_address = image_address(target_slot, offset);
 	if(flash_address == 0){
-		return;
+		return false;
 	}
 
+	bool ok = true;
 	HAL_FLASH_Unlock();
-
-	// Programming 16bytes, so 8 iterations of 16bit
-	for(int i=0; i<8; i++){
-		uint16_t write_data = data[2*i] + (data[2*i+1] << 8);
-		HAL_StatusTypeDef status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_HALFWORD, flash_address + 2*i, write_data);
-		if(status != HAL_OK){
-			Error("Flash write error");
-		}
+	for(int i=0; ok && i<8; i++){
+		uint32_t at = flash_address + 2*i;
+		uint16_t want = data[2*i] | (data[2*i+1] << 8);
+		uint16_t now = *(volatile uint16_t*)at;
+		if(now == want) continue;
+		ok = now == 0xFFFF
+				&& HAL_FLASH_Program(FLASH_TYPEPROGRAM_HALFWORD, at, want) == HAL_OK;
 	}
-
 	HAL_FLASH_Lock();
+	return ok;
 }

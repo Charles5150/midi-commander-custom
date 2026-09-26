@@ -3140,12 +3140,14 @@ class FakePedal:
     """A pedal in memory that answers the SysEx the slot tools use: four slots
     of flash, a target selected with SELECT_SLOT, erase, write and read."""
 
-    def __init__(self, version="0.31", active=0):
+    def __init__(self, version="0.31", active=0, fail_write_at=None):
         self.version = version
         self.active = active
         self.target = active
         self.flash = {s: bytearray(b"\xff" * unpacker.IMAGE_SIZE) for s in range(4)}
         self.resets = 0
+        self.fail_write_at = fail_write_at  # a byte offset whose write fails, as 0.71 answers
+        self.answer = []
 
     def __enter__(self):
         return self
@@ -3182,11 +3184,13 @@ class FakePedal:
             nib = data[3:]
             self.flash[self.target][at:at + 16] = bytes(
                 (nib[2 * i] << 4) | nib[2 * i + 1] for i in range(16))
+            self.answer = [1] if at == self.fail_write_at else []
         elif data[0] == md.SYSEX_CMD_RESET:
             self.resets += 1
 
     def wait_for_sysex(self, expected_rsp, timeout=2.0):
-        return []
+        answer, self.answer = self.answer, []
+        return answer
 
 
 class BackupSlotsTest(unittest.TestCase):
@@ -4239,3 +4243,39 @@ class SharpInCsvTest(unittest.TestCase):
         self.assertIn("C#B", [str(v) for v in row.values])
         # the demo's own comment lines are still skipped
         self.assertNotIn("# Notes", read_config_csv(DEMO_CSV))
+
+
+class FlashWriteErrorTest(unittest.TestCase):
+    """0.71 answers a write it could not do with 01, and the tools stop and say so."""
+
+    def setUp(self):
+        from unittest import mock
+        import lib.slotIO as slot_io
+        patcher = mock.patch.object(slot_io, "time", mock.Mock(sleep=lambda s: None))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_write_image_raises(self):
+        from lib.slotIO import FlashWriteError, pack_sections, write_image
+        pedal = FakePedal(fail_write_at=160)
+        with self.assertRaises(FlashWriteError) as ctx:
+            write_image(pedal, *pack_sections(read_config_csv(DEMO_CSV)))
+        self.assertIn("at byte 160", str(ctx.exception))
+        # nothing written after the chunk that failed
+        self.assertEqual(bytes(pedal.flash[0][176:192]), b"\xff" * 16)
+
+    def test_csv_to_flash_reports_it(self):
+        import argparse
+        import contextlib
+        import io
+        from unittest import mock
+        import CSV_to_Flash as tool
+        pedal = FakePedal(fail_write_at=160)
+        args = argparse.Namespace(csv_file=DEMO_CSV, slot=None, yes=True)
+        with mock.patch.object(tool, "MidiCommander", lambda: pedal), \
+                mock.patch.object(tool, "select_slot", lambda dev, slot: (0, 0, [0])), \
+                contextlib.redirect_stdout(io.StringIO()) as out:
+            code = tool.main(args)
+        self.assertEqual(code, 4)
+        self.assertIn("could not write its flash", out.getvalue())
+        self.assertEqual(pedal.resets, 0)

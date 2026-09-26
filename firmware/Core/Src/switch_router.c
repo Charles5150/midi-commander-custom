@@ -125,9 +125,18 @@ uint16_t port_C_previous_state = SW_PORTC_MASK; // All pins will be high un-pres
 volatile uint16_t port_C_switches_changed = 0;
 
 volatile uint8_t debounce_counter = 0;
-// Flag to indicate if USB is suspended. If so, we shouldn't update LEDs or read switches in the main loop
-// because the main loop might keep running even if USB is suspended (if low_power_enable is 0)
-static volatile uint8_t is_app_suspended = 0; 
+
+/*
+ * Take a switch's change off its port's flags. sw_scan() sets them from
+ * SysTick, and a plain &= is a load and a store: a SysTick landing between the
+ * two lost whatever it had just set, another switch's press or release.
+ */
+static void clear_changed(volatile uint16_t *flags, uint16_t pins){
+	uint32_t primask = __get_PRIMASK();
+	__disable_irq();
+	*flags &= (uint16_t)~pins;
+	__set_PRIMASK(primask);
+}
 
 extern uint8_t f_sys_config_complete;
 
@@ -2595,12 +2604,12 @@ static void preview_switches(uint32_t now){
 		if(!(*sw->pSwChangeState & sw->sw_gpio_pin)) continue;
 		bool down = switch_down(sw->sw_gpio_port, sw->sw_gpio_pin);
 		if(preview_held & (1U << i)){
-			*sw->pSwChangeState &= ~sw->sw_gpio_pin;
+			clear_changed(sw->pSwChangeState, sw->sw_gpio_pin);
 			if(!down) preview_held &= (uint8_t)~(1U << i);
 			continue;
 		}
 		if(preview_bank == 0xFF || !down || sw->press_state != PRESS_IDLE) continue;
-		*sw->pSwChangeState &= ~sw->sw_gpio_pin;
+		clear_changed(sw->pSwChangeState, sw->sw_gpio_pin);
 		preview_held |= (uint8_t)(1U << i);
 		uint8_t target = preview_bank;
 		latency_begin();
@@ -2625,7 +2634,7 @@ static void handle_bank_switch(bank_press_t *bp, GPIO_TypeDef *port, uint16_t pi
 	}
 
 	if(!(*pChanged & pin)) return;
-	*pChanged &= ~pin;
+	clear_changed(pChanged, pin);
 
 	if(switch_down(port, pin)){
 		// Pressed: wait to see whether this becomes a long press
@@ -2731,7 +2740,7 @@ static void switch_config(uint8_t target){
 }
 
 void sw_trigger_button(uint8_t sw){
-	if(sw >= MIDI_NUM_SWITCHES || is_app_suspended) return;
+	if(sw >= MIDI_NUM_SWITCHES) return;
 	// A quick tap: the down list, then the up list, exactly like a foot press
 	fire_short_down(sw);
 	fire_short_up(sw);
@@ -3228,8 +3237,8 @@ static bool editor_switches(uint32_t now){
 			}
 		}
 		// Both down is the gesture, not a bank change: drop what it left behind
-		port_A_switches_changed &= ~SW_E_Pin;
-		port_B_switches_changed &= ~SW_5_Pin;
+		clear_changed(&port_A_switches_changed, SW_E_Pin);
+		clear_changed(&port_B_switches_changed, SW_5_Pin);
 		bank_down_press.state = PRESS_IDLE;
 		bank_up_press.state = PRESS_IDLE;
 	} else {
@@ -3241,16 +3250,16 @@ static bool editor_switches(uint32_t now){
 	for(int i=0; i<8; i++){
 		sw_t *sw = &a_sw_obj[i];
 		if(*sw->pSwChangeState & sw->sw_gpio_pin){
-			*sw->pSwChangeState &= ~sw->sw_gpio_pin;
+			clear_changed(sw->pSwChangeState, sw->sw_gpio_pin);
 			editor_press((uint8_t)i, switch_down(sw->sw_gpio_port, sw->sw_gpio_pin));
 		}
 	}
 	if(port_A_switches_changed & SW_E_Pin){
-		port_A_switches_changed &= ~SW_E_Pin;
+		clear_changed(&port_A_switches_changed, SW_E_Pin);
 		if(switch_down(SW_E_GPIO_Port, SW_E_Pin)) editor_press(SW_VIRTUAL_BANK_DOWN, true);
 	}
 	if(port_B_switches_changed & SW_5_Pin){
-		port_B_switches_changed &= ~SW_5_Pin;
+		clear_changed(&port_B_switches_changed, SW_5_Pin);
 		if(switch_down(SW_5_GPIO_Port, SW_5_Pin)) editor_press(SW_VIRTUAL_BANK_UP, true);
 	}
 
@@ -3259,8 +3268,6 @@ static bool editor_switches(uint32_t now){
 }
 
 void handle_switches(void){
-	if(is_app_suspended) return;
-
 	virtual_task();
 	latency_take_mark();	// the switch changes this pass handles
 
@@ -3330,7 +3337,7 @@ void handle_switches(void){
 		}
 
 		if(*sw->pSwChangeState & sw->sw_gpio_pin){
-			*sw->pSwChangeState &= ~sw->sw_gpio_pin;
+			clear_changed(sw->pSwChangeState, sw->sw_gpio_pin);
 
 			if(switch_down(sw->sw_gpio_port, sw->sw_gpio_pin)){
 				// Switch Down
@@ -3467,7 +3474,7 @@ void handle_switches(void){
  */
 static void tap_led_task(void){
 	uint16_t mask = 0;
-	if(!is_app_suspended && !sleep_is_asleep() && tempo_beat_flash()){
+	if(!sleep_is_asleep() && tempo_beat_flash()){
 		uint32_t bit = 1UL << switch_current_page;
 		bool clock = tempo_clock_running();
 		for(int i=0; i<8; i++){
@@ -3550,10 +3557,3 @@ void sw_restore_state(uint8_t page, const uint32_t toggles[8], const uint32_t lo
 	update_leds_on_bank_change();
 }
 
-void setIsSuspended(uint8_t suspended){
-	is_app_suspended = suspended;
-	if(suspended){
-		leds_set_flash(0);
-		set_all_leds(0);
-	}
-}

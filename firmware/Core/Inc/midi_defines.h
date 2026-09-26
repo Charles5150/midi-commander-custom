@@ -39,9 +39,9 @@
 
 // SysEx commands for this device
 #define SYSEX_CMD_ERASE_FLASH	(52) // must contain two bytes of 0x42 and 0x24 as check words.
-#define SYSEX_RSP_ERASE_FLASH	(53) // zero length response to confirm success
-#define SYSEX_CMD_WRITE_FLASH	(54) // first byte is the page address (16 byte pages), valid range 0-63.  Following 16 bytes are the data to write
-#define SYSEX_RSP_WRITE_FLASH	(55) // zero length response to confirm write
+#define SYSEX_RSP_ERASE_FLASH	(53) // zero length when erased, one byte 01 when the flash could not be erased
+#define SYSEX_CMD_WRITE_FLASH	(54) // two bytes: chunk address high/low (7 bits each, 16 byte chunks), then the 16 bytes as 32 nibbles (high nibble first)
+#define SYSEX_RSP_WRITE_FLASH	(55) // zero length when written, one byte 01 when the flash could not be written
 #define SYSEX_CMD_READ_FLASH	(56) // two bytes: chunk address high/low (7 bits each, 16 byte chunks)
 #define SYSEX_RSP_READ_FLASH	(57) // echoes the chunk address, followed by 16 bytes as 32 nibbles (high nibble first)
 #define SYSEX_CMD_GET_VERSION	(58) // no parameters

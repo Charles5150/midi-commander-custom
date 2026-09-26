@@ -254,8 +254,8 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
 #define FLASH_IMAGE_SIZE		(CFG_DOUBLE_CMDS_OFF + FLASH_DOUBLE_PAGES * CFG_PAGE_SIZE)
 
 // Erase and write act on the target slot, see flash_settings_set_target()
-void flash_settings_erase(void);
-void flash_settings_write(uint8_t* data, uint32_t offset);
+bool flash_settings_erase(void);
+bool flash_settings_write(uint8_t* data, uint32_t offset);
 // Change a few bytes of the running configuration in place, for the on-pedal
 // editor: the page they live in is rewritten around them. False if the
 // address is outside the active configuration or the write failed.

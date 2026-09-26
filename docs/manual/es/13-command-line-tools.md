@@ -127,6 +127,9 @@ Las herramientas intercambian la configuración como mensajes SysEx con el ID de
 | reiniciar en modo DFU, con los bytes de comprobación `44 46` | 74 |
 | el texto propio del banner | 76 |
 | la latencia de las últimas pisadas | 78 |
+| mantener un pedal de expresión en una posición | 80 |
+
+Cada uno se contesta con su número más uno. Un borrado o una escritura que la flash no ha podido hacer se contesta con un byte más, `01`, desde el firmware 0.71, y las herramientas se detienen y lo dicen; un mensaje de longitud equivocada se ignora.
 
 Los comandos de lectura necesitan el firmware 0.2 o posterior; las herramientas te avisan si la pedalera tiene uno anterior.
 

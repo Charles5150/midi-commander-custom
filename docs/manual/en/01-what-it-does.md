@@ -87,8 +87,8 @@ Everything the firmware and its tools can do, grouped the way the manual is. Eac
 - **Editing on the pedal.** Bank Down and Bank Up held together open an editor on the pedal's own screen: the commands of any button of any bank, short and long press, their labels, and the settings that are a number or a choice, all changed with your foot and written straight to flash. For the wrong Program Change found at soundcheck, with no laptop in sight.
 - **Safe mode.** Hold any of the eight command switches while the pedal powers on and it starts without sending a thing: no bank enter commands, no saved bank or toggles brought back, no Kemper beacon, no expression pedal position. It still changes bank, answers its buttons and opens the on-pedal editor, so a configuration that mutes the amp or upsets the rig at start-up can be put right with no computer at hand. See [Safe mode](10-editing-on-the-pedal.md#safe-mode).
 - **Works without a computer.** On a USB charger or a power bank the pedal runs normally and drives your gear over the DIN output.
-- **Idle sleep.** After a configurable number of minutes with nobody touching it, the display and the LEDs switch off. Any press or expression pedal movement brings them back, and the press that wakes it still does its job, so nothing is lost on stage. It matters on batteries, where there is no host to suspend the USB bus.
-- **Sleep mode.** When the computer the pedal is connected to suspends, LEDs and display switch off; they come back when it wakes.
+- **Idle sleep.** After a configurable number of minutes with nobody touching it, the display and the LEDs switch off. Any press or expression pedal movement brings them back, and the press that wakes it still does its job, so nothing is lost on stage.
+- **Carries on when the computer sleeps.** If the computer it is plugged into goes to sleep and keeps powering the USB port, the pedal keeps working: the display, the LEDs and DIN MIDI as usual, and USB MIDI dropped until a computer is back.
 
 ## With a computer and other gear
 
