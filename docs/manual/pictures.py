@@ -560,8 +560,109 @@ def command_list(lang):
     return svg(width, fy + 28, "\n".join(parts), t["title"])
 
 
+# --- What the display shows -------------------------------------------------------
+
+DISPLAY_GALLERY = {
+    "en": {
+        "title": "What the display shows",
+        "items": [
+            ("display-bank", "The bank screen", "name, info line and the eight labels; toggles on are inverted"),
+            ("display-tempo", "Tapping the tempo", "the BPM beside the name, for a moment"),
+            ("display-ccinc", "A relative CC", "which CC and the value it landed on"),
+            ("display-pcinc", "Next or previous preset", "the program just sent"),
+            ("display-text", "Text from the computer", "a song name across the top line"),
+            ("bank-preview-preview", "Bank preview", "the bank Bank Up would go to, inverted"),
+            ("display-banner", "The banner at power on", "the configuration's name, then the version"),
+            ("display-editor", "The editor on the pedal", "Bank Down and Bank Up held together"),
+        ],
+    },
+    "es": {
+        "title": "Lo que enseña la pantalla",
+        "items": [
+            ("display-bank", "La pantalla del banco", "nombre, info y las ocho etiquetas; los toggles encendidos, invertidos"),
+            ("display-tempo", "Marcando el tempo", "los BPM junto al nombre, un momento"),
+            ("display-ccinc", "Un CC relativo", "qué CC y en qué valor se ha quedado"),
+            ("display-pcinc", "Preset siguiente o anterior", "el programa que acaba de salir"),
+            ("display-text", "Texto desde el ordenador", "el nombre de la canción en la línea de arriba"),
+            ("bank-preview-preview", "Vista previa de banco", "el banco al que iría Bank Up, invertido"),
+            ("display-banner", "El banner al encender", "el nombre de la configuración y luego la versión"),
+            ("display-editor", "El editor de la pedalera", "Bank Down y Bank Up pisados a la vez"),
+        ],
+    },
+}
+
+
+def display_gallery(lang):
+    t = DISPLAY_GALLERY[lang]
+    cols, cw, ch = 4, 300, 250
+    x0, top = 36, 96
+    width = x0 * 2 + cols * cw - 44
+    parts = [text(width / 2, 52, t["title"], 24, TEXT, "700")]
+    for i, (screen, name, note) in enumerate(t["items"]):
+        x = x0 + (i % cols) * cw
+        y = top + (i // cols) * ch
+        parts.append(oled(load_screen(screen), x + 8, y + 8, 2))
+        parts.append(text(x + 136, y + 178, name, 15, TEXT, "700"))
+        parts.append(text(x + 136, y + 199, note if len(note) < 44 else note[:note.rfind(" ", 0, 44)], 12, MUTED))
+        if len(note) >= 44:
+            parts.append(text(x + 136, y + 216, note[note.rfind(" ", 0, 44) + 1:], 12, MUTED))
+    height = top + 2 * ch + 4
+    return svg(width, height, "\n".join(parts), t["title"])
+
+
+# --- The editor on the pedal --------------------------------------------------------
+
+EDITOR = {
+    "en": {
+        "title": "The editor on the pedal: what each switch does",
+        "commands": "Commands", "settings": "Settings",
+        "keys": {
+            "1": "cursor up", "2": "cursor down", "3": "value −", "4": "value +", "UP": "next bank",
+            "A": "previous command", "B": "next command", "C": "send it, to hear it", "D": "commands ⇄ settings",
+            "DOWN": "previous bank",
+        },
+        "foot": "Bank Down and Bank Up held for two seconds open it, and again close it. What you change is written as the cursor leaves it.",
+    },
+    "es": {
+        "title": "El editor de la pedalera: qué hace cada pulsador",
+        "commands": "Comandos", "settings": "Ajustes",
+        "keys": {
+            "1": "cursor arriba", "2": "cursor abajo", "3": "valor −", "4": "valor +", "UP": "banco siguiente",
+            "A": "comando anterior", "B": "comando siguiente", "C": "enviarlo, para oírlo", "D": "comandos ⇄ ajustes",
+            "DOWN": "banco anterior",
+        },
+        "foot": "Bank Down y Bank Up pisados dos segundos lo abren, y otra vez lo cierran. Lo que cambias se guarda al salir el cursor.",
+    },
+}
+
+
+def editor(lang):
+    t = EDITOR[lang]
+    width = 1180
+    parts = [text(width / 2, 52, t["title"], 24, TEXT, "700")]
+    # the two screens
+    for k, (screen, label) in enumerate((("display-editor", t["commands"]), ("display-editor-settings", t["settings"]))):
+        x = 292 + k * 340
+        parts.append(oled(load_screen(screen), x, 104, 2))
+        parts.append(text(x + 128, 262, label, 14, MUTED, "700"))
+    # the pedal's ten switches, as they sit, with what they do
+    rows = [["1", "2", "3", "4", "UP"], ["A", "B", "C", "D", "DOWN"]]
+    names = {"UP": "BANK ▲", "DOWN": "BANK ▼"}
+    colours = {"1": QUIET, "2": QUIET, "3": ACCENT, "4": ACCENT, "A": GOOD, "B": GOOD, "C": GOOD, "D": TEXT,
+               "UP": MUTED, "DOWN": MUTED}
+    for r, row in enumerate(rows):
+        for c, sw in enumerate(row):
+            cx, cy = 80 + c * 225, 330 + r * 120
+            parts.append(footswitch(cx, cy, 26))
+            parts.append(text(cx + 36, cy - 6, names.get(sw, sw), 13, MUTED, "700", "start"))
+            parts.append(text(cx + 36, cy + 14, t["keys"][sw], 14, colours[sw], "700", "start"))
+    fy = 330 + 120 + 70
+    parts.append(text(width / 2, fy, t["foot"], 13, MUTED))
+    return svg(width, fy + 28, "\n".join(parts), t["title"])
+
+
 PICTURES = {"bank-preview": bank_preview, "press-types": press_types, "setlist": setlist, "midi-routes": midi_routes,
-            "command-list": command_list}
+            "command-list": command_list, "display-gallery": display_gallery, "editor": editor}
 
 
 def main():

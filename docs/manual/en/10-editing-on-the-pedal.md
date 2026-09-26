@@ -14,6 +14,8 @@ Hold **Bank Down and Bank Up together for two seconds** and the pedal opens the 
 
 ## The switches
 
+![The editor's two screens and what each switch does](../images/editor-en.svg)
+
 The screen is a list of named fields with the cursor on one of them:
 
 | Switch | What it does |

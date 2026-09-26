@@ -14,6 +14,8 @@ Mantén **Bank Down y Bank Up a la vez durante dos segundos** y la pedalera abre
 
 ## Los pulsadores
 
+![Las dos pantallas del editor y qué hace cada pulsador](../images/editor-es.svg)
+
 La pantalla es una lista de campos con nombre, con el cursor en uno de ellos:
 
 | Pulsador | Qué hace |

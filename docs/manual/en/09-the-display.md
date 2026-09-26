@@ -6,6 +6,8 @@ The pedal's 128×64 screen tells you where you are and what is on, at a glance f
 
 ## The bank screen
 
+![What the display shows: eight screens read from the pedal](../images/display-gallery-en.svg)
+
 What the display shows most of the time:
 
 - **Top line, left:** the bank's name, 4 characters in large letters.
