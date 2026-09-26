@@ -20,11 +20,12 @@ def main(args: argparse.Namespace) -> int:
         sections = read_config_csv(args.csv_file)
         config, flash_contents = pack_sections(sections)
     except ValueError as e:
+        # 2: the configuration itself is wrong, whatever the pedal
         print(f"ERROR: {e}")
-        return 1
+        return 2
     except Exception as e:  # noqa: BLE001
         print(f"Error parsing {args.csv_file}: {e}")
-        return 1
+        return 2
 
     content_size = len(flash_contents)
     print(f"Flash content is {content_size} bytes = {content_size / 1024} kB")

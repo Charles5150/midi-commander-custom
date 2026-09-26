@@ -13,6 +13,8 @@ Layout (must match firmware/Core/Src/flash_midi_settings.c):
     ....     commands sent when each bank is entered, one button's list per bank
 """
 
+from contextlib import contextmanager
+
 import lib.cmdBinaryPacker as cbp
 import lib.settingsBinaryPacker as sbp
 from lib.displayText import display_bytes
@@ -63,6 +65,16 @@ def _key(bank, button) -> tuple:
     if b.endswith(".0"):
         b = b[:-2]
     return (b, str(button).strip().upper())
+
+
+@contextmanager
+def _at(where):
+    """Name the place a packing error comes from: "Button_Settings bank 3
+    button B, command C (CC): Channel must be 1-16, not '17'"."""
+    try:
+        yield
+    except ValueError as e:
+        raise ValueError(f"{where}, {e}") from None
 
 
 def empty_long_press_settings(num_banks=NUM_BANKS):
@@ -460,7 +472,11 @@ def pack_double_press(sections: dict):
     for bank in range(NUM_BANKS):
         for btn in BUTTON_IDS:
             row = rows.get((str(bank), btn))
-            packed = cbp.pack_row(row) if row is not None else [0] * (cbp.MIDI_NUM_COMMANDS_PER_SWITCH * 4)
+            if row is None:
+                packed = [0] * (cbp.MIDI_NUM_COMMANDS_PER_SWITCH * 4)
+            else:
+                with _at(f"{DOUBLE_PRESS_SECTION} bank {bank} button {btn}"):
+                    packed = cbp.pack_row(row)
             for i in range(0, len(packed), 4):
                 cmd = packed[i:i + 4]
                 # Only an empty slot is left erased: the commands that share
@@ -488,12 +504,14 @@ def pack_config(sections: dict) -> bytes:
     df_buttons = sections["Button_Settings"]
 
     out = []
-    out += sbp.pack_global_settings(df_global)
+    with _at("Global_Settings"):
+        out += sbp.pack_global_settings(df_global)
     # Tells the firmware this slot's double press area was written, so it never
     # reads what older firmware or tools may have left there
     if pack_double_press(sections) is not None:
         out[sbp.GLOBAL_SETTINGS_DOUBLE_STORED] = 1
-    out += sbp.pack_bank_strings(df_banks)
+    with _at("Bank_Naming"):
+        out += sbp.pack_bank_strings(df_banks)
 
     # Rows may be missing (a configuration written for fewer banks) or in any
     # order; look each button up and pack an empty one when it is absent.
@@ -520,14 +538,18 @@ def pack_config(sections: dict) -> bytes:
                 globals_.append("")
                 labels += pack_label("")
             else:
-                out += cbp.pack_row(row, cycle_labels)
-                light_modes.append(row.get("Light_Mode", "Normal"))
-                groups.append(row.get("Group", ""))
-                holds.append(row.get("Momentary_Hold", ""))
-                flashes.append(row.get("Tempo_Flash", ""))
-                globals_.append(row.get("Global", ""))
-                labels += pack_label(row.get("Label", ""),
-                                     cbp.reset_on_bank_value(row.get("Reset_On_Bank", "")))
+                with _at(f"Button_Settings bank {bank} button {btn}"):
+                    out += cbp.pack_row(row, cycle_labels)
+                    light_modes.append(row.get("Light_Mode", "Normal"))
+                    groups.append(row.get("Group", ""))
+                    holds.append(row.get("Momentary_Hold", ""))
+                    flashes.append(row.get("Tempo_Flash", ""))
+                    globals_.append(row.get("Global", ""))
+                    # Checked here, where the button is known
+                    cbp.pack_button_led_modes(light_modes[-1:], groups[-1:], holds[-1:],
+                                              flashes[-1:], globals_[-1:])
+                    labels += pack_label(row.get("Label", ""),
+                                         cbp.reset_on_bank_value(row.get("Reset_On_Bank", "")))
     out += cbp.pack_button_led_modes(light_modes, groups, holds, flashes, globals_)
     out += list(labels)
 
@@ -543,7 +565,8 @@ def pack_config(sections: dict) -> bytes:
             if row is None:
                 out += [0] * (cbp.MIDI_NUM_COMMANDS_PER_SWITCH * 4)
             else:
-                out += cbp.pack_row(row)
+                with _at(f"{LONG_PRESS_SECTION} bank {bank} button {btn}"):
+                    out += cbp.pack_row(row)
 
     out += list(pack_expression_settings(sections.get(EXPRESSION_SECTION)))
 
@@ -560,7 +583,8 @@ def pack_config(sections: dict) -> bytes:
         if row is None:
             out += [0] * (cbp.MIDI_NUM_COMMANDS_PER_SWITCH * 4)
         else:
-            out += cbp.pack_row(row, leave=True)
+            with _at(f"{BANK_ENTER_SECTION} bank {bank}"):
+                out += cbp.pack_row(row, leave=True)
 
     out += list(pack_sysex_strings(sections.get(SYSEX_SECTION)))
 
@@ -576,7 +600,8 @@ def pack_config(sections: dict) -> bytes:
         if row is None:
             out += [0] * (cbp.MIDI_NUM_COMMANDS_PER_SWITCH * 4)
         else:
-            out += cbp.pack_row(row)
+            with _at(f"{BANK_SWITCH_SECTION} {key[0]} {key[1]}"):
+                out += cbp.pack_row(row)
 
     out += list(pack_setlist(sections.get(SETLIST_SECTION)))
     out += list(pack_bank_expression(sections.get(BANK_EXPRESSION_SECTION)))

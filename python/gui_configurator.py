@@ -27,7 +27,7 @@ from lib.cmdBinaryPacker import (  # noqa: E402
     EXP_TARGETS, HID_SPECIAL_KEYS, LFO_DIVISIONS, LFO_SHAPES, MEDIA_KEYS, RAMP_MAX_MS,
     MMC_COMMANDS, MMC_LOCATE_MAX, SONG_MODES, SONG_POSITION_MAX,
     VAR_MODES, VAR_COUNT, VAR_DEFAULT_TOP, IF_TESTS, IF_BUTTON_TESTS, IF_VALUE_TESTS,
-    SCENE_BUTTONS, MACRO_LISTS, LISTEN_LOOKS, BUTTON_ACTIONS, button_mode,
+    SCENE_BUTTONS, MACRO_LISTS, LISTEN_LOOKS, BUTTON_ACTIONS, button_mode, command_type,
 )
 from lib.configCsv import read_config_csv, write_config_csv  # noqa: E402
 from lib.displayText import display_text  # noqa: E402
@@ -70,6 +70,7 @@ from lib import bankReorder as bank_reorder  # noqa: E402
 from lib import midiLearn as midi_learn  # noqa: E402
 from lib import midiMonitor as midi_monitor  # noqa: E402
 from lib.firmwareUpdate import UpdateError, check_image  # noqa: E402
+from lib.slotIO import pack_sections  # noqa: E402
 
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
@@ -521,7 +522,12 @@ class SlotEditor:
         ctk.CTkLabel(self.frame, text=slot, width=24, font=BOLD).pack(
             side="left", padx=(0, 4)
         )
-        cmd_type = clean(initial.get("CommandType")) or NO_COMMAND
+        cmd_type = clean(initial.get("CommandType"))
+        try:
+            cmd_type = command_type(cmd_type)   # a hand written "cc" is the CC command
+        except ValueError:
+            pass                                # shown as written; packing says what is wrong
+        cmd_type = cmd_type or NO_COMMAND
         self.type_menu = Option(
             self.frame, types, cmd_type, width=80, command=self._rebuild
         )
@@ -3110,8 +3116,22 @@ class MidiCommanderGUI(ctk.CTk):
         self.loaded_name = os.path.basename(path)
         self._show_file()
         self.saved_text = self._config_text()
-        messagebox.showinfo("Success", "CSV Saved Successfully!")
+        problem = self._pack_problem(path)
+        if problem:
+            messagebox.showwarning(
+                "CSV Saved", f"Saved, but it cannot be flashed until this is fixed:\n\n{problem}")
+        else:
+            messagebox.showinfo("Success", "CSV Saved Successfully!")
         return True
+
+    @staticmethod
+    def _pack_problem(path):
+        """What stops the CSV at ``path`` from being packed, or None."""
+        try:
+            pack_sections(read_config_csv(path))
+        except ValueError as e:
+            return str(e)
+        return None
 
     def save_csv_as(self):
         path = self._ask_save_path()
@@ -3321,6 +3341,15 @@ class MidiCommanderGUI(ctk.CTk):
             messagebox.showerror("Error", f"Could not save CSV before flashing: {e}")
             return
 
+        # Packed here first, so a mistake in the configuration is shown as
+        # such and not as a problem with the MIDI port
+        problem = self._pack_problem(path)
+        if problem:
+            if tmp:
+                os.remove(tmp)
+            messagebox.showerror("Flash Device", f"Nothing was flashed: the configuration has a mistake.\n\n{problem}")
+            return
+
         try:
             p = self._run_tool("CSV_to_Flash.py", path, "--yes", *self._slot_args())
         except Exception as e:  # noqa: BLE001
@@ -3340,7 +3369,9 @@ class MidiCommanderGUI(ctk.CTk):
             f.write(f"Output:\n{p.stdout}\n\nError:\n{p.stderr}")
 
         out = (p.stdout + p.stderr).lower()
-        if "no matching midi device" in out or "no midi" in out:
+        if p.returncode == 2:
+            msg = "The configuration has a mistake:\n\n" + p.stdout.strip().removeprefix("ERROR: ")
+        elif "no matching midi device" in out or "no midi" in out:
             msg = "Midi Commander not found or disconnected.\nPlease check the USB connection."
         elif "stopped responding" in out:
             msg = "The device stopped responding while flashing. Power cycle it and try again."

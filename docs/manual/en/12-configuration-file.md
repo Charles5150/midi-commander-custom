@@ -19,6 +19,8 @@ A configuration is a CSV with several sections, each introduced by a line starti
 
 The file can be saved as UTF-8, with or without the mark Excel's **CSV UTF-8** puts at its start, or as the Windows-1252 of Excel's plain **CSV** on Windows. The display only draws the letters, digits and signs of plain ASCII, so in the configuration's name, the bank names, the labels and the cycle labels a letter with an accent goes as the plain letter, `Canción` as `Cancion` and `Ñu` as `Nu`, curly quotes and dashes as their plain forms, and anything else, such as `€`, as `?`. The configurator shows the text that way on leaving the field.
 
+A file written by hand packs as written or says what is wrong and where. `CommandType` is read in any case, so `cc` is `CC`, and a command column left out of the file is empty. Anything the pedal cannot do stops the packing with the place and the reason, such as `Button_Settings bank 2 button 3, command D (CC): Channel must be 1-16, not '17'`: an unknown `CommandType`, a channel outside 1-16, a Pitch Bend outside -8192 to 8191, a CC `OffValue` outside 0-127 and not 128, a `SysEx` number above 15, or a global setting that does not fit. The configurator checks the same on **Save CSV**, and flashes nothing until it is fixed; `CSV_to_Flash.py` prints it and exits with code 2.
+
 ## The demo configuration
 
 **`python/demo-all-features.csv`** is the reference: a configuration that uses every feature, with one bank per feature and button labels that say what each one does. Load it in the configurator to see how anything is set up, or flash it to try the whole firmware on the pedal.

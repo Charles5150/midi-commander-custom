@@ -1,3 +1,4 @@
+from lib.cmdBinaryPacker import cell_text, ranged_int
 from lib.displayText import display_bytes
 
 GLOBAL_SETTINGS_CHANNEL = 0
@@ -42,27 +43,36 @@ BANK_CHANGE_MODES = {"OFF": 0, "PC": 1, "CC": 2}
 REMOTE_MODES = {"OFF": 0, "CC": 1, "NOTE": 2}
 BANNER_SPEEDS = {"OFF": 0, "SLOW": 1, "NORMAL": 2, "FAST": 3}
 
+def _setting(df, label) -> str:
+    """A Global_Settings value as written, "" when it is empty or missing."""
+    return cell_text(df.loc[label, "Value"]) if label in df.index else ""
+
+
+def _channel_setting(df, label, off_word) -> int:
+    """A channel setting that can also be off: 0 for ``off_word`` (or empty),
+    else 1-16."""
+    text = _setting(df, label)
+    if text == "" or text.upper() == off_word.upper() or text == "0":
+        return 0
+    try:
+        return ranged_int(text, 1, 16, label)
+    except ValueError:
+        raise ValueError(f"{label} must be {off_word} or 1-16, not {text!r}") from None
+
+
 def pack_global_settings(df):
     # global settings will be 32 bytes long
     bin_list = [0] * 16
     # MIDI_Channel is 1-16 in the CSV (same convention as per-command
-    # channels); the firmware expects the 0-15 wire value.
-    midi_channel = int(df.loc["MIDI_Channel", "Value"])
-    midi_channel = min(max(midi_channel, 1), 16)
-    bin_list[GLOBAL_SETTINGS_CHANNEL] = (midi_channel - 1) & 0xF
-    if "Y" in df.loc["RealTime_Passthrough", "Value"]:
+    # channels); the firmware expects the 0-15 wire value. Empty is 1.
+    midi_channel = ranged_int(_setting(df, "MIDI_Channel"), 1, 16, "MIDI_Channel", 1)
+    bin_list[GLOBAL_SETTINGS_CHANNEL] = midi_channel - 1
+    if "Y" in _setting(df, "RealTime_Passthrough").upper():
         bin_list[GLOBAL_SETTINGS_REALTIME_PASS] = 0x1
-    
-    # Pack Expression Pedal CC numbers if present in CSV
-    if "Exp1_CC" in df.index:
-        bin_list[GLOBAL_SETTINGS_EXP1_CC] = int(df.loc["Exp1_CC", "Value"]) & 0x7F
-    else:
-        bin_list[GLOBAL_SETTINGS_EXP1_CC] = 11 # Default to CC 11 if missing
 
-    if "Exp2_CC" in df.index:
-        bin_list[GLOBAL_SETTINGS_EXP2_CC] = int(df.loc["Exp2_CC", "Value"]) & 0x7F
-    else:
-        bin_list[GLOBAL_SETTINGS_EXP2_CC] = 4  # Default to CC 4 if missing
+    # Expression Pedal CC numbers, CC 11 and CC 4 when empty or missing
+    bin_list[GLOBAL_SETTINGS_EXP1_CC] = ranged_int(_setting(df, "Exp1_CC"), 0, 127, "Exp1_CC", 11)
+    bin_list[GLOBAL_SETTINGS_EXP2_CC] = ranged_int(_setting(df, "Exp2_CC"), 0, 127, "Exp2_CC", 4)
 
     # Bank LED Modes (Index 4, 5)
     # 0=Normal, 1=Reverse, 2=AlwaysOn(Blink)
@@ -197,21 +207,15 @@ def pack_global_settings(df):
     mode_text = str(df.loc["Remote_Mode", "Value"]).strip().upper() if "Remote_Mode" in df.index else "OFF"
     if mode_text in ("", "NAN"):
         mode_text = "OFF"
-    if mode_text.startswith("N"):
+    if mode_text in ("N", "NO", "NONE"):
+        mode_text = "OFF"
+    if mode_text == "NOTES":
         mode_text = "NOTE"
     if mode_text not in REMOTE_MODES:
         raise ValueError(f"Remote_Mode must be Off, CC or Note, not {mode_text!r}")
     bin_list[GLOBAL_SETTINGS_REMOTE_MODE] = REMOTE_MODES[mode_text]
 
-    ch_text = str(df.loc["Remote_Channel", "Value"]).strip() if "Remote_Channel" in df.index else "Any"
-    if ch_text.upper().startswith("A") or ch_text in ("", "nan"):
-        channel = 0
-    else:
-        try:
-            channel = max(0, min(16, int(float(ch_text))))
-        except ValueError:
-            channel = 0
-    bin_list[GLOBAL_SETTINGS_REMOTE_CHANNEL] = channel
+    bin_list[GLOBAL_SETTINGS_REMOTE_CHANNEL] = _channel_setting(df, "Remote_Channel", "Any")
 
     first = 102
     if "Remote_First" in df.index:
@@ -224,15 +228,7 @@ def pack_global_settings(df):
     # The global channel: every command goes out on it instead of its own, so
     # one number moves a whole configuration to another channel. Off = each
     # command keeps the channel it carries.
-    ch_text = str(df.loc["Global_Channel", "Value"]).strip() if "Global_Channel" in df.index else "Off"
-    if ch_text.upper().startswith("O") or ch_text in ("", "nan"):
-        channel = 0
-    else:
-        try:
-            channel = max(0, min(16, int(float(ch_text))))
-        except ValueError:
-            channel = 0
-    bin_list[GLOBAL_SETTINGS_GLOBAL_CHANNEL] = channel
+    bin_list[GLOBAL_SETTINGS_GLOBAL_CHANNEL] = _channel_setting(df, "Global_Channel", "Off")
 
     # Editing on the pedal: locked, the two bank switches held together no
     # longer open the editor, so nothing can be changed by accident on stage.

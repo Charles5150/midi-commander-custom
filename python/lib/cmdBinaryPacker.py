@@ -1,3 +1,5 @@
+import collections
+
 import pandas as pd
 
 from lib.displayText import display_text
@@ -243,10 +245,34 @@ def get_hid_code(val):
         return 0
 
 
+def cell_text(val) -> str:
+    """A CSV cell as written: empty for a blank one, 17 rather than 17.0."""
+    if val is None or (not isinstance(val, str) and pd.isna(val)):
+        return ""
+    text = str(val).strip()
+    if text.lower() == "nan":
+        return ""
+    return text[:-2] if text.endswith(".0") and text[:-2].lstrip("-").isdigit() else text
+
+
+def ranged_int(val, low, high, what, default=None) -> int:
+    """``val`` as a whole number from ``low`` to ``high``; an empty cell gives
+    ``default``, or is an error when there is none. Anything else is an error."""
+    text = cell_text(val)
+    if text == "" and default is not None:
+        return default
+    try:
+        number = float(text)
+    except ValueError:
+        number = None
+    if number is None or number != int(number) or not low <= number <= high:
+        raise ValueError(f"{what} must be {low}-{high}, not {text!r}")
+    return int(number)
+
+
 def channel_nibble(val) -> int:
-    """CSV channel 1-16 -> wire value 0-15. Empty or invalid defaults to channel 1."""
-    ch = safe_int(val, 1)
-    return min(max(ch, 1), 16) - 1
+    """CSV channel 1-16 -> wire value 0-15. Empty is channel 1."""
+    return ranged_int(val, 1, 16, "Channel", 1) - 1
 
 
 def get_toggle_bit(toggle_str):
@@ -296,6 +322,20 @@ def cmd_pc(cmd):
     return cmd_bytes
 
 
+def cc_off_value(val) -> int:
+    """A CC's OffValue byte: 0-127, or 128 and above for no off message."""
+    text = cell_text(val)
+    if text == "":
+        return 0
+    try:
+        number = float(text)
+    except ValueError:
+        number = None
+    if number is None or number != int(number) or not 0 <= number <= 255:
+        raise ValueError(f"CC OffValue must be 0-127, or 128 for no off message, not {text!r}")
+    return int(number)
+
+
 def cmd_cc(cmd):
     cmd_bytes = [
         CMD_CC_NIBBLE
@@ -303,7 +343,7 @@ def cmd_cc(cmd):
         safe_int(cmd["Number_(PC/CC/Note)"]) & 0x7F
         | get_toggle_bit(str(cmd["Toggle_(CC/PB/Note)"])),  # command number & toggle
         safe_int(cmd["OnValue_(CC/PB)"]) & 0x7F,
-        safe_int(cmd["OffValue_(CC)"]),
+        cc_off_value(cmd["OffValue_(CC)"]),
     ]
     return cmd_bytes
 
@@ -324,10 +364,7 @@ def cmd_pb(cmd):
     # The pitch in the CSV file will be -8192 to 8191, this needs to be centered
     # around 0x2000
 
-    if -8192 > safe_int(cmd["OnValue_(CC/PB)"]) > 8191:
-        raise ValueError("PB outside of range: ", cmd["OnValue_(CC/PB)"])
-
-    pitch = int(safe_int(cmd["OnValue_(CC/PB)"]) + 0x2000)
+    pitch = ranged_int(cmd["OnValue_(CC/PB)"], -8192, 8191, "Pitch Bend OnValue", 0) + 0x2000
 
     pitch_LSB = pitch & 0x7F
     pitch_MSB = (pitch >> 7) & 0x7F
@@ -491,7 +528,7 @@ def cmd_pcinc(cmd):
 
 def cmd_sysex(cmd):
     """Send a stored SysEx string. Number selects the table entry."""
-    index = max(0, min(15, safe_int(cmd.get("Number_(PC/CC/Note)", 0))))
+    index = ranged_int(cmd.get("Number_(PC/CC/Note)"), 0, 15, "SysEx Number", 0)
     return [CMD_SYSEX_NIBBLE, index, 0, 0]
 
 
@@ -971,6 +1008,22 @@ cmd_route_table = {
 }
 
 
+# Every CommandType by its lower case name, so "cc" packs as "CC"
+COMMAND_TYPES = {name.lower(): name for name in [*cmd_route_table, "Cycle", "Leave"]}
+
+
+def command_type(value) -> str:
+    """The CommandType ``value`` names, whatever its case; "" for none.
+    Anything else is an error, rather than a command that silently vanishes."""
+    text = cell_text(value)
+    if text.lower() in ("", "none"):
+        return ""
+    if text.lower() not in COMMAND_TYPES:
+        raise ValueError(f"Unknown CommandType {text!r}: use one of {', '.join(COMMAND_TYPES.values())}, "
+                         "or leave it empty")
+    return COMMAND_TYPES[text.lower()]
+
+
 def remove_prefix(text, prefix):
     if text.startswith(prefix):
         return text[len(prefix) :]
@@ -1093,15 +1146,15 @@ def pack_row(row, cycle_labels=None, leave=False):
 
     for i in range(0, MIDI_NUM_COMMANDS_PER_SWITCH):
         cmd_prefix = f"{chr(ord('A') + i)}_"
-        cmd = {c[len(cmd_prefix):]: v for c, v in fields.items()
-               if isinstance(c, str) and c.startswith(cmd_prefix)}
-        if not cmd:
-            # Should not happen given how logic works usually, but safety
-            cmd_byte_list = cmd_none(None)
-        else:
-
-            cmd_type = str(cmd["CommandType"]).strip()
-            if cmd_type == "Cycle":
+        # A column a hand written CSV leaves out reads as empty
+        cmd = collections.defaultdict(str, {c[len(cmd_prefix):]: v for c, v in fields.items()
+                                            if isinstance(c, str) and c.startswith(cmd_prefix)})
+        cmd_type = ""
+        try:
+            cmd_type = command_type(cmd.get("CommandType")) if cmd else ""
+            if cmd_type == "":
+                cmd_byte_list = cmd_none(cmd)
+            elif cmd_type == "Cycle":
                 cmd_byte_list = cmd_cycle(cmd, cycle_labels)
             elif cmd_type == "Leave":
                 if not leave:
@@ -1111,7 +1164,10 @@ def pack_row(row, cycle_labels=None, leave=False):
                     raise ValueError("A bank's enter list takes a single Leave command")
                 cmd_byte_list = [CMD_NO_CMD_NIBBLE | CMD_LEAVE_MODE, 0, 0, 0]
             else:
-                cmd_byte_list = cmd_route_table.get(cmd_type, cmd_none)(cmd)
+                cmd_byte_list = cmd_route_table[cmd_type](cmd)
+        except ValueError as e:
+            where = f"command {cmd_prefix[0]}" + (f" ({cmd_type})" if cmd_type else "")
+            raise ValueError(f"{where}: {e}") from None
 
         row_byte_list += cmd_byte_list
 
