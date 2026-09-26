@@ -44,6 +44,8 @@ Edits are kept in memory automatically when you switch button, bank or tab.
 
 **Copy bank** and **Paste bank** duplicate a whole bank onto another: labels, LED modes, groups, the short, long and double press commands, and the commands sent on entering the bank. The target becomes identical to the source, so anything it had that the source does not is removed. Its name is kept, since a copy is usually the start of a variant. Pasting asks for confirmation first.
 
+**Copy button** and **Paste button** do the same for a single button: pick the button to copy, press **Copy button**, pick the one to replace, in the same bank or another, and press **Paste button**. Its label, LED mode, group, the four boxes and its short, long and double press commands all become the copied button's. Pasting asks for confirmation first.
+
 <img src="../../images/gui_button_config.png" width="500">
 
 ## Banks
@@ -54,6 +56,19 @@ For each pedal:
 
 - a CC and a channel, each `Default` to keep the pedal's own, or `Off` for the CC to silence the pedal in that bank;
 - the lowest and highest value it sends there, left empty to keep the pedal's own range.
+
+### Moving a bank
+
+The arrows at the start of each row move a bank one place up or down. **Move bank … to place …** takes a bank anywhere in one go: moving bank 12 to place 3 puts it at 3 and shifts banks 3 to 11 one place down, as dragging a row in a list would.
+
+Everything the bank owns goes with it: its name, its buttons with all three command lists, its Bank Enter and leave commands and its expression pedal settings. And everything that names a bank by number is renumbered to follow it, so the configuration behaves exactly as before:
+
+- `Bank` commands in `GoTo` and `Page` modes (`Up`, `Down` and `Back` are relative and stay as they are);
+- `If` commands testing `Bank is` or `Bank is not`;
+- `Macro` commands, which name the bank of the list they run;
+- the [setlist](04-banks.md#setlist), the [global buttons bank](05-buttons.md#global-buttons) and the [combinations](05-buttons.md#two-switches-together).
+
+A host that changes banks by number, with **Change bank from MIDI** (`Bank_Change_Mode`) in the Global tab, is outside the configuration: if it names a bank you moved, change it there too.
 
 ## Bank Enter
 

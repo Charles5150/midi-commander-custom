@@ -46,6 +46,8 @@ Lo que editas se guarda en memoria solo al cambiar de botón, de banco o de pest
 
 **Copy bank** y **Paste bank** copian un banco entero sobre otro: etiquetas, modos de LED, grupos, los comandos de pulsación corta, larga y doble, y los comandos que se envían al entrar en el banco. El destino queda idéntico al origen, así que lo que tuviera y el origen no, desaparece. Su nombre se conserva, porque una copia suele ser el principio de una variante. Pegar pide confirmación antes.
 
+**Copy button** y **Paste button** hacen lo mismo con un solo botón: elige el botón que quieres copiar, pulsa **Copy button**, elige el que quieres sustituir, en el mismo banco o en otro, y pulsa **Paste button**. Su etiqueta, modo de LED, grupo, las cuatro casillas y sus comandos de pulsación corta, larga y doble pasan a ser los del botón copiado. Pegar pide confirmación antes.
+
 <img src="../../images/gui_button_config.png" width="500">
 
 ## Banks
@@ -56,6 +58,19 @@ Para cada pedal:
 
 - un CC y un canal, cada uno en `Default` para mantener los del propio pedal, o `Off` en el CC para silenciar el pedal en ese banco;
 - el valor más bajo y el más alto que envía ahí, vacíos para mantener el rango del propio pedal.
+
+### Mover un banco
+
+Las flechas al principio de cada fila suben o bajan un banco un puesto. **Move bank … to place …** lleva un banco a cualquier sitio de una vez: mover el banco 12 al puesto 3 lo pone en el 3 y baja un puesto los bancos del 3 al 11, como al arrastrar una fila en una lista.
+
+Todo lo que es del banco se va con él: su nombre, sus botones con sus tres listas de comandos, sus comandos al entrar y al salir y los ajustes de los pedales de expresión. Y todo lo que nombra un banco por su número se renumera para seguirlo, así que la configuración se comporta igual que antes:
+
+- los comandos `Bank` en modo `GoTo` y `Page` (`Up`, `Down` y `Back` son relativos y se quedan como están);
+- los comandos `If` que miran `Bank is` o `Bank is not`;
+- los comandos `Macro`, que nombran el banco de la lista que ejecutan;
+- el [setlist](04-banks.md#setlist), el [banco de los botones globales](05-buttons.md#botones-globales) y las [combinaciones](05-buttons.md#dos-pulsadores-a-la-vez).
+
+Un host que cambia de banco por número, con **Change bank from MIDI** (`Bank_Change_Mode`) en la pestaña Global, está fuera de la configuración: si nombra un banco que has movido, cámbialo también allí.
 
 ## Bank Enter
 

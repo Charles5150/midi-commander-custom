@@ -63,6 +63,7 @@ from lib.midiDevice import (  # noqa: E402
     BANNER_TEXT_MAX, MidiCommander, banner_sysex, screen_rows, version_at_least,
 )
 from lib import bankClipboard as bank_clipboard  # noqa: E402
+from lib import bankReorder as bank_reorder  # noqa: E402
 from lib.firmwareUpdate import UpdateError, check_image  # noqa: E402
 
 ctk.set_appearance_mode("Dark")
@@ -904,6 +905,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.press_mode = "Short press"
         self.editing_button = None  # (row_index, btn_id) of the button being edited
         self.bank_clipboard = None  # a copied bank, see lib/bankClipboard.py
+        self.button_clipboard = None  # a copied button, see lib/bankReorder.py
 
         self.global_widgets = {}  # df index -> widget with .value()
         self.bank_widgets = {}  # df index -> (large, small)
@@ -983,6 +985,25 @@ class MidiCommanderGUI(ctk.CTk):
             "are left empty to keep the pedal's own range. After a bank change the pedal sends "
             "to the new target as soon as it moves.",
         ).pack(anchor="w", padx=10, pady=(10, 6))
+        Help(
+            self.tabview.tab("Banks"),
+            "The arrows move a bank up or down the list; Move takes it to any place.",
+            "The banks in between shift one place to make room, and everything that names a bank "
+            "by number follows it: Bank GoTo and Page commands, If bank tests, Macros, the setlist, "
+            "the global buttons bank and the combinations. A host that changes banks by number "
+            "(Change bank from MIDI in the Global tab) is outside the configuration and has to be told.",
+        ).pack(anchor="w", padx=10, pady=(0, 6))
+        move = ctk.CTkFrame(self.tabview.tab("Banks"), fg_color="transparent")
+        move.pack(fill="x", padx=10, pady=(0, 6))
+        banks = [str(b) for b in range(NUM_BANKS)]
+        ctk.CTkLabel(move, text="Move bank").pack(side="left")
+        self.move_from = ctk.CTkOptionMenu(move, values=banks, width=70)
+        self.move_from.pack(side="left", padx=6)
+        ctk.CTkLabel(move, text="to place").pack(side="left")
+        self.move_to = ctk.CTkOptionMenu(move, values=banks, width=70)
+        self.move_to.pack(side="left", padx=6)
+        ctk.CTkButton(move, text="Move", width=70, command=self.move_bank_to,
+                      fg_color=FIELD, hover_color=FIELD_HOVER).pack(side="left", padx=6)
         self.bank_scroll = ctk.CTkScrollableFrame(self.tabview.tab("Banks"))
         self.bank_scroll.pack(fill="both", expand=True)
 
@@ -1017,6 +1038,13 @@ class MidiCommanderGUI(ctk.CTk):
             fg_color=FIELD, hover_color=FIELD_HOVER
         )
         self.paste_bank_button.pack(side="left", padx=6)
+        ctk.CTkButton(top, text="Copy button", width=100, command=self.copy_button,
+                      fg_color=FIELD, hover_color=FIELD_HOVER).pack(side="left", padx=(20, 6))
+        self.paste_button_button = ctk.CTkButton(
+            top, text="Paste button", width=170, command=self.paste_button, state="disabled",
+            fg_color=FIELD, hover_color=FIELD_HOVER
+        )
+        self.paste_button_button.pack(side="left", padx=6)
 
         # The eight buttons laid out as on the pedal: 1-4 on top, A-D below
         self.button_matrix = ctk.CTkFrame(tab, fg_color="transparent")
@@ -1401,27 +1429,35 @@ class MidiCommanderGUI(ctk.CTk):
         self.bank_widgets = {}
         self.bank_exp_widgets = {}
 
-        for col, text in enumerate(("BANK", "NAME \u00b7 4 LARGE", "INFO \u00b7 8 SMALL",
+        for col, text in enumerate(("", "BANK", "NAME \u00b7 4 LARGE", "INFO \u00b7 8 SMALL",
                                     "PEDAL 1 CC", "CHANNEL", "MIN", "MAX",
                                     "PEDAL 2 CC", "CHANNEL", "MIN", "MAX")):
             ctk.CTkLabel(self.bank_scroll, text=text, font=FONT_SECTION, text_color=MUTED).grid(
                 row=0, column=col, padx=(10, 16), pady=(8, 6), sticky="w")
 
         for row, (idx, r) in enumerate(self.df_banks.iterrows(), start=1):
+            arrows = ctk.CTkFrame(self.bank_scroll, fg_color="transparent")
+            arrows.grid(row=row, column=0, padx=(5, 0), pady=2)
+            bank = row - 1
+            for text, step in (("\u2191", -1), ("\u2193", 1)):
+                to = bank + step
+                ctk.CTkButton(arrows, text=text, width=26, height=26, fg_color=FIELD,
+                              hover_color=FIELD_HOVER, state="normal" if 0 <= to < NUM_BANKS else "disabled",
+                              command=lambda b=bank, t=to: self.move_bank(b, t)).pack(side="left", padx=1)
             ctk.CTkLabel(self.bank_scroll, text=clean(r["Bank_Number"])).grid(
-                row=row, column=0, padx=5, pady=2
+                row=row, column=1, padx=5, pady=2
             )
             large = TextEntry(self.bank_scroll, 4, r["Bank_Name_Large"], width=100)
-            large.grid(row=row, column=1, padx=5, pady=2)
+            large.grid(row=row, column=2, padx=5, pady=2)
             small = TextEntry(self.bank_scroll, 8, r["Bank_Info_Small"], width=150)
-            small.grid(row=row, column=2, padx=5, pady=2)
+            small.grid(row=row, column=3, padx=5, pady=2)
             self.bank_widgets[idx] = (large, small)
 
             # Where the expression pedals send in this bank
             if self.df_bank_exp is not None and row - 1 < len(self.df_bank_exp):
                 e = self.df_bank_exp.iloc[row - 1]
                 widgets = {}
-                for col, field in enumerate(BANK_EXP_COLUMNS[1:], start=3):
+                for col, field in enumerate(BANK_EXP_COLUMNS[1:], start=4):
                     kind = field.split("_")[1]
                     if kind == "CC":
                         w = Combo(self.bank_scroll, ["Default", "Off"], clean(e.get(field)) or "Default", width=100)
@@ -1513,8 +1549,16 @@ class MidiCommanderGUI(ctk.CTk):
         self.apply_bank_changes()
         self.df_bank_exp = bank_clipboard.paste_bank_expression(self.df_bank_exp, self.bank_clipboard, target)
         self.populate_banks()
-        # The open editors point at rows that were just replaced: drop them
-        # before refreshing, or they would write the old values back.
+        self._drop_editors()
+        self.on_bank_change(target)
+        if self.enter_bank_selector.get():
+            self._on_enter_bank_change(self.enter_bank_selector.get())
+
+    def _drop_editors(self):
+        """Forget the open editors, whose rows were just replaced or renumbered.
+
+        Called before refreshing, or they would write the old values back.
+        """
         self.editing_row = None
         self.editing_button = None
         self.slot_editors = []
@@ -1522,9 +1566,143 @@ class MidiCommanderGUI(ctk.CTk):
             w.destroy()
         ctk.CTkLabel(self.cmd_editor, text="Select a button to edit", font=FONT_HEADING, text_color=MUTED).pack(pady=10)
         self.enter_editors = []
-        self.on_bank_change(target)
-        if self.enter_bank_selector.get():
-            self._on_enter_bank_change(self.enter_bank_selector.get())
+        self.bank_switch_editors = []
+
+    # --- Move a bank to another place ------------------------------------------------
+    def move_bank_to(self):
+        self.move_bank(int(self.move_from.get()), int(self.move_to.get()))
+
+    def move_bank(self, src, dst):
+        if self.df_buttons is None or src == dst:
+            return
+        self._collect()
+        frames = {
+            "global": self.df_global, "banks": self.df_banks, "buttons": self.df_buttons,
+            "long": self.df_long, "double": self.df_double, "enter": self.df_enter,
+            "bank_switch": self.df_bank_switch, "setlist": self.df_setlist,
+            "bank_exp": self.df_bank_exp, "combos": self.df_combos,
+        }
+        moved = bank_reorder.move_bank(frames, src, dst)
+        (self.df_global, self.df_banks, self.df_buttons, self.df_long, self.df_double, self.df_enter,
+         self.df_bank_switch, self.df_setlist, self.df_bank_exp, self.df_combos) = (
+            moved["global"], moved["banks"], moved["buttons"], moved["long"], moved["double"],
+            moved["enter"], moved["bank_switch"], moved["setlist"], moved["bank_exp"], moved["combos"])
+        mapping = bank_reorder.move_map(src, dst)
+        # A copied bank or button keeps pointing at where it was copied from
+        if self.bank_clipboard:
+            self.bank_clipboard = None
+            self.paste_bank_button.configure(state="disabled", text="Paste bank",
+                                             fg_color=FIELD, hover_color=FIELD_HOVER)
+        if self.button_clipboard:
+            self.button_clipboard = None
+            self.paste_button_button.configure(state="disabled", text="Paste button",
+                                               fg_color=FIELD, hover_color=FIELD_HOVER)
+        self._drop_editors()
+        self._refresh_after_move()
+        shown = str(mapping[int(clean(self.bank_selector.get()) or 0)])
+        self.bank_selector.set(shown)
+        self.on_bank_change(shown)
+        enter = str(mapping[int(clean(self.enter_bank_selector.get()) or 0)])
+        self.enter_bank_selector.set(enter)
+        self._on_enter_bank_change(enter)
+        self.bank_switch_row = None
+        self._on_bank_switch_change(self.bank_switch_selector.get())
+        self.move_from.set(str(dst))
+        self.move_to.set(str(dst))
+
+    def _refresh_after_move(self):
+        """Show the moved frames in the widgets already there.
+
+        Rebuilding the Banks tab takes seconds, and a move changes values only.
+        """
+        def put(w, value):
+            value = clean(value)
+            if isinstance(w, ctk.CTkOptionMenu):
+                values = w.cget("values")
+                w.set(value if value in values else values[0])
+            elif isinstance(w, ctk.CTkComboBox):
+                w.set(value)
+            else:
+                w.delete(0, "end")
+                if value:
+                    w.insert(0, value)
+
+        for idx, (large, small) in self.bank_widgets.items():
+            put(large, self.df_banks.at[idx, "Bank_Name_Large"])
+            put(small, self.df_banks.at[idx, "Bank_Info_Small"])
+        for idx, widgets in self.bank_exp_widgets.items():
+            for field, w in widgets.items():
+                value = clean(self.df_bank_exp.at[idx, field])
+                if isinstance(w, ctk.CTkComboBox) and not value:
+                    value = "Default"
+                elif isinstance(w, ctk.CTkOptionMenu) and not value:
+                    value = "Default"
+                put(w, value)
+        for idx, w in self.global_widgets.items():
+            if clean(self.df_global.at[idx, "Label"]) == "Global_Bank":
+                put(w, self.df_global.at[idx, "Value"])
+
+        # The bank names in the choices moved with the banks
+        choices = self._bank_choices()
+        order = [clean(b) for b in self.df_setlist["Bank_Number"]] if self.df_setlist is not None else []
+        for i, w in enumerate(self.setlist_widgets):
+            w.configure(values=choices)
+            try:
+                put(w, choices[int(order[i]) + 1] if i < len(order) else NO_COMMAND)
+            except (ValueError, IndexError):
+                put(w, NO_COMMAND)
+        banks = choices[1:]
+        rows = [r for _, r in self.df_combos.iterrows() if clean(r.get("Switches"))] if self.df_combos is not None else []
+        for i, widgets in enumerate(self.combo_widgets):
+            widgets["scope"].configure(values=["All banks"] + banks)
+            widgets["bank"].configure(values=banks)
+            if i >= len(rows):
+                continue
+            scope = clean(rows[i].get("Bank"))
+            try:
+                put(widgets["scope"], banks[int(float(scope))] if scope and scope.upper() != "ALL" else "All banks")
+                put(widgets["bank"], banks[int(float(clean(rows[i].get("Run_Bank"))))])
+            except (ValueError, IndexError):
+                pass
+
+    # --- Copy and paste one button ------------------------------------------------
+    def copy_button(self):
+        if self.df_buttons is None or self.editing_button is None:
+            messagebox.showinfo("Copy button", "Select the button to copy first.")
+            return
+        self.apply_button_changes(silent=True)
+        row = self.df_buttons.loc[self.editing_button[0]]
+        bank, btn = clean(row["Bank_Number"]), clean(row["Button_Identifier"]).upper()
+        self.button_clipboard = bank_reorder.copy_button(self.df_buttons, self.df_long, self.df_double, bank, btn)
+        self.paste_button_button.configure(state="normal", text=f"Paste button {bank}/{btn} here",
+                                           fg_color=ACCENT, hover_color=ACCENT_HOVER)
+
+    def paste_button(self):
+        if not self.button_clipboard or self.df_buttons is None:
+            return
+        if self.editing_button is None:
+            messagebox.showinfo("Paste button", "Select the button to paste over first.")
+            return
+        self.apply_button_changes(silent=True)
+        row = self.df_buttons.loc[self.editing_button[0]]
+        bank, btn = clean(row["Bank_Number"]), clean(row["Button_Identifier"]).upper()
+        clip = self.button_clipboard
+        if (clip["bank"], clip["button"]) == (bank, btn):
+            return
+        if not messagebox.askyesno(
+            "Paste button",
+            f"Replace button {btn} of bank {bank} with button {clip['button']} of bank {clip['bank']}?\n\n"
+            "Its label, LED mode, flags and its short, long and double press commands are all replaced.",
+        ):
+            return
+        self.df_buttons, self.df_long, self.df_double = bank_reorder.paste_button(
+            self.df_buttons, self.df_long, self.df_double, clip, bank, btn)
+        self._drop_editors()
+        self.on_bank_change(bank)
+        for idx, r in self.df_buttons.iterrows():
+            if clean(r["Bank_Number"]) == bank and clean(r["Button_Identifier"]).upper() == btn:
+                self.load_button_commands(idx, btn)
+                break
 
     def _long_row_index(self, row_index):
         """Index in df_long of the button at df_buttons row_index (created if missing)."""
