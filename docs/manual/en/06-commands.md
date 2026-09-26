@@ -219,7 +219,7 @@ These go to the computer over USB as a keyboard would, not as MIDI, so they work
 |---|---|
 | `OnValue` | The key: a single character (`a`, `7`) or one of `enter`, `esc`, `tab`, `space`, `backspace`, `minus`, `equal`, `leftbr`, `rightbr`, `backslash`, `semicolon`, `quote`, `grave`, `comma`, `dot`, `slash`, `f1`–`f12` |
 | `Number` | The modifiers, added up: 1 Ctrl, 2 Shift, 4 Alt, 8 Cmd/Win, so 3 is Ctrl+Shift |
-| `KeyMode` | `Normal` taps the key, held for `Duration` if set. `Down` presses it and leaves it pressed, `Up` releases it, both after a `Duration` delay, so one button can build a combination across several slots |
+| `KeyMode` | `Normal` taps the key, held for `Duration` if set. `Down` presses it and leaves it pressed, `Up` releases it, both after waiting `Duration`, so one button can build a combination across several slots. The wait holds back the commands below it, like a [`Wait`](#pauses), while the rest of the pedal keeps going |
 | `Toggle` | `Y` holds the key until the next press |
 
 ### Media keys

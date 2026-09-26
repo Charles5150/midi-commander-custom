@@ -219,7 +219,7 @@ Estas llegan al ordenador por USB como las de un teclado, no como MIDI, así que
 |---|---|
 | `OnValue` | La tecla: un solo carácter (`a`, `7`) o una de `enter`, `esc`, `tab`, `space`, `backspace`, `minus`, `equal`, `leftbr`, `rightbr`, `backslash`, `semicolon`, `quote`, `grave`, `comma`, `dot`, `slash`, `f1`–`f12` |
 | `Number` | Los modificadores, sumados: 1 Ctrl, 2 Shift, 4 Alt, 8 Cmd/Win; 3 es Ctrl+Shift |
-| `KeyMode` | `Normal` pulsa y suelta la tecla, mantenida `Duration` si lo pones. `Down` la pulsa y la deja pulsada, `Up` la suelta, las dos tras esperar `Duration`, así que un botón puede montar una combinación en varias casillas |
+| `KeyMode` | `Normal` pulsa y suelta la tecla, mantenida `Duration` si lo pones. `Down` la pulsa y la deja pulsada, `Up` la suelta, las dos tras esperar `Duration`, así que un botón puede montar una combinación en varias casillas. La espera retiene los comandos de debajo, como un [`Wait`](#pausas), y el resto de la pedalera sigue funcionando |
 | `Toggle` | `Y` mantiene la tecla hasta la siguiente pulsación |
 
 ### Teclas multimedia

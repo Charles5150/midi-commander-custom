@@ -36,6 +36,7 @@ static bool switch_down(GPIO_TypeDef *port, uint16_t pin);
 #define PENDING_OWNER_COMBO	(MIDI_NUM_SWITCHES)	// the list of a combination of two
 #define LIST_SKIP_BANK		(0x01)	// bank change commands are ignored in this list
 #define LIST_UP_AFTER		(0x02)	// the release pass follows the press pass
+#define LIST_KEY_WAITED		(0x04)	// resumed at a Key whose delay is already over
 /*
  * A list being run. A Macro command runs another button's list in place, so
  * one is a stack of these: the frame at the top is the list running now, the
@@ -1031,12 +1032,11 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 			update_keyboard_state(pRom[1], pRom[2], toggleState);
 		} else {
             // Momentary / Manual Logic based on Mode
+            // Down and Up wait their Duration first, in run_list_stack
             if (key_mode == 1) { // Down Only
-                if (delay_val > 0) HAL_Delay(delay_val); // Blocking Pre-Delay
                 update_keyboard_state(pRom[1], pRom[2], 1); // Press
             } 
             else if (key_mode == 2) { // Up Only
-                if (delay_val > 0) HAL_Delay(delay_val); // Blocking Pre-Delay
                 update_keyboard_state(pRom[1], pRom[2], 0); // Release
             }
             else { // Mode 0: Normal Momentary (Pulse)
@@ -1309,6 +1309,14 @@ static pending_list_t pending_lists[PENDING_LISTS];
 
 static inline bool cmd_is_wait(const uint8_t *pRom){
 	return (pRom[0] & 0xF0) == CMD_NO_CMD_NIBBLE && (pRom[0] & 0x0F) == CMD_WAIT_MODE;
+}
+
+// A Key command in Down or Up mode waits its Duration before it presses or
+// releases the key: a Wait of its own, right above it
+static uint32_t key_wait_ms(uint8_t *pRom){
+	if((pRom[0] & 0xF0) != CMD_KEY_NIBBLE || midiCmd_get_cmd_toggle(pRom)) return 0;
+	uint8_t mode = pRom[0] & 0x0F;
+	return (mode == 1 || mode == 2) ? midiCmd_get_delay(pRom) : 0;
 }
 
 static bool pending_schedule(const frame_t *st, uint8_t depth, uint8_t next, uint8_t toggle,
@@ -2026,6 +2034,8 @@ static bool run_cmd_list(uint8_t *base, uint8_t first, uint8_t start, uint8_t to
  */
 static bool run_list_stack(frame_t *st, uint8_t depth, uint8_t toggle,
 		uint8_t owner, uint8_t flags, bool allow_wait){
+	bool key_waited = flags & LIST_KEY_WAITED;	// the Key it resumes at goes now
+	flags &= (uint8_t)~LIST_KEY_WAITED;
   while(depth > 0){
 	frame_t *f = &st[depth - 1];
 	uint8_t *base = f->base;
@@ -2110,6 +2120,12 @@ static bool run_list_stack(frame_t *st, uint8_t depth, uint8_t toggle,
 			}
 			continue;
 		}
+		uint32_t key_ms = key_wait_ms(pRom);
+		if(key_ms && !key_waited && allow_wait &&
+				pending_schedule(st, depth, j, toggle, owner, flags | LIST_KEY_WAITED, key_ms)){
+			return false;
+		}
+		if(key_ms) key_waited = false;
 		if(ramp_ms && (*pRom & 0xF0) == CMD_CC_NIBBLE){
 			ramp_cc(pRom, midiCmd_get_cmd_toggle(pRom) ? toggle : MIDI_CONTROL_ON, ramp_ms);
 			continue;
