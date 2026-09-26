@@ -55,6 +55,7 @@ static bool run_cmd_list(uint8_t *base, uint8_t first, uint8_t start, uint8_t to
 static bool run_list_stack(frame_t *st, uint8_t depth, uint8_t toggle, uint8_t owner, uint8_t flags, bool allow_wait);
 static void run_list_up(uint8_t *base, uint8_t first, uint8_t toggle, uint8_t flags);
 static void run_button_cmd(const uint8_t *pRom);
+static void link_push(uint8_t status, uint8_t number, uint8_t value);
 static bool pending_defer_release(uint8_t owner);
 static void pending_flush_owner(uint8_t owner);
 static bool pending_any(void);
@@ -1078,6 +1079,9 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 	case CMD_CC_NIBBLE:
 		if(midiCmd_get_cmd_toggle(pRom)){
 			status = midiCmd_send_cc_command_from_rom(pRom, toggleState);
+			if(status == 0 && (toggleState || pRom[3] <= 0x7F)){	// only what went out
+				link_push(0xB0 | midiCmd_channel(pRom[0]), pRom[1], toggleState ? pRom[2] : pRom[3]);
+			}
 		} else {
 			// Not toggling, so set command and either set a duration or not
 			status = midiCmd_send_cc_command_from_rom(pRom, MIDI_CONTROL_ON);
@@ -1097,6 +1101,9 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 	case CMD_NOTE_NIBBLE:
 		if(midiCmd_get_cmd_toggle(pRom)){
 			status = midiCmd_send_note_command_from_rom(pRom, toggleState);
+			if(status == 0){
+				link_push((toggleState ? 0x90 : 0x80) | midiCmd_channel(pRom[0]), pRom[1], toggleState ? pRom[2] : 0);
+			}
 		} else {
 			// Not toggling, so set command and either set a duration or not
 			status = midiCmd_send_note_command_from_rom(pRom, MIDI_CONTROL_ON);
@@ -3015,8 +3022,11 @@ static bool switch_down(GPIO_TypeDef *port, uint16_t pin){
 #define FEEDBACK_QUEUE_LEN		(160)
 #define FEEDBACK_PER_PASS		(4)
 
-// The fourth byte is not MIDI: 1 means the channel does not have to match,
-// which is how the Kemper's answers come in, having no channel of their own.
+// The fourth byte is not MIDI: FEEDBACK_ANY_CHANNEL means the channel does not
+// have to match, which is how the Kemper's answers come in, having no channel
+// of their own; FEEDBACK_LINK that the pedal sent it itself (Link_Toggles).
+#define FEEDBACK_ANY_CHANNEL	(1)
+#define FEEDBACK_LINK			(2)
 static uint8_t feedback_queue[FEEDBACK_QUEUE_LEN][4];
 static volatile uint8_t feedback_head = 0;	// written by the USB interrupt only
 static volatile uint8_t feedback_tail = 0;	// written by the main loop only
@@ -3031,13 +3041,48 @@ static void feedback_push(const uint8_t *data, uint8_t any_channel){
 	feedback_head = next;
 }
 
+static inline bool led_feedback_on(void){
+	uint8_t v = pGlobalSettings[GLOBAL_SETTINGS_LED_FEEDBACK];
+	return v != 0xFF && (v & LED_FEEDBACK_HOST);
+}
+
+static inline bool link_toggles_on(void){
+	uint8_t v = pGlobalSettings[GLOBAL_SETTINGS_LED_FEEDBACK];
+	return v != 0xFF && (v & LED_FEEDBACK_LINK);
+}
+
 void sw_feedback_message(const uint8_t *data){
-	if(pGlobalSettings[GLOBAL_SETTINGS_LED_FEEDBACK] != 1 && !listen_present) return;
+	if(!led_feedback_on() && !listen_present) return;
 	feedback_push(data, 0);
 }
 
 void sw_feedback_any_channel(const uint8_t *data){
-	feedback_push(data, 1);
+	feedback_push(data, FEEDBACK_ANY_CHANNEL);
+}
+
+/*
+ * Linked toggles (Link_Toggles): what a toggle button sends is taken as if the
+ * device had sent it back, so every other toggle button sending the same CC
+ * or note on the same channel, in any bank, follows it by the same rules as
+ * LED_Feedback. The delay pedal is on a different switch in every song and
+ * its LED stays true. Only the state changes, nothing is sent, so linked
+ * buttons cannot set each other off. The messages come from the main loop
+ * only, so they have a queue of their own; a full one drops them.
+ */
+#define LINK_QUEUE_LEN		(16)
+static uint8_t link_queue[LINK_QUEUE_LEN][4];
+static uint8_t link_head = 0;
+static uint8_t link_tail = 0;
+
+static void link_push(uint8_t status, uint8_t number, uint8_t value){
+	if(!link_toggles_on()) return;
+	uint8_t next = (uint8_t)((link_head + 1) % LINK_QUEUE_LEN);
+	if(next == link_tail) return;
+	link_queue[link_head][0] = status;
+	link_queue[link_head][1] = number & 0x7F;
+	link_queue[link_head][2] = value & 0x7F;
+	link_queue[link_head][3] = FEEDBACK_LINK;
+	link_head = next;
 }
 
 /*
@@ -3052,8 +3097,8 @@ static int8_t feedback_state_for(const uint8_t *pRom, const uint8_t *msg){
 	uint8_t type = pRom[0] & 0xF0;
 	if(type != CMD_CC_NIBBLE && type != CMD_NOTE_NIBBLE) return -1;
 	if(!(pRom[1] & 0x80)) return -1;	// not a toggle
-	// the global channel moves it too; msg[3] says the channel does not count
-	if(!msg[3] && midiCmd_channel(pRom[0]) != (msg[0] & 0x0F)) return -1;
+	// the global channel moves it too; msg[3] may say the channel does not count
+	if(msg[3] != FEEDBACK_ANY_CHANNEL && midiCmd_channel(pRom[0]) != (msg[0] & 0x0F)) return -1;
 
 	uint8_t value = msg[2];
 	switch(msg[0] & 0xF0){
@@ -3088,7 +3133,7 @@ static int8_t feedback_state_for(const uint8_t *pRom, const uint8_t *msg){
 static int8_t listen_state_for(const uint8_t *pRom, const uint8_t *msg, uint8_t channel, uint8_t *dist){
 	if(!cmd_is_listen(pRom) || (pRom[1] & 0x7F) != msg[1]) return -1;
 	if((msg[0] & 0xF0) != 0xB0) return -1;
-	if(!msg[3] && channel != 0xFF && channel != (msg[0] & 0x0F)) return -1;
+	if(msg[3] != FEEDBACK_ANY_CHANNEL && channel != 0xFF && channel != (msg[0] & 0x0F)) return -1;
 	uint8_t value = msg[2];
 	uint8_t on = pRom[2] & 0x7F;
 	uint8_t off = pRom[3] & 0x7F;
@@ -3137,6 +3182,7 @@ static int8_t feedback_list_state(uint8_t *(*rom)(uint8_t, uint8_t, uint8_t),
 		}
 	}
 	if(listens){
+		if(msg[3] == FEEDBACK_LINK) return -1;	// it goes by what the device says
 		uint8_t channel = listen_channel(base);
 		uint8_t best = 0xFF;
 		pRom = base;
@@ -3150,7 +3196,7 @@ static int8_t feedback_list_state(uint8_t *(*rom)(uint8_t, uint8_t, uint8_t),
 		}
 		return want;
 	}
-	if(pGlobalSettings[GLOBAL_SETTINGS_LED_FEEDBACK] != 1 && !msg[3]) return -1;
+	if(!led_feedback_on() && !msg[3]) return -1;
 	pRom = base;
 	for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++, pRom += MIDI_ROM_CMD_SIZE){
 		int8_t s = feedback_state_for(pRom, msg);
@@ -3345,6 +3391,10 @@ static void feedback_task(void){
 			n++;
 		}
 		feedback_tail = (uint8_t)((feedback_tail + 1) % FEEDBACK_QUEUE_LEN);
+	}
+	while(link_tail != link_head){
+		feedback_apply(link_queue[link_tail]);
+		link_tail = (uint8_t)((link_tail + 1) % LINK_QUEUE_LEN);
 	}
 }
 

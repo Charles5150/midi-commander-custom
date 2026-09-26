@@ -10,7 +10,7 @@ El manual del firmware a medida para la **MeloAudio Midi Commander**, que en Eur
 | 2 | [Primeros pasos](02-getting-started.md) | Instalar el firmware y las herramientas, una primera configuración, actualizar más adelante |
 | 3 | [El configurador](03-the-configurator.md) | El programa de escritorio: sus pestañas, la pedalera virtual, las copias de seguridad |
 | 4 | [Bancos](04-banks.md) | Moverse por los 32 bancos, setlists, segundas páginas, lo que envía un banco al entrar y al salir, las cuatro configuraciones |
-| 5 | [Botones](05-buttons.md) | Pulsación corta, larga y doble, dos pulsadores a la vez, LEDs, toggles, grupos, escenas, botones de ciclo y globales |
+| 5 | [Botones](05-buttons.md) | Pulsación corta, larga y doble, dos pulsadores a la vez, LEDs, toggles, grupos, escenas, botones de ciclo y globales, toggles enlazados |
 | 6 | [Comandos](06-commands.md) | Lo que puede enviar un botón: cada tipo de comando y sus campos |
 | 7 | [Tempo, reloj, LFO y secuenciador](07-tempo.md) | Tap tempo, reloj MIDI, el LED del tap, LFOs y secuencias a tempo |
 | 8 | [Pedales de expresión](08-expression.md) | Calibración, curvas, rangos, destino por banco, auto-engage, interruptores en punta y talón |

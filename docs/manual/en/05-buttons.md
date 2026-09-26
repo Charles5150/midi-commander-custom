@@ -209,6 +209,29 @@ The flag is bit 3 of the button's LED mode byte, which configurations have alway
 
 </details>
 
+## Linked toggles
+
+The delay is on a different switch in every song, or on the same switch in banks that are otherwise different. Switch it on in one bank, go to another, and without this its button there still shows it off, and its first press sends the off the device already had.
+
+Tick **Link toggles** (`Link_Toggles` `Y`) in the Global tab, and whenever a toggle button sends a `CC` or a `Note`, every other toggle button that sends the same CC or note on the same channel, in any bank, takes the state that message describes: its LED, its display cell and what its next press sends. On the pedal the setting is `LINKTOGL` in the [editor](10-editing-on-the-pedal.md).
+
+- Nothing needs marking: buttons are linked by what they send. The rules are those of `LED_Feedback`, as though the device had sent the message back: a CC is on when its value is nearer the button's `OnValue` than its `OffValue`, a button without an `OffValue` only reacts to its `OnValue`, and a Note On is on and a Note Off off. A `CC` with no `OffValue` sends nothing on its way off, so it leaves the others as they are.
+- It follows everything that sends from a toggle: a press, a long or double press, a scene, an exclusive group switching its others off, a `Button` command, a bank's enter list.
+- Only the state changes; nothing more is sent, so linked buttons cannot set each other off, and a press sends exactly what it did before.
+- A button whose list holds a [`Listen`](06-commands.md#listening-on-another-cc) goes by what the device reports and is not moved by the others. Its own press still moves them.
+- Ramps, LFOs and sequences are not toggles, and move nothing.
+- It works with `LED_Feedback` on or off. With both on, the pedal follows the computer and itself.
+
+In the demo, REC and PLAY are in bank 1 and in every song, on CC 1 and CC 2: recording started in one song shows in all of them.
+
+*Firmware 0.77 or later; older firmware ignores the setting.*
+
+<details><summary>Under the hood</summary>
+
+The global bytes are all taken, so the setting is bit 1 of byte 35, beside `LED_Feedback` in bit 0. Configurations have only ever written 0 or 1 there, so nothing changes for them. The firmware queues each CC or note a toggle sent and, on its next pass, applies it to every bank as it does a message from the computer.
+
+</details>
+
 ## In the CSV
 
 ### Button_Settings

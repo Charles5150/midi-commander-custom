@@ -32,6 +32,7 @@ Todo lo que pueden hacer el firmware y sus herramientas, agrupado igual que el m
 - **Escenas.** Una pulsación pone los toggles del banco en la combinación que elijas, delay encendido y chorus apagado por ejemplo, pisando por ti solo los que no estaban ya así.
 - **Botones de ciclo.** Un botón va pasando por varios estados, cada uno con sus comandos y su etiqueta en la pantalla: los cuatro canales de un ampli en un solo pulsador, una pisada cada uno, y vuelta a empezar.
 - **Botones globales.** Un banco reservado guarda los botones que deben ser iguales estés donde estés —el afinador, el pánico, el tap— y cualquier botón de otro banco marcado como global lo toma todo de él: sus comandos, su etiqueta, su luz y si está encendido. Se escribe una vez, se cambia una vez, y está toda la noche bajo el mismo pie.
+- **Toggles enlazados.** Con `Link_Toggles` activado, los botones toggle que envían el mismo CC o nota comparten su estado en todos los bancos: el delay encendido en una canción sale encendido en la siguiente, esté en el pulsador que esté.
 - **Modos de LED** por botón: Normal, Reverse (encendido cuando está apagado) o AlwaysOn (parpadea mientras está activo). Los LEDs de Bank Up / Down tienen las mismas opciones. Brillo global para los LEDs encendidos y, aparte, para los encendidos en reposo, para que un botón activo destaque sobre uno en reposo.
 
 ## Comandos

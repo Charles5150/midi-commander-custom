@@ -17,6 +17,8 @@ GLOBAL_SETTINGS_SLEEP_AFTER_MIN = 32
 GLOBAL_SETTINGS_SETLIST_MODE = 33
 GLOBAL_SETTINGS_CLOCK_FOLLOW = 34
 GLOBAL_SETTINGS_LED_FEEDBACK = 35
+LED_FEEDBACK_HOST = 0x01
+LED_FEEDBACK_LINK = 0x02
 GLOBAL_SETTINGS_DOUBLE_PRESS = 36
 GLOBAL_SETTINGS_REMOTE_MODE = 38
 GLOBAL_SETTINGS_REMOTE_CHANNEL = 39
@@ -174,7 +176,11 @@ def pack_global_settings(df):
 
     # Incoming CC and notes over USB set the toggle buttons that send them
     if "LED_Feedback" in df.index and "Y" in str(df.loc["LED_Feedback", "Value"]).upper():
-        bin_list[GLOBAL_SETTINGS_LED_FEEDBACK] = 1
+        bin_list[GLOBAL_SETTINGS_LED_FEEDBACK] |= LED_FEEDBACK_HOST
+
+    # What a toggle sends sets the other toggles sending the same, in the same byte
+    if "Link_Toggles" in df.index and "Y" in str(df.loc["Link_Toggles", "Value"]).upper():
+        bin_list[GLOBAL_SETTINGS_LED_FEEDBACK] |= LED_FEEDBACK_LINK
 
     # Double press window in ms, stored in 10 ms units (100..1000 ms)
     double_ms = 300

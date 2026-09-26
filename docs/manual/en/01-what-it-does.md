@@ -32,6 +32,7 @@ Everything the firmware and its tools can do, grouped the way the manual is. Eac
 - **Scenes.** One press puts the toggle buttons of the bank into a chosen combination, delay on and chorus off for instance, pressing for you only the ones that are not already there.
 - **Cycle buttons.** One button steps through several states, each with its own commands and its own label on the display: the four channels of an amp on a single switch, say, one press each, round and round.
 - **Global buttons.** One bank set aside holds the buttons that should be the same wherever you are — the tuner, panic, the tap — and any button of any other bank marked global takes everything from it: its commands, its label, its light and whether it is on. Written once, changed once, and on all night under the same foot.
+- **Linked toggles.** With `Link_Toggles` on, toggle buttons that send the same CC or note share their state across every bank: the delay switched on in one song is lit in the next, whichever switch it sits on there.
 - **LED modes** per button: Normal, Reverse (lit when off) or AlwaysOn (blinks while active). The Bank Up / Down LEDs have the same options. Global brightness for lit LEDs and, separately, for LEDs lit at rest, so an active button stands out from an idle one.
 
 ## Commands

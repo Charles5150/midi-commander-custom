@@ -360,7 +360,9 @@ static void own_field_step(uint8_t i, int8_t d){
 
 /* --------------------------------------------------------------- settings */
 
-enum { S_NUM, S_ONOFF, S_CHOICE, S_MS, S_PCT, S_MIN, S_CHAN, S_SEC };
+// S_FLAG is one bit of a byte, Yes or No: `lo` holds the bit, and saving it
+// keeps the byte's other bits. An unset byte has none set.
+enum { S_NUM, S_ONOFF, S_CHOICE, S_MS, S_PCT, S_MIN, S_CHAN, S_SEC, S_FLAG };
 
 typedef struct {
 	const char *name;
@@ -389,7 +391,8 @@ static const setting_t settings[] = {
 	{"SETLIST",  GLOBAL_SETTINGS_SETLIST_MODE,        S_ONOFF,  0,     1, 0,   false, NULL},
 	{"REMEMBER", GLOBAL_SETTINGS_REMEMBER_STATE,      S_ONOFF,  0,     1, 0,   false, NULL},
 	{"CLOCKFLW", GLOBAL_SETTINGS_CLOCK_FOLLOW,        S_ONOFF,  0,     1, 0,   false, NULL},
-	{"LEDFEEDB", GLOBAL_SETTINGS_LED_FEEDBACK,        S_ONOFF,  0,     1, 0,   false, NULL},
+	{"LEDFEEDB", GLOBAL_SETTINGS_LED_FEEDBACK,        S_FLAG,   LED_FEEDBACK_HOST, 1, 0, false, NULL},
+	{"LINKTOGL", GLOBAL_SETTINGS_LED_FEEDBACK,        S_FLAG,   LED_FEEDBACK_LINK, 1, 0, false, NULL},
 	{"USB THRU", GLOBAL_SETTINGS_USB_THRU,            S_ONOFF,  0,     1, 0,   false, NULL},
 	{"RT THRU",  GLOBAL_SETTINGS_REALTIME_PASS,       S_ONOFF,  0,     1, 0,   false, NULL},
 	{"KEMPER",   GLOBAL_SETTINGS_KEMPER_MODE,         S_ONOFF,  0,     1, 0,   false, NULL},
@@ -401,6 +404,7 @@ static const setting_t settings[] = {
 // What a stored byte really means, an unset one standing for its default
 static uint8_t setting_value(const setting_t *s){
 	uint8_t v = pGlobalSettings[s->byte];
+	if(s->kind == S_FLAG) return (v != 0xFF && (v & s->lo)) ? 1 : 0;
 	if(v == 0xFF) return s->def;
 	if(v == 0 && s->zero_def) return s->def;
 	if(v < s->lo) return s->lo;
@@ -418,7 +422,8 @@ static void setting_text(const setting_t *s, uint8_t v, char *out, uint8_t size)
 	               else snprintf(out, size, "%u s", v); break;
 	case S_CHAN:   if(v == 0) snprintf(out, size, "off");
 	               else snprintf(out, size, "%u", v); break;
-	case S_ONOFF:  snprintf(out, size, "%s", v ? "Yes" : "No"); break;
+	case S_ONOFF:
+	case S_FLAG:   snprintf(out, size, "%s", v ? "Yes" : "No"); break;
 	case S_CHOICE: snprintf(out, size, "%s", s->choices[v <= s->hi ? v : 0]); break;
 	default:       snprintf(out, size, "%u", v); break;
 	}
@@ -441,7 +446,14 @@ static void save(void){
 		ed.label_dirty = false;
 	}
 	if(ed.set_dirty){
-		wrote |= flash_settings_patch(&pGlobalSettings[settings[ed.setting].byte], &ed.set_value, 1);
+		const setting_t *s = &settings[ed.setting];
+		uint8_t v = ed.set_value;
+		if(s->kind == S_FLAG){
+			uint8_t was = pGlobalSettings[s->byte];
+			if(was == 0xFF) was = 0;
+			v = ed.set_value ? (uint8_t)(was | s->lo) : (uint8_t)(was & ~s->lo);
+		}
+		wrote |= flash_settings_patch(&pGlobalSettings[s->byte], &v, 1);
 		ed.set_dirty = false;
 	}
 
@@ -518,7 +530,7 @@ static void field_line(uint8_t f, char *out, uint8_t size){
 static void field_step(uint8_t f, int8_t d){
 	if(ed.settings){
 		const setting_t *s = &settings[ed.setting];
-		if(s->kind == S_ONOFF)			ed.set_value = ed.set_value ? 0 : 1;
+		if(s->kind == S_ONOFF || s->kind == S_FLAG)	ed.set_value = ed.set_value ? 0 : 1;
 		else if(s->kind == S_CHOICE)	ed.set_value = step_wrap(ed.set_value, d, s->lo, s->hi);
 		else							ed.set_value = step_clamp(ed.set_value, d, s->lo, s->hi);
 		ed.set_dirty = true;

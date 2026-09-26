@@ -559,7 +559,9 @@ def build() -> Demo:
         BANKS[bank] = (f"S{n:02d}", f"song {n}")
         d.on_enter(bank, CommandType="PC",
                    **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": str(n)})
-        # A usable set of looper controls in every song bank
+        # A usable set of looper controls in every song bank. REC and PLAY
+        # send the same CCs as those of bank 1, and Link_Toggles keeps them
+        # all showing what the looper is doing, whichever bank started it.
         d.cc(bank, "1", "REC", "1", toggle="Y", light="AlwaysOn")
         d.cc(bank, "2", "PLAY", "2", toggle="Y")
         d.cc(bank, "3", "STOP", "3")
@@ -661,6 +663,7 @@ def global_settings() -> pd.DataFrame:
                 ("Setlist_Mode", "Y"),
                 ("Clock_Follow", "Y"),
                 ("LED_Feedback", "Y"),
+                ("Link_Toggles", "Y"),
                 ("Double_Press_ms", "300"),
                 ("Remote_Mode", "CC"),
                 ("Remote_Channel", "16"),

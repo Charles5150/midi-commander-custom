@@ -315,6 +315,7 @@ GLOBAL_GROUPS = [
         ("Bank_Up_LED_Mode", "Bank Up LED", ""),
         ("Bank_Down_LED_Mode", "Bank Down LED", ""),
         ("LED_Feedback", "Follow the computer", "CC and notes from USB light the toggles that send them"),
+        ("Link_Toggles", "Link toggles", "toggles sending the same CC or note share their state, in every bank"),
     ]),
     ("Banks", [
         ("Bank_Switch_Mode", "Bank switches", "what Bank Up / Down do, see the Bank Switch tab"),
@@ -1297,6 +1298,7 @@ class MidiCommanderGUI(ctk.CTk):
                 ("Setlist_Mode", "N"),
                 ("Clock_Follow", "N"),
                 ("LED_Feedback", "N"),
+                ("Link_Toggles", "N"),
                 ("Double_Press_ms", "300"),
                 ("Remote_Mode", "Off"),
                 ("Remote_Channel", "Any"),
@@ -1589,7 +1591,7 @@ class MidiCommanderGUI(ctk.CTk):
         if label == "MIDI_Channel":
             return Option(parent, CHANNELS, value, width=80)
         if label in ("RealTime_Passthrough", "USB_MIDI_Thru", "Remember_State", "Setlist_Mode",
-                     "Clock_Follow", "LED_Feedback", "Edit_Lock", "Kemper_Mode"):
+                     "Clock_Follow", "LED_Feedback", "Link_Toggles", "Edit_Lock", "Kemper_Mode"):
             return Check(parent, text="", checked=is_yes(value))
         if label in ("Bank_Up_LED_Mode", "Bank_Down_LED_Mode"):
             return Option(parent, LED_MODES, value, width=110)

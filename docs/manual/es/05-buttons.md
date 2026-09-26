@@ -209,6 +209,29 @@ La marca es el bit 3 del byte de modo de LED del botón, que las configuraciones
 
 </details>
 
+## Toggles enlazados
+
+El delay está en un pulsador distinto en cada canción, o en el mismo pulsador de bancos que por lo demás son distintos. Lo enciendes en un banco, vas a otro, y sin esto su botón allí sigue mostrándolo apagado, y su primera pulsación envía el off que el aparato ya tenía.
+
+Marca **Link toggles** (`Link_Toggles` `Y`) en la pestaña Global y, cada vez que un botón toggle envía un `CC` o una `Note`, todos los demás botones toggle que envían ese mismo CC o nota por el mismo canal, en cualquier banco, toman el estado que dice ese mensaje: su LED, su casilla en la pantalla y lo que enviará su próxima pulsación. En la pedalera el ajuste es `LINKTOGL` en el [editor](10-editing-on-the-pedal.md).
+
+- No hay que marcar nada: los botones se enlazan por lo que envían. Las reglas son las de `LED_Feedback`, como si el aparato devolviera el mensaje: un CC está encendido si su valor está más cerca del `OnValue` del botón que de su `OffValue`, un botón sin `OffValue` solo reacciona a su `OnValue`, y un Note On es encendido y un Note Off apagado. Un `CC` sin `OffValue` no envía nada al apagarse, así que deja a los demás como estaban.
+- Sigue a todo lo que envía desde un toggle: una pulsación, una pulsación larga o doble, una escena, un grupo exclusivo apagando a los demás, un comando `Button`, la lista de entrada de un banco.
+- Solo cambia el estado; no se envía nada más, así que los botones enlazados no pueden dispararse entre sí, y una pulsación envía exactamente lo mismo que antes.
+- Un botón cuya lista tiene un [`Listen`](06-commands.md#escuchar-otro-cc) va por lo que informa el aparato y los demás no lo mueven. Su propia pulsación sí los mueve a ellos.
+- Las rampas, los LFO y las secuencias no son toggles y no mueven nada.
+- Funciona con `LED_Feedback` activado o no. Con los dos, la pedalera sigue al ordenador y a sí misma.
+
+En la demo, REC y PLAY están en el banco 1 y en todas las canciones, en el CC 1 y el CC 2: una grabación empezada en una canción se ve en todas.
+
+*Firmware 0.77 o posterior; un firmware anterior ignora el ajuste.*
+
+<details><summary>Por dentro</summary>
+
+Los bytes globales están todos ocupados, así que el ajuste es el bit 1 del byte 35, junto a `LED_Feedback` en el bit 0. Las configuraciones solo han escrito 0 o 1 ahí, así que para ellas no cambia nada. El firmware pone en cola cada CC o nota que envía un toggle y, en su siguiente vuelta, lo aplica a todos los bancos como hace con un mensaje del ordenador.
+
+</details>
+
 ## En el CSV
 
 ### Button_Settings

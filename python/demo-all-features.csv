@@ -24,6 +24,7 @@ Sleep_After_Min,15
 Setlist_Mode,Y
 Clock_Follow,Y
 LED_Feedback,Y
+Link_Toggles,Y
 Double_Press_ms,300
 Remote_Mode,CC
 Remote_Channel,16

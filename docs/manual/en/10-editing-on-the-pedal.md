@@ -64,6 +64,7 @@ A command of any other type is shown by name and left exactly as it is until the
 | `REMEMBER` | remember state (`Remember_State`) |
 | `CLOCKFLW` | clock follow (`Clock_Follow`) |
 | `LEDFEEDB` | LED feedback (`LED_Feedback`) |
+| `LINKTOGL` | linked toggles (`Link_Toggles`) |
 | `USB THRU`, `RT THRU` | the two thru switches (`USB_MIDI_Thru`, `RealTime_Passthrough`) |
 | `KEMPER` | Kemper mode (`Kemper_Mode`) |
 | `EXP1 CC`, `EXP2 CC` | the expression pedal CC numbers (`Exp1_CC`, `Exp2_CC`) |

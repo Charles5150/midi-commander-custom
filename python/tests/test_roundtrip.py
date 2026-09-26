@@ -875,6 +875,7 @@ class LedFeedbackTest(unittest.TestCase):
         sections = read_config_csv(DEMO_CSV)
         g = sections["Global_Settings"]
         g.loc[g["Label"] == "LED_Feedback", "Value"] = value
+        g.loc[g["Label"] == "Link_Toggles", "Value"] = "N"
         return packer.pack_config(sections)
 
     def test_round_trip(self):
@@ -888,7 +889,7 @@ class LedFeedbackTest(unittest.TestCase):
         sections = read_config_csv(DEMO_CSV)
         g = sections["Global_Settings"]
         sections["Global_Settings"] = g[g["Label"] != "LED_Feedback"]
-        self.assertEqual(packer.pack_config(sections)[35], 0)
+        self.assertEqual(packer.pack_config(sections)[35] & 0x01, 0)
 
     def test_erased_byte_reads_off(self):
         """Configurations written before 0.25 may hold 0 or erased flash here."""
@@ -904,6 +905,56 @@ class LedFeedbackTest(unittest.TestCase):
         self.assertEqual(packed[36], 30)    # Double_Press_ms in the demo
         self.assertEqual(packed[37], 1)     # the demo stores double press commands
         self.assertEqual(packed[38], 1)     # Remote_Mode CC in the demo
+
+
+FIRMWARE = os.path.join(os.path.dirname(os.path.dirname(HERE)), "firmware")
+
+
+class LinkTogglesTest(unittest.TestCase):
+    """Bit 1 of global byte 35, beside LED_Feedback in bit 0: what a toggle
+    sends sets the other toggles sending the same CC or note (firmware 0.77)."""
+
+    def pack_with(self, feedback, link):
+        sections = read_config_csv(DEMO_CSV)
+        g = sections["Global_Settings"]
+        g.loc[g["Label"] == "LED_Feedback", "Value"] = feedback
+        g.loc[g["Label"] == "Link_Toggles", "Value"] = link
+        return packer.pack_config(sections)
+
+    def test_both_bits_round_trip(self):
+        for feedback, link, byte in (("N", "N", 0), ("Y", "N", 1), ("N", "Y", 2), ("Y", "Y", 3)):
+            packed = self.pack_with(feedback, link)
+            self.assertEqual(packed[35], byte, (feedback, link))
+            back = unpacker.unpack_config(packed)[0].set_index("Label")["Value"]
+            self.assertEqual((back["LED_Feedback"], back["Link_Toggles"]), (feedback, link))
+
+    def test_missing_setting_means_off(self):
+        sections = read_config_csv(DEMO_CSV)
+        g = sections["Global_Settings"]
+        sections["Global_Settings"] = g[g["Label"] != "Link_Toggles"]
+        self.assertEqual(packer.pack_config(sections)[35], 1)   # LED_Feedback alone
+
+    def test_erased_byte_reads_off(self):
+        image = bytearray(self.pack_with("N", "N"))
+        image[35] = 0xFF
+        back = unpacker.unpack_config(bytes(image))[0].set_index("Label")["Value"]
+        self.assertEqual((back["LED_Feedback"], back["Link_Toggles"]), ("N", "N"))
+
+    def test_bits_match_firmware(self):
+        import re
+        from lib import settingsBinaryPacker as sbp
+        defines = open(os.path.join(FIRMWARE, "Core", "Inc", "midi_defines.h")).read()
+        for name, value in (("LED_FEEDBACK_HOST", sbp.LED_FEEDBACK_HOST),
+                            ("LED_FEEDBACK_LINK", sbp.LED_FEEDBACK_LINK)):
+            m = re.search(r"#define\s+%s\s+\((0x[0-9A-Fa-f]+)\)" % name, defines)
+            self.assertIsNotNone(m, name)
+            self.assertEqual(int(m.group(1), 16), value, name)
+
+    def test_on_pedal_editor_keeps_the_other_bit(self):
+        """Both are S_FLAG entries on the same byte, so saving one keeps the other."""
+        editor = open(os.path.join(FIRMWARE, "Core", "Src", "editor.c")).read()
+        self.assertRegex(editor, r'"LEDFEEDB",\s*GLOBAL_SETTINGS_LED_FEEDBACK,\s*S_FLAG,\s*LED_FEEDBACK_HOST')
+        self.assertRegex(editor, r'"LINKTOGL",\s*GLOBAL_SETTINGS_LED_FEEDBACK,\s*S_FLAG,\s*LED_FEEDBACK_LINK')
 
 
 class RemotePressTest(unittest.TestCase):
@@ -3131,7 +3182,11 @@ class PedalEditorTest(unittest.TestCase):
         known = dict(re.findall(r"^#define\s+(GLOBAL_SETTINGS_\w+)\s+\((\d+)\)", defines, re.M))
         used = re.findall(r"\{\"[^\"]+\",\s*(GLOBAL_SETTINGS_\w+)", editor)
         self.assertGreaterEqual(len(used), 10)
-        self.assertEqual(len(used), len(set(used)))     # none of them twice
+        # none of them twice, but for the bits of one byte (S_FLAG)
+        flags = re.findall(r"\{\"[^\"]+\",\s*(GLOBAL_SETTINGS_\w+),\s*S_FLAG", editor)
+        whole = [n for n in used if n not in flags]
+        self.assertEqual(len(whole), len(set(whole)))
+        self.assertFalse(set(whole) & set(flags))
         for name in used:
             self.assertIn(name, known, name)
             self.assertLess(int(known[name]), unpacker.GLOBAL_SIZE, name)
