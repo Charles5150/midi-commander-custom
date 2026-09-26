@@ -171,11 +171,14 @@ void USBD_MIDI_SendPacket (uint8_t* buffer, uint8_t len){
 	uint32_t primask = __get_PRIMASK();
 	__disable_irq();
 
-	for(uint8_t i=0; i<len; i++){
-		uint16_t next = (uint16_t)((midi_tx_head + 1) % MIDI_TX_RING_SIZE);
-		if(next == midi_tx_tail) break;   // full, drop the rest
-		midi_tx_ring[midi_tx_head] = buffer[i];
-		midi_tx_head = next;
+	// All of it or none: half an event, or a SysEx with no end, would leave
+	// the host misreading everything after it
+	uint16_t room = (uint16_t)((midi_tx_tail + MIDI_TX_RING_SIZE - midi_tx_head - 1) % MIDI_TX_RING_SIZE);
+	if(len <= room){
+		for(uint8_t i=0; i<len; i++){
+			midi_tx_ring[midi_tx_head] = buffer[i];
+			midi_tx_head = (uint16_t)((midi_tx_head + 1) % MIDI_TX_RING_SIZE);
+		}
 	}
 	midi_tx_kick();
 

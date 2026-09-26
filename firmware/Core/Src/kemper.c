@@ -130,12 +130,7 @@ static void kemper_send(const uint8_t *body, uint8_t body_len){
 	}
 	msg[len++] = SYSEX_END;
 
-	// The buffer a message is put together in is shared with the answers the
-	// USB interrupt sends, so it is not left half written when one lands
-	uint32_t primask = __get_PRIMASK();
-	__disable_irq();
 	sysex_send_message(msg, len);
-	if(!primask) __enable_irq();
 	midiCmd_send_bytes_serial(msg, len);
 }
 

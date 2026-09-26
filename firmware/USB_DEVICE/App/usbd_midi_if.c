@@ -50,7 +50,14 @@ void abort_sysex_message(void){
 	sysex_rx_counter = 0;
 }
 
+/*
+ * The assembly buffer is shared by the main loop (stored SysEx, MMC, Kemper)
+ * and the answers the USB interrupt sends, so it is filled and queued with
+ * interrupts masked: an answer landing halfway would corrupt what goes out.
+ */
 void sysex_send_message(uint8_t* buffer, uint8_t length){
+	uint32_t primask = __get_PRIMASK();
+	__disable_irq();
 	uint8_t *buff_ptr = buffer;
 	uint8_t *assembly_ptr = sysex_tx_assembly_buffer;
 
@@ -84,6 +91,7 @@ void sysex_send_message(uint8_t* buffer, uint8_t length){
 	}
 
 	MIDI_DataTx(sysex_tx_assembly_buffer, assembly_ptr - sysex_tx_assembly_buffer);
+	__set_PRIMASK(primask);
 }
 
 
