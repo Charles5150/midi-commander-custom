@@ -71,8 +71,9 @@ DEMO_LABELS = {              # a few banks' labels, to know the demo is loaded
     9: ["C3", "E3", "G3", "HOLD", "1SEC", "UP", "DOWN", "BLIP"],
 }
 # Toggles the sequence changes, CCs and notes on channel 1: an off sent to
-# LED_Feedback puts each back to off without anything being sent
-FEEDBACK_CCS = [1, 2, 6, 7, 8, 9, 10, 11, 12, 14, 15, 18, 68]
+# LED_Feedback puts each back to off without anything being sent. PLAY in
+# bank 1 sends CC 2 but listens on CC 22, so it is CC 22 that puts it off
+FEEDBACK_CCS = [1, 2, 6, 7, 8, 9, 10, 11, 12, 14, 15, 18, 22, 68]
 FEEDBACK_NOTES = [72]
 # Buttons that must not be left on: momentary CCs, back at their off value
 MOMENTARY_CCS = {(0, 3): 0, (0, 4): 0, (0, 13): 0, (0, 16): 0}
