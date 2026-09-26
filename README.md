@@ -2,7 +2,7 @@
 
 Custom firmware and configuration tools for the **MeloAudio Midi Commander** foot controller, sold in Europe as the **Harley Benton MP-100**. It turns a budget pedal into a controller that stands up to the big names: 32 banks of eight buttons, three command lists per button, a setlist, tap tempo and MIDI clock, two expression pedals, labels on the display, and a desktop configurator that talks to the pedal over USB.
 
-**[Read the user manual](docs/manual/en/README.md)**
+**[Read the user manual](docs/manual/en/README.md)** · **[Manual de usuario en español](docs/manual/es/README.md)**
 
 This repository is a fork of [arasan95/midi-commander-custom](https://github.com/arasan95/midi-commander-custom), which in turn builds on the original project by [harvie256](https://github.com/harvie256/midi-commander-custom). None of this would exist without their work and that of the other contributors listed in the [Acknowledgements](#acknowledgements). Thank you all.
 

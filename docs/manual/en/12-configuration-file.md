@@ -1,5 +1,7 @@
 # The configuration file
 
+**English** · [Español](../es/12-configuration-file.md)
+
 A configuration is a CSV with several sections, each introduced by a line starting with `*` and the section name. Lines containing `#` are comments. The configurator reads and writes this format, and you can also edit it in a spreadsheet.
 
 | Section | What it holds | Described in |

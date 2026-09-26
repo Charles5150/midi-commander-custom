@@ -1,5 +1,7 @@
 # Tempo, clock, LFO and sequencer
 
+**English** · [Español](../es/07-tempo.md)
+
 The pedal keeps a tempo of its own: tapped with your foot, set by a bank as you enter it, or followed from the host's MIDI clock. Everything that keeps time runs from it:
 
 - the MIDI clock the pedal sends, so a delay or looper behind it follows your foot;

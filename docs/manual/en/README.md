@@ -1,5 +1,7 @@
 # Midi Commander Custom — User manual
 
+**English** · [Español](../es/README.md)
+
 The manual for the custom firmware of the **MeloAudio Midi Commander**, sold in Europe as the **Harley Benton MP-100**, and for the tools that configure it. The [project's README](../../../README.md) says in a page what it is; this is the whole story.
 
 | | Chapter | What is in it |

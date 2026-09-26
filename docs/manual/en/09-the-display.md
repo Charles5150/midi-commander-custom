@@ -1,5 +1,7 @@
 # The display
 
+**English** · [Español](../es/09-the-display.md)
+
 The pedal's 128×64 screen tells you where you are and what is on, at a glance from the floor. This chapter covers the bank screen, what shows over it for a moment, the text a computer can put on it, and the banner at power on.
 
 ## The bank screen

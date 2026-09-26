@@ -1,5 +1,7 @@
 # Commands
 
+**English** · [Español](../es/06-commands.md)
+
 What a button can send. Every list — a button's short, long and double press, a bank's commands on entering and leaving, and the bank switches' — holds up to ten commands, sent in order, top to bottom.
 
 ![A command list with a pause, a ramp, a condition and a macro](../images/command-list-en.svg)

@@ -1,5 +1,7 @@
 # Templates and devices
 
+**English** · [Español](../es/11-devices.md)
+
 The pedal talks to a computer over USB and to the rest of your gear through its MIDI OUT socket. Everything a button sends goes out of both; what arrives over USB can change bank, light LEDs, press switches, set the tempo or go on to the DIN output.
 
 ![Where MIDI goes in and out](../images/midi-routes-en.svg)

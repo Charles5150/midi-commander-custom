@@ -1,5 +1,7 @@
 # What it does
 
+**English** · [Español](../es/01-what-it-does.md)
+
 Everything the firmware and its tools can do, grouped the way the manual is. Each group's chapter tells the whole story.
 
 ## Banks and songs

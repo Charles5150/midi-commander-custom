@@ -1,5 +1,7 @@
 # Expression pedals
 
+**English** · [Español](../es/08-expression.md)
+
 Two expression pedals plug into the pedal's 1/4" jacks. Each sends a CC on its own channel, with calibrated end points and a response curve; each can also be a pair of extra footswitches, switch a wah on and off by itself, and send something different in every bank.
 
 ## Connecting and calibrating

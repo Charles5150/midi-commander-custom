@@ -1,5 +1,7 @@
 # The configurator
 
+**English** · [Español](../es/03-the-configurator.md)
+
 The configurator, `python/gui_configurator.py`, is where a configuration is built: it edits a configuration CSV and exchanges it with the pedal over USB MIDI, with no special driver. Start it from the repository root:
 
 ```bash

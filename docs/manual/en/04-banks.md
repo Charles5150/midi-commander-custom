@@ -1,5 +1,7 @@
 # Banks
 
+**English** · [Español](../es/04-banks.md)
+
 The pedal holds 32 banks of eight buttons, numbered 0 to 31. A bank is usually a song, or a patch, or a set of controls you want under your feet together. This chapter covers:
 
 - how you move between banks: Bank Up and Bank Down, a setlist, a preview before you commit, and buttons that jump;

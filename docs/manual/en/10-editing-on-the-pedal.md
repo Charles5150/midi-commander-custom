@@ -1,5 +1,7 @@
 # Editing on the pedal
 
+**English** · [Español](../es/10-editing-on-the-pedal.md)
+
 Everything is easier from the configurator, but the configurator is not always there: the wrong Program Change turns up at soundcheck, with no laptop in sight. The pedal has an editor of its own, on its own screen, worked with your feet.
 
 ## Opening and closing it

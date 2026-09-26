@@ -69,6 +69,37 @@ class LinkTest(unittest.TestCase):
         self.assertEqual(broken, [], "\n".join(broken))
 
 
+class LanguagesTest(unittest.TestCase):
+    """The manual in English and in Spanish: the same pages, the same pictures."""
+
+    def pages(self, lang):
+        return sorted(os.path.basename(p) for p in glob.glob(os.path.join(MANUAL, lang, "*.md")))
+
+    def test_same_pages(self):
+        self.assertEqual(self.pages("en"), self.pages("es"))
+
+    def test_same_pictures(self):
+        for name in self.pages("en"):
+            found = {}
+            for lang in ("en", "es"):
+                path = os.path.join(MANUAL, lang, name)
+                if not os.path.exists(path):
+                    continue
+                links = re.findall(r"\.\./images/([\w.-]+)", read(path))
+                found[lang] = sorted(re.sub(r"-(en|es)\.svg$", ".svg", l) for l in links)
+                for link in links:
+                    m = re.search(r"-(en|es)\.svg$", link)
+                    if m:
+                        self.assertEqual(m.group(1), lang, f"{lang}/{name} shows {link}")
+            if len(found) == 2:
+                self.assertEqual(found["en"], found["es"], name)
+
+    def test_each_page_links_its_sibling(self):
+        for lang, other in (("en", "es"), ("es", "en")):
+            for name in self.pages(lang):
+                self.assertIn(f"(../{other}/{name})", read(os.path.join(MANUAL, lang, name)), f"{lang}/{name}")
+
+
 class PictureTest(unittest.TestCase):
     def test_pictures_are_drawn_from_the_script(self):
         """Each picture exists in both languages, as docs/manual/pictures.py draws it now."""

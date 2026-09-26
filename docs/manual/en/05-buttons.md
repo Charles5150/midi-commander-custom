@@ -1,5 +1,7 @@
 # Buttons
 
+**English** · [Español](../es/05-buttons.md)
+
 Every button has three command lists, a short, a long and a double press, a label on the display, a light and a few options that change how it behaves.
 
 ![When the short, long, double press and combination lists go out](../images/press-types-en.svg)

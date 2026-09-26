@@ -1,5 +1,7 @@
 # Getting started
 
+**English** · [Español](../es/02-getting-started.md)
+
 This chapter takes a pedal from the factory firmware to your first configuration: flash the firmware once by hand, install the tools, and load a configuration. After that, updates need nothing held.
 
 **What you need**
