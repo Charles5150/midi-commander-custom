@@ -18,6 +18,7 @@
 #include "display.h"
 #include "kemper.h"
 #include "banner_store.h"
+#include "state_store.h"
 #include "latency.h"
 #include <string.h>
 
@@ -101,12 +102,55 @@ static void sysex_flash_answer(uint8_t rsp, bool ok){
 	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
 }
 
+/*
+ * An erase takes the CPU for most of a second, and the slot erased may be the
+ * one the pedal is running, so it is left to the main loop: see
+ * sysex_flash_task().
+ */
+static volatile bool erase_pending = false;
+static bool upload_paused = false;
+
+#define UPLOAD_IDLE_MS 10000	// a tool that stops this long is gone
+
 void sysex_erase_settings(uint8_t* data_packet_start){
 	if(data_packet_start[0] != 0x42 || data_packet_start[1] != 0x24){
 		return;
 	}
 
-	sysex_flash_answer(SYSEX_RSP_ERASE_FLASH, flash_settings_erase());
+	erase_pending = true;
+}
+
+bool sysex_upload_paused(void){
+	return upload_paused;
+}
+
+/*
+ * Erase for the tools, from the main loop. When the slot is the running one,
+ * everything held is let go first and the pedal pauses, showing why, until the
+ * tool restarts it: while the pages are rewritten the configuration is erased
+ * flash and half written data, and the tables built from it are stale. A tool
+ * that goes quiet halfway gets the restart anyway, after UPLOAD_IDLE_MS.
+ */
+void sysex_flash_task(void){
+	if(erase_pending){
+		if(flash_settings_target_slot() == flash_settings_active_slot() && !upload_paused){
+			if(ssd1306_Busy()) return;	// the notice must go out before the erase
+			sw_release_all();
+			state_store_flush();	// the tool restarts the pedal: nothing pending is lost
+			upload_paused = true;
+			display_show_upload();
+		}
+		bool ok = flash_settings_erase();
+		erase_pending = false;
+		uint32_t primask = __get_PRIMASK();
+		__disable_irq();	// the USB interrupt answers SysEx too
+		sysex_flash_answer(SYSEX_RSP_ERASE_FLASH, ok);
+		__set_PRIMASK(primask);
+	}
+	if(flash_settings_upload_idle(UPLOAD_IDLE_MS)){
+		if(upload_paused) NVIC_SystemReset();
+		flash_settings_upload_end();
+	}
 }
 
 void sysex_write_flash(uint8_t* data_packet_start){

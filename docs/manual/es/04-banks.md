@@ -176,6 +176,7 @@ Para cambiar entre ellas desde la pedalera, dale a un botón un comando `Bank` c
 - El cambio espera a que sueltes todos los pulsadores, y envía cualquier soltado temporizado pendiente, para que nada se quede colgado.
 - La nueva configuración empieza en el banco 0 con todos los toggles apagados, y la pantalla muestra su número y su nombre a pantalla completa.
 - Si pides una ranura vacía, o la siguiente cuando ninguna otra tiene configuración, sale un aviso breve en su lugar.
+- Mientras una herramienta escribe una ranura, y hasta 10 segundos después de su última escritura, el cambio no se hace y la pantalla dice `UPLOAD`: la carga sigue en la ranura en la que empezó (firmware 0.79 o posterior).
 - La pedalera vuelve a la ranura activa al apagarla y encenderla, diga lo que diga `Remember_State`; el banco y los toggles solo se recuperan cuando la configuración que arranca lo pide.
 - Una ranura tiene configuración cuando su `ConfigName` son dieciséis caracteres imprimibles, cosa que las herramientas escriben siempre.
 

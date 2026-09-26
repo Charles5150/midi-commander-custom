@@ -268,10 +268,18 @@ bool flash_settings_write(uint8_t* data, uint32_t offset);
 // address is outside the active configuration or the write failed.
 bool flash_settings_patch(uint8_t *dst, const uint8_t *data, uint8_t len);
 
-// Point every configuration pointer at a slot; it becomes active and the target
+// True from the first erase or write of the tools until the pedal restarts or
+// flash_settings_upload_end(); idle when none came for ms
+bool flash_settings_uploading(void);
+bool flash_settings_upload_idle(uint32_t ms);
+void flash_settings_upload_end(void);
+
+// Point every configuration pointer at a slot; it becomes active, and the
+// target too unless a tool chose one
 bool flash_settings_select(uint8_t slot);
 uint8_t flash_settings_active_slot(void);
-// The slot the tools erase, write and read; follows the active one until changed
+// The slot the tools erase, write and read; follows the active one until a
+// tool chooses one, then stays there until the pedal restarts
 void flash_settings_set_target(uint8_t slot);
 uint8_t flash_settings_target_slot(void);
 const uint8_t *flash_settings_target_base(void);

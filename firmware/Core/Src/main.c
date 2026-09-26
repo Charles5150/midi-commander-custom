@@ -237,6 +237,14 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+      sysex_flash_task();
+      if(sysex_upload_paused()){
+    	  // The running configuration is being rewritten: nothing may read it
+    	  // until the tool restarts the pedal
+    	  IWDG->KR = 0xAAAA;
+    	  __WFI();
+    	  continue;
+      }
 	  handle_switches();
       expression_task();
       state_store_task();

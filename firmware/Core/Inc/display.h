@@ -36,6 +36,8 @@ void display_show_config(uint8_t slot);
 void display_show_safe_mode(void);
 // After the watchdog restarted the pedal, see restart_state.c
 void display_show_restarted(void);
+// The running configuration is being rewritten by the tools
+void display_show_upload(void);
 // A short message in the bank's info line, for a moment (8 characters fit)
 void display_show_message(const char *msg);
 

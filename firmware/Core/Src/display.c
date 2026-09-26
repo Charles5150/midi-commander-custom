@@ -640,6 +640,11 @@ void display_show_restarted(void){
 	show_notice("RESTARTED", "AFTER A LOCK-UP");
 }
 
+// Stays up: the pedal pauses until the tool restarts it
+void display_show_upload(void){
+	show_notice("RECEIVING", "CONFIGURATION");
+}
+
 /*
  * A host text for a moment, drawn over the top line like the tempo readout.
  * A long one stays up until it has scrolled to its end.

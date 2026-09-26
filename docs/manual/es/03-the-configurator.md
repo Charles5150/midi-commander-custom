@@ -29,7 +29,7 @@ Dos grupos, FILE (archivo) y PEDAL (pedalera), con el nombre del archivo abierto
 
 - **Slot** elige cuál de las cuatro [ranuras de configuración](04-banks.md#cuatro-configuraciones) usan los dos botones de debajo. `Active` es la que está usando la pedalera. Cargar una ranura nunca toca las demás.
 - **Read from Device** trae esa configuración de la pedalera conectada a un CSV que eliges, y lo carga.
-- **Flash to Device**, el único botón rojo, guarda el CSV, lo envía a la pedalera y la reinicia. Con la demo o una plantilla abierta carga los ajustes tal como están sin guardarlos en ningún archivo.
+- **Flash to Device**, el único botón rojo, guarda el CSV, lo envía a la pedalera y la reinicia. Con la demo o una plantilla abierta carga los ajustes tal como están sin guardarlos en ningún archivo. Cargar la ranura que la pedalera está usando la pone en pausa: suelta todo lo que tenga pulsado, muestra **RECEIVING CONFIGURATION** y no envía nada hasta el reinicio del final. Si la carga se corta a medias, la pedalera se reinicia sola 10 segundos después; vuelve entonces a cargar la ranura (firmware 0.79 o posterior).
 - **Back Up All Slots…** lee cada ranura que tenga una configuración a una carpeta nueva con fecha, un CSV por ranura.
 - **Restore Backup…** vuelve a escribir una carpeta así, cada archivo en su ranura, después de enseñarte qué ranuras va a sustituir. Mira [Copias de seguridad](13-command-line-tools.md#copias-de-seguridad).
 - **Update Firmware…** flashea un archivo `.dfu`, sin mantener nada pisado con el firmware 0.58 o posterior. Mira [Primeros pasos](02-getting-started.md#actualizar-el-firmware-más-adelante).

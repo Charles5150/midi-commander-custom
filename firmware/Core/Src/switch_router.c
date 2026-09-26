@@ -2758,6 +2758,11 @@ void sw_release_all(void){
 
 static void switch_config(uint8_t target){
 	preview_end();
+	// The tools are writing a slot, perhaps the one we would switch to
+	if(flash_settings_uploading()){
+		display_show_message("UPLOAD");
+		return;
+	}
 	uint8_t from = flash_settings_active_slot();
 	uint8_t slot = target;
 

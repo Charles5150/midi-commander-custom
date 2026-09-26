@@ -176,6 +176,7 @@ To switch between them from the pedal, give a button a `Bank` command with **Act
 - The switch waits until every switch is released, and sends any timed release still pending, so nothing is left hanging.
 - The new configuration starts from bank 0 with every toggle off, and the display shows its number and name full screen.
 - Asking for an empty slot, or for the next one when no other holds a configuration, shows a short notice instead.
+- While a tool is writing a slot, and for 10 seconds after its last write, a switch is refused and the display says `UPLOAD`: the upload goes on into the slot it started on (firmware 0.79 or later).
 - The pedal comes back on the active slot after a power cycle, whatever `Remember_State` says; the bank and toggles are only restored when the configuration being started asks for them.
 - A slot holds a configuration when its `ConfigName` is sixteen printable characters, which the tools always write.
 

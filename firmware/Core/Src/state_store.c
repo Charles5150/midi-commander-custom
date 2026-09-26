@@ -178,7 +178,7 @@ static void write_entry(uint8_t bank, uint8_t slot, const uint32_t *toggles, con
 	}
 }
 
-void state_store_task(void){
+static void save(bool now){
 	if(!dirty){
 		return;
 	}
@@ -194,7 +194,7 @@ void state_store_task(void){
 		dirty = 0;
 		return;
 	}
-	if(HAL_GetTick() - dirty_since < STATE_SAVE_DELAY_MS){
+	if(!now && HAL_GetTick() - dirty_since < STATE_SAVE_DELAY_MS){
 		return;
 	}
 	dirty = 0;
@@ -210,4 +210,12 @@ void state_store_task(void){
 		return; // Nothing changed since the last save
 	}
 	write_entry(bank, slot, toggles, long_toggles);
+}
+
+void state_store_task(void){
+	save(false);
+}
+
+void state_store_flush(void){
+	save(true);
 }

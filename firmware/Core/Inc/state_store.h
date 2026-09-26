@@ -22,5 +22,7 @@ void state_store_mark_dirty(void);
 
 // Call from the main loop.
 void state_store_task(void);
+// Save a pending change now, before the main loop stops calling the task
+void state_store_flush(void);
 
 #endif /* INC_STATE_STORE_H_ */

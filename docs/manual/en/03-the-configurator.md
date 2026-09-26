@@ -27,7 +27,7 @@ Two groups, FILE and PEDAL, with the name of the open file at the bottom.
 
 - **Slot** chooses which of the four [configuration slots](04-banks.md#four-configurations) the two buttons below it use. `Active` means the one the pedal is running. Flashing one slot never touches the others.
 - **Read from Device** pulls that configuration from the connected pedal into a CSV you choose, and loads it.
-- **Flash to Device**, the one red button, saves the CSV, sends it to the pedal and restarts the pedal. With the demo or a template open it flashes the settings as they are without saving them anywhere.
+- **Flash to Device**, the one red button, saves the CSV, sends it to the pedal and restarts the pedal. With the demo or a template open it flashes the settings as they are without saving them anywhere. Flashing the slot the pedal is running pauses it: it lets go of anything it holds, shows **RECEIVING CONFIGURATION**, and sends nothing until the restart at the end. If the upload stops halfway, the pedal restarts by itself 10 seconds later; flash the slot again then (firmware 0.79 or later).
 - **Back Up All Slots…** reads every slot that holds a configuration into a new dated folder, one CSV per slot.
 - **Restore Backup…** writes such a folder back, each file to its own slot, after showing which slots it will replace. See [Backups](13-command-line-tools.md#backups).
 - **Update Firmware…** flashes a `.dfu` file, with nothing held on firmware 0.58 or later. See [Getting started](02-getting-started.md#updating-the-firmware-later).

@@ -49,6 +49,12 @@ _Static_assert(FLASH_EXT_ADDR(CONFIG_SLOTS) <= FLASH_SLOT0_ADDR,
 
 static uint8_t active_slot = 0;
 static uint8_t target_slot = 0;
+// A tool chose the target: it no longer follows configuration switches, so an
+// upload keeps writing where it started
+static bool target_chosen = false;
+// An erase or a write since the pedal started, and when the last one came
+static volatile bool upload_on = false;
+static volatile uint32_t upload_at;
 
 static uint32_t slot_base(uint8_t slot){
 	return (slot == 0) ? FLASH_SLOT0_ADDR : FLASH_SLOTN_ADDR(slot);
@@ -58,8 +64,24 @@ uint8_t flash_settings_active_slot(void){ return active_slot; }
 uint8_t flash_settings_target_slot(void){ return target_slot; }
 
 void flash_settings_set_target(uint8_t slot){
-	if(slot < CONFIG_SLOTS) target_slot = slot;
+	if(slot < CONFIG_SLOTS){
+		target_slot = slot;
+		target_chosen = true;
+	}
 }
+
+static void upload_touch(void){
+	upload_at = HAL_GetTick();
+	upload_on = true;
+}
+
+bool flash_settings_uploading(void){ return upload_on; }
+
+bool flash_settings_upload_idle(uint32_t ms){
+	return upload_on && HAL_GetTick() - upload_at > ms;
+}
+
+void flash_settings_upload_end(void){ upload_on = false; }
 
 const uint8_t *flash_settings_target_base(void){
 	return (const uint8_t*)slot_base(target_slot);
@@ -130,17 +152,19 @@ bool flash_settings_select(uint8_t slot){
 	pCycleLabels    = (uint8_t*)(b + CFG_CYCLE_LABELS_OFF);
 	pCombos         = (uint8_t*)(b + CFG_COMBOS_OFF);
 	active_slot = slot;
-	target_slot = slot;
+	if(!target_chosen) target_slot = slot;
 	return true;
 }
 
 /*
  * Erase the pages of the target slot, before writing them again. A failure is
- * reported to the tool, never a reason to stop the pedal: this runs from the
- * USB interrupt, and stopping there left it dead until switched off.
+ * reported to the tool, never a reason to stop the pedal. It runs from the
+ * main loop (sysex_flash_task), which stops using the configuration first
+ * when the slot erased is the one running.
  */
 bool flash_settings_erase(void){
 	uint32_t pageError;
+	upload_touch();
 
 	FLASH_EraseInitTypeDef eraseInit ={
 			.TypeErase = FLASH_TYPEERASE_PAGES,
@@ -223,6 +247,7 @@ bool flash_settings_write(uint8_t* data, uint32_t offset){
 	if(flash_address == 0){
 		return false;
 	}
+	upload_touch();
 
 	bool ok = true;
 	HAL_FLASH_Unlock();
