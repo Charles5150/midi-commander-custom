@@ -68,7 +68,7 @@ Los ajustes de toda la pedalera, como filas `Label,Value`. En el configurador so
 | `Long_Press_ms` | Long press after | 100–2500 | Tiempo que hay que mantener para que una pulsación sea larga, en los botones de comandos y en Bank Up / Down. Por defecto 500. |
 | `Double_Press_ms` | Double press within | 100–1000 | Tiempo que puede tardar la segunda pulsación de una pulsación doble. Un botón con comandos de pulsación doble en el banco actual espera este tiempo tras un toque antes de enviar su pulsación corta. Por defecto 300. |
 | `Combo_ms` | Two switches together within | 20–250 | Cuánto espera un pulsador de una [combinación](05-buttons.md#combo_settings) a que llegue el otro. Solo esperan los pulsadores que forman parte de una combinación en el banco actual, y solo este tiempo, antes de hacer lo que hacen por separado. Por defecto 80, que un pie sobre dos pulsadores consigue sin problema. |
-| `Remember_State` | Remember state | Y / N | Arrancar en el último banco con todos los toggles como estaban. |
+| `Remember_State` | Remember state | Y / N | Arrancar en el último banco con todos los toggles como estaban, también los de las listas de pulsación larga y doble. |
 | `Edit_Lock` | Lock on-pedal editing | Y / N | Impide que los dos pulsadores de banco mantenidos a la vez abran el [editor de la pedalera](10-editing-on-the-pedal.md), para una pedalera que no debe cambiar bajo el pie de nadie. Solo se puede desbloquear desde aquí, o durante una sesión arrancando en [modo seguro](10-editing-on-the-pedal.md#modo-seguro). Por defecto N. |
 
 ### LEDs

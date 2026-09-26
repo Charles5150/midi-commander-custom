@@ -18,7 +18,7 @@ A button can do three different things: one on a tap, another when held, a third
 
 Only buttons that have double press commands in the current bank change behaviour: a single tap on them waits for that window before sending its short press, and holding them still gives the long press, or the short press when there is none. Buttons without long or double press commands react instantly, exactly as before.
 
-Long and double press commands each have their own toggle state, apart from the short press's. Copy / Paste bank in the configurator carries all three lists.
+Long and double press commands each have their own toggle state, apart from the short press's. With `Remember_State` all three come back after a power cycle, and so does whatever a list left on was running: an LFO, a sequence, an expression pedal's target (a double press toggle from firmware 0.82; before, it came back off, and an LFO, sequence or pedal target of a long press list did not start again). Copy / Paste bank in the configurator carries all three lists.
 
 *Double press: firmware 0.26 or later.*
 

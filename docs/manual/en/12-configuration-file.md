@@ -68,7 +68,7 @@ The settings of the whole pedal, as `Label,Value` rows. In the configurator they
 | `Long_Press_ms` | Long press after | 100–2500 | Hold time that turns a press into a long press, on the command buttons and on Bank Up / Down. Default 500. |
 | `Double_Press_ms` | Double press within | 100–1000 | Time the second press of a double press may take. A button with double press commands in the current bank waits this long after a tap before sending its short press. Default 300. |
 | `Combo_ms` | Two switches together within | 20–250 | How long a switch of a [combination](05-buttons.md#combo_settings) waits for the other one. Only switches that belong to a combination in the current bank wait, and only this long, before doing what they do alone. Default 80, which one foot on two switches comfortably makes. |
-| `Remember_State` | Remember state | Y / N | Power up in the last bank with all toggles as they were. |
+| `Remember_State` | Remember state | Y / N | Power up in the last bank with all toggles as they were, those of the long and double press lists too. |
 | `Edit_Lock` | Lock on-pedal editing | Y / N | Stop the two bank switches held together opening the [on-pedal editor](10-editing-on-the-pedal.md), for a pedal that must not change under anybody's foot. It can only be unlocked from here, or for one session by starting in [safe mode](10-editing-on-the-pedal.md#safe-mode). Default N. |
 
 ### LEDs

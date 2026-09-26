@@ -18,7 +18,7 @@ Un botón puede hacer tres cosas distintas: una con un toque, otra si lo mantien
 
 Solo cambian de comportamiento los botones que tienen comandos de pulsación doble en el banco actual: un toque simple en ellos espera esa ventana antes de enviar su pulsación corta, y mantenerlos sigue dando la pulsación larga, o la corta si no hay larga. Los botones sin comandos de pulsación larga ni doble responden al instante, exactamente como siempre.
 
-Los comandos de pulsación larga y doble tienen cada uno su propio estado de toggle, aparte del de la pulsación corta. Copy / Paste bank en el configurador copia las tres listas.
+Los comandos de pulsación larga y doble tienen cada uno su propio estado de toggle, aparte del de la pulsación corta. Con `Remember_State` los tres vuelven tras apagar y encender, y también lo que tenía en marcha una lista encendida: un LFO, una secuencia, el destino de un pedal de expresión (el toggle de la pulsación doble desde el firmware 0.82; antes volvía apagado, y el LFO, la secuencia o el destino de pedal de una lista de pulsación larga no arrancaban de nuevo). Copy / Paste bank en el configurador copia las tres listas.
 
 *Pulsación doble: firmware 0.26 o posterior.*
 

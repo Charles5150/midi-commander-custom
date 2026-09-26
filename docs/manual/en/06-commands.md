@@ -162,7 +162,7 @@ For setting a parameter with your foot: a button that nudges a CC up or down a s
 | `KeyMode` | The direction: `Up` or `Down`, or `Up Repeat` or `Down Repeat` to keep going while held (see [Repeat while held](#repeat-while-held)) |
 | `Toggle` | `Y` to wrap round past the ends instead of stopping at 0 and 127 |
 
-The running value lives in memory, one per command slot, and goes back to the start value when the pedal is switched off.
+The running value lives in memory, one per command slot, whether in the short, long or double press list, and goes back to the start value when the pedal is switched off. Before firmware 0.82 a `CCInc` in a double press list started from its first value on every press.
 
 *Firmware 0.13 or later.*
 

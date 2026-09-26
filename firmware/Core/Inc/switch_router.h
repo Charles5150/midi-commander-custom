@@ -24,7 +24,9 @@ uint8_t sw_get_home_bank(void);
 uint8_t sw_preview_bank(void);	// the bank previewed, 0xFF when none
 void sw_get_toggle_states(uint32_t out[8]);
 void sw_get_long_toggle_states(uint32_t out[8]);
-void sw_restore_state(uint8_t page, const uint32_t toggles[8], const uint32_t long_toggles[8]);
+void sw_get_double_toggle_states(uint32_t out[8]);
+void sw_restore_state(uint8_t page, const uint32_t toggles[8], const uint32_t long_toggles[8],
+		const uint32_t double_toggles[8]);
 
 // Safe mode: true if a footswitch was held at power on, which is then not
 // taken as a press. Checked once at boot; sw_safe_mode tells from then on.

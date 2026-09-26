@@ -25,7 +25,7 @@
 #include "tempo.h"
 #include <string.h>
 
-#define RESTART_MAGIC	(0x5EC0DE01U)	// the last byte is the layout
+#define RESTART_MAGIC	(0x5EC0DE02U)	// the last byte is the layout
 
 typedef struct {
 	uint32_t magic;
@@ -60,6 +60,7 @@ void restart_state_task(void){
 	live_state_t s;
 	sw_get_toggle_states(s.toggles);
 	sw_get_long_toggle_states(s.long_toggles);
+	sw_get_double_toggle_states(s.double_toggles);
 	s.bpm = tempo_get_bpm();
 	s.bank = sw_get_home_bank();	// a page shown is left, as at power on
 	s.slot = flash_settings_active_slot();

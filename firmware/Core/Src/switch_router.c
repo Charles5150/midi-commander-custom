@@ -347,14 +347,14 @@ static inline uint16_t media_usage_from_rom(const uint8_t *pRom){
  * so it survives repeated presses but resets at power on to the configured
  * start value. 0xFF marks a slot that has not been used yet.
  */
-#define CCINC_SLOTS (2 * MIDI_NUM_BANKS * MIDI_NUM_SWITCHES * MIDI_NUM_COMMANDS_PER_SWITCH)
+#define CCINC_SLOTS (3 * MIDI_NUM_BANKS * MIDI_NUM_SWITCHES * MIDI_NUM_COMMANDS_PER_SWITCH)
 static uint8_t ccinc_value[CCINC_SLOTS];
 
 static void ccinc_reset(void){
 	for(uint32_t i=0; i<CCINC_SLOTS; i++) ccinc_value[i] = 0xFF;
 }
 
-// Unique slot index for a command, whether it came from the short or long list
+// Unique slot index for a command, whichever of the button's lists it came from
 static int32_t ccinc_index(const uint8_t *pRom){
 	int32_t per_set = MIDI_NUM_BANKS * MIDI_NUM_SWITCHES * MIDI_NUM_COMMANDS_PER_SWITCH;
 	if(pRom >= pSwitchCmds && pRom < pSwitchCmds + per_set * MIDI_ROM_CMD_SIZE){
@@ -362,6 +362,9 @@ static int32_t ccinc_index(const uint8_t *pRom){
 	}
 	if(pRom >= pLongPressCmds && pRom < pLongPressCmds + per_set * MIDI_ROM_CMD_SIZE){
 		return per_set + (pRom - pLongPressCmds) / MIDI_ROM_CMD_SIZE;
+	}
+	if(pRom >= pDoublePressCmds && pRom < pDoublePressCmds + per_set * MIDI_ROM_CMD_SIZE){
+		return 2 * per_set + (pRom - pDoublePressCmds) / MIDI_ROM_CMD_SIZE;
 	}
 	return -1; // e.g. a bank-enter command: no stored value, always starts fresh
 }
@@ -501,6 +504,23 @@ static uint8_t* get_long_rom_pointer(uint8_t page, uint8_t sw, uint8_t cmd){
 static uint8_t* get_double_rom_pointer(uint8_t page, uint8_t sw, uint8_t cmd){
 	page = button_bank(page, sw);
 	return pDoublePressCmds + (MIDI_ROM_KEY_STRIDE * sw) + (MIDI_ROM_CMD_SIZE * cmd) + (MIDI_ROM_KEY_STRIDE * 8 * page);
+}
+
+/*
+ * A button's lists whose toggle is on in a bank: set 0 is the short press
+ * list, 1 the long and 2 the double. NULL when that list has no toggle or it
+ * is off. What these left running, an LFO, a sequence or a pedal's target, is
+ * what a power cycle or a bank change sets up again.
+ */
+#define LIST_SETS 3
+static uint8_t* toggled_list(uint8_t bank, uint8_t sw, uint8_t set){
+	sw_t *s = &a_sw_obj[sw];
+	uint32_t has = 1UL << bank, on = 1UL << button_bank(bank, sw);
+	switch(set){
+	case 0:	return ((s->led_cmd_toggle & has) && (s->switch_toggle_state & on)) ? get_rom_pointer(bank, sw, 0) : NULL;
+	case 1:	return ((s->long_cmd_toggle & has) && (s->long_toggle_state & on)) ? get_long_rom_pointer(bank, sw, 0) : NULL;
+	default: return ((s->double_cmd_toggle & has) && (s->double_toggle_state & on)) ? get_double_rom_pointer(bank, sw, 0) : NULL;
+	}
 }
 
 /*
@@ -660,18 +680,20 @@ static void send_exp(const uint8_t *pRom, uint8_t toggleState){
 /*
  * What Exp commands have done lasts until the bank changes, and then the
  * pedals start from the new bank's own targets, overridden by the toggling
- * Exp commands of its buttons that are on. So the pedals always match the
- * LEDs, however the bank was left.
+ * Exp commands of its buttons that are on, in any of their three lists. So
+ * the pedals always match the LEDs, however the bank was left.
  */
 static void exp_targets_for_bank(void){
 	expression_clear_targets();
 	for(uint8_t i=0; i<MIDI_NUM_SWITCHES; i++){
-		if(!sw_button_is_toggle(switch_current_page, i)) continue;
-		if(!get_sw_toggle_state(&a_sw_obj[i])) continue;
-		for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
-			uint8_t *pRom = get_rom_pointer(switch_current_page, i, j);
-			if(cmd_is_cycle(pRom)) break;
-			if(cmd_is_exp(pRom) && (pRom[1] & 0x80)) send_exp(pRom, MIDI_CONTROL_ON);
+		for(uint8_t set=0; set<LIST_SETS; set++){
+			uint8_t *list = toggled_list(switch_current_page, i, set);
+			if(list == NULL) continue;
+			for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
+				uint8_t *pRom = list + j * MIDI_ROM_CMD_SIZE;
+				if(cmd_is_cycle(pRom)) break;
+				if(cmd_is_exp(pRom) && (pRom[1] & 0x80)) send_exp(pRom, MIDI_CONTROL_ON);
+			}
 		}
 	}
 }
@@ -1826,21 +1848,26 @@ static void lfo_task(void){
 
 /*
  * After a power cycle: the LFOs of the toggle buttons that are on, in every
- * bank, run again, so the sound matches the LEDs.
+ * bank and in any of their three lists, run again, so the sound matches the
+ * LEDs. A global button is looked at once, in the global bank.
  */
 static void lfo_restart_all(void){
 	lfo_stop_all();
 	for(uint8_t b=0; b<MIDI_NUM_BANKS; b++){
 		for(uint8_t i=0; i<MIDI_NUM_SWITCHES; i++){
-			if(!sw_button_is_toggle(b, i) || !sw_get_toggle_state(b, i)) continue;
-			const uint8_t *prev = NULL;
-			for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
-				uint8_t *pRom = get_rom_pointer(b, i, j);
-				if(cmd_is_cycle(pRom)) break;
-				if(prev && (*pRom & 0xF0) == CMD_CC_NIBBLE && midiCmd_get_cmd_toggle(pRom)){
-					lfo_start(prev, pRom);
+			if(button_bank(b, i) != b) continue;
+			for(uint8_t set=0; set<LIST_SETS; set++){
+				uint8_t *list = toggled_list(b, i, set);
+				if(list == NULL) continue;
+				const uint8_t *prev = NULL;
+				for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
+					uint8_t *pRom = list + j * MIDI_ROM_CMD_SIZE;
+					if(cmd_is_cycle(pRom)) break;
+					if(prev && (*pRom & 0xF0) == CMD_CC_NIBBLE && midiCmd_get_cmd_toggle(pRom)){
+						lfo_start(prev, pRom);
+					}
+					prev = cmd_is_lfo(pRom) ? pRom : NULL;
 				}
-				prev = cmd_is_lfo(pRom) ? pRom : NULL;
 			}
 		}
 	}
@@ -1998,28 +2025,33 @@ static void seq_stop_all(void){
 
 /*
  * After a power cycle: the sequences of the toggle buttons that are on, in
- * every bank, run again, so the sound matches the LEDs.
+ * every bank and in any of their three lists, run again, so the sound matches
+ * the LEDs. A global button is looked at once, in the global bank.
  */
 static void seq_restart_all(void){
 	seq_stop_all();
 	for(uint8_t b=0; b<MIDI_NUM_BANKS; b++){
 		for(uint8_t i=0; i<MIDI_NUM_SWITCHES; i++){
-			if(!sw_button_is_toggle(b, i) || !sw_get_toggle_state(b, i)) continue;
-			const uint8_t *run = NULL;
-			uint8_t cmds = 0;
-			for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
-				uint8_t *pRom = get_rom_pointer(b, i, j);
-				if(cmd_is_cycle(pRom)) break;
-				if(cmd_is_seq(pRom)){
-					if(run == NULL) run = pRom;
-					cmds++;
-					continue;
+			if(button_bank(b, i) != b) continue;
+			for(uint8_t set=0; set<LIST_SETS; set++){
+				uint8_t *list = toggled_list(b, i, set);
+				if(list == NULL) continue;
+				const uint8_t *run = NULL;
+				uint8_t cmds = 0;
+				for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
+					uint8_t *pRom = list + j * MIDI_ROM_CMD_SIZE;
+					if(cmd_is_cycle(pRom)) break;
+					if(cmd_is_seq(pRom)){
+						if(run == NULL) run = pRom;
+						cmds++;
+						continue;
+					}
+					if(run && cmd_takes_steps(pRom) && midiCmd_get_cmd_toggle(pRom)){
+						seq_start(run, cmds, pRom);
+					}
+					run = NULL;
+					cmds = 0;
 				}
-				if(run && cmd_takes_steps(pRom) && midiCmd_get_cmd_toggle(pRom)){
-					seq_start(run, cmds, pRom);
-				}
-				run = NULL;
-				cmds = 0;
 			}
 		}
 	}
@@ -3313,6 +3345,7 @@ static void fire_double_down(uint8_t i){
 	sw_t *sw = &a_sw_obj[i];
 	pending_flush_owner(i);
 	sw->double_toggle_state ^= (1UL << sw_bank(i));
+	state_store_mark_dirty();
 	uint8_t toggleState = (sw->double_toggle_state >> sw_bank(i)) & 1;
 	sw->press_bank = switch_current_page;
 	repeat_arm(sw, get_double_rom_pointer(switch_current_page, i, 0), 0);
@@ -3762,6 +3795,12 @@ void sw_get_long_toggle_states(uint32_t out[8]){
 	}
 }
 
+void sw_get_double_toggle_states(uint32_t out[8]){
+	for(int i=0; i<8; i++){
+		out[i] = a_sw_obj[i].double_toggle_state;
+	}
+}
+
 // Called once at boot, before anything else here
 void sw_init(void){
 	for(uint8_t i=0; i<MIDI_NUM_SWITCHES; i++) a_sw_obj[i].press_bank = 0xFF;
@@ -3789,7 +3828,8 @@ bool sw_safe_mode(void){
 	return safe_mode;
 }
 
-void sw_restore_state(uint8_t page, const uint32_t toggles[8], const uint32_t long_toggles[8]){
+void sw_restore_state(uint8_t page, const uint32_t toggles[8], const uint32_t long_toggles[8],
+		const uint32_t double_toggles[8]){
 	if(page < MIDI_NUM_BANKS){
 		switch_current_page = page;
 		page_home = 0xFF;
@@ -3797,6 +3837,7 @@ void sw_restore_state(uint8_t page, const uint32_t toggles[8], const uint32_t lo
 	for(int i=0; i<8; i++){
 		a_sw_obj[i].switch_toggle_state = toggles[i];
 		a_sw_obj[i].long_toggle_state = long_toggles[i];
+		a_sw_obj[i].double_toggle_state = double_toggles[i];
 		a_sw_obj[i].listen_look_lo = 0;
 		a_sw_obj[i].listen_look_hi = 0;
 	}

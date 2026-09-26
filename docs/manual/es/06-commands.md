@@ -162,7 +162,7 @@ Para ajustar un parámetro con el pie: un botón que sube o baja un CC un paso e
 | `KeyMode` | La dirección: `Up` o `Down`, o `Up Repeat` o `Down Repeat` para que siga mientras lo mantienes (mira [Repetir mientras se mantiene](#repetir-mientras-se-mantiene)) |
 | `Toggle` | `Y` para dar la vuelta al pasar de los extremos, en lugar de quedarse en 0 y 127 |
 
-El valor en curso vive en memoria, uno por casilla, y vuelve al valor inicial al apagar la pedalera.
+El valor en curso vive en memoria, uno por casilla, esté en la lista de pulsación corta, larga o doble, y vuelve al valor inicial al apagar la pedalera. Antes del firmware 0.82, un `CCInc` en una lista de pulsación doble volvía a su primer valor en cada pulsación.
 
 *Firmware 0.13 o posterior.*
 

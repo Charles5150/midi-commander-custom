@@ -14,6 +14,7 @@
 typedef struct {
 	uint32_t toggles[8];
 	uint32_t long_toggles[8];
+	uint32_t double_toggles[8];
 	uint16_t bpm;
 	uint8_t bank;
 	uint8_t slot;

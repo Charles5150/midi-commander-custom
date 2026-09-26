@@ -183,8 +183,8 @@ int main(void)
   // watchdog restarted it, the state it had that moment wins over the saved
   // one: see restart_state.c
   uint8_t saved_bank = 0, saved_slot = 0;
-  uint32_t saved_toggles[8] = {0}, saved_long[8] = {0};
-  bool have_state = state_store_load(&saved_bank, saved_toggles, saved_long, &saved_slot);
+  uint32_t saved_toggles[8] = {0}, saved_long[8] = {0}, saved_double[8] = {0};
+  bool have_state = state_store_load(&saved_bank, saved_toggles, saved_long, saved_double, &saved_slot);
   live_state_t live;
   bool restarted = restart_state_load(&live);
   if(restarted){
@@ -192,6 +192,7 @@ int main(void)
 	  saved_slot = live.slot;
 	  memcpy(saved_toggles, live.toggles, sizeof(saved_toggles));
 	  memcpy(saved_long, live.long_toggles, sizeof(saved_long));
+	  memcpy(saved_double, live.double_toggles, sizeof(saved_double));
   }
   if((have_state || restarted) && saved_slot != 0 && flash_settings_slot_valid(saved_slot)){
 	  flash_settings_select(saved_slot);
@@ -215,7 +216,7 @@ int main(void)
   // it, and only if they were saved while this same configuration was active
   if(!safe_mode && (restarted || (pGlobalSettings[GLOBAL_SETTINGS_REMEMBER_STATE] == 1
 		  && have_state)) && saved_slot == flash_settings_active_slot()){
-    sw_restore_state(saved_bank, saved_toggles, saved_long);
+    sw_restore_state(saved_bank, saved_toggles, saved_long, saved_double);
   }
   display_setBankName(sw_get_current_page());
 
