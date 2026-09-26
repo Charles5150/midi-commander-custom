@@ -4213,3 +4213,29 @@ class FirmwareUpdateTest(unittest.TestCase):
         self.assertFalse(fu.dfu_listed("dfu-util 0.11\n\nCopyright 2005-2009 Weston Schmidt\n"))
         self.assertFalse(fu.dfu_listed(
             'Found DFU: [1234:5678] ver=0100, alt=0, name="@Internal Flash  /0x08000000/64*002Kg"\n'))
+
+
+class SharpInCsvTest(unittest.TestCase):
+    """Only a line that starts with # is a comment: a sharp in a name or a label is data."""
+
+    def test_sharp_survives(self):
+        import tempfile
+        with open(DEMO_CSV, encoding="utf-8") as f:
+            text = f.read()
+        text = (text.replace("\n0,HOME,index", "\n0,F#m,index", 1)
+                    .replace("11,D,CH A,", "11,D,C#1,", 1)
+                    .replace(",Cycle,,,CH B,", ",Cycle,,,C#B,", 1))
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "sharp.csv")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(text)
+            sections = read_config_csv(path)
+        self.assertEqual(len(sections["Bank_Naming"]), 32)
+        df_banks, df_buttons = unpacker.unpack_config(pack_config(sections))[1:3]
+        self.assertEqual(df_banks.iloc[0]["Bank_Name_Large"], "F#m")
+        row = df_buttons[(df_buttons["Bank_Number"].astype(str) == "11")
+                         & (df_buttons["Button_Identifier"] == "D")].iloc[0]
+        self.assertEqual(row["Label"], "C#1")
+        self.assertIn("C#B", [str(v) for v in row.values])
+        # the demo's own comment lines are still skipped
+        self.assertNotIn("# Notes", read_config_csv(DEMO_CSV))

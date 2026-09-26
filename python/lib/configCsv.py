@@ -1,7 +1,8 @@
 """Read and write configuration CSVs in the sectioned layout used by the GUI and tools.
 
 A configuration CSV has three sections, each introduced by a line starting
-with ``*`` and the section name. Lines containing ``#`` are comments.
+with ``*`` and the section name. Lines starting with ``#`` are comments; a
+``#`` anywhere else is data, as in a bank named ``F#m`` or a label ``C#1``.
 """
 
 import io
@@ -16,7 +17,7 @@ def read_config_csv(path: str) -> dict:
     with open(path, "r", encoding="utf-8") as f:
         raw = f.readlines()
 
-    no_comments = [l for l in raw if "#" not in l]
+    no_comments = [l for l in raw if not l.lstrip().startswith("#")]
     titles = [
         (l.replace(",", " ").strip(" *\r\n"), i)
         for i, l in enumerate(no_comments)

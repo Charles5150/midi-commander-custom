@@ -2,7 +2,7 @@
 
 [English](../en/12-configuration-file.md) · **Español**
 
-Una configuración es un CSV con varias secciones, cada una introducida por una línea que empieza por `*` y el nombre de la sección. Las líneas que contienen `#` son comentarios. El configurador lee y escribe este formato, y también lo puedes editar en una hoja de cálculo.
+Una configuración es un CSV con varias secciones, cada una introducida por una línea que empieza por `*` y el nombre de la sección. Las líneas que empiezan por `#` son comentarios; un `#` en cualquier otro sitio forma parte de los datos, así que un banco puede llamarse `F#m`. El configurador lee y escribe este formato, y también lo puedes editar en una hoja de cálculo.
 
 | Sección | Qué contiene | Se explica en |
 |---|---|---|
