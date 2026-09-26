@@ -1687,6 +1687,77 @@ class MomentaryHoldTest(unittest.TestCase):
         self.assertEqual(int(m.group(1), 16), cbp.BUTTON_MOMENTARY_HOLD)
 
 
+class ResetOnBankTest(unittest.TestCase):
+    """Reset on bank change, bit 7 of the first character of a button's label."""
+
+    def _index(self, df, bank, btn):
+        return df.index[(df["Bank_Number"].astype(str) == str(bank))
+                        & (df["Button_Identifier"] == btn)][0]
+
+    def test_packs_in_the_label(self):
+        sections = read_config_csv(DEMO_CSV)
+        df = sections["Button_Settings"].copy()
+        df["Reset_On_Bank"] = ""
+        i = self._index(df, 5, "B")
+        base = pack_config({**sections, "Button_Settings": df})
+        df.at[i, "Reset_On_Bank"] = "Y"
+        packed = pack_config({**sections, "Button_Settings": df})
+        at = unpacker.LABELS_OFFSET + (5 * 8 + unpacker.BUTTON_IDS.index("B")) * unpacker.LABEL_LEN
+        self.assertEqual(packed[at], base[at] | packer.LABEL_RESET_BIT)
+        self.assertEqual(packed[:at] + packed[at + 1:], base[:at] + base[at + 1:])
+
+    def test_an_empty_label_keeps_it(self):
+        self.assertEqual(packer.pack_label("", reset=True), b"\xa0   ")
+        self.assertEqual(packer.pack_label("BOST", reset=True), b"\xc2OST")
+        self.assertEqual(packer.pack_label("BOST"), b"BOST")
+
+    def test_round_trip(self):
+        sections = read_config_csv(DEMO_CSV)
+        _, _, decoded, *_ = unpacker.unpack_config(pack_config(sections))
+        row = decoded[(decoded["Bank_Number"] == "11") & (decoded["Button_Identifier"] == "4")]
+        self.assertEqual(row["Reset_On_Bank"].iloc[0], "Y")
+        self.assertEqual(row["Label"].iloc[0], "BOST")
+        self.assertEqual((decoded["Reset_On_Bank"] == "Y").sum(), 1)
+
+    def test_empty_label_round_trip(self):
+        sections = read_config_csv(DEMO_CSV)
+        df = sections["Button_Settings"].copy()
+        i = self._index(df, 5, "B")
+        df.at[i, "Label"] = ""
+        df.at[i, "Reset_On_Bank"] = "Y"
+        _, _, decoded, *_ = unpacker.unpack_config(pack_config({**sections, "Button_Settings": df}))
+        row = decoded[(decoded["Bank_Number"] == "5") & (decoded["Button_Identifier"] == "B")]
+        self.assertEqual(norm(row["Label"].iloc[0]), "")
+        self.assertEqual(row["Reset_On_Bank"].iloc[0], "Y")
+
+    def test_older_configurations_have_none(self):
+        sections = read_config_csv(SAMPLE_CSV)
+        self.assertNotIn("Reset_On_Bank", sections["Button_Settings"].columns)
+        _, _, decoded, *_ = unpacker.unpack_config(pack_config(sections))
+        self.assertTrue((decoded["Reset_On_Bank"] == "").all())
+
+    def test_erased_flash_has_none(self):
+        blank = bytes([0xFF]) * unpacker.CONFIG_SIZE
+        _, _, df, *_ = unpacker.unpack_config(blank)
+        self.assertTrue((df["Reset_On_Bank"] == "").all())
+
+    def test_values(self):
+        for cell, want in (("", False), (float("nan"), False), ("N", False),
+                           ("Y", True), ("yes", True), ("1.0", True)):
+            self.assertEqual(cbp.reset_on_bank_value(cell), want, cell)
+        with self.assertRaises(ValueError):
+            cbp.reset_on_bank_value("maybe")
+
+    def test_firmware_bit_matches(self):
+        import re
+        path = os.path.join(os.path.dirname(__file__), "..", "..", "firmware", "Core", "Inc",
+                            "flash_midi_settings.h")
+        with open(path) as handle:
+            header = handle.read()
+        m = re.search(r"#define\s+LABEL_RESET_BIT\s+\((0x[0-9A-Fa-f]+)\)", header)
+        self.assertEqual(int(m.group(1), 16), packer.LABEL_RESET_BIT)
+
+
 class TempoFlashTest(unittest.TestCase):
     """Flashing at the tempo, bit 2 of each button's LED mode byte."""
 

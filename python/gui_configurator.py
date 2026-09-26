@@ -1124,6 +1124,10 @@ class MidiCommanderGUI(ctk.CTk):
                 df.insert(df.columns.get_loc("Tempo_Flash") + 1, "Global", "")
             else:
                 df["Global"] = df["Global"].fillna("")
+            if "Reset_On_Bank" not in df.columns:
+                df.insert(df.columns.get_loc("Global") + 1, "Reset_On_Bank", "")
+            else:
+                df["Reset_On_Bank"] = df["Reset_On_Bank"].fillna("")
             missing = [
                 f"{slot}_{field}"
                 for slot in SLOTS
@@ -1287,7 +1291,8 @@ class MidiCommanderGUI(ctk.CTk):
         for slot in SLOTS:
             columns += [f"{slot}_{f}" for f in CMD_FIELDS]
         if with_extras:
-            columns += ["Light_Mode", "Group", "Momentary_Hold", "Tempo_Flash", "Global"]
+            columns += ["Light_Mode", "Group", "Momentary_Hold", "Tempo_Flash", "Global",
+                        "Reset_On_Bank"]
 
         out = []
         for b in range(NUM_BANKS):
@@ -1302,6 +1307,7 @@ class MidiCommanderGUI(ctk.CTk):
                     row["Momentary_Hold"] = ""
                     row["Tempo_Flash"] = ""
                     row["Global"] = ""
+                    row["Reset_On_Bank"] = ""
                 if src is not None:
                     for c in columns:
                         if c in src.index and c not in ("Bank_Number", "Button_Identifier"):
@@ -1567,6 +1573,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.momentary_hold = None
         self.tempo_flash = None
         self.button_global = None
+        self.reset_on_bank = None
         long_mode = self.press_mode == "Long press"
         double_mode = self.press_mode == "Double press"
 
@@ -1592,15 +1599,20 @@ class MidiCommanderGUI(ctk.CTk):
             group = str(int(float(group))) if group not in ("", "0") else "None"
             self.group = Option(light_frame, BUTTON_GROUPS, group, width=80)
             self.group.pack(side="left", padx=8)
-            self.momentary_hold = Check(light_frame, text="Momentary when held",
+            flags_frame = ctk.CTkFrame(self.cmd_editor, fg_color="transparent")
+            flags_frame.pack(anchor="w", padx=10, pady=(0, 8))
+            self.momentary_hold = Check(flags_frame, text="Momentary when held",
                                         checked=is_yes(current.get("Momentary_Hold")))
-            self.momentary_hold.pack(side="left", padx=(12, 0))
-            self.tempo_flash = Check(light_frame, text="Flash at the tempo",
+            self.momentary_hold.pack(side="left")
+            self.tempo_flash = Check(flags_frame, text="Flash at the tempo",
                                      checked=is_yes(current.get("Tempo_Flash")))
             self.tempo_flash.pack(side="left", padx=(12, 0))
-            self.button_global = Check(light_frame, text="Global",
+            self.button_global = Check(flags_frame, text="Global",
                                        checked=is_yes(current.get("Global")))
             self.button_global.pack(side="left", padx=(12, 0))
+            self.reset_on_bank = Check(flags_frame, text="Reset on bank change",
+                                       checked=is_yes(current.get("Reset_On_Bank")))
+            self.reset_on_bank.pack(side="left", padx=(12, 0))
             Help(
                 self.cmd_editor,
                 "Exclusive group: switching this button on switches off the others of its group "
@@ -1635,6 +1647,15 @@ class MidiCommanderGUI(ctk.CTk):
                 "there, so the tuner or the tap is written once and is the same wherever you are. "
                 "Whatever is written on this button in this bank is left alone and unused; the "
                 "bank set aside is where it is edited.",
+                wraplength=720,
+            ).pack(anchor="w", padx=10, pady=(0, 4))
+            Help(
+                self.cmd_editor,
+                "Reset on bank change: this button goes back to off when you leave its bank.",
+                "Without it a button is still on when you come back, as you left it: mark the boost "
+                "and leave the noise gate unmarked, and only the boost starts off again. Its "
+                "long and double press toggles go back off too, and a cycle button starts again "
+                "from its first state. Nothing is sent: the bank you go to sets up your rig.",
                 wraplength=720,
             ).pack(anchor="w", padx=10, pady=(0, 8))
 
@@ -1722,6 +1743,8 @@ class MidiCommanderGUI(ctk.CTk):
             self.df_buttons.at[idx, "Tempo_Flash"] = "Y" if self.tempo_flash.value() == "Y" else ""
         if self.button_global is not None:
             self.df_buttons.at[idx, "Global"] = "Y" if self.button_global.value() == "Y" else ""
+        if self.reset_on_bank is not None:
+            self.df_buttons.at[idx, "Reset_On_Bank"] = "Y" if self.reset_on_bank.value() == "Y" else ""
         if self.label_entry is not None:
             self.df_buttons.at[idx, "Label"] = self.label_entry.value().strip()
 

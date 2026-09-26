@@ -67,7 +67,8 @@ def blank_button_rows():
     columns = ["Bank_Number", "Button_Identifier", "Label"]
     for slot in SLOT_NAMES:
         columns += [f"{slot}_{f}" for f in CMD_FIELDS]
-    columns += ["Light_Mode", "Group", "Momentary_Hold", "Tempo_Flash", "Global"]
+    columns += ["Light_Mode", "Group", "Momentary_Hold", "Tempo_Flash", "Global",
+                "Reset_On_Bank"]
     columns += [f"{slot}_KeyMode_(Key)" for slot in SLOT_NAMES]
 
     rows = []
@@ -162,6 +163,9 @@ class Demo:
 
     def global_button(self, bank, btn):
         self.buttons.at[self._index(self.buttons, bank, btn), "Global"] = "Y"
+
+    def reset_on_bank(self, bank, btn):
+        self.buttons.at[self._index(self.buttons, bank, btn), "Reset_On_Bank"] = "Y"
 
     def cc(self, bank, btn, label, number, on="127", off="0", toggle="N", ch="1", light=None, slot="A"):
         self.button(bank, btn, label, light, slot, CommandType="CC",
@@ -452,9 +456,11 @@ def build() -> Demo:
                     "OnValue_(CC/PB)": "127", "OffValue_(CC)": "0",
                     "Toggle_(CC/PB/Note)": "Y"})
     # A boost that latches on a tap and is momentary when held: hold it for a
-    # solo and it goes back off when you let go
+    # solo and it goes back off when you let go. It is off again whenever you
+    # come back to this bank, where TGLS beside it stays as you left it
     d.cc(11, "4", "BOST", "56", toggle="Y", light="AlwaysOn")
     d.momentary_hold(11, "4")
+    d.reset_on_bank(11, "4")
     d.media(11, "A", "PLAY", "play_pause")
     # Held, the same button mutes three devices at once: the Chan above the CC
     # names the channels it goes out on, whatever the global channel says

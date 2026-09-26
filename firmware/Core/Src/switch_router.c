@@ -657,6 +657,30 @@ uint8_t sw_preview_bank(void){
 	return preview_bank;
 }
 
+/*
+ * Reset on bank change: a button whose label carries LABEL_RESET_BIT goes back
+ * to off, its long and double press toggles too, and a cycle button back to
+ * before its first state, as the bank it belongs to is left. Nothing is sent:
+ * the bank you go to sets the device up with its own commands. A global button
+ * so marked starts again on every bank change.
+ */
+static bool button_resets(uint8_t bank, uint8_t sw){
+	uint8_t c = pButtonLabels[(uint16_t)(bank * MIDI_NUM_SWITCHES + sw) * BUTTON_LABEL_LEN];
+	return c != 0xFF && (c & LABEL_RESET_BIT);
+}
+
+static void reset_bank_buttons(uint8_t bank){
+	for(uint8_t i=0; i<MIDI_NUM_SWITCHES; i++){
+		uint8_t b = button_bank(bank, i);
+		if(!button_resets(b, i)) continue;
+		uint32_t keep = ~(1UL << b);
+		a_sw_obj[i].switch_toggle_state &= keep;
+		a_sw_obj[i].long_toggle_state &= keep;
+		a_sw_obj[i].double_toggle_state &= keep;
+		cycle_pos[b * MIDI_NUM_SWITCHES + i] = CYCLE_NONE;
+	}
+}
+
 static void goto_bank(uint8_t bank){
 	preview_end();	// however the bank changes, a bank being chosen is dropped
 	if(bank >= MIDI_NUM_BANKS) return;
@@ -665,10 +689,12 @@ static void goto_bank(uint8_t bank){
 	if(page_home != 0xFF){
 		// Leaving the bank from its page leaves the page first
 		fire_bank_leave_cmds(switch_current_page);
+		reset_bank_buttons(switch_current_page);
 		switch_current_page = page_home;
 		page_home = 0xFF;
 	}
 	fire_bank_leave_cmds(switch_current_page);
+	reset_bank_buttons(switch_current_page);
 	switch_current_page = bank;
 	exp_targets_for_bank();
 	update_leds_on_bank_change();

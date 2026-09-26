@@ -158,6 +158,15 @@ def _ascii(chunk: bytes) -> str:
     return "".join(chr(b) if 0x20 <= b <= 0x7E else " " for b in chunk).rstrip()
 
 
+def _label(chunk: bytes) -> tuple:
+    """(Label, Reset_On_Bank) from a button's label: bit 7 of its first
+    character, which ASCII leaves free, is the reset. Erased flash is neither."""
+    if not chunk or chunk[0] == 0xFF:
+        return _ascii(chunk), ""
+    reset = "Y" if chunk[0] & 0x80 else ""
+    return _ascii(bytes([chunk[0] & 0x7F]) + chunk[1:]), reset
+
+
 def _led_mode_name(value: int) -> str:
     return LED_MODE_NAMES.get(value, "Normal")
 
@@ -442,7 +451,8 @@ def unpack_button_settings(data: bytes) -> pd.DataFrame:
     columns = ["Bank_Number", "Button_Identifier", "Label"]
     for slot in SLOT_NAMES:
         columns += [f"{slot}_{f}" for f in CMD_FIELDS]
-    columns += ["Light_Mode", "Group", "Momentary_Hold", "Tempo_Flash", "Global"]
+    columns += ["Light_Mode", "Group", "Momentary_Hold", "Tempo_Flash", "Global",
+                "Reset_On_Bank"]
     columns += [f"{slot}_KeyMode_(Key)" for slot in SLOT_NAMES]
 
     cycle_labels = unpack_cycle_labels(data)
@@ -451,10 +461,12 @@ def unpack_button_settings(data: bytes) -> pd.DataFrame:
         for btn_index, btn_id in enumerate(BUTTON_IDS):
             button_number = bank * len(BUTTON_IDS) + btn_index
             label_start = LABELS_OFFSET + button_number * LABEL_LEN
+            label, reset = _label(data[label_start : label_start + LABEL_LEN])
             row = {
                 "Bank_Number": str(bank),
                 "Button_Identifier": btn_id,
-                "Label": _ascii(data[label_start : label_start + LABEL_LEN]),
+                "Label": label,
+                "Reset_On_Bank": reset,
             }
             for slot_index, slot in enumerate(SLOT_NAMES):
                 offset = (

@@ -969,6 +969,12 @@ def momentary_hold_value(value) -> bool:
     return _yes_no(value, "Momentary_Hold")
 
 
+def reset_on_bank_value(value) -> bool:
+    """Reset_On_Bank cell: Y/Yes/1/True is on, empty, N or None is off. Kept
+    in the button's label, see configPacker.LABEL_RESET_BIT."""
+    return _yes_no(value, "Reset_On_Bank")
+
+
 def pack_button_led_modes(light_modes, groups=None, holds=None, flashes=None,
                           globals_=None) -> list:
     """Pack one LED mode byte per button from an iterable of mode names, with

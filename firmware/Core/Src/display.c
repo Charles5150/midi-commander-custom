@@ -222,12 +222,13 @@ void display_banner_task(void){
 }
 
 // Copy the stored label of a button into buf (up to 4 chars, NUL terminated),
-// dropping anything not printable. Erased flash (0xFF) yields an empty label.
+// dropping anything not printable. Erased flash (0xFF) yields an empty label,
+// and the reset bit (LABEL_RESET_BIT) is no part of the character.
 static void get_label(uint8_t bank, uint8_t sw, char buf[BUTTON_LABEL_LEN + 1]){
 	const uint8_t *src = sw_button_label(bank, sw);
 	int n = 0;
 	for(int i=0; i<BUTTON_LABEL_LEN; i++){
-		char c = (char)src[i];
+		char c = (src[i] == 0xFF) ? ' ' : (char)(src[i] & 0x7F);
 		if(c < 0x20 || c > 0x7E) c = ' ';
 		buf[n++] = c;
 	}

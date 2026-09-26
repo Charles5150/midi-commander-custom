@@ -70,7 +70,12 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
 
 // Button labels shown on the display, BUTTON_LABEL_LEN ASCII chars per
 // button indexed by (bank * 8 + switch), space padded. Follows the LED table.
+// The characters are ASCII, so bit 7 is free, and that of the first one says
+// the button goes back to off, and a cycle button to its start, when the bank
+// changes. Older configurations always left it at zero; erased flash (0xFF)
+// is an empty label and no reset.
 #define BUTTON_LABEL_LEN		(4)
+#define LABEL_RESET_BIT			(0x80)
 
 // Button LED modes, one byte per button indexed by (bank * 8 + switch).
 // Bits 0-1: 0 = Normal, 1 = Reverse, 2 = AlwaysOn. Bit 2: flash at the tempo,

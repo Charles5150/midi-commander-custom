@@ -36,7 +36,7 @@ Two groups, FILE and PEDAL, with the name of the open file at the bottom.
 Where each button's commands are set. See [Buttons](05-buttons.md) and [Commands](06-commands.md).
 
 1. Pick a bank, then a button from the eight laid out as on the pedal: 1 to 4 on top, A to D below. The one being edited is highlighted.
-2. At the top, set its **display label**, **LED light mode** and **exclusive group**, and tick **Momentary when held**, **Flash at the tempo** or **Global**.
+2. At the top, set its **display label**, **LED light mode** and **exclusive group**, and tick **Momentary when held**, **Flash at the tempo**, **Global** or **Reset on bank change**.
 3. Below are ten command slots, A to J. Choose a slot's command type and only the fields that type uses appear.
 4. **Short press / Long press / Double press** switches the slots between the button's three command lists.
 

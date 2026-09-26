@@ -6,7 +6,7 @@ Every button has three command lists, a short, a long and a double press, a labe
 
 ![When the short, long, double press and combination lists go out](../images/press-types-en.svg)
 
-In the configurator all of this is the **Buttons** tab: pick a bank, then a button from the eight laid out as on the pedal. At the top of the editor are its **display label**, **LED light mode** and **exclusive group**, and the **Momentary when held**, **Flash at the tempo** and **Global** boxes; below them, ten command slots, and **Short press / Long press / Double press** to switch between the three lists.
+In the configurator all of this is the **Buttons** tab: pick a bank, then a button from the eight laid out as on the pedal. At the top of the editor are its **display label**, **LED light mode** and **exclusive group**, and the **Momentary when held**, **Flash at the tempo**, **Global** and **Reset on bank change** boxes; below them, ten command slots, and **Short press / Long press / Double press** to switch between the three lists.
 
 ## Short, long and double press
 
@@ -99,6 +99,29 @@ The option is bit 7 of the button's LED mode byte, which configurations have alw
 
 </details>
 
+## Reset on bank change
+
+Each bank keeps its buttons as you left them: go to the next song and come back, and what was on is still on. That suits a noise gate, but not a boost you only wanted for one solo.
+
+Tick **Reset on bank change** (`Reset_On_Bank` `Y`) on the buttons that should start off again each time you leave their bank.
+
+- When you leave the bank, whichever way, the button goes back to off. So do its long and double press toggles, and a cycle button goes back to before its first state, so its next press sends state 1.
+- Nothing is sent as it goes off: the bank you go to sets up your rig with its own commands. When the button should also switch something off on the way out, put that in the bank's [leave commands](04-banks.md#commands-on-leaving-a-bank).
+- Buttons without the box keep their state, as always.
+- A second page is not a bank change: going to the page and back resets nothing.
+- A global button so marked goes back to off on every bank change, since it belongs to every bank.
+- Switching the pedal off and on is not a bank change either: with `Remember_State` it comes back as it was.
+
+The demo's bank 11 button 4, BOST, uses it, while TGLS beside it keeps its state.
+
+*Firmware 0.68 or later; older firmware ignores the option and the button keeps its state.*
+
+<details><summary>Under the hood</summary>
+
+The LED mode byte has no bit left, and the configuration has no byte to spare, so the option is bit 7 of the first character of the button's label. Labels are ASCII, so configurations have always left that bit at zero, and the layout is unchanged. The display, the on-pedal editor and the state the pedal reports all leave it out of the label.
+
+</details>
+
 ## Exclusive groups
 
 Like the channel buttons of an amp, or a choice between two delays: switching one button of a group on switches the others off.
@@ -148,7 +171,7 @@ One button steps through several states, each with its own commands and its own 
 - A button starts before its first state, so its first press sends state 1.
 - The `Cycle` commands take command slots too, so the ten slots hold five states of one command each.
 - A state may hold several commands, pauses, ramps and repeating commands, which then repeat only while that state's press is held.
-- Every cycle button of every bank keeps its place while the pedal is on, whatever banks you visit in between. A change of configuration, or switching the pedal off, starts them all from the beginning again.
+- Every cycle button of every bank keeps its place while the pedal is on, whatever banks you visit in between, unless it is marked [Reset on bank change](#reset-on-bank-change). A change of configuration, or switching the pedal off, starts them all from the beginning again.
 - `Cycle` belongs in the short press list only: the tools refuse it in a long or double press, a bank's commands on entry or the Bank switches' lists.
 - The labels are kept in a table of 48, each different label stored once however many buttons use it, and the tools refuse a configuration with more.
 
@@ -197,6 +220,7 @@ One row per button, 256 rows in bank order and, within a bank, in the order `1, 
 - `Momentary_Hold`: `Y` for a toggle button that is momentary when held (see [Latch or momentary](#latch-or-momentary)); empty or `N` otherwise.
 - `Tempo_Flash`: `Y` for a button whose LED flashes with the beat (see [Tap LED](07-tempo.md#tap-led)); empty or `N` otherwise.
 - `Global`: `Y` for a button that takes everything from the same button of `Global_Bank` (see [Global buttons](#global-buttons)); empty or `N` otherwise.
+- `Reset_On_Bank`: `Y` for a button that goes back to off when its bank is left (see [Reset on bank change](#reset-on-bank-change)); empty or `N` otherwise.
 - Ten command slots, prefixed `A_` to `J_`, each with the fields in [Commands](06-commands.md#command-fields).
 
 Rows are optional here and in `Bank_Naming`: a configuration that only defines the first few banks, including one written for the 8 bank firmware, flashes unchanged and leaves the rest empty. The configurator always shows all 32 banks and writes them all when you save.

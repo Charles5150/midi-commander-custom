@@ -27,6 +27,7 @@ Everything the firmware and its tools can do, grouped the way the manual is. Eac
 - **Two switches together.** Pressing a pair of switches at once, 3 and 4 with one foot for instance, runs a list of its own instead of what either switch does alone, the way Boss and Morningstar controllers reach the tuner or the looper. Up to twelve pairs, in every bank or in one, and only the switches of a pair wait to see whether the other one follows.
 - **Momentary or toggle** behaviour per command, and timed auto-release (up to 1.27 s) for Notes, Pitch Bend and keys.
 - **Latch or momentary.** A toggle button can latch on a tap and work as a momentary switch when held, like the boost on a Boss or Morningstar pedal: tap it on for the song, or hold it for a solo and it goes back off when you let go.
+- **Reset on bank change.** Per button, a toggle can go back to off each time you leave its bank, so the boost starts off in every song while the noise gate stays as you left it.
 - **Exclusive groups.** Put toggle buttons of a bank in a group and switching one on switches the others off, sending their off commands, like the channel buttons of an amp or a choice between delays.
 - **Scenes.** One press puts the toggle buttons of the bank into a chosen combination, delay on and chorus off for instance, pressing for you only the ones that are not already there.
 - **Cycle buttons.** One button steps through several states, each with its own commands and its own label on the display: the four channels of an amp on a single switch, say, one press each, round and round.

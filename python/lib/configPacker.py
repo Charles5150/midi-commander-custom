@@ -337,13 +337,22 @@ def pack_expression_settings(df) -> bytes:
     return out
 
 
-def pack_label(value) -> bytes:
-    """Label cell -> LABEL_LEN ASCII bytes, space padded, non-ASCII as '?'."""
+# Bit 7 of a label's first character, free since labels are ASCII: the button
+# goes back to off, and a cycle button to its start, when the bank changes.
+LABEL_RESET_BIT = 0x80
+
+
+def pack_label(value, reset=False) -> bytes:
+    """Label cell -> LABEL_LEN ASCII bytes, space padded, non-ASCII as '?',
+    with LABEL_RESET_BIT set in the first one when ``reset`` is true."""
     text = "" if value is None else str(value)
     if text.strip().lower() == "nan":
         text = ""
     text = text.strip()[:LABEL_LEN]
-    return text.encode("ascii", errors="replace").ljust(LABEL_LEN, b" ")
+    out = bytearray(text.encode("ascii", errors="replace").ljust(LABEL_LEN, b" "))
+    if reset:
+        out[0] |= LABEL_RESET_BIT
+    return bytes(out)
 
 
 def empty_bank_expression_settings(num_banks=NUM_BANKS):
@@ -512,7 +521,8 @@ def pack_config(sections: dict) -> bytes:
                 holds.append(row.get("Momentary_Hold", ""))
                 flashes.append(row.get("Tempo_Flash", ""))
                 globals_.append(row.get("Global", ""))
-                labels += pack_label(row.get("Label", ""))
+                labels += pack_label(row.get("Label", ""),
+                                     cbp.reset_on_bank_value(row.get("Reset_On_Bank", "")))
     out += cbp.pack_button_led_modes(light_modes, groups, holds, flashes, globals_)
     out += list(labels)
 

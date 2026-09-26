@@ -6,7 +6,7 @@ Cada botón tiene tres listas de comandos (pulsación corta, larga y doble), una
 
 ![Cuándo salen las listas de pulsación corta, larga, doble y de combinación](../images/press-types-es.svg)
 
-En el configurador todo esto está en la pestaña **Buttons**: eliges un banco y luego uno de los ocho botones, colocados como en la pedalera. Arriba del editor están su **display label** (etiqueta), su **LED light mode** (modo del LED) y su **exclusive group** (grupo exclusivo), y las casillas **Momentary when held**, **Flash at the tempo** y **Global**. Debajo, las diez casillas de comandos, y **Short press / Long press / Double press** para cambiar entre las tres listas.
+En el configurador todo esto está en la pestaña **Buttons**: eliges un banco y luego uno de los ocho botones, colocados como en la pedalera. Arriba del editor están su **display label** (etiqueta), su **LED light mode** (modo del LED) y su **exclusive group** (grupo exclusivo), y las casillas **Momentary when held**, **Flash at the tempo**, **Global** y **Reset on bank change**. Debajo, las diez casillas de comandos, y **Short press / Long press / Double press** para cambiar entre las tres listas.
 
 ## Pulsación corta, larga y doble
 
@@ -99,6 +99,29 @@ La opción es el bit 7 del byte de modo de LED del botón, que las configuracion
 
 </details>
 
+## Reiniciar al cambiar de banco
+
+Cada banco guarda sus botones como los dejaste: pasas a la siguiente canción, vuelves, y lo que estaba encendido sigue encendido. Eso le va bien a una puerta de ruido, pero no a un boost que solo querías para un solo.
+
+Marca **Reset on bank change** (`Reset_On_Bank` `Y`) en los botones que deban volver a empezar apagados cada vez que sales de su banco.
+
+- Al salir del banco, sea como sea, el botón vuelve a apagado. También sus toggles de pulsación larga y doble, y un botón de ciclo vuelve a antes de su primer estado, así que su siguiente pulsación envía el estado 1.
+- Al apagarse no se envía nada: el banco al que vas prepara tu equipo con sus propios comandos. Si el botón también tiene que apagar algo al salir, ponlo en los [comandos al salir](04-banks.md#comandos-al-salir-de-un-banco) del banco.
+- Los botones sin la casilla conservan su estado, como siempre.
+- Una segunda página no es un cambio de banco: ir a la página y volver no reinicia nada.
+- Un botón global con la marca vuelve a apagado en cada cambio de banco, porque es de todos los bancos.
+- Apagar y encender la pedalera tampoco es un cambio de banco: con `Remember_State` vuelve como estaba.
+
+La usa el botón 4 del banco 11 de la demo, BOST, mientras TGLS, a su lado, conserva su estado.
+
+*Firmware 0.68 o posterior; un firmware anterior ignora la opción y el botón conserva su estado.*
+
+<details><summary>Por dentro</summary>
+
+Al byte de modo de LED no le queda ningún bit libre, y a la configuración no le sobra ningún byte, así que la opción es el bit 7 del primer carácter de la etiqueta del botón. Las etiquetas son ASCII, así que las configuraciones siempre han dejado ese bit a cero, y el formato no cambia. La pantalla, el editor de la pedalera y el estado que informa la pedalera lo dejan fuera de la etiqueta.
+
+</details>
+
 ## Grupos exclusivos
 
 Como los botones de canal de un ampli, o elegir entre dos delays: encender un botón del grupo apaga los demás.
@@ -148,7 +171,7 @@ Un botón que pasa por varios estados, cada uno con sus comandos y su etiqueta e
 - Un botón empieza antes de su primer estado, así que su primera pulsación envía el estado 1.
 - Los comandos `Cycle` también ocupan casillas, así que en las diez casillas caben cinco estados de un comando cada uno.
 - Un estado puede llevar varios comandos, pausas, rampas y comandos que se repiten, que entonces solo se repiten mientras se mantiene la pulsación de ese estado.
-- Cada botón de ciclo de cada banco conserva su posición mientras la pedalera está encendida, pases por los bancos que pases entre medias. Un cambio de configuración, o apagar la pedalera, los devuelve todos al principio.
+- Cada botón de ciclo de cada banco conserva su posición mientras la pedalera está encendida, pases por los bancos que pases entre medias, salvo que tenga la marca [Reiniciar al cambiar de banco](#reiniciar-al-cambiar-de-banco). Un cambio de configuración, o apagar la pedalera, los devuelve todos al principio.
 - `Cycle` solo va en la lista de pulsación corta: las herramientas lo rechazan en una pulsación larga o doble, en los comandos de entrada de un banco o en las listas de los pulsadores de banco.
 - Las etiquetas se guardan en una tabla de 48, y cada etiqueta distinta se guarda una sola vez, la usen cuantos botones la usen; las herramientas rechazan una configuración con más.
 
@@ -197,6 +220,7 @@ Una fila por botón, 256 filas en orden de banco y, dentro de cada banco, en el 
 - `Momentary_Hold`: `Y` para un toggle que es momentáneo si lo mantienes (mira [Enclavar o momentáneo](#enclavar-o-momentáneo)); vacío o `N` si no.
 - `Tempo_Flash`: `Y` para un botón cuyo LED parpadea con el pulso (mira [LED del tap](07-tempo.md#led-del-tap)); vacío o `N` si no.
 - `Global`: `Y` para un botón que lo toma todo del mismo botón de `Global_Bank` (mira [Botones globales](#botones-globales)); vacío o `N` si no.
+- `Reset_On_Bank`: `Y` para un botón que vuelve a apagado al salir de su banco (mira [Reiniciar al cambiar de banco](#reiniciar-al-cambiar-de-banco)); vacío o `N` si no.
 - Diez casillas de comandos, con los prefijos `A_` a `J_`, cada una con los campos de [Comandos](06-commands.md#campos-de-un-comando).
 
 Las filas son opcionales aquí y en `Bank_Naming`: una configuración que solo define los primeros bancos, incluida una escrita para el firmware de 8 bancos, se flashea tal cual y deja vacíos los demás. El configurador siempre muestra los 32 bancos y los escribe todos al guardar.
