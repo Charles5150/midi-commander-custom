@@ -68,7 +68,7 @@ El texto puede ir en cuatro sitios y quedarse durante tres tiempos distintos:
 - Un texto que se muestra un momento vuelve después a lo que había antes.
 - El texto también despierta la pantalla si la pedalera estaba dormida.
 
-El texto es ASCII simple, un carácter por byte. Cualquier otra cosa se ve como un espacio. En cualquier sitio se guardan hasta 32 caracteres, y lo que pase de ahí se corta.
+El texto es ASCII simple, un carácter por byte, y un byte que la pantalla no puede dibujar se ve como un espacio. `Send_Text.py` y el configurador envían `Canción` como `Cancion`, igual que los [nombres de una configuración](12-configuration-file.md). En cualquier sitio se guardan hasta 32 caracteres, y lo que pase de ahí se corta.
 
 ### Más largo de lo que cabe
 

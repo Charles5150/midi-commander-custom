@@ -30,6 +30,7 @@ from lib.cmdBinaryPacker import (  # noqa: E402
     SCENE_BUTTONS, MACRO_LISTS, LISTEN_LOOKS, BUTTON_ACTIONS, button_mode,
 )
 from lib.configCsv import read_config_csv, write_config_csv  # noqa: E402
+from lib.displayText import display_text  # noqa: E402
 from lib.configPacker import NUM_BANKS, BUTTON_IDS  # noqa: E402
 from lib.configPacker import (  # noqa: E402
     BANK_ENTER_SECTION,
@@ -378,17 +379,33 @@ class IntEntry(ctk.CTkEntry):
 
 
 class TextEntry(ctk.CTkEntry):
-    """Entry limited to max_len characters."""
+    """Entry limited to max_len characters.
 
-    def __init__(self, master, max_len: int, value="", width=150):
+    With display=True the text goes on the pedal's display, and on focus out
+    it turns into what the display can draw (see display_text): Canción shows
+    as Cancion before it is saved, not only on the pedal.
+    """
+
+    def __init__(self, master, max_len: int, value="", width=150, display=False):
         vcmd = (master.register(lambda t: len(t) <= max_len), "%P")
         super().__init__(master, width=width, validate="key", validatecommand=vcmd)
-        value = clean(value)[:max_len]
+        self.max_len, self.display = max_len, display
+        value = clean(value)
+        value = (display_text(value) if display else value)[:max_len]
         if value:
             self.insert(0, value)
+        if display:
+            self.bind("<FocusOut>", lambda _e: self.value())
 
     def value(self) -> str:
-        return self.get()
+        text = self.get()
+        if self.display:
+            shown = display_text(text)[:self.max_len]
+            if shown != text:
+                self.delete(0, "end")
+                self.insert(0, shown)
+            text = shown
+        return text
 
 
 class Check(ctk.CTkCheckBox):
@@ -758,7 +775,7 @@ class SlotEditor:
             ).pack(side="left", padx=8)
         elif cmd_type == "Cycle":
             self._label("Label")
-            w = TextEntry(self.params, 4, self.initial.get("OnValue_(CC/PB)"), width=70)
+            w = TextEntry(self.params, 4, self.initial.get("OnValue_(CC/PB)"), width=70, display=True)
             w.pack(side="left")
             self.widgets["cyclelabel"] = w
             ctk.CTkLabel(
@@ -1628,7 +1645,7 @@ class MidiCommanderGUI(ctk.CTk):
         if label in ("Bank_Change_Channel", "Remote_Channel"):
             return Option(parent, ["Any"] + CHANNELS, value, width=80)
         if label == "ConfigName":
-            return TextEntry(parent, 16, value, width=180)
+            return TextEntry(parent, 16, value, width=180, display=True)
         return TextEntry(parent, 64, value, width=180)
 
     # --- Bank tab -------------------------------------------------------------------
@@ -1656,9 +1673,9 @@ class MidiCommanderGUI(ctk.CTk):
             ctk.CTkLabel(self.bank_scroll, text=clean(r["Bank_Number"])).grid(
                 row=row, column=1, padx=5, pady=2
             )
-            large = TextEntry(self.bank_scroll, 4, r["Bank_Name_Large"], width=100)
+            large = TextEntry(self.bank_scroll, 4, r["Bank_Name_Large"], width=100, display=True)
             large.grid(row=row, column=2, padx=5, pady=2)
-            small = TextEntry(self.bank_scroll, 8, r["Bank_Info_Small"], width=150)
+            small = TextEntry(self.bank_scroll, 8, r["Bank_Info_Small"], width=150, display=True)
             small.grid(row=row, column=3, padx=5, pady=2)
             self.bank_widgets[idx] = (large, small)
 
@@ -1976,7 +1993,7 @@ class MidiCommanderGUI(ctk.CTk):
             light_frame = ctk.CTkFrame(self.cmd_editor, fg_color="transparent")
             light_frame.pack(anchor="w", padx=10, pady=(0, 8))
             ctk.CTkLabel(light_frame, text="Display label:", font=BOLD).pack(side="left")
-            self.label_entry = TextEntry(light_frame, 4, current.get("Label"), width=70)
+            self.label_entry = TextEntry(light_frame, 4, current.get("Label"), width=70, display=True)
             self.label_entry.pack(side="left", padx=(8, 20))
             ctk.CTkLabel(light_frame, text="LED light mode:", font=BOLD).pack(side="left")
             self.light_mode = Option(light_frame, LED_MODES, current.get("Light_Mode"), width=110)

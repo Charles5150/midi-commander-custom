@@ -13,9 +13,18 @@ PAD = "," * 50
 
 
 def read_config_csv(path: str) -> dict:
-    """Parse the sectioned CSV into ``{section_name: DataFrame}`` (all strings)."""
-    with open(path, "r", encoding="utf-8") as f:
-        raw = f.readlines()
+    """Parse the sectioned CSV into ``{section_name: DataFrame}`` (all strings).
+
+    The file is UTF-8, with or without the mark Excel puts at its start, or
+    else Windows-1252, what Excel writes for a plain "CSV" on Windows.
+    """
+    with open(path, "rb") as f:
+        data = f.read()
+    try:
+        text = data.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = data.decode("cp1252", errors="replace")
+    raw = io.StringIO(text, newline=None).readlines()
 
     no_comments = [l for l in raw if not l.lstrip().startswith("#")]
     titles = [

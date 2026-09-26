@@ -1,5 +1,7 @@
 import pandas as pd
 
+from lib.displayText import display_text
+
 MIDI_NUM_COMMANDS_PER_SWITCH = 10
 
 CMD_NO_CMD_NIBBLE = 0x00
@@ -746,11 +748,11 @@ def cmd_seq(cmd):
 
 
 def cycle_label_text(value) -> str:
-    """A Cycle command's label as stored: at most 4 ASCII characters."""
+    """A Cycle command's label as stored: at most 4 characters the display draws."""
     text = "" if value is None else str(value)
     if text.strip().lower() == "nan":
         text = ""
-    return text.strip()[:CYCLE_LABEL_LEN].encode("ascii", errors="replace").decode("ascii")
+    return display_text(text.strip())[:CYCLE_LABEL_LEN]
 
 
 def cmd_cycle(cmd, cycle_labels):

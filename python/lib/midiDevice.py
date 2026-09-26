@@ -4,6 +4,8 @@ import time
 
 import mido
 
+from lib.displayText import display_text
+
 MIDI_MANUF_ID = 0x7D
 
 SYSEX_CMD_ERASE_FLASH = 52
@@ -88,7 +90,7 @@ def text_sysex(text: str, place: str = "line", keep: str = "bank") -> list:
     """The whole SysEx message, F0 to F7, that puts text on the display.
 
     place is one of TEXT_PLACES, keep one of TEXT_KEEP. Characters the display
-    cannot draw become spaces; an empty text gives the place back to the bank.
+    cannot draw are replaced as display_text says; an empty text gives the place back to the bank.
     """
     place = place.strip().lower()
     keep = keep.strip().lower()
@@ -96,17 +98,18 @@ def text_sysex(text: str, place: str = "line", keep: str = "bank") -> list:
         raise ValueError(f"unknown place: {place} (use {', '.join(TEXT_PLACES)})")
     if keep not in TEXT_KEEP:
         raise ValueError(f"unknown keep: {keep} (use {', '.join(TEXT_KEEP)})")
-    body = [ord(c) if 0x20 <= ord(c) <= 0x7E else 0x20 for c in text[:TEXT_MAX]]
+    body = [ord(c) for c in display_text(text)[:TEXT_MAX]]
     return [0xF0, MIDI_MANUF_ID, SYSEX_CMD_SET_TEXT, TEXT_PLACES[place], TEXT_KEEP[keep]] + body + [0xF7]
 
 
 def banner_sysex(text: str) -> list:
     """The whole SysEx message, F0 to F7, that stores the banner's own text.
 
-    Characters the display cannot draw become spaces and trailing spaces go;
+    Characters the display cannot draw are replaced as display_text says and
+    trailing spaces go;
     an empty text clears it. Raises ValueError for more than BANNER_TEXT_MAX.
     """
-    body = "".join(c if 0x20 <= ord(c) <= 0x7E else " " for c in text).rstrip()
+    body = display_text(text).rstrip()
     if len(body) > BANNER_TEXT_MAX:
         raise ValueError(f"the banner text is {len(body)} characters, at most {BANNER_TEXT_MAX} fit")
     return [0xF0, MIDI_MANUF_ID, SYSEX_CMD_BANNER, 1] + [ord(c) for c in body] + [0xF7]

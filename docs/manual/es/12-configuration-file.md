@@ -17,6 +17,8 @@ Una configuración es un CSV con varias secciones, cada una introducida por una 
 | `Setlist` | El orden que siguen Bank Up / Down | [Bancos](04-banks.md#setlist) |
 | `Expression_Settings`, `BankExpression_Settings` | Los dos pedales de expresión, y por banco | [Pedales de expresión](08-expression.md) |
 
+El archivo puede guardarse en UTF-8, con o sin la marca que pone al principio el **CSV UTF-8** de Excel, o en el Windows-1252 del **CSV** normal de Excel en Windows. La pantalla solo dibuja las letras, cifras y signos del ASCII simple, así que en el nombre de la configuración, los nombres de banco, las etiquetas y las etiquetas de ciclo una letra con tilde va como la letra sin ella, `Canción` como `Cancion` y `Ñu` como `Nu`, las comillas tipográficas y las rayas como sus formas simples, y cualquier otra cosa, como `€`, como `?`. El configurador muestra el texto así al salir del campo.
+
 ## La configuración de demostración
 
 **`python/demo-all-features.csv`** es la referencia: una configuración que usa todas las funciones, con un banco por función y etiquetas en los botones que dicen qué hace cada uno. Cárgala en el configurador para ver cómo está montada cualquier cosa, o flashéala para probar todo el firmware en la pedalera.

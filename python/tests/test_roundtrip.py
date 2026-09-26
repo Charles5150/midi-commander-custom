@@ -208,7 +208,7 @@ class RoundTripTest(unittest.TestCase):
         labels[0] = "REC"          # short, gets space padded
         labels[1] = "TOOLONG"      # truncated to 4
         labels[2] = ""             # empty
-        labels[3] = "cañón"        # non-ASCII replaced
+        labels[3] = "cañón"        # accents dropped, see test_display_text
         df["Label"] = labels
         packed = pack_config({**sections, "Button_Settings": df})
         self.assertEqual(len(packed), unpacker.CONFIG_SIZE)
@@ -216,7 +216,7 @@ class RoundTripTest(unittest.TestCase):
         self.assertEqual(table[:4], b"REC ")
         self.assertEqual(table[4:8], b"TOOL")
         self.assertEqual(table[8:12], b"    ")
-        self.assertEqual(table[12:16], b"ca??")
+        self.assertEqual(table[12:16], b"cano")
         _, _, decoded, *_ = unpacker.unpack_config(packed)
         self.assertEqual(decoded["Label"].tolist()[:3], ["REC", "TOOL", ""])
         self.assertEqual(decoded["Label"].tolist()[len(df)], "")  # padded bank
@@ -1068,7 +1068,7 @@ class HostTextTest(unittest.TestCase):
 
         self.assertEqual(bytes(text_sysex("Sweet Child O Mine")[5:-1]), b"Sweet Child O Mine")
         self.assertEqual(len(text_sysex("x" * 40, "name")[5:-1]), 32)
-        self.assertEqual(bytes(text_sysex("Canción", "small")[5:-1]), b"Canci n")
+        self.assertEqual(bytes(text_sysex("Canción", "small")[5:-1]), b"Cancion")
         self.assertTrue(all(b < 0x80 for b in text_sysex("\u00f1\u00e9\u20ac\x7f", "small")[1:-1]))
 
     def test_fits_the_receive_buffer(self):
@@ -4158,7 +4158,7 @@ class BannerTextTest(unittest.TestCase):
         from lib import midiDevice as md
 
         self.assertEqual(md.banner_sysex("Añil  \t"), [0xF0, md.MIDI_MANUF_ID, md.SYSEX_CMD_BANNER, 1,
-                                                          ord("A"), 0x20, ord("i"), ord("l"), 0xF7])
+                                                          ord("A"), ord("n"), ord("i"), ord("l"), 0xF7])
         self.assertEqual(md.banner_sysex(""), [0xF0, md.MIDI_MANUF_ID, md.SYSEX_CMD_BANNER, 1, 0xF7])
 
     def test_too_long_is_refused(self):

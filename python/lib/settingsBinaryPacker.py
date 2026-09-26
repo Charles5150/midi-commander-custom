@@ -1,3 +1,5 @@
+from lib.displayText import display_bytes
+
 GLOBAL_SETTINGS_CHANNEL = 0
 GLOBAL_SETTINGS_REALTIME_PASS = 1
 GLOBAL_SETTINGS_EXP1_CC = 2
@@ -151,8 +153,8 @@ def pack_global_settings(df):
         bsm = 0
     bin_list[GLOBAL_SETTINGS_BANK_SWITCH_MODE] = bsm
 
-    # print('{:8.8}'.format(df.loc['ConfigName'].Value))
-    bin_list += ("{:16.16}".format(df.loc["ConfigName"].Value)).encode("ASCII")
+    name = str(df.loc["ConfigName"].Value)
+    bin_list += display_bytes("" if name == "nan" else name, 16)
 
     # Bytes 32..47: settings added after the name filled the original 32
     bin_list += [0] * 16
@@ -315,7 +317,7 @@ def pack_bank_strings(df, num_banks=32):
             large_name = ""
         if small_name == "nan":
             small_name = ""
-        bin_list += ("{:4.4}".format(large_name)).encode("ASCII")
-        bin_list += ("{:8.8}".format(small_name)).encode("ASCII")
+        bin_list += display_bytes(large_name, 4)
+        bin_list += display_bytes(small_name, 8)
 
     return bin_list

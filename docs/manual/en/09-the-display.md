@@ -68,7 +68,7 @@ The text can go in four places, and stay for three lengths of time:
 - A text shown for a moment goes back to what was there before.
 - Text also wakes the display if the pedal was asleep.
 
-The text is plain ASCII, one character per byte. Anything else shows as a space. Up to 32 characters are kept in any place, and more are cut off.
+The text is plain ASCII, one character per byte, and a byte the display cannot draw shows as a space. `Send_Text.py` and the configurator send `Canción` as `Cancion`, like the [names in a configuration](12-configuration-file.md). Up to 32 characters are kept in any place, and more are cut off.
 
 ### Longer than fits
 

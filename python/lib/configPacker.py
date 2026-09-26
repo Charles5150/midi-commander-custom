@@ -15,6 +15,7 @@ Layout (must match firmware/Core/Src/flash_midi_settings.c):
 
 import lib.cmdBinaryPacker as cbp
 import lib.settingsBinaryPacker as sbp
+from lib.displayText import display_bytes
 
 NUM_BANKS = 32
 NUM_BUTTONS = 8
@@ -344,13 +345,12 @@ LABEL_RESET_BIT = 0x80
 
 
 def pack_label(value, reset=False) -> bytes:
-    """Label cell -> LABEL_LEN ASCII bytes, space padded, non-ASCII as '?',
+    """Label cell -> LABEL_LEN display bytes (see display_text), space padded,
     with LABEL_RESET_BIT set in the first one when ``reset`` is true."""
     text = "" if value is None else str(value)
     if text.strip().lower() == "nan":
         text = ""
-    text = text.strip()[:LABEL_LEN]
-    out = bytearray(text.encode("ascii", errors="replace").ljust(LABEL_LEN, b" "))
+    out = bytearray(display_bytes(text.strip(), LABEL_LEN))
     if reset:
         out[0] |= LABEL_RESET_BIT
     return bytes(out)
