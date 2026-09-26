@@ -18,9 +18,10 @@ import mido
 LEARNABLE = ("program_change", "control_change", "note_on", "pitchwheel")
 
 # The command type a message becomes, and the ones that keep their type
-# when they are already chosen: a CC learned on a CCInc sets its CC number
+# when they are already chosen: a CC learned on a CCInc or a Listen sets its
+# CC number
 COMMAND_OF = {"program_change": "PC", "control_change": "CC", "note_on": "Note", "pitchwheel": "PB"}
-KEEPS = {"control_change": ("CC", "CCInc"), "program_change": ("PC", "PCInc")}
+KEEPS = {"control_change": ("CC", "CCInc", "Listen"), "program_change": ("PC", "PCInc")}
 
 CHANNEL = "Channel_(PC/CC/Note/PB)"
 NUMBER = "Number_(PC/CC/Note)"
@@ -78,7 +79,9 @@ def learned_fields(msg, current: dict) -> dict:
             out[NUMBER] = str(msg.program)
     elif kind == "control_change":
         out[NUMBER] = str(msg.control)
-        if cmd_type == "CC":
+        # A Listen learns what the device reports: switch the block on and
+        # the value it sends for on is the one the Listen waits for
+        if cmd_type in ("CC", "Listen"):
             if _empty(current.get(ON)):
                 out[ON] = str(msg.value or 127)
             if _empty(current.get(OFF)):

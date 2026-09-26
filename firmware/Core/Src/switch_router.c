@@ -472,8 +472,14 @@ static uint8_t* get_double_rom_pointer(uint8_t page, uint8_t sw, uint8_t cmd){
  */
 static inline uint8_t cmd_is_present(const uint8_t *pRom){
 	uint8_t t = *pRom & 0xF0;
-	if(t == CMD_NO_CMD_NIBBLE) return (*pRom & 0x0F) != 0;
+	// A Listen only says how the list's state is reported: it fires nothing
+	if(t == CMD_NO_CMD_NIBBLE) return (*pRom & 0x0F) != 0 && (*pRom & 0x0F) != CMD_LISTEN_MODE;
 	return t != 0xF0; // 0xF0 = erased flash
+}
+
+// Listen: the CC a device reports the list's state on, see feedback_list_state
+static inline bool cmd_is_listen(const uint8_t *pRom){
+	return (pRom[0] & 0xF0) == CMD_NO_CMD_NIBBLE && (pRom[0] & 0x0F) == CMD_LISTEN_MODE;
 }
 
 /*
@@ -868,17 +874,22 @@ static void tap_led_task(void);
  * the LED table, so a new configuration or an edit on the pedal updates it.
  */
 static uint32_t feedback_numbers[128 / 32];
+// Some list holds a Listen, which is heard whether LED_Feedback is on or not
+static bool listen_present = false;
 
 static void feedback_numbers_clear(void){
 	for(uint8_t k=0; k<128 / 32; k++) feedback_numbers[k] = 0;
+	listen_present = false;
 }
 
 static void feedback_numbers_note(const uint8_t *pRom){
 	uint8_t type = pRom[0] & 0xF0;
-	if((type == CMD_CC_NIBBLE || type == CMD_NOTE_NIBBLE) && (pRom[1] & 0x80)){
+	bool listen = cmd_is_listen(pRom);
+	if(((type == CMD_CC_NIBBLE || type == CMD_NOTE_NIBBLE) && (pRom[1] & 0x80)) || listen){
 		uint8_t n = pRom[1] & 0x7F;
 		feedback_numbers[n / 32] |= 1UL << (n % 32);
 	}
+	if(listen) listen_present = true;
 }
 
 static inline bool feedback_numbers_has(uint8_t n){
@@ -2076,6 +2087,7 @@ static bool run_list_stack(frame_t *st, uint8_t depth, uint8_t toggle,
 		uint8_t *pRom = base + j * MIDI_ROM_CMD_SIZE;
 		if(cmd_is_cycle(pRom)) break;	// the next state
 		if(cmd_is_leave(pRom)) break;	// a bank's commands on leaving it
+		if(cmd_is_listen(pRom)) continue;	// sends nothing, and stands in no one's way
 		if((flags & LIST_SKIP_BANK) && (*pRom & 0xF0) == CMD_BANK_NIBBLE){
 			skip = false;	// it is skipped anyway, If or no If
 			continue;
@@ -2206,6 +2218,7 @@ static void run_list_up(uint8_t *base, uint8_t first, uint8_t toggle, uint8_t fl
 	for(uint8_t j=f->next; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
 		uint8_t *pRom = base + j * MIDI_ROM_CMD_SIZE;
 		if(cmd_is_cycle(pRom)) break;
+		if(cmd_is_listen(pRom)) continue;
 		if(cmd_is_macro(pRom) && !skip){
 			uint8_t *target = macro_list(pRom);
 			if(target == NULL || depth >= MACRO_DEPTH || macro_on_stack(st, depth, target)){
@@ -2819,7 +2832,7 @@ static void feedback_push(const uint8_t *data, uint8_t any_channel){
 }
 
 void sw_feedback_message(const uint8_t *data){
-	if(pGlobalSettings[GLOBAL_SETTINGS_LED_FEEDBACK] != 1) return;
+	if(pGlobalSettings[GLOBAL_SETTINGS_LED_FEEDBACK] != 1 && !listen_present) return;
 	feedback_push(data, 0);
 }
 
@@ -2865,11 +2878,67 @@ static int8_t feedback_state_for(const uint8_t *pRom, const uint8_t *msg){
 	}
 }
 
-// The state one command list asks for, or -1. The last matching command wins.
+/*
+ * What an incoming CC says to a Listen command: 1 on, 0 off, -1 nothing. The
+ * value counts as whichever of the Listen's On and Off it is nearer, so a
+ * device reporting 1 for on, or 0 for on and 127 for off, is understood.
+ * `channel` is the list's, 0xFF when it has none to go by.
+ */
+static int8_t listen_state_for(const uint8_t *pRom, const uint8_t *msg, uint8_t channel){
+	if(!cmd_is_listen(pRom) || (pRom[1] & 0x7F) != msg[1]) return -1;
+	if((msg[0] & 0xF0) != 0xB0) return -1;
+	if(!msg[3] && channel != 0xFF && channel != (msg[0] & 0x0F)) return -1;
+	uint8_t value = msg[2];
+	uint8_t on = pRom[2] & 0x7F;
+	uint8_t off = pRom[3] & 0x7F;
+	uint8_t d_on  = (value > on)  ? value - on  : on - value;
+	uint8_t d_off = (value > off) ? value - off : off - value;
+	return (d_on <= d_off) ? 1 : 0;
+}
+
+// The channel of a list's first toggling command, which is where its Listen
+// is heard, or 0xFF when the first has no channel of its own (a Key)
+static uint8_t listen_channel(const uint8_t *pRom){
+	for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++, pRom += MIDI_ROM_CMD_SIZE){
+		uint8_t type = pRom[0] & 0xF0;
+		if(!midiCmd_get_cmd_toggle((uint8_t *)pRom)) continue;
+		if(type == CMD_CC_NIBBLE || type == CMD_NOTE_NIBBLE || type == CMD_PB_NIBBLE){
+			return midiCmd_channel(pRom[0]);
+		}
+		return 0xFF;
+	}
+	return 0xFF;
+}
+
+/*
+ * The state one command list asks for, or -1. The last matching command wins.
+ * A list with a Listen follows that alone: the CC it sends coming back, or
+ * any other, changes nothing. The others follow what they send, when
+ * LED_Feedback is on or the message is one of the Kemper's answers.
+ */
 static int8_t feedback_list_state(uint8_t *(*rom)(uint8_t, uint8_t, uint8_t),
 		uint8_t bank, uint8_t sw, const uint8_t *msg){
 	int8_t want = -1;
-	const uint8_t *pRom = rom(bank, sw, 0);	// the commands of a list follow each other
+	const uint8_t *base = rom(bank, sw, 0);	// the commands of a list follow each other
+	const uint8_t *pRom = base;
+	bool listens = false;
+	for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++, pRom += MIDI_ROM_CMD_SIZE){
+		if(cmd_is_listen(pRom)){
+			listens = true;
+			break;
+		}
+	}
+	if(listens){
+		uint8_t channel = listen_channel(base);
+		pRom = base;
+		for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++, pRom += MIDI_ROM_CMD_SIZE){
+			int8_t s = listen_state_for(pRom, msg, channel);
+			if(s >= 0) want = s;
+		}
+		return want;
+	}
+	if(pGlobalSettings[GLOBAL_SETTINGS_LED_FEEDBACK] != 1 && !msg[3]) return -1;
+	pRom = base;
 	for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++, pRom += MIDI_ROM_CMD_SIZE){
 		int8_t s = feedback_state_for(pRom, msg);
 		if(s >= 0) want = s;

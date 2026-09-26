@@ -163,7 +163,7 @@ LED_MODES = ["Normal", "Reverse", "AlwaysOn"]
 BUTTON_GROUPS = ["None", "1", "2", "3", "4"]
 CHANNELS = [str(i) for i in range(1, 17)]
 NO_COMMAND = "(none)"
-COMMAND_TYPES = [NO_COMMAND, "PC", "PCInc", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "MMC", "Song", "Panic", "Scene", "Wait", "Ramp", "LFO", "Seq", "Exp", "Chan", "Value", "If", "Macro"]
+COMMAND_TYPES = [NO_COMMAND, "PC", "PCInc", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "MMC", "Song", "Panic", "Scene", "Wait", "Ramp", "LFO", "Seq", "Exp", "Chan", "Value", "If", "Macro", "Listen"]
 # Cycle splits a button's short press list into states, so only that list offers it
 SHORT_COMMAND_TYPES = COMMAND_TYPES + ["Cycle"]
 # Leave splits a bank's enter list into the commands on entering and on leaving
@@ -858,6 +858,15 @@ class SlotEditor:
             ctk.CTkLabel(
                 self.params,
                 text="(that button's list is run here, so a sequence used in many banks is stored once)",
+                text_color=MUTED,
+            ).pack(side="left", padx=8)
+        elif cmd_type == "Listen":
+            self._int("number", "CC", "Number_(PC/CC/Note)", 0, 127)
+            self._int("on", "On", "OnValue_(CC/PB)", 0, 127)
+            self._int("off", "Off", "OffValue_(CC)", 0, 127)
+            ctk.CTkLabel(
+                self.params,
+                text="(the CC the device reports on; empty: 127/0)",
                 text_color=MUTED,
             ).pack(side="left", padx=8)
         elif cmd_type == "Exp":

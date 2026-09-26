@@ -61,6 +61,12 @@ class LearnedFieldsTest(unittest.TestCase):
         out = ml.learned_fields(mido.Message("pitchwheel", channel=0, pitch=-4096), EMPTY)
         self.assertEqual((out["CommandType"], out[ml.CHANNEL], out[ml.ON]), ("PB", "1", "-4096"))
 
+    def test_a_cc_on_a_listen_sets_what_it_listens_for(self):
+        current = dict(EMPTY, CommandType="Listen")
+        out = ml.learned_fields(mido.Message("control_change", channel=0, control=22, value=1), current)
+        self.assertEqual((out["CommandType"], out[ml.NUMBER], out[ml.ON], out[ml.OFF]),
+                         ("Listen", "22", "1", "0"))
+
     def test_other_fields_are_kept(self):
         current = dict(EMPTY, CommandType="CC", **{"Toggle_(CC/PB/Note)": "Y"})
         out = ml.learned_fields(mido.Message("control_change", control=1, value=1), current)

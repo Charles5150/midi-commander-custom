@@ -32,6 +32,7 @@ In the configurator a list is ten slots, A to J. Choose a slot's command type an
 | `Value` | Sets or counts one of the pedal's eight values | [Values and conditions](#values-and-conditions) |
 | `If` | Holds back the command below unless a test holds | [Values and conditions](#values-and-conditions) |
 | `Macro` | Runs another button's list in place | [Macros](#macros) |
+| `Listen` | The CC a device reports the button's state on | [Listening on another CC](#listening-on-another-cc) |
 | `Tap` | Tap tempo, the MIDI clock, setting or nudging the tempo | [Tempo](07-tempo.md#tap-tempo) |
 | `LFO` | Makes the CC below swing in time | [Tempo](07-tempo.md#tempo-synced-lfo) |
 | `Seq` | Plays the CC or note below as a step sequence | [Tempo](07-tempo.md#step-sequencer) |
@@ -396,17 +397,46 @@ In the demo, holding 2 on HOME runs the list stored on bank 11's WAIT button, pa
 
 *Firmware 0.56 or later.*
 
+### Listening on another CC
+
+`LED_Feedback` lights a toggle button when the CC it sends comes back. Many devices do not work that way: the pedal sends one CC to switch a block and the device reports the block on another, or reports 1 for on where the button sends 127. `CommandType` `Listen`, anywhere in the button's list, names what the device really reports:
+
+| Field | Meaning |
+|---|---|
+| `Number` | The CC the device reports on |
+| `OnValue` | The value it sends for on, 127 when empty |
+| `OffValue` | The value it sends for off, 0 when empty |
+
+A value arriving counts as whichever of the two it is nearer, so a device that reports 0 for on and 127 for off is understood too, and one that sends 100 for on with an `OnValue` of 127 still lights the button.
+
+- The list's toggle then follows that CC alone: the CC the button sends, coming back, changes nothing.
+- It is heard on the channel of the list's first toggling command, the global channel included, and on any channel for the Kemper's answers, which carry none.
+- It works whether `LED_Feedback` is on or not. With it off, only the buttons with a `Listen` follow what arrives.
+- Like `LED_Feedback`, it changes the state only, in every bank: the LED, the display cell and what the next press sends. Nothing is sent, so there is no loop.
+- A `Listen` sends nothing and stands in no one's way: it can sit between a `Chan`, `Ramp`, `LFO`, `Seq` or `If` and the command they reach. It works in the short, long and double press lists; only the short press list has an LED.
+- Several `Listen` commands in one list listen on several CCs, the last one that arrived counting.
+
+In the configurator, **Learn** on a `Listen` slot fills it from the device: switch the block on at the device itself and the CC and the value it reports are taken. In the demo, bank 1's PLAY sends CC 2 and follows CC 22, 1 while the looper plays.
+
+<details><summary>Under the hood</summary>
+
+`Listen` is marked by the low nibble of the empty command type, 14, with the CC in byte 1, the value for on in byte 2 and for off in byte 3, so the layout is unchanged. Older firmware ignores it, and the button follows the CC it sends, with `LED_Feedback` on, as before.
+
+</details>
+
+*Firmware 0.69 or later.*
+
 ## Command fields
 
 The reference: every column of a command slot in the CSV, and what each command type does with it. A ✓ marks the command types the column is named after.
 
 | Field | PC | CC | Note | PB | Key | Meaning |
 |---|---|---|---|---|---|---|
-| `CommandType` | | | | | | `PC`, `PCInc`, `CC`, `CCInc`, `Note`, `PB`, `Key`, `Media`, `Bank`, `SysEx`, `Tap`, `Start`, `Stop`, `MMC`, `Song`, `Panic`, `Scene`, `Wait`, `Ramp`, `LFO`, `Seq`, `Exp`, `Chan`, `Value`, `If`, `Macro`, `Cycle` (short press only), `Leave` (a bank's enter list only), or empty for none |
+| `CommandType` | | | | | | `PC`, `PCInc`, `CC`, `CCInc`, `Note`, `PB`, `Key`, `Media`, `Bank`, `SysEx`, `Tap`, `Start`, `Stop`, `MMC`, `Song`, `Panic`, `Scene`, `Wait`, `Ramp`, `LFO`, `Seq`, `Exp`, `Chan`, `Value`, `If`, `Macro`, `Listen`, `Cycle` (short press only), `Leave` (a bank's enter list only), or empty for none |
 | `Channel_(PC/CC/Note/PB)` | ✓ | ✓ | ✓ | ✓ | | MIDI channel 1–16. Exp: empty for the pedal's own. Chan: the list of channels, `1 2 3` or `1-3` |
-| `Number_(PC/CC/Note)` | ✓ | ✓ | ✓ | | ✓ | PC: program 0–127. CC: controller number. Note: note number. Key: modifier mask. Exp: the CC the pedal sends. Value: which of the eight, 1–8. If: the button it looks at, `1`–`4` or `A`–`D`, or the value, 1–8. Macro: the button, `1`–`4` or `A`–`D` |
-| `OnValue_(CC/PB)` | | ✓ | | ✓ | ✓ | CC: value on press (0–127). PB: −8192..8191. Key: key name. Media: media key name. Cycle: the state's label, up to 4 characters. Exp: the pedal, 1 or 2. MMC `Locate`: where to go, in seconds. Song: the song number 0–127, or the position in sixteenth notes. LFO: the length of a cycle, `1/16T` `1/16` `1/8T` `1/8` `1/4T` `1/8.` `1/4` `1/2T` `1/4.` `1/2` `1/2.` `1/1` `2/1` `4/1` (empty for `1/4`). Seq: its two steps, a value 0–127 or `-` for a silent one, `100 -`. Value: the amount. If: what the value is compared with, or the bank. Bank: the bank, or how many to move. Macro: the bank the button is in |
-| `OffValue_(CC)` | | ✓ | | | | CC: value on release / toggle off (0–127). Value: the highest it goes, 127 when empty |
+| `Number_(PC/CC/Note)` | ✓ | ✓ | ✓ | | ✓ | PC: program 0–127. CC: controller number. Note: note number. Key: modifier mask. Exp: the CC the pedal sends. Value: which of the eight, 1–8. If: the button it looks at, `1`–`4` or `A`–`D`, or the value, 1–8. Macro: the button, `1`–`4` or `A`–`D`. Listen: the CC it listens on |
+| `OnValue_(CC/PB)` | | ✓ | | ✓ | ✓ | CC: value on press (0–127). PB: −8192..8191. Key: key name. Media: media key name. Cycle: the state's label, up to 4 characters. Exp: the pedal, 1 or 2. MMC `Locate`: where to go, in seconds. Song: the song number 0–127, or the position in sixteenth notes. LFO: the length of a cycle, `1/16T` `1/16` `1/8T` `1/8` `1/4T` `1/8.` `1/4` `1/2T` `1/4.` `1/2` `1/2.` `1/1` `2/1` `4/1` (empty for `1/4`). Seq: its two steps, a value 0–127 or `-` for a silent one, `100 -`. Value: the amount. If: what the value is compared with, or the bank. Bank: the bank, or how many to move. Macro: the bank the button is in. Listen: the value meaning on, 127 when empty |
+| `OffValue_(CC)` | | ✓ | | | | CC: value on release / toggle off (0–127). Value: the highest it goes, 127 when empty. Listen: the value meaning off, 0 when empty |
 | `BankSelect_(PC)` | ✓ | | | | | 0–16383, sent as CC#32 (LSB) before the PC |
 | `BankSelectHighByte_(PC)` | ✓ | | | | | Y: also send CC#0 (MSB) |
 | `Toggle_(CC/PB/Note)` | | ✓ | ✓ | ✓ | ✓ | Y: alternate on / off on successive presses. Key / Media: hold until the next press |

@@ -117,6 +117,10 @@ IF_BANK_TESTS = (6, 7)
 CMD_MACRO_MODE = 13
 MACRO_LISTS = ["Short", "Long", "Double"]
 MACRO_DEPTH = 4
+# Listen: sends nothing; the CC a device reports the list's state on, when it
+# is not the one the list sends. Byte 1 is the CC, byte 2 the value meaning on
+# and byte 3 the value meaning off; one arriving counts as the nearer of them.
+CMD_LISTEN_MODE = 14
 
 # A relative Program Change is a PC whose Bank Select MSB byte, where 0x80 and
 # above already meant "none", holds one of these markers
@@ -849,6 +853,23 @@ def cmd_macro(cmd):
             (lists[list_text.upper()] << 4) | button, 0]
 
 
+def cmd_listen(cmd):
+    """The CC a device reports this list's state on.
+
+    Number is the CC, OnValue the value meaning on (127 when empty) and
+    OffValue the value meaning off (0 when empty); a value arriving counts as
+    whichever of the two it is nearer. The list's toggle then follows that CC
+    alone, on the channel of its first toggling command, with LED_Feedback on
+    or off.
+    """
+    number = max(0, min(127, safe_int(cmd.get("Number_(PC/CC/Note)", 0))))
+    on_text = str(cmd.get("OnValue_(CC/PB)", "")).strip()
+    off_text = str(cmd.get("OffValue_(CC)", "")).strip()
+    on = 127 if on_text in ("", "nan") else max(0, min(127, safe_int(on_text)))
+    off = 0 if off_text in ("", "nan") else max(0, min(127, safe_int(off_text)))
+    return [CMD_NO_CMD_NIBBLE | CMD_LISTEN_MODE, number, on, off]
+
+
 def cmd_none(cmd):
     return [0, 0, 0, 0]
 
@@ -880,6 +901,7 @@ cmd_route_table = {
     "Value": cmd_var,
     "If": cmd_if,
     "Macro": cmd_macro,
+    "Listen": cmd_listen,
 }
 
 

@@ -205,6 +205,15 @@
 #define MACRO_LIST_LONG		(1)
 #define MACRO_LIST_DOUBLE	(2)
 #define MACRO_LIST_COUNT	(3)
+// Listen: same empty command type, low nibble 14. Sends nothing: it names the
+// Control Change a device reports this list's state on, when that is not the
+// one the list sends, and the list's toggle then follows that CC alone. Byte 1
+// is the CC number (its top bit stays clear, as that is what marks a command
+// as toggling), byte 2 the value meaning on and byte 3 the value meaning off;
+// a value arriving counts as whichever of the two it is nearer. The channel is
+// that of the list's first toggling command. It works whether LED_Feedback is
+// on or not.
+#define CMD_LISTEN_MODE		(14)
 #define CMD_PC_NIBBLE		(0xC0)
 // Relative Program Change: a PC whose byte 2 (the Bank Select MSB, 0x80 and up
 // meaning none) holds one of these markers. Byte 1 is the step, byte 3 the last

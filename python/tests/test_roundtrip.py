@@ -3509,6 +3509,56 @@ class MacroTest(unittest.TestCase):
         self.assertEqual(norm(called["C_CommandType"]), "CC")
 
 
+class ListenTest(unittest.TestCase):
+    """The Listen command (firmware 0.69)."""
+
+    FIRMWARE = MacroTest.FIRMWARE
+    pack = staticmethod(MacroTest.pack)
+
+    def test_nibble_matches_firmware(self):
+        import re
+
+        with open(os.path.join(self.FIRMWARE, "Inc", "midi_defines.h")) as handle:
+            text = handle.read()
+        modes = dict(re.findall(r"^#define\s+CMD_(\w+)_MODE\s+\((\d+)\)", text, re.M))
+        self.assertEqual(int(modes["LISTEN"]), cbp.CMD_LISTEN_MODE)
+        taken = [int(v) for v in modes.values()]
+        self.assertEqual(len(taken), len(set(taken)))
+
+    def test_round_trip(self):
+        for number, on, off, packed in (
+                ("22", "1", "0", [0x0E, 22, 1, 0]),
+                ("80", "0", "127", [0x0E, 80, 0, 127]),
+                ("127", "64", "63", [0x0E, 127, 64, 63])):
+            raw = self.pack("Listen", **{"Number_(PC/CC/Note)": number,
+                                         "OnValue_(CC/PB)": on, "OffValue_(CC)": off})
+            self.assertEqual(list(raw), packed)
+            back = unpacker.unpack_command(raw)
+            self.assertEqual((back["CommandType"], back["Number_(PC/CC/Note)"],
+                              back["OnValue_(CC/PB)"], back["OffValue_(CC)"]),
+                             ("Listen", number, on, off))
+
+    def test_empty_values_mean_127_and_0(self):
+        raw = self.pack("Listen", **{"Number_(PC/CC/Note)": "9"})
+        self.assertEqual(list(raw), [0x0E, 9, 127, 0])
+
+    def test_never_marked_toggling(self):
+        """Byte 1 is the CC: its top bit, the toggling mark, stays clear."""
+        raw = self.pack("Listen", **{"Number_(PC/CC/Note)": "300", "Toggle_(CC/PB/Note)": "Y"})
+        self.assertEqual(raw[1], 127)
+
+    def test_demo_play_listens_on_cc_22(self):
+        packed = packer.pack_config(read_config_csv(DEMO_CSV))
+        frames = unpacker.unpack_config(packed)
+        buttons = next(f for f in frames if "Label" in f.columns and "A_CommandType" in f.columns)
+        row = buttons[(buttons["Bank_Number"].astype(str) == "1")
+                      & (buttons["Button_Identifier"].astype(str) == "2")].iloc[0]
+        self.assertEqual((norm(row["A_CommandType"]), norm(row["A_Toggle_(CC/PB/Note)"])), ("CC", "Y"))
+        self.assertEqual((norm(row["B_CommandType"]), norm(row["B_Number_(PC/CC/Note)"]),
+                          norm(row["B_OnValue_(CC/PB)"]), norm(row["B_OffValue_(CC)"])),
+                         ("Listen", "22", "1", "0"))
+
+
 class GlobalButtonTest(unittest.TestCase):
     """Global buttons: one bank holds what is the same everywhere (0.57)."""
 

@@ -253,6 +253,10 @@ def build() -> Demo:
     # --- bank 1: looper, the everyday case -------------------------------
     d.cc(1, "1", "REC", "1", toggle="Y", light="AlwaysOn")
     d.cc(1, "2", "PLAY", "2", toggle="Y")
+    # The looper reports whether it is playing on a CC of its own, CC 22 at 1
+    # while it plays: PLAY's LED follows that rather than its own CC 2
+    d.button(1, "2", slot="B", CommandType="Listen",
+             **{"Number_(PC/CC/Note)": "22", "OnValue_(CC/PB)": "1", "OffValue_(CC)": "0"})
     d.cc(1, "3", "STOP", "3")
     d.cc(1, "4", "UNDO", "4")
     # Long press on UNDO clears the loop: the classic two-function button

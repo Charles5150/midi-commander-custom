@@ -32,6 +32,7 @@ En el configurador, una lista son diez casillas, de la A a la J. Elige el tipo d
 | `Value` | Fija o cuenta uno de los ocho valores de la pedalera | [Valores y condiciones](#valores-y-condiciones) |
 | `If` | Retiene el comando de abajo si no se cumple una condición | [Valores y condiciones](#valores-y-condiciones) |
 | `Macro` | Ejecuta la lista de otro botón en su sitio | [Macros](#macros) |
+| `Listen` | El CC en el que un equipo informa del estado del botón | [Escuchar otro CC](#escuchar-otro-cc) |
 | `Tap` | Tap tempo, el reloj MIDI, fijar o retocar el tempo | [Tempo](07-tempo.md#tap-tempo) |
 | `LFO` | Hace oscilar a tempo el CC de abajo | [Tempo](07-tempo.md#lfo-sincronizado-al-tempo) |
 | `Seq` | Toca el CC o la nota de abajo como una secuencia por pasos | [Tempo](07-tempo.md#secuenciador-por-pasos) |
@@ -396,17 +397,46 @@ En la demo, mantener 2 en HOME ejecuta la lista guardada en el botón WAIT del b
 
 *Firmware 0.56 o posterior.*
 
+### Escuchar otro CC
+
+`LED_Feedback` enciende un botón toggle cuando le vuelve el CC que envía. Muchos equipos no funcionan así: la pedalera envía un CC para activar un bloque y el equipo informa del bloque en otro, o informa con 1 de que está encendido cuando el botón envía 127. `CommandType` `Listen`, en cualquier punto de la lista del botón, dice lo que el equipo informa de verdad:
+
+| Campo | Significado |
+|---|---|
+| `Number` | El CC en el que informa el equipo |
+| `OnValue` | El valor que envía para encendido; 127 si está vacío |
+| `OffValue` | El valor que envía para apagado; 0 si está vacío |
+
+Un valor que llega cuenta como el de los dos al que esté más cerca, así que también se entiende un equipo que informa 0 para encendido y 127 para apagado, y uno que envía 100 para encendido con un `OnValue` de 127 sigue encendiendo el botón.
+
+- El toggle de la lista sigue entonces solo a ese CC: el CC que envía el botón, si vuelve, no cambia nada.
+- Se escucha en el canal del primer comando toggle de la lista, canal global incluido, y en cualquier canal para las respuestas del Kemper, que no llevan canal.
+- Funciona tanto si `LED_Feedback` está activado como si no. Si está apagado, solo los botones con un `Listen` siguen lo que llega.
+- Como `LED_Feedback`, solo cambia el estado, en todos los bancos: el LED, la casilla de la pantalla y lo que enviará la siguiente pulsación. No se envía nada, así que no hay bucle.
+- Un `Listen` no envía nada y no estorba a nadie: puede ir entre un `Chan`, `Ramp`, `LFO`, `Seq` o `If` y el comando al que afectan. Funciona en las listas de pulsación corta, larga y doble; solo la corta tiene LED.
+- Varios `Listen` en una lista escuchan varios CC, y cuenta el último que llegó.
+
+En el configurador, **Learn** en una casilla `Listen` la rellena desde el equipo: activa el bloque en el propio equipo y se toman el CC y el valor que informa. En la demo, PLAY del banco 1 envía el CC 2 y sigue al CC 22, que vale 1 mientras el looper reproduce.
+
+<details><summary>Por dentro</summary>
+
+`Listen` se marca por el nibble bajo del tipo de comando vacío, 14, con el CC en el byte 1, el valor de encendido en el byte 2 y el de apagado en el byte 3, así que la disposición no cambia. El firmware anterior lo ignora, y el botón sigue al CC que envía, con `LED_Feedback` activado, como antes.
+
+</details>
+
+*Firmware 0.69 o posterior.*
+
 ## Campos de un comando
 
 La referencia: cada columna de una casilla de comando en el CSV, y qué hace con ella cada tipo de comando. Un ✓ marca los tipos de comando que dan nombre a la columna.
 
 | Campo | PC | CC | Note | PB | Key | Significado |
 |---|---|---|---|---|---|---|
-| `CommandType` | | | | | | `PC`, `PCInc`, `CC`, `CCInc`, `Note`, `PB`, `Key`, `Media`, `Bank`, `SysEx`, `Tap`, `Start`, `Stop`, `MMC`, `Song`, `Panic`, `Scene`, `Wait`, `Ramp`, `LFO`, `Seq`, `Exp`, `Chan`, `Value`, `If`, `Macro`, `Cycle` (solo pulsación corta), `Leave` (solo en la lista de entrada de un banco), o vacío para ninguno |
+| `CommandType` | | | | | | `PC`, `PCInc`, `CC`, `CCInc`, `Note`, `PB`, `Key`, `Media`, `Bank`, `SysEx`, `Tap`, `Start`, `Stop`, `MMC`, `Song`, `Panic`, `Scene`, `Wait`, `Ramp`, `LFO`, `Seq`, `Exp`, `Chan`, `Value`, `If`, `Macro`, `Listen`, `Cycle` (solo pulsación corta), `Leave` (solo en la lista de entrada de un banco), o vacío para ninguno |
 | `Channel_(PC/CC/Note/PB)` | ✓ | ✓ | ✓ | ✓ | | Canal MIDI 1–16. Exp: vacío para el propio del pedal. Chan: la lista de canales, `1 2 3` o `1-3` |
-| `Number_(PC/CC/Note)` | ✓ | ✓ | ✓ | | ✓ | PC: programa 0–127. CC: número de controlador. Note: número de nota. Key: máscara de modificadores. Exp: el CC que envía el pedal. Value: cuál de los ocho, 1–8. If: el botón al que mira, `1`–`4` o `A`–`D`, o el valor, 1–8. Macro: el botón, `1`–`4` o `A`–`D` |
-| `OnValue_(CC/PB)` | | ✓ | | ✓ | ✓ | CC: valor al pisar (0–127). PB: −8192..8191. Key: nombre de la tecla. Media: nombre de la tecla multimedia. Cycle: la etiqueta del estado, hasta 4 caracteres. Exp: el pedal, 1 o 2. MMC `Locate`: adónde ir, en segundos. Song: el número de canción 0–127, o la posición en semicorcheas. LFO: la duración de un ciclo, `1/16T` `1/16` `1/8T` `1/8` `1/4T` `1/8.` `1/4` `1/2T` `1/4.` `1/2` `1/2.` `1/1` `2/1` `4/1` (vacío es `1/4`). Seq: sus dos pasos, un valor 0–127 o `-` para uno en silencio, `100 -`. Value: la cantidad. If: con qué se compara el valor, o el banco. Bank: el banco, o cuántos moverse. Macro: el banco en el que está el botón |
-| `OffValue_(CC)` | | ✓ | | | | CC: valor al soltar / al apagar el toggle (0–127). Value: hasta dónde llega como máximo; 127 si está vacío |
+| `Number_(PC/CC/Note)` | ✓ | ✓ | ✓ | | ✓ | PC: programa 0–127. CC: número de controlador. Note: número de nota. Key: máscara de modificadores. Exp: el CC que envía el pedal. Value: cuál de los ocho, 1–8. If: el botón al que mira, `1`–`4` o `A`–`D`, o el valor, 1–8. Macro: el botón, `1`–`4` o `A`–`D`. Listen: el CC que escucha |
+| `OnValue_(CC/PB)` | | ✓ | | ✓ | ✓ | CC: valor al pisar (0–127). PB: −8192..8191. Key: nombre de la tecla. Media: nombre de la tecla multimedia. Cycle: la etiqueta del estado, hasta 4 caracteres. Exp: el pedal, 1 o 2. MMC `Locate`: adónde ir, en segundos. Song: el número de canción 0–127, o la posición en semicorcheas. LFO: la duración de un ciclo, `1/16T` `1/16` `1/8T` `1/8` `1/4T` `1/8.` `1/4` `1/2T` `1/4.` `1/2` `1/2.` `1/1` `2/1` `4/1` (vacío es `1/4`). Seq: sus dos pasos, un valor 0–127 o `-` para uno en silencio, `100 -`. Value: la cantidad. If: con qué se compara el valor, o el banco. Bank: el banco, o cuántos moverse. Macro: el banco en el que está el botón. Listen: el valor que significa encendido; 127 si está vacío |
+| `OffValue_(CC)` | | ✓ | | | | CC: valor al soltar / al apagar el toggle (0–127). Value: hasta dónde llega como máximo; 127 si está vacío. Listen: el valor que significa apagado; 0 si está vacío |
 | `BankSelect_(PC)` | ✓ | | | | | 0–16383, enviado como CC#32 (LSB) antes del PC |
 | `BankSelectHighByte_(PC)` | ✓ | | | | | Y: envía también CC#0 (MSB) |
 | `Toggle_(CC/PB/Note)` | | ✓ | ✓ | ✓ | ✓ | Y: alterna on / off en pulsaciones sucesivas. Key / Media: mantener hasta la siguiente pulsación |

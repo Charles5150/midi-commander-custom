@@ -52,7 +52,7 @@ Lo que editas se guarda en memoria solo al cambiar de botón, de banco o de pest
 
 En vez de buscar qué CC envía un mando, deja que el configurador lo oiga. Pulsa **Learn** junto al tipo de comando de una casilla (el botón se pone naranja y dice **Stop**) y mueve el mando o pulsa el botón en el aparato. El primer Program Change, Control Change, nota o Pitch Bend que llegue rellena la casilla: su tipo, canal y número, y su valor si la casilla no tenía, así que un botón aprendido de un aparato que envía 127 envía 127. La casilla dice qué ha llegado y por qué puerto.
 
-El configurador escucha todas las entradas MIDI del ordenador: un aparato conectado por USB, el puerto virtual de un DAW o la propia pedalera, cuyas pulsaciones también se pueden aprender. El reloj, el SysEx y parecidos se ignoran. Una casilla que ya es `CCInc` o `PCInc` conserva su tipo y toma el canal y el número de CC. Pulsa **Stop**, o espera 15 segundos, para dejarlo; aprender otra casilla para la primera. También funciona en las pestañas Bank Enter y Bank Switch.
+El configurador escucha todas las entradas MIDI del ordenador: un aparato conectado por USB, el puerto virtual de un DAW o la propia pedalera, cuyas pulsaciones también se pueden aprender. El reloj, el SysEx y parecidos se ignoran. Una casilla que ya es `CCInc` o `PCInc` conserva su tipo y toma el canal y el número de CC, y un [`Listen`](06-commands.md#escuchar-otro-cc) toma el CC y el valor que informa el equipo. Pulsa **Stop**, o espera 15 segundos, para dejarlo; aprender otra casilla para la primera. También funciona en las pestañas Bank Enter y Bank Switch.
 
 <img src="../../images/gui_button_config.png" width="500">
 
