@@ -19,13 +19,15 @@ Two groups, FILE and PEDAL, with the name of the open file at the bottom.
 **FILE**
 
 - **Load CSV…** opens a configuration file. `python/demo-all-features.csv` is loaded at start, so every feature is there to look at straight away.
-- **Save CSV** writes the current settings to the open file.
+- **Save CSV** writes the current settings to the open file, and **Save As…** to a new one, which stays the open file from then on.
+- The demo, the sample and the [templates](11-devices.md) come with the tools and are never overwritten: opened, they are a starting point, and the first **Save CSV** asks where to keep your copy.
+- Loading another file or closing the configurator with changes not saved asks first.
 
 **PEDAL**
 
 - **Slot** chooses which of the four [configuration slots](04-banks.md#four-configurations) the two buttons below it use. `Active` means the one the pedal is running. Flashing one slot never touches the others.
 - **Read from Device** pulls that configuration from the connected pedal into a CSV you choose, and loads it.
-- **Flash to Device**, the one red button, saves the CSV, sends it to the pedal and restarts the pedal.
+- **Flash to Device**, the one red button, saves the CSV, sends it to the pedal and restarts the pedal. With the demo or a template open it flashes the settings as they are without saving them anywhere.
 - **Back Up All Slots…** reads every slot that holds a configuration into a new dated folder, one CSV per slot.
 - **Restore Backup…** writes such a folder back, each file to its own slot, after showing which slots it will replace. See [Backups](13-command-line-tools.md#backups).
 - **Update Firmware…** flashes a `.dfu` file, with nothing held on firmware 0.58 or later. See [Getting started](02-getting-started.md#updating-the-firmware-later).

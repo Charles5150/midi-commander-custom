@@ -11,6 +11,7 @@ import datetime
 import os
 import re
 import subprocess
+import tempfile
 import sys
 from tkinter import filedialog, messagebox
 
@@ -159,6 +160,17 @@ class Help(ctk.CTkFrame):
 # Loaded at start: the demo covers every feature, so it doubles as the
 # reference for how anything is configured.
 DEFAULT_CSV = os.path.join(HERE, "demo-all-features.csv")
+TEMPLATES_DIR = os.path.join(HERE, "templates")
+# Files that ship with the tools. They open as a starting point: saving one
+# asks where to put the copy, so the originals are never overwritten.
+REFERENCE_CSVS = (DEFAULT_CSV, os.path.join(HERE, "MeloConfig_10_Cmds - RC-600.csv"))
+
+
+def is_reference_csv(path):
+    """True for the demo, the sample and the templates that come with the tools."""
+    real = os.path.realpath(path)
+    return (real in {os.path.realpath(p) for p in REFERENCE_CSVS}
+            or os.path.dirname(real) == os.path.realpath(TEMPLATES_DIR))
 
 # --- Value sets -------------------------------------------------------------
 LED_MODES = ["Normal", "Reverse", "AlwaysOn"]
@@ -1021,7 +1033,9 @@ class MidiCommanderGUI(ctk.CTk):
         self.bank_switch_editors = []
         self.bank_switch_row = None
         self.sysex_widgets = {}
-        self.current_csv_path = None
+        self.current_csv_path = None  # where Save writes; None asks
+        self.loaded_name = None       # the file shown, a reference file included
+        self.saved_text = None        # the configuration as last loaded or saved
         self.live = None            # MidiCommander while the live pedal view is on
         self.pedal_supported = False  # the connected firmware answers PRESS_BUTTON/GET_STATE
         self.pedal_tick = 0
@@ -1064,7 +1078,13 @@ class MidiCommanderGUI(ctk.CTk):
 
         section(2, "FILE")
         action(3, "Load CSV\u2026", self.load_csv, fg_color=FIELD, hover_color=FIELD_HOVER)
-        action(4, "Save CSV", self.save_csv, fg_color=FIELD, hover_color=FIELD_HOVER)
+        save_row = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        save_row.grid(row=4, column=0, padx=20, pady=4, sticky="ew")
+        save_row.grid_columnconfigure((0, 1), weight=1)
+        ctk.CTkButton(save_row, text="Save CSV", command=self.save_csv, height=34,
+                      fg_color=FIELD, hover_color=FIELD_HOVER).grid(row=0, column=0, sticky="ew", padx=(0, 3))
+        ctk.CTkButton(save_row, text="Save As\u2026", command=self.save_csv_as, height=34,
+                      fg_color=FIELD, hover_color=FIELD_HOVER).grid(row=0, column=1, sticky="ew", padx=(3, 0))
 
         section(5, "PEDAL")
         # Configuration slot used by Read from Device and Flash to Device
@@ -1187,6 +1207,8 @@ class MidiCommanderGUI(ctk.CTk):
     # --- Loading ----------------------------------------------------------------
     def load_csv(self, path=None):
         if path is None:
+            if not self._may_discard("Load another file"):
+                return
             path = filedialog.askopenfilename(filetypes=[("CSV Files", "*.csv")])
             if not path:
                 return
@@ -1196,7 +1218,13 @@ class MidiCommanderGUI(ctk.CTk):
             messagebox.showerror("Error", f"Failed to load CSV: {e}")
             return
 
-        self.current_csv_path = path
+        self._load(data)
+        self.current_csv_path = None if is_reference_csv(path) else path
+        self.loaded_name = os.path.basename(path)
+        self._show_file()
+        self.saved_text = self._config_text()
+
+    def _load(self, data):
         self.editing_row = None
         self.slot_editors = []
         self._show_file()
@@ -1404,7 +1432,12 @@ class MidiCommanderGUI(ctk.CTk):
 
     def _show_file(self):
         if hasattr(self, "lbl_file"):
-            name = os.path.basename(self.current_csv_path) if self.current_csv_path else "no file loaded"
+            if self.current_csv_path:
+                name = os.path.basename(self.current_csv_path)
+            elif self.loaded_name:
+                name = f"{self.loaded_name}\n(comes with the tools: Save asks where to keep your copy)"
+            else:
+                name = "no file loaded"
             self.lbl_file.configure(text=name)
 
     def _pad_bank_exp(self, df):
@@ -2423,6 +2456,8 @@ class MidiCommanderGUI(ctk.CTk):
             w[key].insert(0, str(val))
 
     def _on_close(self):
+        if not self._may_discard("Quit"):
+            return
         LearnSession.stop()
         self._monitor_stop()
         self._live_disconnect()
@@ -2943,34 +2978,81 @@ class MidiCommanderGUI(ctk.CTk):
                     text = channel(text)
                 self.df_bank_exp.at[idx, field] = text
 
-    def save_csv(self):
-        if not self.current_csv_path:
-            save_path = filedialog.asksaveasfilename(defaultextension=".csv")
-            if not save_path:
-                return
-            self.current_csv_path = save_path
-            self._show_file()
+    def _write_csv(self, path):
+        write_config_csv(
+            path,
+            self.df_global,
+            self.df_banks,
+            self.df_buttons,
+            df_long_press=self.df_long,
+            df_double_press=self.df_double,
+            df_expression=self.df_exp,
+            df_bank_enter=self.df_enter,
+            df_sysex=self.df_sysex,
+            df_bank_switch=self.df_bank_switch,
+            df_setlist=self.df_setlist,
+            df_bank_expression=self.df_bank_exp,
+            df_combos=self.df_combos,
+        )
 
+    def _config_text(self):
+        """The configuration as it would be saved now, to tell whether it changed."""
+        if self.df_global is None:
+            return None
         self._collect()
+        fd, tmp = tempfile.mkstemp(suffix=".csv")
+        os.close(fd)
         try:
-            write_config_csv(
-                self.current_csv_path,
-                self.df_global,
-                self.df_banks,
-                self.df_buttons,
-                df_long_press=self.df_long,
-                df_double_press=self.df_double,
-                df_expression=self.df_exp,
-                df_bank_enter=self.df_enter,
-                df_sysex=self.df_sysex,
-                df_bank_switch=self.df_bank_switch,
-                df_setlist=self.df_setlist,
-                df_bank_expression=self.df_bank_exp,
-                df_combos=self.df_combos,
-            )
-            messagebox.showinfo("Success", "CSV Saved Successfully!")
+            self._write_csv(tmp)
+            with open(tmp, encoding="utf-8") as f:
+                return f.read()
+        finally:
+            os.remove(tmp)
+
+    def _unsaved(self):
+        return self.saved_text is not None and self._config_text() != self.saved_text
+
+    def _may_discard(self, action):
+        """True when there are no unsaved changes, or the user lets them go."""
+        if not self._unsaved():
+            return True
+        return messagebox.askyesno(
+            action, "The configuration has changes that are not saved. Discard them?")
+
+    def _ask_save_path(self):
+        initial = self.loaded_name or "my_config.csv"
+        if not self.current_csv_path and self.loaded_name:
+            initial = "my_" + self.loaded_name
+        return filedialog.asksaveasfilename(
+            title="Save configuration as", defaultextension=".csv",
+            initialfile=initial, filetypes=[("CSV Files", "*.csv")])
+
+    def save_csv(self, path=None):
+        path = path or self.current_csv_path or self._ask_save_path()
+        if not path:
+            return False
+        if is_reference_csv(path):
+            messagebox.showerror(
+                "Save CSV", f"{os.path.basename(path)} comes with the tools and is kept as it is. "
+                "Choose another name or folder.")
+            return False
+        try:
+            self._collect()
+            self._write_csv(path)
         except Exception as e:  # noqa: BLE001
             messagebox.showerror("Error", f"Could not save CSV: {e}")
+            return False
+        self.current_csv_path = path
+        self.loaded_name = os.path.basename(path)
+        self._show_file()
+        self.saved_text = self._config_text()
+        messagebox.showinfo("Success", "CSV Saved Successfully!")
+        return True
+
+    def save_csv_as(self):
+        path = self._ask_save_path()
+        if path:
+            self.save_csv(path)
 
     def _slot_args(self):
         """--slot for the device tools, unless the pedal's active slot is wanted."""
@@ -3144,42 +3226,45 @@ class MidiCommanderGUI(ctk.CTk):
         entry.focus_set()
 
     def flash_device(self):
-        if not self.current_csv_path:
-            messagebox.showwarning("Warning", "Please save or load a CSV file first.")
+        if self.df_global is None:
+            messagebox.showwarning("Warning", "Please load a CSV file first.")
             return
+        if self.current_csv_path:
+            question = (f"Save the current settings to {os.path.basename(self.current_csv_path)} "
+                        "and flash them?")
+        else:
+            question = ("Flash the current settings? They are not saved to a file: "
+                        f"{self.loaded_name or 'this file'} comes with the tools and stays as it is.")
         if not messagebox.askyesno(
             "Flash Device",
-            "Save the current settings and flash them? Ensure the Midi Commander "
-            "is connected via USB.\n(This will take a few seconds)",
+            question + " Ensure the Midi Commander is connected via USB.\n(This will take a few seconds)",
         ):
             return
 
         self._collect()
+        tmp = None
         try:
-            write_config_csv(
-                self.current_csv_path,
-                self.df_global,
-                self.df_banks,
-                self.df_buttons,
-                df_long_press=self.df_long,
-                df_double_press=self.df_double,
-                df_expression=self.df_exp,
-                df_bank_enter=self.df_enter,
-                df_sysex=self.df_sysex,
-                df_bank_switch=self.df_bank_switch,
-                df_setlist=self.df_setlist,
-                df_bank_expression=self.df_bank_exp,
-                df_combos=self.df_combos,
-            )
+            if self.current_csv_path:
+                self._write_csv(self.current_csv_path)
+                self.saved_text = self._config_text()
+                path = self.current_csv_path
+            else:
+                fd, tmp = tempfile.mkstemp(suffix=".csv")
+                os.close(fd)
+                self._write_csv(tmp)
+                path = tmp
         except Exception as e:  # noqa: BLE001
             messagebox.showerror("Error", f"Could not save CSV before flashing: {e}")
             return
 
         try:
-            p = self._run_tool("CSV_to_Flash.py", self.current_csv_path, "--yes", *self._slot_args())
+            p = self._run_tool("CSV_to_Flash.py", path, "--yes", *self._slot_args())
         except Exception as e:  # noqa: BLE001
             messagebox.showerror("Error", f"Failed to run flash script: {e}")
             return
+        finally:
+            if tmp:
+                os.remove(tmp)
 
         if p.returncode == 0:
             messagebox.showinfo(
