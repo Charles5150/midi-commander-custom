@@ -208,7 +208,7 @@ BOLD = ("", 13, "bold")
 
 # Virtual pedal, drawn like the pedal: five switches a row, 1-4 and Bank Up on
 # top with their LEDs below, A-D and Bank Down underneath with their LEDs above,
-# and the display between the rows, centred between switches 2 and 3.
+# and the display between the rows, in the middle of the pedal.
 PEDAL_ROWS = [["1", "2", "3", "4", "UP"], ["A", "B", "C", "D", "DOWN"]]
 PEDAL_CAPTIONS = {"UP": "BANK \u25b2", "DOWN": "BANK \u25bc"}
 PEDAL_COL_X = [110, 270, 430, 590, 750]
@@ -216,7 +216,7 @@ PEDAL_W, PEDAL_H = 860, 590
 PEDAL_TOP_SWITCH_Y, PEDAL_TOP_LED_Y = 95, 168
 PEDAL_BOT_LED_Y, PEDAL_BOT_SWITCH_Y = 422, 495
 PEDAL_SCREEN_ZOOM = 3
-PEDAL_SCREEN_CENTER = ((PEDAL_COL_X[1] + PEDAL_COL_X[2]) // 2, (PEDAL_TOP_LED_Y + PEDAL_BOT_LED_Y) // 2)
+PEDAL_SCREEN_CENTER = (PEDAL_W // 2, (PEDAL_TOP_LED_Y + PEDAL_BOT_LED_Y) // 2)
 PEDAL_BG = "#242426"            # the tab behind the pedal (CARD)
 PEDAL_BODY = "#1c1c1e"
 PEDAL_BODY_EDGE = "#3a3a3c"
@@ -1952,7 +1952,7 @@ class MidiCommanderGUI(ctk.CTk):
         # The display, in its window
         cx, cy = PEDAL_SCREEN_CENTER
         sw, sh = SCREEN_VISIBLE_WIDTH * PEDAL_SCREEN_ZOOM, SCREEN_HEIGHT * PEDAL_SCREEN_ZOOM
-        self._pedal_rounded_rect(cx - sw // 2 - 16, cy - sh // 2 - 16, cx + sw // 2 + 16, cy + sh // 2 + 16, 10,
+        self._pedal_rounded_rect(cx - sw // 2 - 10, cy - sh // 2 - 10, cx + sw // 2 + 10, cy + sh // 2 + 10, 8,
                                  fill="#0b0b0c", outline="#48484a", width=2)
         self.pedal_screen_base = tk.PhotoImage(width=SCREEN_VISIBLE_WIDTH, height=SCREEN_HEIGHT)
         self.pedal_screen_image = None
