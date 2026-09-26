@@ -64,6 +64,7 @@ from lib.midiDevice import (  # noqa: E402
 )
 from lib import bankClipboard as bank_clipboard  # noqa: E402
 from lib import bankReorder as bank_reorder  # noqa: E402
+from lib import midiLearn as midi_learn  # noqa: E402
 from lib.firmwareUpdate import UpdateError, check_image  # noqa: E402
 
 ctk.set_appearance_mode("Dark")
@@ -397,6 +398,75 @@ class Combo(ctk.CTkComboBox):
         return self.get().strip()
 
 
+# --- MIDI learn -------------------------------------------------------------
+LEARN_SECONDS = 15
+LEARN_POLL_MS = 40
+
+
+class LearnSession:
+    """One command listening for the MIDI it should send; one at a time."""
+
+    editor = None
+    listener = None
+    root = None
+    deadline = 0
+    # Counts the sessions, so a poll left over from a stopped one does nothing
+    session = 0
+
+    @classmethod
+    def toggle(cls, editor):
+        was = cls.editor
+        cls.stop()
+        if was is editor:
+            return
+        try:
+            cls.listener = midi_learn.Listener()
+        except Exception as e:
+            messagebox.showerror("MIDI learn", f"Cannot open the MIDI inputs: {e}")
+            return
+        if not cls.listener.ports:
+            cls.listener.close()
+            cls.listener = None
+            messagebox.showinfo("MIDI learn", "The computer has no MIDI input to listen to.")
+            return
+        cls.editor = editor
+        cls.root = editor.frame.winfo_toplevel()
+        cls.deadline = LEARN_SECONDS * 1000
+        cls.session += 1
+        editor.learning(True)
+        cls.root.after(LEARN_POLL_MS, cls._poll, cls.session)
+
+    @classmethod
+    def stop(cls):
+        if cls.listener is not None:
+            cls.listener.close()
+            cls.listener = None
+        if cls.editor is not None:
+            editor, cls.editor = cls.editor, None
+            editor.learning(False)
+
+    @classmethod
+    def _poll(cls, session):
+        editor = cls.editor
+        if session != cls.session or editor is None or cls.listener is None:
+            return
+        if not editor.frame.winfo_exists():
+            cls.editor = None
+            cls.stop()
+            return
+        got = cls.listener.poll()
+        if got is not None:
+            cls.stop()
+            editor.learn(*got)
+            return
+        cls.deadline -= LEARN_POLL_MS
+        if cls.deadline <= 0:
+            cls.stop()
+            editor.learned_text("nothing arrived")
+            return
+        cls.root.after(LEARN_POLL_MS, cls._poll, session)
+
+
 # --- Slot editor ------------------------------------------------------------
 class SlotEditor:
     """One row of the button editor: command type plus the fields it needs."""
@@ -417,12 +487,50 @@ class SlotEditor:
             self.frame, types, cmd_type, width=80, command=self._rebuild
         )
         self.type_menu.pack(side="left", padx=4)
+        self.learn_button = ctk.CTkButton(
+            self.frame, text="Learn", width=52, fg_color=FIELD, hover_color=FIELD_HOVER,
+            command=lambda: LearnSession.toggle(self),
+        )
+        self.learn_button.pack(side="left", padx=(0, 4))
 
         # A frame with no children keeps its configured size instead of
         # shrinking, so give it a small one for slots without parameters.
         self.params = ctk.CTkFrame(self.frame, fg_color="transparent", width=10, height=30)
         self.params.pack(side="left")
         self._rebuild(self.type_menu.get())
+
+    # MIDI learn ------------------------------------------------------------
+    def learning(self, on: bool):
+        if self.learn_button.winfo_exists():
+            self.learn_button.configure(
+                text="Stop" if on else "Learn",
+                fg_color=WARN if on else FIELD,
+                hover_color=WARN if on else FIELD_HOVER,
+            )
+        if on:
+            self.learned_text(f"listening, {LEARN_SECONDS} s")
+        elif getattr(self, "learn_note", None) is not None and self.learn_note.winfo_exists():
+            self.learn_note.destroy()
+
+    def learned_text(self, text: str):
+        """A note on what learn heard, shown in the slot until it is rebuilt."""
+        if getattr(self, "learn_note", None) is not None and self.learn_note.winfo_exists():
+            self.learn_note.destroy()
+        self.learn_note = ctk.CTkLabel(self.params, text=f"({text})", text_color=MUTED)
+        self.learn_note.pack(side="left", padx=8)
+
+    def learn(self, port: str, msg):
+        """Fill the command from a message that arrived on `port`."""
+        fields = midi_learn.learned_fields(msg, self.values())
+        cmd_type = fields["CommandType"]
+        if cmd_type not in self.type_menu.cget("values"):
+            self.learned_text(f"{midi_learn.describe(msg)}: not a command for this list")
+            return
+        self.initial = fields
+        self.type_menu.set(cmd_type)
+        self._rebuild(cmd_type)
+        # The fields show the type and channel; say what arrived and where from
+        self.learned_text(f"{midi_learn.describe(msg, channel=False)} from {port}")
 
     # Small builders --------------------------------------------------------
     def _label(self, text):
@@ -1341,7 +1449,9 @@ class MidiCommanderGUI(ctk.CTk):
                         if c in src.index and c not in ("Bank_Number", "Button_Identifier"):
                             row[c] = src[c]
                 out.append(row)
-        return pd.DataFrame(out, columns=columns)
+        # object, or pandas makes a column no button uses float64 and then
+        # refuses the first text typed into it
+        return pd.DataFrame(out, columns=columns).astype(object)
 
     # --- Global tab ---------------------------------------------------------------
     def populate_global(self):
@@ -1883,7 +1993,10 @@ class MidiCommanderGUI(ctk.CTk):
 
         Help(
             self.cmd_editor,
-            "What Dur, Bend, BankSel and Hold mean.",
+            "What Learn, Dur, Bend, BankSel and Hold mean.",
+            "Learn = press it, then move a knob or press a button on a device the computer hears: "
+            "the first PC, CC, Note or Pitch Bend that arrives sets the command's type, channel and "
+            "number (and its value, if it had none). Press Stop, or wait 15 s, to give up.\n"
             "Dur = duration in 10 ms steps (0-127). Bend = -8192..8191. BankSel = MIDI Bank Select "
             "sent before a PC (0..16383). Hold = the key (or media key) stays pressed until the next press.",
             wraplength=720,
@@ -2288,6 +2401,7 @@ class MidiCommanderGUI(ctk.CTk):
             w[key].insert(0, str(val))
 
     def _on_close(self):
+        LearnSession.stop()
         self._live_disconnect()
         self.destroy()
 

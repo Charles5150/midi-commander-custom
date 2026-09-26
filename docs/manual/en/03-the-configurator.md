@@ -46,6 +46,12 @@ Edits are kept in memory automatically when you switch button, bank or tab.
 
 **Copy button** and **Paste button** do the same for a single button: pick the button to copy, press **Copy button**, pick the one to replace, in the same bank or another, and press **Paste button**. Its label, LED mode, group, the four boxes and its short, long and double press commands all become the copied button's. Pasting asks for confirmation first.
 
+### MIDI learn
+
+Rather than look up which CC a knob sends, let the configurator hear it. Press **Learn** beside a slot's command type, the button turns orange and reads **Stop**, then move the knob or press the button on the device. The first Program Change, Control Change, Note or Pitch Bend that arrives fills the slot: its type, channel and number, and its value if the slot had none, so a button learned from a device that sends 127 sends 127. The slot says what arrived and from which port.
+
+The configurator listens on every MIDI input the computer has: a device plugged in over USB, a DAW's virtual port, or the pedal itself, whose own presses can be learned too. Clock, SysEx and the like are passed over. A slot that is already a `CCInc` or a `PCInc` keeps its type and takes the channel and the CC number. Press **Stop**, or wait 15 seconds, to give up; learning another slot stops the first. It also works in the Bank Enter and Bank Switch tabs.
+
 <img src="../../images/gui_button_config.png" width="500">
 
 ## Banks
