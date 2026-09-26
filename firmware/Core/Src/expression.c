@@ -58,7 +58,9 @@
 // Finer steps need a smaller dead band; the averaging and the EMA keep a pedal
 // at rest quiet with it
 #define EXP_HYSTERESIS_FINE    (4U)
-#define EXP_PROCESS_INTERVAL_MS (1U)
+// How long a pin is left analog before it is sampled: what the busy wait
+// before 0.64 came to, so the pedals read as they always have
+#define EXP_SETTLE_MS          (12U)
 
 // Defaults used when the calibration table is blank or invalid
 #define EXP_DEFAULT_MIN        (80U)
@@ -149,7 +151,9 @@ typedef struct {
 } exp_override_t;
 
 static exp_override_t overrides[EXP_PEDAL_COUNT];
-static uint32_t next_process_tick = 0U;
+// The pedal whose pin is settling, and since when; EXP_PEDAL_COUNT for none
+static uint32_t settling = EXP_PEDAL_COUNT;
+static uint32_t settle_tick = 0U;
 
 // --- Pin handling -----------------------------------------------------------
 // PA7 (EXP1) -> ADC12_IN7, PB0 (EXP2) -> ADC12_IN8
@@ -173,23 +177,28 @@ static void set_pin_pulldown(uint32_t channel) {
     }
 }
 
-static void delay_cycles(uint32_t cycles) {
-    volatile uint32_t c = cycles;
-    while(c--) { __asm("nop"); }
+/*
+ * A reading is taken in two steps, so nothing waits for it. The pin, held
+ * down between readings so an empty jack reads as zero, goes analog first,
+ * and the samples are taken EXP_SETTLE_MS later, when it has recovered. The
+ * main loop runs meanwhile: the wait used to be a busy loop, 11.7 ms per
+ * pedal on every pass, and every press waited behind it.
+ */
+static void begin_adc_channel(uint32_t channel)
+{
+  set_pin_analog(channel);
 }
 
 static uint32_t read_adc_channel(uint32_t channel)
 {
-  set_pin_analog(channel);
-
   ADC_ChannelConfTypeDef sConfig = {0};
   sConfig.Channel = channel;
   sConfig.Rank = ADC_REGULAR_RANK_1;
   sConfig.SamplingTime = ADC_SAMPLETIME_239CYCLES_5;
-  if (HAL_ADC_ConfigChannel(EXP_ADC_HANDLE, &sConfig) != HAL_OK) return 0;
-
-  // Let the pin recover from the pull-down before sampling (~1 ms)
-  delay_cycles(50000);
+  if (HAL_ADC_ConfigChannel(EXP_ADC_HANDLE, &sConfig) != HAL_OK) {
+      set_pin_pulldown(channel);
+      return 0;
+  }
 
   HAL_ADC_Start(EXP_ADC_HANDLE);
   HAL_ADC_PollForConversion(EXP_ADC_HANDLE, 2);
@@ -435,7 +444,7 @@ void expression_init(void)
     pedals[i].auto_primed = false;
     set_pin_pulldown(kExpChannels[i]);   // never leave the pin floating
   }
-  next_process_tick = 0U;
+  settling = EXP_PEDAL_COUNT;
 }
 
 void expression_quiet_start(void)
@@ -647,12 +656,21 @@ void expression_task(void)
   if (!f_sys_config_complete) return;
 
   uint32_t now = HAL_GetTick();
-  if (now < next_process_tick) return;
-  next_process_tick = now + EXP_PROCESS_INTERVAL_MS;
+  if (settling < EXP_PEDAL_COUNT) {
+    if (now - settle_tick < EXP_SETTLE_MS) return;
+    process_pedal(settling);
+  }
 
-  for (uint32_t i = 0; i < EXP_PEDAL_COUNT; i++) {
+  // The next enabled pedal starts settling, in turn
+  uint32_t next = (settling < EXP_PEDAL_COUNT) ? settling + 1U : 0U;
+  settling = EXP_PEDAL_COUNT;
+  for (uint32_t n = 0; n < EXP_PEDAL_COUNT; n++, next++) {
+    uint32_t i = next % EXP_PEDAL_COUNT;
     if (kEnabled[i]) {
-      process_pedal(i);
+      begin_adc_channel(kExpChannels[i]);
+      settling = i;
+      settle_tick = now;
+      return;
     }
   }
 }

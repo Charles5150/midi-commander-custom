@@ -89,6 +89,7 @@ typedef struct {
 	uint32_t press_tick;         // HAL tick when the button went down
 	uint32_t release_tick;       // HAL tick when a possible first press of a double ended
 	uint8_t press_state;         // PRESS_IDLE / PRESS_PENDING / PRESS_SHORT / PRESS_LONG
+	uint8_t press_bank;          // Bank showing when its list fired, whose release it sends
 	// Auto-repeat of the CCInc / PCInc commands marked Repeat while held
 	uint8_t *repeat_list;        // List that fired and holds such commands, NULL for none
 	uint8_t repeat_first;        // First command of the part of it that fired (a cycle state)
@@ -142,15 +143,15 @@ static bool safe_mode = false;
 uint8_t switch_current_page = 0;
 
 sw_t a_sw_obj[] = {
-		{ .sw_gpio_port = SW_1_GPIO_Port, .sw_gpio_pin = SW_1_Pin, .pSwChangeState = &port_A_switches_changed, .led_gpio_port = LED_1_GPIO_Port, .led_gpio_pin = LED_1_Pin, .switch_toggle_state = 0},
-		{ .sw_gpio_port = SW_2_GPIO_Port, .sw_gpio_pin = SW_2_Pin, .pSwChangeState = &port_A_switches_changed, .led_gpio_port = LED_2_GPIO_Port, .led_gpio_pin = LED_2_Pin, .switch_toggle_state = 0},
-		{ .sw_gpio_port = SW_3_GPIO_Port, .sw_gpio_pin = SW_3_Pin, .pSwChangeState = &port_B_switches_changed, .led_gpio_port = LED_3_GPIO_Port, .led_gpio_pin = LED_3_Pin, .switch_toggle_state = 0},
-		{ .sw_gpio_port = SW_4_GPIO_Port, .sw_gpio_pin = SW_4_Pin, .pSwChangeState = &port_B_switches_changed, .led_gpio_port = LED_4_GPIO_Port, .led_gpio_pin = LED_4_Pin, .switch_toggle_state = 0},
+		{ .sw_gpio_port = SW_1_GPIO_Port, .sw_gpio_pin = SW_1_Pin, .pSwChangeState = &port_A_switches_changed, .led_gpio_port = LED_1_GPIO_Port, .led_gpio_pin = LED_1_Pin, .switch_toggle_state = 0, .press_bank = 0xFF},
+		{ .sw_gpio_port = SW_2_GPIO_Port, .sw_gpio_pin = SW_2_Pin, .pSwChangeState = &port_A_switches_changed, .led_gpio_port = LED_2_GPIO_Port, .led_gpio_pin = LED_2_Pin, .switch_toggle_state = 0, .press_bank = 0xFF},
+		{ .sw_gpio_port = SW_3_GPIO_Port, .sw_gpio_pin = SW_3_Pin, .pSwChangeState = &port_B_switches_changed, .led_gpio_port = LED_3_GPIO_Port, .led_gpio_pin = LED_3_Pin, .switch_toggle_state = 0, .press_bank = 0xFF},
+		{ .sw_gpio_port = SW_4_GPIO_Port, .sw_gpio_pin = SW_4_Pin, .pSwChangeState = &port_B_switches_changed, .led_gpio_port = LED_4_GPIO_Port, .led_gpio_pin = LED_4_Pin, .switch_toggle_state = 0, .press_bank = 0xFF},
 
-		{ .sw_gpio_port = SW_A_GPIO_Port, .sw_gpio_pin = SW_A_Pin, .pSwChangeState = &port_B_switches_changed, .led_gpio_port = LED_A_GPIO_Port, .led_gpio_pin = LED_A_Pin, .switch_toggle_state = 0},
-		{ .sw_gpio_port = SW_B_GPIO_Port, .sw_gpio_pin = SW_B_Pin, .pSwChangeState = &port_C_switches_changed, .led_gpio_port = LED_B_GPIO_Port, .led_gpio_pin = LED_B_Pin, .switch_toggle_state = 0},
-		{ .sw_gpio_port = SW_C_GPIO_Port, .sw_gpio_pin = SW_C_Pin, .pSwChangeState = &port_A_switches_changed, .led_gpio_port = LED_C_GPIO_Port, .led_gpio_pin = LED_C_Pin, .switch_toggle_state = 0},
-		{ .sw_gpio_port = SW_D_GPIO_Port, .sw_gpio_pin = SW_D_Pin, .pSwChangeState = &port_A_switches_changed, .led_gpio_port = LED_D_GPIO_Port, .led_gpio_pin = LED_D_Pin, .switch_toggle_state = 0}
+		{ .sw_gpio_port = SW_A_GPIO_Port, .sw_gpio_pin = SW_A_Pin, .pSwChangeState = &port_B_switches_changed, .led_gpio_port = LED_A_GPIO_Port, .led_gpio_pin = LED_A_Pin, .switch_toggle_state = 0, .press_bank = 0xFF},
+		{ .sw_gpio_port = SW_B_GPIO_Port, .sw_gpio_pin = SW_B_Pin, .pSwChangeState = &port_C_switches_changed, .led_gpio_port = LED_B_GPIO_Port, .led_gpio_pin = LED_B_Pin, .switch_toggle_state = 0, .press_bank = 0xFF},
+		{ .sw_gpio_port = SW_C_GPIO_Port, .sw_gpio_pin = SW_C_Pin, .pSwChangeState = &port_A_switches_changed, .led_gpio_port = LED_C_GPIO_Port, .led_gpio_pin = LED_C_Pin, .switch_toggle_state = 0, .press_bank = 0xFF},
+		{ .sw_gpio_port = SW_D_GPIO_Port, .sw_gpio_pin = SW_D_Pin, .pSwChangeState = &port_A_switches_changed, .led_gpio_port = LED_D_GPIO_Port, .led_gpio_pin = LED_D_Pin, .switch_toggle_state = 0, .press_bank = 0xFF}
 };
 
 #define MAX_DELAYED_CMDS (32)
@@ -524,11 +525,11 @@ static uint8_t cycle_advance(uint8_t i){
 	return cycle_first(base, *pos);
 }
 
-// First command of the state a button of the current bank last sent
-static uint8_t cycle_current_first(uint8_t i){
-	uint8_t pos = cycle_pos[sw_bank(i) * MIDI_NUM_SWITCHES + i];
+// First command of the state a button of a bank last sent
+static uint8_t cycle_current_first(uint8_t bank, uint8_t i){
+	uint8_t pos = cycle_pos[button_bank(bank, i) * MIDI_NUM_SWITCHES + i];
 	if(pos == CYCLE_NONE) return 0;
-	return cycle_first(get_rom_pointer(switch_current_page, i, 0), pos);
+	return cycle_first(get_rom_pointer(bank, i, 0), pos);
 }
 
 const uint8_t *sw_button_label(uint8_t bank, uint8_t sw){
@@ -798,7 +799,33 @@ static void note_tap_cmd(sw_t *sw, uint8_t page, const uint8_t *pCmd){
 
 static void tap_led_task(void);
 
+/*
+ * The numbers some toggle CC or Note command, in any bank and list, carries:
+ * an incoming message with another number cannot change anything, and the
+ * LED_Feedback lets it go without looking through every command. Built with
+ * the LED table, so a new configuration or an edit on the pedal updates it.
+ */
+static uint32_t feedback_numbers[128 / 32];
+
+static void feedback_numbers_clear(void){
+	for(uint8_t k=0; k<128 / 32; k++) feedback_numbers[k] = 0;
+}
+
+static void feedback_numbers_note(const uint8_t *pRom){
+	uint8_t type = pRom[0] & 0xF0;
+	if((type == CMD_CC_NIBBLE || type == CMD_NOTE_NIBBLE) && (pRom[1] & 0x80)){
+		uint8_t n = pRom[1] & 0x7F;
+		feedback_numbers[n / 32] |= 1UL << (n % 32);
+	}
+}
+
+static inline bool feedback_numbers_has(uint8_t n){
+	n &= 0x7F;
+	return (feedback_numbers[n / 32] >> (n % 32)) & 1U;
+}
+
 void sw_led_init(void){
+	feedback_numbers_clear();
 	// Scan all commands in EEPROM, and build the table of whether the LED should toggle with the switch, or be momentary
 	for(int page=0; page<MIDI_NUM_BANKS; page++){
 		for(int sw=0; sw<8; sw++){
@@ -812,6 +839,7 @@ void sw_led_init(void){
 				if(midiCmd_get_cmd_toggle(pCmd)){
 					a_sw_obj[sw].led_cmd_toggle |= (1UL<<page);
 				}
+				feedback_numbers_note(pCmd);
 				note_tap_cmd(&a_sw_obj[sw], page, pCmd);
 			}
 
@@ -820,6 +848,7 @@ void sw_led_init(void){
 			a_sw_obj[sw].long_cmd_toggle &= ~(1UL<<page);
 			for(int cmd=0; cmd<MIDI_NUM_COMMANDS_PER_SWITCH; cmd++){
 				uint8_t *pCmd = get_long_rom_pointer(page, sw, cmd);
+				feedback_numbers_note(pCmd);
 				note_tap_cmd(&a_sw_obj[sw], page, pCmd);
 				if(cmd_is_present(pCmd)){
 					a_sw_obj[sw].long_cmd_present |= (1UL<<page);
@@ -836,6 +865,7 @@ void sw_led_init(void){
 			if(flash_settings_double_stored()){
 				for(int cmd=0; cmd<MIDI_NUM_COMMANDS_PER_SWITCH; cmd++){
 					uint8_t *pCmd = get_double_rom_pointer(page, sw, cmd);
+					feedback_numbers_note(pCmd);
 					note_tap_cmd(&a_sw_obj[sw], page, pCmd);
 					if(cmd_is_present(pCmd)){
 						a_sw_obj[sw].double_cmd_present |= (1UL<<page);
@@ -2270,6 +2300,7 @@ static void fire_short_down(uint8_t i){
 	}
 
 	uint8_t first = cycle_advance(i);
+	sw->press_bank = switch_current_page;
 	repeat_arm(sw, get_rom_pointer(switch_current_page, i, 0), first);
 	run_cmd_list(get_rom_pointer(switch_current_page, i, 0), first, first, get_sw_toggle_state(sw), i, 0, true);
 }
@@ -2289,11 +2320,22 @@ static bool button_momentary_hold(uint8_t i){
 	return cycle_states(get_rom_pointer(switch_current_page, i, 0)) == 1;
 }
 
+/*
+ * A release sends the up list of the bank the press fired in, so a note or a
+ * momentary CC held while the bank changes, or the press that changes it, is
+ * let go, and nothing is sent from the new bank's button in the same place.
+ */
+static uint8_t release_bank(sw_t *sw){
+	return (sw->press_bank < MIDI_NUM_BANKS) ? sw->press_bank : switch_current_page;
+}
+
 static void fire_short_up(uint8_t i){
 	sw_t *sw = &a_sw_obj[i];
+	uint8_t bank = release_bank(sw);
 	set_momentary_led(i, 0);
 	if(pending_defer_release(i)) return;	// still waiting: released once it finishes
-	run_list_up(get_rom_pointer(switch_current_page, i, 0), cycle_current_first(i), get_sw_toggle_state(sw), 0);
+	uint8_t toggleState = (sw->switch_toggle_state >> button_bank(bank, i)) & 1;
+	run_list_up(get_rom_pointer(bank, i, 0), cycle_current_first(bank, i), toggleState, 0);
 }
 
 static void fire_long_down(uint8_t i){
@@ -2302,6 +2344,7 @@ static void fire_long_down(uint8_t i){
 	sw->long_toggle_state ^= (1UL << sw_bank(i));
 	state_store_mark_dirty();
 	uint8_t toggleState = (sw->long_toggle_state >> sw_bank(i)) & 1;
+	sw->press_bank = switch_current_page;
 	repeat_arm(sw, get_long_rom_pointer(switch_current_page, i, 0), 0);
 	run_cmd_list(get_long_rom_pointer(switch_current_page, i, 0), 0, 0, toggleState, i, 0, true);
 }
@@ -2310,8 +2353,9 @@ static void fire_long_up(uint8_t i){
 	sw_t *sw = &a_sw_obj[i];
 	set_momentary_led(i, 0);
 	if(pending_defer_release(i)) return;
-	uint8_t toggleState = (sw->long_toggle_state >> sw_bank(i)) & 1;
-	run_list_up(get_long_rom_pointer(switch_current_page, i, 0), 0, toggleState, 0);
+	uint8_t bank = release_bank(sw);
+	uint8_t toggleState = (sw->long_toggle_state >> button_bank(bank, i)) & 1;
+	run_list_up(get_long_rom_pointer(bank, i, 0), 0, toggleState, 0);
 }
 
 // Press tracking for the two bank switches, so they can tell a short press
@@ -2626,9 +2670,11 @@ static bool switch_down(GPIO_TypeDef *port, uint16_t pin){
  * Every bank is updated, not only the current one, and the long press list
  * too, so the next press sends the opposite of what the host last reported.
  * The USB interrupt only queues the message; it is applied here, in the main
- * loop, where the switch state is owned. A full queue drops messages.
+ * loop, where the switch state is owned. The queue holds a whole mixer
+ * snapshot from a DAW, a CC for every number and more; a full one drops
+ * messages. Before 0.64 it held 32, and a longer burst lost the rest.
  */
-#define FEEDBACK_QUEUE_LEN		(32)
+#define FEEDBACK_QUEUE_LEN		(160)
 #define FEEDBACK_PER_PASS		(4)
 
 // The fourth byte is not MIDI: 1 means the channel does not have to match,
@@ -2662,13 +2708,15 @@ void sw_feedback_any_channel(const uint8_t *data){
  * a command without an OffValue only recognises its OnValue. A Note On with a
  * velocity turns a note command on, a Note Off or velocity 0 turns it off.
  */
-static int8_t feedback_state_for(uint8_t *pRom, const uint8_t *msg){
-	if(!midiCmd_get_cmd_toggle(pRom)) return -1;
+static int8_t feedback_state_for(const uint8_t *pRom, const uint8_t *msg){
+	// The number first: it rules out nearly every command, and costs least
+	if((pRom[1] & 0x7F) != msg[1]) return -1;
+	uint8_t type = pRom[0] & 0xF0;
+	if(type != CMD_CC_NIBBLE && type != CMD_NOTE_NIBBLE) return -1;
+	if(!(pRom[1] & 0x80)) return -1;	// not a toggle
 	// the global channel moves it too; msg[3] says the channel does not count
 	if(!msg[3] && midiCmd_channel(pRom[0]) != (msg[0] & 0x0F)) return -1;
-	if((pRom[1] & 0x7F) != msg[1]) return -1;
 
-	uint8_t type = pRom[0] & 0xF0;
 	uint8_t value = msg[2];
 	switch(msg[0] & 0xF0){
 	case 0xB0:
@@ -2696,8 +2744,9 @@ static int8_t feedback_state_for(uint8_t *pRom, const uint8_t *msg){
 static int8_t feedback_list_state(uint8_t *(*rom)(uint8_t, uint8_t, uint8_t),
 		uint8_t bank, uint8_t sw, const uint8_t *msg){
 	int8_t want = -1;
-	for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
-		int8_t s = feedback_state_for(rom(bank, sw, j), msg);
+	const uint8_t *pRom = rom(bank, sw, 0);	// the commands of a list follow each other
+	for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++, pRom += MIDI_ROM_CMD_SIZE){
+		int8_t s = feedback_state_for(pRom, msg);
 		if(s >= 0) want = s;
 	}
 	return want;
@@ -2758,15 +2807,17 @@ static void fire_double_down(uint8_t i){
 	pending_flush_owner(i);
 	sw->double_toggle_state ^= (1UL << sw_bank(i));
 	uint8_t toggleState = (sw->double_toggle_state >> sw_bank(i)) & 1;
+	sw->press_bank = switch_current_page;
 	repeat_arm(sw, get_double_rom_pointer(switch_current_page, i, 0), 0);
 	run_cmd_list(get_double_rom_pointer(switch_current_page, i, 0), 0, 0, toggleState, i, 0, true);
 }
 
 static void fire_double_up(uint8_t i){
 	sw_t *sw = &a_sw_obj[i];
-	uint8_t toggleState = (sw->double_toggle_state >> sw_bank(i)) & 1;
+	uint8_t bank = release_bank(sw);
+	uint8_t toggleState = (sw->double_toggle_state >> button_bank(bank, i)) & 1;
 	if(pending_defer_release(i)) return;
-	run_list_up(get_double_rom_pointer(switch_current_page, i, 0), 0, toggleState, 0);
+	run_list_up(get_double_rom_pointer(bank, i, 0), 0, toggleState, 0);
 }
 
 /*
@@ -2870,9 +2921,16 @@ static void combo_press(uint8_t i, uint32_t now){
 	a_sw_obj[i].press_state = PRESS_COMBO_WAIT;
 }
 
+// Most of what a host sends matches no toggle anywhere and is passed over
+// at once; only the others count towards the pass's share
 static void feedback_task(void){
-	for(uint8_t n=0; n<FEEDBACK_PER_PASS && feedback_tail != feedback_head; n++){
-		feedback_apply(feedback_queue[feedback_tail]);
+	uint8_t n = 0;
+	while(n < FEEDBACK_PER_PASS && feedback_tail != feedback_head){
+		const uint8_t *msg = feedback_queue[feedback_tail];
+		if(feedback_numbers_has(msg[1])){
+			feedback_apply(msg);
+			n++;
+		}
 		feedback_tail = (uint8_t)((feedback_tail + 1) % FEEDBACK_QUEUE_LEN);
 	}
 }
@@ -3042,7 +3100,9 @@ void handle_switches(void){
 					break;
 				case PRESS_SHORT:
 					fire_short_up(i);
-					if(button_momentary_hold(i) && (now - sw->press_tick) >= long_press_threshold_ms()){
+					// Not after a bank change: the button now there is another one
+					if(sw->press_bank == switch_current_page && button_momentary_hold(i)
+							&& (now - sw->press_tick) >= long_press_threshold_ms()){
 						sw_trigger_button(i);	// held: back to the state before the press
 					}
 					break;
