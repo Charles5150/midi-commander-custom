@@ -18,12 +18,41 @@ static volatile uint8_t display_pending_last = 0;
 void ssd1306_DMATxLine(uint8_t line);
 uint8_t line_tx_buffer[SSD1306_WIDTH+6];
 
+// No wait here is endless: a display that stops answering (static, a loose
+// flex) used to leave the I2C busy for good and the pedal stuck waiting on it,
+// in SysTick at that. About 50 ms at 72 MHz, where a whole screen takes 30.
+#define SSD1306_SPIN_MAX	(400000U)
+
+// Drop whatever was going out and start the I2C again
+static void ssd1306_Recover(void){
+	HAL_DMA_Abort(SSD1306_I2C_PORT.hdmatx);
+	HAL_I2C_Init(&SSD1306_I2C_PORT);
+	display_line_transmitting_flag = 0;
+	display_transmit_line = 0;
+	display_pending_first = 0xFF;
+}
+
+static void ssd1306_WaitI2C(void){
+	uint32_t n = 0;
+	while(HAL_I2C_GetState(&SSD1306_I2C_PORT) != HAL_I2C_STATE_READY){
+		if(++n > SSD1306_SPIN_MAX){
+			ssd1306_Recover();
+			return;
+		}
+	}
+}
+
 // Wait for a screen update to be over, its last line included: the line
 // counter is back at 0 as soon as that line starts, while the DMA is still
 // reading it out of line_tx_buffer
 static void ssd1306_WaitIdle(void){
-	while (ssd1306_Busy())
-		__NOP();
+	uint32_t n = 0;
+	while (ssd1306_Busy()){
+		if(++n > SSD1306_SPIN_MAX){
+			ssd1306_Recover();
+			return;
+		}
+	}
 }
 
 // Still sending the last screen, or another one after it: what to ask
@@ -74,7 +103,7 @@ void ssd1306_WriteCommand(uint8_t byte)
 	// call: the DMA reads it after the function has returned
 	static uint8_t command;
 	ssd1306_WaitIdle();
-	while(HAL_I2C_GetState(&SSD1306_I2C_PORT) != HAL_I2C_STATE_READY);
+	ssd1306_WaitI2C();
 	command = byte;
 	display_transmit_data_flag = 0;
 	HAL_I2C_Mem_Write_DMA(&SSD1306_I2C_PORT, SSD1306_I2C_ADDR, 0x00, 1, &command, 1);
@@ -82,11 +111,23 @@ void ssd1306_WriteCommand(uint8_t byte)
 
 void ssd1306_WriteData(uint8_t* buffer, size_t buff_size)
 {
-	while(HAL_I2C_GetState(&SSD1306_I2C_PORT) != HAL_I2C_STATE_READY);
+	ssd1306_WaitI2C();
 	display_transmit_data_flag = 1;
 	HAL_I2C_Mem_Write_DMA(&SSD1306_I2C_PORT, SSD1306_I2C_ADDR, 0x40, 1, buffer, buff_size);
 }
 
+
+// A NACK or a bus error loses the line going out: carry on, and send the
+// whole screen again after it
+void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c){
+	if(hi2c->Instance == SSD1306_I2C_PORT.Instance){
+		display_line_transmitting_flag = 0;
+		display_transmit_line = 0;
+		display_last_line = 7;
+		display_pending_first = 0;
+		display_pending_last = 7;
+	}
+}
 
 void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef *hi2c){
 
@@ -209,7 +250,6 @@ void ssd1306_Fill(SSD1306_COLOR color) {
 
 
 void ssd1306_DMATxLine(uint8_t line){
-	display_line_transmitting_flag = 1;
 
 	// Loading the front of the buffer with the page and column address commands
 	// So the commands get transfered by DMA in the one go with the page of data.
@@ -224,7 +264,9 @@ void ssd1306_DMATxLine(uint8_t line){
 
 	memcpy(line_tx_buffer + 6, &SSD1306_Buffer[SSD1306_WIDTH*line], SSD1306_WIDTH);
 
-	while(HAL_I2C_GetState(&SSD1306_I2C_PORT) != HAL_I2C_STATE_READY);
+	// Flagged only once the I2C is free: a recovery there clears the flag
+	ssd1306_WaitI2C();
+	display_line_transmitting_flag = 1;
 	display_transmit_data_flag = 1;
 	HAL_I2C_Mem_Write_DMA(&SSD1306_I2C_PORT, SSD1306_I2C_ADDR, 0x80, 1, line_tx_buffer, SSD1306_WIDTH+6);
 

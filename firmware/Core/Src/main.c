@@ -94,6 +94,28 @@ static inline void RelocateVectorTable(void)
   __ISB();
 }
 
+/*
+ * The independent watchdog: any lock-up restarts the pedal instead of leaving
+ * it dead until switched off. It runs from its own clock (LSI, 30 to 60 kHz),
+ * so with /32 and the longest reload it bites after 2.2 to 4.4 s without the
+ * main loop, room enough for the 17 pages an upload erases in one go. Stopped
+ * while a debugger holds the core, and gone after any reset, the one into the
+ * bootloader for a firmware update included.
+ */
+static void watchdog_start(void)
+{
+  DBGMCU->CR |= DBGMCU_CR_DBG_IWDG_STOP;
+  // Started first: that turns the LSI on, and PR and RLR only take a new
+  // value with it running. Waiting for them before starting hung here.
+  IWDG->KR = 0xCCCC;		// start
+  IWDG->KR = 0x5555;		// unlock PR and RLR
+  IWDG->PR = 3;				// LSI / 32
+  IWDG->RLR = 0xFFF;
+  uint32_t start = HAL_GetTick();
+  while (IWDG->SR && HAL_GetTick() - start < 50) {}
+  IWDG->KR = 0xAAAA;		// reload
+}
+
 // The waits of the boot, with the power on banner moving meanwhile
 static void boot_wait(uint32_t ms)
 {
@@ -197,6 +219,7 @@ int main(void)
   }
   tempo_init();
   sleep_init();
+  watchdog_start();
 
   /* USER CODE END 2 */
 
@@ -212,6 +235,7 @@ int main(void)
       sleep_task();
       kemper_task();
       dfu_entry_task();
+      IWDG->KR = 0xAAAA;	// feed the watchdog
 
       /*
        * Nothing here spins waiting for anything, so sleep until the next
@@ -481,7 +505,8 @@ static void MX_ADC1_Init(void)
 
 /*
  * @brief Show an error message on the screen, if the display is on, then call
- * Error_Handler() to stop all operations. The screen goes out a line at a
+ * Error_Handler() to stop all operations, until the watchdog restarts the
+ * pedal. The screen goes out a line at a
  * time from SysTick, so it waits for that, up to a moment, before stopping:
  * Error_Handler switches interrupts off, which used to leave it unsent.
  */

@@ -90,6 +90,7 @@ Everything the firmware and its tools can do, grouped the way the manual is. Eac
 - **Works without a computer.** On a USB charger or a power bank the pedal runs normally and drives your gear over the DIN output.
 - **Idle sleep.** After a configurable number of minutes with nobody touching it, the display and the LEDs switch off. Any press or expression pedal movement brings them back, and the press that wakes it still does its job, so nothing is lost on stage.
 - **Carries on when the computer sleeps.** If the computer it is plugged into goes to sleep and keeps powering the USB port, the pedal keeps working: the display, the LEDs and DIN MIDI as usual, and USB MIDI dropped until a computer is back.
+- **Restarts itself if it ever locks up.** A watchdog notices when the firmware stops running and restarts the pedal, back and working about six seconds later, instead of leaving it dead until it is switched off and on. A display that stops answering, from static or a loose flex, no longer freezes the pedal either: it carries on, and the screen is sent again.
 
 ## With a computer and other gear
 
