@@ -134,6 +134,25 @@ Comparte la conexión con la pestaña Expression.
 
 <img src="../../images/gui_virtual_pedal.png" width="500">
 
+## Monitor
+
+Todos los mensajes MIDI que llegan al ordenador, según llegan: lo que envía la pedalera y lo que trae cualquier otra entrada, un aparato USB o el puerto virtual de un DAW. Para averiguar qué envía de verdad un aparato, y para ver de un vistazo que un botón envía lo que querías.
+
+Pulsa **Start** y cada mensaje ocupa una fila:
+
+- el tiempo desde Start, y desde la fila de arriba, en segundos con milésimas, así que se puede cronometrar un `Wait`, una `Ramp` o el paso de un `LFO`;
+- el puerto por el que ha llegado y su canal;
+- una lectura en claro, como `CC 7 Volume = 100`, `Note On 60 (C4) velocity 90`, `MMC Play` o `Kemper`;
+- sus bytes tal cual, en hexadecimal.
+
+Las casillas enseñan u ocultan cada tipo de mensaje: notas, CC, PC, Pitch Bend y presión, SysEx, mensajes de sistema (Start, Stop, Song Select…), reloj, y las respuestas de la pedalera al propio configurador. El reloj, 24 por pulso, y esas respuestas, muchas por segundo mientras la Virtual Pedal está conectada, empiezan ocultos. **Channel** y **Port** afinan más. Los filtros también se aplican a lo que ya ha llegado, sobre los últimos 2000 mensajes, así que un mensaje que tapaba un filtro no se pierde.
+
+La lista sigue los mensajes nuevos mientras está al final; si subes, se queda donde estás. **Clear** la vacía y vuelve a contar el tiempo desde cero, y **Stop** cierra las entradas.
+
+Ve lo que llega al ordenador: lo que el ordenador envía a la pedalera no vuelve a él.
+
+<img src="../../images/gui_monitor.png" width="500">
+
 ---
 
 [← Primeros pasos](02-getting-started.md) · [Índice](README.md) · [Bancos →](04-banks.md)

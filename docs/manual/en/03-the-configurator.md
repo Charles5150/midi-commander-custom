@@ -132,6 +132,25 @@ It shares the Expression tab's connection.
 
 <img src="../../images/gui_virtual_pedal.png" width="500">
 
+## Monitor
+
+Every MIDI message arriving at the computer, as it arrives: what the pedal sends, and what any other input brings, a USB device, a DAW's virtual port. For working out what a device actually sends, and for seeing at a glance that a button sends what you meant.
+
+Press **Start** and each message gets a row:
+
+- the time since Start, and since the row above, in seconds to the millisecond, so a `Wait`, a `Ramp` or the step of an `LFO` can be timed;
+- the port it came in on and its channel;
+- a plain reading, such as `CC 7 Volume = 100`, `Note On 60 (C4) velocity 90`, `MMC Play` or `Kemper`;
+- its raw bytes in hex.
+
+The check boxes show or hide each kind of message: notes, CC, PC, Pitch Bend and pressure, SysEx, system messages (Start, Stop, Song Select…), clock, and the pedal's replies to the configurator itself. Clock, 24 a beat, and those replies, many a second while the Virtual Pedal is connected, start hidden. **Channel** and **Port** narrow it further. The filters work on what has already arrived too, over the last 2000 messages, so a message missed behind a filter is not lost.
+
+The list follows new messages while it is scrolled to the bottom; scroll up and it stays where you are. **Clear** empties it and starts the time again, and **Stop** closes the inputs.
+
+It sees what reaches the computer: what the computer sends the pedal does not come back to it.
+
+<img src="../../images/gui_monitor.png" width="500">
+
 ---
 
 [← Getting started](02-getting-started.md) · [Contents](README.md) · [Banks →](04-banks.md)

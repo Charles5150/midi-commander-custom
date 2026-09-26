@@ -110,6 +110,7 @@ Everything the firmware and its tools can do, grouped the way the manual is. Eac
 - **Configuration over USB.** Flash a configuration to the pedal and read it back, from the GUI or the command line, over ordinary USB MIDI SysEx. No special driver.
 - **Arranging a set.** Move banks up and down the list, or anywhere in one go, and every bank change, setlist entry, macro and combination follows them; copy a bank or a single button onto another.
 - **MIDI learn.** Press Learn on a command and move a knob or press a button on the device: its type, channel and number fill themselves in, from any MIDI input the computer has.
+- **MIDI monitor.** Every message reaching the computer, from the pedal or any other input, timed to the millisecond and read in plain words beside its bytes, with filters by kind, channel and port.
 - **Backups.** Copy all four configuration slots to a folder in one go, one editable CSV each, and put them all back just as easily.
 - **Firmware updates with nothing held.** From firmware 0.58 the pedal restarts in DFU mode when the computer asks, so `Update_Firmware.py` or **Update Firmware…** in the configurator does the whole update in about fifteen seconds: no switches held at power on, no power cycle, and the configuration left as it is. The stock bootloader is never written.
 

@@ -6,6 +6,7 @@ set of values is a drop-down or a check box; numeric fields only accept
 numbers inside their valid range.
 """
 
+import collections
 import datetime
 import os
 import re
@@ -65,6 +66,7 @@ from lib.midiDevice import (  # noqa: E402
 from lib import bankClipboard as bank_clipboard  # noqa: E402
 from lib import bankReorder as bank_reorder  # noqa: E402
 from lib import midiLearn as midi_learn  # noqa: E402
+from lib import midiMonitor as midi_monitor  # noqa: E402
 from lib.firmwareUpdate import UpdateError, check_image  # noqa: E402
 
 ctk.set_appearance_mode("Dark")
@@ -207,6 +209,12 @@ CMD_FIELDS = [
 ]
 
 BOLD = ("", 13, "bold")
+MONO = ("Menlo", 12) if sys.platform == "darwin" else ("Consolas", 11) if sys.platform == "win32" else ("DejaVu Sans Mono", 11)
+
+# --- MIDI monitor -----------------------------------------------------------
+MONITOR_POLL_MS = 50
+MONITOR_ALL_PORTS = "All inputs"
+MONITOR_HEADING = f"{'time':>9} {'since':>9}  {'port':<22}  {'chan':<5}  {'message':<38}  bytes"
 
 # Virtual pedal, drawn like the pedal: five switches a row, 1-4 and Bank Up on
 # top with their LEDs below, A-D and Bank Down underneath with their LEDs above,
@@ -1087,7 +1095,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.tabview.grid(row=0, column=1, padx=16, pady=(12, 16), sticky="nsew")
         # In the order a configuration is usually built
         for name in ("Buttons", "Banks", "Bank Enter", "Bank Switch", "Combos", "Setlist",
-                     "Expression", "SysEx", "Global", "Virtual Pedal"):
+                     "Expression", "SysEx", "Global", "Virtual Pedal", "Monitor"):
             self.tabview.add(name)
 
         self.global_scroll = ctk.CTkScrollableFrame(self.tabview.tab("Global"))
@@ -1127,6 +1135,7 @@ class MidiCommanderGUI(ctk.CTk):
         self._setup_button_tab()
         self._setup_expression_tab()
         self._setup_pedal_tab()
+        self._setup_monitor_tab()
         self._setup_bank_enter_tab()
         self._setup_sysex_tab()
         self._setup_bank_switch_tab()
@@ -2411,8 +2420,166 @@ class MidiCommanderGUI(ctk.CTk):
 
     def _on_close(self):
         LearnSession.stop()
+        self._monitor_stop()
         self._live_disconnect()
         self.destroy()
+
+    # --- Monitor tab ---------------------------------------------------------------
+    def _setup_monitor_tab(self):
+        tab = self.tabview.tab("Monitor")
+        frame = ctk.CTkFrame(tab, fg_color="transparent")
+        frame.pack(fill="both", expand=True, padx=10, pady=10)
+        self.monitor = None           # midi_monitor.Monitor while listening
+        self.monitor_entries = collections.deque(maxlen=midi_monitor.KEEP)
+        self.monitor_filter = midi_monitor.Filter()
+        self.monitor_last = None      # the last entry shown, for the time since it
+        self.monitor_shown = 0
+
+        top = ctk.CTkFrame(frame, fg_color="transparent")
+        top.pack(fill="x", pady=(0, 6))
+        self.btn_monitor = ctk.CTkButton(top, text="Start", width=110, command=self._monitor_toggle)
+        self.btn_monitor.pack(side="left")
+        ctk.CTkButton(top, text="Clear", width=80, fg_color=FIELD, hover_color=FIELD_HOVER,
+                      command=self._monitor_clear).pack(side="left", padx=8)
+        self.lbl_monitor = ctk.CTkLabel(top, text="not listening", text_color=MUTED)
+        self.lbl_monitor.pack(side="left", padx=6)
+
+        Help(
+            frame,
+            "Every MIDI message arriving at the computer, from the pedal and every other input.",
+            "Each row has the time since Start, the time since the row above, the port, the "
+            "channel, a plain reading and the raw bytes in hex. The filters work on what has "
+            "already arrived too, over the last 2000 messages. Clock and the pedal's replies to "
+            "the configurator's own questions (many a second while the Virtual Pedal is "
+            "connected) start hidden. Scroll up to stop following; scroll to the bottom to follow again.",
+        ).pack(anchor="w", pady=(0, 6))
+
+        filters = ctk.CTkFrame(frame, fg_color="transparent")
+        filters.pack(fill="x", pady=(0, 6))
+        self.monitor_kinds = {}
+        for k in midi_monitor.KINDS:
+            box = ctk.CTkCheckBox(filters, text=k, width=20, command=self._monitor_filter_changed)
+            if k in self.monitor_filter.kinds:
+                box.select()
+            box.pack(side="left", padx=(0, 10))
+            self.monitor_kinds[k] = box
+        choose = ctk.CTkFrame(frame, fg_color="transparent")
+        choose.pack(fill="x", pady=(0, 6))
+        ctk.CTkLabel(choose, text="Channel").pack(side="left")
+        self.monitor_channel = ctk.CTkOptionMenu(choose, values=["Any"] + CHANNELS, width=80,
+                                                 command=lambda _v: self._monitor_filter_changed())
+        self.monitor_channel.pack(side="left", padx=(6, 16))
+        ctk.CTkLabel(choose, text="Port").pack(side="left")
+        self.monitor_port = ctk.CTkOptionMenu(choose, values=[MONITOR_ALL_PORTS], width=240,
+                                              command=lambda _v: self._monitor_filter_changed())
+        self.monitor_port.pack(side="left", padx=6)
+
+        head = ctk.CTkLabel(frame, text=MONITOR_HEADING, font=MONO, text_color=MUTED, anchor="w")
+        head.pack(fill="x", padx=(6, 0))
+        self.monitor_text = ctk.CTkTextbox(frame, font=MONO, wrap="none", fg_color=BG)
+        self.monitor_text.pack(fill="both", expand=True)
+        self.monitor_text.configure(state="disabled")
+
+    def _monitor_toggle(self):
+        if self.monitor is not None:
+            self._monitor_stop()
+            return
+        try:
+            mon = midi_monitor.Monitor()
+        except Exception as e:
+            messagebox.showerror("MIDI monitor", f"Cannot open the MIDI inputs: {e}")
+            return
+        if not mon.ports:
+            mon.close()
+            messagebox.showinfo("MIDI monitor", "The computer has no MIDI input to listen to.")
+            return
+        self.monitor = mon
+        self._monitor_clear()
+        self.monitor_port.configure(values=[MONITOR_ALL_PORTS] + mon.names)
+        if self.monitor_port.get() not in mon.names:
+            self.monitor_port.set(MONITOR_ALL_PORTS)
+            self._monitor_filter_changed()
+        self.btn_monitor.configure(text="Stop", fg_color=WARN)
+        self.after(MONITOR_POLL_MS, self._monitor_poll, mon)
+
+    def _monitor_stop(self):
+        if getattr(self, "monitor", None) is None:
+            return
+        mon, self.monitor = self.monitor, None
+        mon.close()
+        self.btn_monitor.configure(text="Start", fg_color=ACCENT)
+        self._monitor_status()
+
+    def _monitor_clear(self):
+        self.monitor_entries.clear()
+        self.monitor_last = None
+        self.monitor_shown = 0
+        if self.monitor is not None:
+            self.monitor.start = self.monitor.clock()
+            self.monitor.drain()
+        self.monitor_text.configure(state="normal")
+        self.monitor_text.delete("1.0", "end")
+        self.monitor_text.configure(state="disabled")
+        self._monitor_status()
+
+    def _monitor_status(self):
+        if self.monitor is None:
+            text = "not listening"
+        else:
+            n = len(self.monitor.names)
+            text = f"listening to {n} input{'s' if n != 1 else ''}"
+        total = len(self.monitor_entries)
+        if total:
+            text += f"  \u2014  {total} message{'s' if total != 1 else ''}, {self.monitor_shown} shown"
+        self.lbl_monitor.configure(text=text)
+
+    def _monitor_filter_changed(self):
+        channel = self.monitor_channel.get()
+        port = self.monitor_port.get()
+        self.monitor_filter = midi_monitor.Filter(
+            kinds=frozenset(k for k, box in self.monitor_kinds.items() if box.get()),
+            channel=None if channel == "Any" else int(channel),
+            port=None if port == MONITOR_ALL_PORTS else port,
+        )
+        # Draw again from what has arrived, under the new filter
+        self.monitor_last = None
+        self.monitor_shown = 0
+        self.monitor_text.configure(state="normal")
+        self.monitor_text.delete("1.0", "end")
+        self.monitor_text.configure(state="disabled")
+        self._monitor_show(list(self.monitor_entries), follow=True)
+
+    def _monitor_show(self, entries, follow):
+        rows = []
+        for e in entries:
+            if self.monitor_filter.passes(e):
+                rows.append(midi_monitor.line(e, self.monitor_last))
+                self.monitor_last = e
+        if rows:
+            box = self.monitor_text
+            box.configure(state="normal")
+            box.insert("end", "\n".join(rows) + "\n")
+            self.monitor_shown += len(rows)
+            # Only the last rows are kept on screen
+            extra = self.monitor_shown - midi_monitor.KEEP
+            if extra > 0:
+                box.delete("1.0", f"{extra + 1}.0")
+                self.monitor_shown -= extra
+            box.configure(state="disabled")
+            if follow:
+                box.see("end")
+        self._monitor_status()
+
+    def _monitor_poll(self, mon):
+        if mon is not self.monitor:
+            return
+        got = mon.drain()
+        if got:
+            self.monitor_entries.extend(got)
+            # Follow the new rows unless the user has scrolled back
+            follow = self.monitor_text.yview()[1] >= 0.999
+            self._monitor_show(got, follow)
+        self.after(MONITOR_POLL_MS, self._monitor_poll, mon)
 
     # --- Bank Enter tab -----------------------------------------------------------
     def _setup_bank_enter_tab(self):

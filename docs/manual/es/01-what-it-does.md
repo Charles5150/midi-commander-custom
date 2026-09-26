@@ -110,6 +110,7 @@ Todo lo que pueden hacer el firmware y sus herramientas, agrupado igual que el m
 - **Configuración por USB.** Carga una configuración en la pedalera y léela de vuelta, desde la interfaz gráfica o desde la línea de comandos, por SysEx MIDI USB normal y corriente. Sin drivers especiales.
 - **Ordenar un repertorio.** Sube y baja bancos en la lista, o llévalos a cualquier sitio de una vez, y todos los cambios de banco, el setlist, las macros y las combinaciones los siguen; copia un banco o un solo botón sobre otro.
 - **Aprender por MIDI.** Pulsa Learn en un comando y mueve un mando o pulsa un botón del aparato: su tipo, canal y número se rellenan solos, desde cualquier entrada MIDI del ordenador.
+- **Monitor MIDI.** Cada mensaje que llega al ordenador, de la pedalera o de cualquier otra entrada, con su tiempo al milisegundo y leído en claro junto a sus bytes, con filtros por tipo, canal y puerto.
 - **Copias de seguridad.** Copia las cuatro ranuras de configuración a una carpeta de una vez, un CSV editable por ranura, y vuelve a ponerlas todas igual de fácil.
 - **Actualizar el firmware sin mantener nada pisado.** Desde el firmware 0.58 la pedalera se reinicia en modo DFU cuando se lo pide el ordenador, así que `Update_Firmware.py` o **Update Firmware…** en el configurador hacen toda la actualización en unos quince segundos: sin pulsadores pisados al encender, sin apagar y encender, y con la configuración intacta. El bootloader de fábrica nunca se toca.
 
