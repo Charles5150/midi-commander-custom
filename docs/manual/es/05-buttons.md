@@ -132,6 +132,7 @@ Elige el **exclusive group** (`Group`, del 1 al 4) junto al modo del LED. Los bo
 - Se apagan antes de que el botón pisado envíe nada, así que cuando todo el grupo controla un mismo parámetro, un CC de canal del ampli por ejemplo, el aparato acaba donde dice el botón pisado.
 - Pisar el botón encendido lo apaga como cualquier toggle y deja el grupo entero apagado.
 - Solo participan los botones con un comando toggle, y solo su pulsación corta.
+- Un botón que apaga su grupo no puede cambiar de banco: los comandos `Bank` de su lista se saltan, así que el botón pisado siempre envía desde el banco en que lo pisaste.
 - Los grupos son por banco: el grupo 1 de un banco no tiene nada que ver con el grupo 1 de otro.
 - Una escena puede encender dos botones de un grupo, y gana el último.
 
@@ -155,6 +156,7 @@ Una escena es un comando, `CommandType` `Scene`, que el configurador muestra com
 - Los que ya están así no se tocan, de modo que llamar dos veces a la misma escena no envía nada la segunda vez.
 - Los botones sin comando toggle no tienen estado y se saltan.
 - Una escena no puede disparar otra escena.
+- Los botones que pulsa una escena no pueden cambiar de banco: los comandos `Bank` de sus listas se saltan, así que toda la escena se aplica en el banco que se ve. Un comando `Bank` en la lista de la propia escena sí funciona, cuando esa lista termina.
 
 Una escena solo llega al banco que se ve y a las listas de pulsación corta. Para accionar un botón de otro banco, una lista larga o doble, o poner un estado sin enviar nada, usa un comando [`Button`](06-commands.md#pulsar-otro-botón) por botón.
 

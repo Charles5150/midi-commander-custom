@@ -611,6 +611,12 @@ static uint8_t pending_config = 0xFF;
 // 0xFF for none. See toggle_page().
 static uint8_t pending_page = 0xFF;
 /*
+ * Flags for the list of a button pressed by a scene or by its exclusive group
+ * rather than by a foot: LIST_SKIP_BANK while one is running, so such a button
+ * cannot change the bank halfway through and leave the rest acting on another.
+ */
+static uint8_t trigger_flags = 0;
+/*
  * Second page of a bank: another bank shown in its place while the bank stays
  * the one the song is in. page_home is that bank while a page is shown, 0xFF
  * otherwise.
@@ -2514,11 +2520,18 @@ static void release_group(uint8_t i){
 	if(group == 0) return;
 	if(!sw_button_is_toggle(switch_current_page, i)) return;
 	if(get_sw_toggle_state(&a_sw_obj[i])) return;	// switching off
+	uint8_t saved_bank = pending_bank;	// the calling list's, applied when it ends
+	uint8_t saved_page = pending_page;
+	uint8_t saved_flags = trigger_flags;
+	trigger_flags = LIST_SKIP_BANK;
 	for(uint8_t j=0; j<MIDI_NUM_SWITCHES; j++){
 		if(j == i || get_button_group(j) != group) continue;
 		if(!sw_button_is_toggle(switch_current_page, j)) continue;
 		if(get_sw_toggle_state(&a_sw_obj[j])) sw_trigger_button(j);
 	}
+	trigger_flags = saved_flags;
+	pending_bank = saved_bank;
+	pending_page = saved_page;
 }
 
 static void fire_short_down(uint8_t i){
@@ -2540,7 +2553,7 @@ static void fire_short_down(uint8_t i){
 	uint8_t first = cycle_advance(switch_current_page, i);
 	sw->press_bank = switch_current_page;
 	repeat_arm(sw, get_rom_pointer(switch_current_page, i, 0), first);
-	run_cmd_list(get_rom_pointer(switch_current_page, i, 0), first, first, get_sw_toggle_state(sw), i, 0, true);
+	run_cmd_list(get_rom_pointer(switch_current_page, i, 0), first, first, get_sw_toggle_state(sw), i, trigger_flags, true);
 }
 
 /*
@@ -2839,16 +2852,18 @@ void sw_trigger_button(uint8_t sw){
  * state to set and are skipped.
  *
  * A scene pressing a button whose own list holds a scene is ignored rather
- * than recursing, and a bank change the scene's own button had queued is kept
- * aside so a pressed button cannot apply it halfway through.
+ * than recursing. The buttons it presses cannot change the bank, and a bank
+ * change the scene's own button had queued waits for that button's list to end.
  */
 static void apply_scene(uint8_t mask, uint8_t states){
 	static bool applying = false;
 	if(applying) return;
 	applying = true;
 
-	uint8_t saved_pending = pending_bank;
-	pending_bank = 0xFF;
+	uint8_t saved_bank = pending_bank;
+	uint8_t saved_page = pending_page;
+	uint8_t saved_flags = trigger_flags;
+	trigger_flags = LIST_SKIP_BANK;
 
 	for(uint8_t i=0; i<MIDI_NUM_SWITCHES; i++){
 		if(!(mask & (1U << i))) continue;
@@ -2859,7 +2874,9 @@ static void apply_scene(uint8_t mask, uint8_t states){
 		}
 	}
 
-	if(pending_bank == 0xFF) pending_bank = saved_pending;
+	trigger_flags = saved_flags;
+	pending_bank = saved_bank;
+	pending_page = saved_page;
 	applying = false;
 }
 

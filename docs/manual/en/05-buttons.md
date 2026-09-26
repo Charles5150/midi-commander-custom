@@ -132,6 +132,7 @@ Choose the **exclusive group** (`Group`, 1 to 4) beside the LED mode. Buttons of
 - They are switched off before the pressed button sends anything, so when the whole group drives one parameter, an amp channel CC for instance, the device ends up where the pressed button says.
 - Pressing the lit button switches it off like any toggle, leaving the group all off.
 - Only buttons with a toggle command take part, and only their short press.
+- A button switched off by its group cannot change the bank: `Bank` commands in its list are passed over, so the pressed button always sends from the bank you pressed it in.
 - Groups are per bank: group 1 in one bank has nothing to do with group 1 in another.
 - A scene can switch on two buttons of a group, and the last one wins.
 
@@ -155,6 +156,7 @@ A scene is a command, `CommandType` `Scene`, which the configurator shows as eig
 - Buttons already there are not touched, so recalling the same scene twice sends nothing the second time.
 - Buttons without a toggle command have no state and are skipped.
 - A scene cannot trigger another scene.
+- The buttons a scene presses cannot change the bank: `Bank` commands in their lists are passed over, so the whole scene lands in the bank showing. A `Bank` command in the scene's own list still works, once that list has finished.
 
 A scene reaches only the bank showing and the buttons' short press lists. To work a button of another bank, a long or double press list, or to set a state without sending anything, use a [`Button`](06-commands.md#pressing-another-button) command per button.
 
