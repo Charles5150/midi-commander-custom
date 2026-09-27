@@ -115,15 +115,14 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
  *   0x0802E000  slot 2     12 pages
  *   0x08034000  slot 3     12 pages
  *   0x0803A000  banner      1 page
- *   0x0803A800  free       11 pages
+ *   0x0803A800  second extension areas, 2 pages per slot (FLASH_EXT2_ADDR)
+ *   0x0803E800  free        3 pages
  *   0x08040000  end
  *
- * The slots are full to the last byte and so are the global bytes, so the
- * next settings that need flash go in the free pages: two per slot from
- * 0x0803A800, a second extension area that the tools see as the
+ * The slots are full to the last byte and so are the global bytes, so newer
+ * settings go in the second extension area, which the tools see as the
  * configuration going on after the double press area. With no global byte
- * left to say the tools wrote it, it will start with a marker of its own and
- * count only when that is there. That leaves three pages over.
+ * left to say the tools wrote it, it starts with a marker of its own.
  */
 #define CONFIG_SLOTS			(4)
 #define FLASH_STATE_PAGES		(4)
@@ -259,6 +258,59 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
 #define CFG_DOUBLE_CMDS_OFF	(FLASH_SETTINGS_NO_PAGES * CFG_PAGE_SIZE)
 #define CFG_DOUBLE_CMDS_SIZE	(CFG_CMDS_SIZE)
 #define FLASH_IMAGE_SIZE		(CFG_DOUBLE_CMDS_OFF + FLASH_DOUBLE_PAGES * CFG_PAGE_SIZE)
+
+/*
+ * Second extension area (0.90), in the free pages above the banner: two pages
+ * per slot. To the tools it goes on after the double press area. It counts
+ * only when it starts with EXT2_MARKER, which the tools write with it, so
+ * nothing an older firmware or tool left there is ever read.
+ *
+ *   0x0803A800  slot 0    2 pages
+ *   0x0803B800  slot 1
+ *   0x0803C800  slot 2
+ *   0x0803D800  slot 3
+ *   0x0803E800  free      3 pages
+ *
+ *   [0..3]    EXT2_MARKER             [4..15] 0xFF
+ *   [16..]    the MIDI map, MIDI_MAP_COUNT entries of MIDI_MAP_STRIDE bytes
+ */
+#define FLASH_EXT2_PAGES		(2)
+#define FLASH_EXT2_ADDR(n)		(FLASH_BANNER_ADDR + FLASH_PAGE_SIZE + (n) * FLASH_EXT2_PAGES * FLASH_PAGE_SIZE)
+#define CFG_EXT2_OFF			(FLASH_IMAGE_SIZE)
+#define FLASH_IMAGE2_SIZE		(CFG_EXT2_OFF + FLASH_EXT2_PAGES * CFG_PAGE_SIZE)
+#define EXT2_MARKER				(0x32545845U)	// "EXT2", little endian
+#define EXT2_MAP_OFF			(16)
+
+/*
+ * MIDI map: what a message arriving over USB turns into. Every entry that
+ * matches a message acts on it, so one message can become several.
+ *   [0] type it matches: a status 0x90 (Note On, and Note Off as velocity 0),
+ *       0xB0, 0xC0, 0xD0 or 0xE0; MIDI_MAP_UNUSED ends nothing, it is skipped
+ *   [1] channel 1-16, 0 any
+ *   [2] number (note, CC, program) 0-127, 0xFF any
+ *   [3] [4] lowest and highest value it matches: velocity, CC value,
+ *       program, pressure, the pitch bend's upper 7 bits
+ *   [5] what it becomes: a status as in [0] (Note On), MIDI_MAP_RUN or
+ *       MIDI_MAP_NOTHING
+ *   [6] channel 1-16, 0 the same; for MIDI_MAP_RUN the bank of the list
+ *   [7] number 0-127, 0xFF the same; for MIDI_MAP_RUN the button in the low
+ *       nibble and which list (MACRO_LIST_) in the high one. A Program Change
+ *       made with the same number takes the value as its program.
+ *   [8] [9] the value range [3]..[4] is scaled to; 0xFF 0xFF keeps the value
+ *   [10] MIDI_MAP_KEEP: the message also goes on as it came
+ * A message some entry matched goes on through the USB thru only when one of
+ * them keeps it.
+ */
+#define MIDI_MAP_COUNT		(32)
+#define MIDI_MAP_STRIDE		(12)
+#define MIDI_MAP_UNUSED		(0xFF)
+#define MIDI_MAP_ANY		(0xFF)
+#define MIDI_MAP_NOTHING	(0x00)
+#define MIDI_MAP_RUN		(0x01)
+#define MIDI_MAP_KEEP		(0x01)
+
+// The active slot's MIDI map, or NULL when its tools wrote none
+const uint8_t *flash_settings_midi_map(void);
 
 // Erase and write act on the target slot, see flash_settings_set_target()
 bool flash_settings_erase(void);

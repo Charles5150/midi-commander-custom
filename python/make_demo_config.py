@@ -22,6 +22,7 @@ from lib.configCsv import write_config_csv  # noqa: E402
 from lib.configPacker import (  # noqa: E402
     BUTTON_IDS,
     COMBO_COLUMNS,
+    MIDI_MAP_COLUMNS,
     NUM_BANKS,
     empty_bank_enter_settings,
     empty_bank_switch_settings,
@@ -56,6 +57,23 @@ COMBOS = [
     {"Switches": "3+4", "Bank": "All", "Run_Bank": str(GLOBAL_BANK), "Run_Button": "B", "Run_List": "Short"},
     {"Switches": "3+4", "Bank": str(SETLIST_FROM), "Run_Bank": str(GLOBAL_BANK), "Run_Button": "4",
      "Run_List": "Short"},
+]
+# The MIDI map: what a computer sends turned into what the rig on the DIN
+# output wants. A scene change from the DAW (PC on channel 15) becomes two CCs
+# for a pedal on channel 2, the mod wheel on channel 14 turns round into the
+# volume on channel 1 and still goes on as it came, a pad (note 36) holds the
+# tuner on while it is down, and the pitch bend wheel becomes CC 4.
+MIDI_MAP = [
+    {"In_Type": "PC", "In_Channel": "15", "Out_Type": "CC", "Out_Channel": "2", "Out_Number": "20",
+     "Out_Min": "127", "Keep": "N"},
+    {"In_Type": "PC", "In_Channel": "15", "Out_Type": "CC", "Out_Channel": "2", "Out_Number": "21",
+     "Keep": "N"},
+    {"In_Type": "CC", "In_Channel": "14", "In_Number": "1", "Out_Type": "CC", "Out_Channel": "1",
+     "Out_Number": "11", "Out_Min": "127", "Out_Max": "0", "Keep": "Y"},
+    {"In_Type": "Note", "In_Channel": "14", "In_Number": "36", "Out_Type": "Run",
+     "Run_Bank": str(GLOBAL_BANK), "Run_Button": "B", "Run_List": "Short", "Keep": "N"},
+    {"In_Type": "PitchBend", "In_Channel": "14", "Out_Type": "CC", "Out_Channel": "1", "Out_Number": "4",
+     "Keep": "N"},
 ]
 # The order Bank Up/Down follow with Setlist_Mode on: home, then songs out of
 # numeric order, which is the point of having a setlist at all
@@ -745,6 +763,7 @@ def main() -> int:
             columns=["Position", "Bank_Number"],
         ),
         df_combos=pd.DataFrame(COMBOS, columns=COMBO_COLUMNS),
+        df_midi_map=pd.DataFrame(MIDI_MAP, columns=MIDI_MAP_COLUMNS),
     )
     print(f"wrote {OUT}")
     return 0

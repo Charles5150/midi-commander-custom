@@ -29,6 +29,7 @@ SECTIONS = {
     "setlist": "Setlist",
     "bank_exp": "BankExpression_Settings",
     "combos": "Combo_Settings",
+    "midi_map": "MidiMap_Settings",
 }
 
 
@@ -116,6 +117,8 @@ class MoveBankTest(unittest.TestCase):
         self.assertEqual(glob.loc["Global_Bank", "Value"], "0")
         self.assertEqual(list(moved["combos"]["Bank"])[:2], ["All", "13"])
         self.assertEqual(list(moved["combos"]["Run_Bank"])[:2], ["0", "0"])
+        # the MIDI map's pad runs the tuner in the global bank, wherever it goes
+        self.assertEqual(list(moved["midi_map"]["Run_Bank"])[3], "0")
 
     def test_if_bank_tests_follow_and_others_stay(self):
         df = self.frames["buttons"].copy().astype(object)

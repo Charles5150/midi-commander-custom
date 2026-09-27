@@ -390,7 +390,8 @@ function summary(sec, row) {
 // --- Toolbar and tabs -------------------------------------------------------
 const TABS = [
   ["banks", "Banks"], ["global", "Global"], ["expression", "Expression"], ["bankswitch", "Bank switches"],
-  ["sysex", "SysEx"], ["setlist", "Setlist"], ["combos", "Combos"], ["live", "Live pedal"], ["firmware", "Firmware"],
+  ["sysex", "SysEx"], ["setlist", "Setlist"], ["combos", "Combos"], ["midimap", "MIDI map"], ["live", "Live pedal"],
+  ["firmware", "Firmware"],
 ];
 
 function renderToolbar() {
@@ -433,7 +434,8 @@ function render() {
   }
   ({
     banks: renderBanks, global: renderGlobal, expression: renderExpression, bankswitch: renderBankSwitch,
-    sysex: renderSysex, setlist: renderSetlist, combos: renderCombos, live: renderLive, firmware: renderFirmware,
+    sysex: renderSysex, setlist: renderSetlist, combos: renderCombos, midimap: renderMidiMap, live: renderLive,
+    firmware: renderFirmware,
   })[state.tab](main);
   if (state.tab !== "live") stopLive();
 }
@@ -605,6 +607,39 @@ function renderCombos(main) {
     sec.rows.length ? h("button", { onclick: () => { sec.rows.pop(); changed(); render(); } }, "Remove the last") : null);
 }
 
+// One card per entry: what it matches, then what it becomes. The fields shown
+// follow the types, so a change of type draws the card again.
+function renderMidiMap(main) {
+  const sec = section("MidiMap_Settings") || (state.config.MidiMap_Settings = { columns: [...state.schema.midiMapColumns], rows: [] });
+  const fields = state.schema.sectionColumns.MidiMap_Settings;
+  const shown = (f, row) => !f.when || Object.entries(f.when).every(([c, vals]) => vals.includes(cell(sec, row, c)));
+  const control = (f, row) => {
+    const ctl = fieldControl(f, () => cell(sec, row, f.col), (v) => {
+      setCell(sec, row, f.col, v);
+      if (f.col.endsWith("_Type")) render();
+    });
+    return f.kind === "check" ? h("label", { class: "check" }, ctl, f.label) : labelled(f.label, ctl);
+  };
+  const part = (row, prefix, title) => h("div", { class: "fields" }, h("strong", { class: "map-part" }, title),
+    fields.filter((f) => prefix.some((p) => f.col.startsWith(p)) && shown(f, row)).map((f) => control(f, row)));
+  main.append(
+    h("p", { class: "hint" }, "What a computer sends over USB, turned into what the device on the DIN output wants: another type, channel, number or value range (from 127 to 0 turns it round, one value alone always sends it), or a button's list, run as a Macro runs it. Every entry that matches acts. Empty number: any, or the same. Needs firmware 0.90."),
+    ...sec.rows.map((row, i) => h("section", { class: "card" },
+      h("h3", {}, `Entry ${i + 1} `, h("button", { onclick: () => { sec.rows.splice(i, 1); changed(); render(); } }, "Remove")),
+      part(row, ["In_"], "When"),
+      part(row, ["Out_", "Run_", "Keep"], "Becomes"))),
+    ...(sec.rows.length ? [] : [h("p", {}, "No entries yet.")]),
+    h("button", {
+      disabled: sec.rows.length >= state.schema.midiMapCount,
+      onclick: () => {
+        const fresh = { In_Type: "PC", Out_Type: "CC", Out_Number: "0", Run_Bank: "0", Run_Button: "1", Run_List: "Short", Keep: "N" };
+        sec.rows.push(sec.columns.map((c) => fresh[c] ?? ""));
+        changed();
+        render();
+      },
+    }, "Add an entry"));
+}
+
 // --- Files -----------------------------------------------------------------
 async function openFile() {
   if (!(await confirmDiscard())) return;
@@ -706,7 +741,7 @@ async function demoIntoSimulation() {
   setBusy("Writing the demo to the simulated pedal");
   const pedal = state.pedal;
   await pedal.selectSlot(0);
-  await pedal.writeImage(state.version, packed.config, packed.image, () => {}, (d, t) => setBusy("Writing the demo to the simulated pedal", d, t));
+  await pedal.writeImage(state.version, packed.config, packed.image, () => {}, (d, t) => setBusy("Writing the demo to the simulated pedal", d, t), state.tools.sizes.ext2Offset);
   pedal.reset();
   toast("The simulated pedal holds the demo in slot 1. Write any configuration to it as to the pedal.");
 }
@@ -798,11 +833,13 @@ async function writeToPedal() {
   try {
     setBusy(`Writing slot ${slot + 1}`);
     await pedal.selectSlot(slot);
-    await pedal.writeImage(state.version, packed.config, packed.image, (m) => console.log(m), (d, t) => setBusy(`Writing slot ${slot + 1}`, d, t));
+    let warning = "";
+    const log = (m) => { console.log(m); if (m.startsWith("WARNING: ")) warning = m.slice(9); };
+    await pedal.writeImage(state.version, packed.config, packed.image, log, (d, t) => setBusy(`Writing slot ${slot + 1}`, d, t), state.tools.sizes.ext2Offset);
     setBusy("Restarting the pedal");
     state.dirty = false;
     pedal.reset();
-    toast(`Written to slot ${slot + 1}; the pedal restarts`);
+    toast(warning ? `Written to slot ${slot + 1}, but ${warning}` : `Written to slot ${slot + 1}; the pedal restarts`, warning ? "error" : undefined);
   } catch (e) {
     toast(`Writing failed: ${e.message}. The slot is incomplete: write it again.`, "error");
   } finally {

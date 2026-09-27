@@ -51,6 +51,12 @@ from lib.configPacker import (  # noqa: E402
     COMBO_COUNT,
     COMBO_COLUMNS,
     empty_combos,
+    MIDI_MAP_SECTION,
+    MIDI_MAP_COUNT,
+    MIDI_MAP_COLUMNS,
+    MIDI_MAP_OUT_TYPES,
+    MIDI_MAP_TYPES,
+    empty_midi_map,
     parse_sysex_bytes,
 )
 from lib.configPacker import (  # noqa: E402
@@ -1063,6 +1069,8 @@ class MidiCommanderGUI(ctk.CTk):
         self.df_setlist = None
         self.df_combos = None
         self.combo_widgets = []
+        self.df_midi_map = None
+        self.midi_map_widgets = []
         self.df_bank_exp = None
         self.bank_exp_widgets = {}  # df index -> {column: widget}
         self.setlist_widgets = []
@@ -1151,7 +1159,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.tabview.grid(row=0, column=1, padx=16, pady=(12, 16), sticky="nsew")
         # In the order a configuration is usually built
         for name in ("Buttons", "Banks", "Bank Enter", "Bank Switch", "Combos", "Setlist",
-                     "Expression", "SysEx", "Global", "Virtual Pedal", "Monitor"):
+                     "Expression", "SysEx", "MIDI Map", "Global", "Virtual Pedal", "Monitor"):
             self.tabview.add(name)
 
         self.global_scroll = ctk.CTkScrollableFrame(self.tabview.tab("Global"))
@@ -1198,6 +1206,7 @@ class MidiCommanderGUI(ctk.CTk):
         self._setup_bank_switch_tab()
         self._setup_setlist_tab()
         self._setup_combo_tab()
+        self._setup_midi_map_tab()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
         if os.path.exists(DEFAULT_CSV):
@@ -1429,6 +1438,12 @@ class MidiCommanderGUI(ctk.CTk):
                 else empty_combos()
             )
             self.populate_combos()
+            self.df_midi_map = (
+                data[MIDI_MAP_SECTION].astype(object).reset_index(drop=True)
+                if MIDI_MAP_SECTION in data
+                else empty_midi_map()
+            )
+            self.populate_midi_map()
             self.df_sysex = (
                 data[SYSEX_SECTION].astype(object).reset_index(drop=True)
                 if SYSEX_SECTION in data
@@ -1748,9 +1763,10 @@ class MidiCommanderGUI(ctk.CTk):
             "global": self.df_global, "banks": self.df_banks, "buttons": self.df_buttons,
             "long": self.df_long, "double": self.df_double, "enter": self.df_enter,
             "bank_switch": self.df_bank_switch, "setlist": self.df_setlist,
-            "bank_exp": self.df_bank_exp, "combos": self.df_combos,
+            "bank_exp": self.df_bank_exp, "combos": self.df_combos, "midi_map": self.df_midi_map,
         }
         moved = bank_reorder.move_bank(frames, src, dst)
+        self.df_midi_map = moved.get("midi_map")
         (self.df_global, self.df_banks, self.df_buttons, self.df_long, self.df_double, self.df_enter,
          self.df_bank_switch, self.df_setlist, self.df_bank_exp, self.df_combos) = (
             moved["global"], moved["banks"], moved["buttons"], moved["long"], moved["double"],
@@ -1767,6 +1783,7 @@ class MidiCommanderGUI(ctk.CTk):
                                                fg_color=FIELD, hover_color=FIELD_HOVER)
         self._drop_editors()
         self._refresh_after_move()
+        self.populate_midi_map()
         shown = str(mapping[int(clean(self.bank_selector.get()) or 0)])
         self.bank_selector.set(shown)
         self.on_bank_change(shown)
@@ -2881,6 +2898,119 @@ class MidiCommanderGUI(ctk.CTk):
             })
         self.df_combos = pd.DataFrame(rows, columns=COMBO_COLUMNS)
 
+    # --- MIDI Map tab --------------------------------------------------------------
+    MIDI_MAP_IN = list(MIDI_MAP_TYPES)
+    MIDI_MAP_OUT = list(MIDI_MAP_OUT_TYPES)
+
+    def _setup_midi_map_tab(self):
+        tab = self.tabview.tab("MIDI Map")
+        Help(
+            tab,
+            "What a computer sends over USB, turned into what the device on the DIN output wants.",
+            "Each entry matches a message by type, channel, number and a range of values, and sends "
+            "another in its place on the DIN output: another type, channel or number, the value "
+            "range scaled onto another (from 127 to 0 turns it round, one value alone sends that "
+            "value always). Or it runs a button's list, as a Macro does, on USB and DIN like a press; "
+            "a Note Off or a value below 64 runs it with its toggles off. Nothing only stops the "
+            "message. Every entry that matches acts, so one message can make several. A message an "
+            "entry took goes on as it came only if one of them says so, and what the entries make "
+            "goes out whether USB thru is on or not. Empty: any channel, any number, the same. "
+            f"Up to {MIDI_MAP_COUNT} entries; needs firmware 0.90.",
+        ).pack(anchor="w", padx=10, pady=(10, 6))
+        self.midi_map_frame = ctk.CTkScrollableFrame(tab)
+        self.midi_map_frame.pack(fill="both", expand=True, padx=10, pady=(0, 6))
+        bar = ctk.CTkFrame(tab, fg_color="transparent")
+        bar.pack(anchor="w", padx=10, pady=(0, 10))
+        self.midi_map_add = ctk.CTkButton(bar, text="Add an entry", width=120, command=self._add_midi_map_row)
+        self.midi_map_add.pack(side="left")
+
+    def populate_midi_map(self):
+        for w in self.midi_map_frame.winfo_children():
+            w.destroy()
+        self.midi_map_widgets = []
+        if self.df_midi_map is not None:
+            for _, r in self.df_midi_map.iterrows():
+                if clean(r.get("In_Type")):
+                    self._midi_map_row(r)
+        self.midi_map_add.configure(state="normal" if len(self.midi_map_widgets) < MIDI_MAP_COUNT else "disabled")
+
+    def _midi_map_row(self, r):
+        """Two lines per entry, what it matches and what it becomes, each field
+        with its name beside it, so the tab fits the window."""
+        i = len(self.midi_map_widgets) + 1
+        box = ctk.CTkFrame(self.midi_map_frame, fg_color="transparent")
+        box.pack(fill="x", pady=(6, 4))
+        lines = [ctk.CTkFrame(box, fg_color="transparent") for _ in range(2)]
+        for line in lines:
+            line.pack(fill="x", anchor="w")
+        channels = [str(c) for c in range(1, 17)]
+        pick = lambda names, text: next((n for n in names if n.upper() == clean(text).upper()), names[0])
+        in_type = pick(self.MIDI_MAP_IN, r.get("In_Type"))
+        out_type = pick(self.MIDI_MAP_OUT, clean(r.get("Out_Type")) or in_type)
+        one, two = lines
+        # The second line shows the message's fields or the list's, by its type
+        message = ctk.CTkFrame(two, fg_color="transparent")
+        run = ctk.CTkFrame(two, fg_color="transparent")
+        w = {
+            "In_Type": Option(one, self.MIDI_MAP_IN, in_type, width=100),
+            "In_Channel": Option(one, ["Any"] + channels, clean(r.get("In_Channel")) or "Any", width=70),
+            "In_Number": IntEntry(one, 0, 127, r.get("In_Number"), width=50),
+            "In_Min": IntEntry(one, 0, 127, r.get("In_Min"), width=45),
+            "In_Max": IntEntry(one, 0, 127, r.get("In_Max"), width=45),
+            "Out_Type": Option(two, self.MIDI_MAP_OUT, out_type, width=100),
+            "Out_Channel": Option(message, ["Same"] + channels, clean(r.get("Out_Channel")) or "Same", width=70),
+            "Out_Number": IntEntry(message, 0, 127, r.get("Out_Number"), width=50),
+            "Out_Min": IntEntry(message, 0, 127, r.get("Out_Min"), width=45),
+            "Out_Max": IntEntry(message, 0, 127, r.get("Out_Max"), width=45),
+            "Run_Bank": IntEntry(run, 0, 31, r.get("Run_Bank"), width=45),
+            "Run_Button": Option(run, list(BUTTON_IDS), clean(r.get("Run_Button")).upper(), width=60),
+            "Run_List": Option(run, self.COMBO_LISTS, clean(r.get("Run_List")).title(), width=85),
+            "Keep": Check(two, text="also as it came", checked=is_yes(r.get("Keep"))),
+        }
+        ctk.CTkLabel(one, text=f"{i:>2}  When", width=80, anchor="w", font=BOLD).pack(side="left")
+        ctk.CTkLabel(two, text="    Becomes", width=80, anchor="w", font=BOLD).pack(side="left")
+        layout = [("", "In_Type"), ("ch", "In_Channel"), ("number", "In_Number"), ("values", "In_Min"),
+                  ("to", "In_Max"), ("", "Out_Type"), ("ch", "Out_Channel"), ("number", "Out_Number"),
+                  ("values", "Out_Min"), ("to", "Out_Max"), ("bank", "Run_Bank"),
+                  ("button", "Run_Button"), ("list", "Run_List")]
+        for text, key in layout:
+            if text:
+                ctk.CTkLabel(w[key].master, text=text, text_color=MUTED).pack(side="left", padx=(8, 3))
+            w[key].pack(side="left", padx=(0, 2))
+        ctk.CTkButton(one, text="Remove", width=70, fg_color=FIELD, hover_color=FIELD_HOVER,
+                      command=lambda: self._remove_midi_map_row(w)).pack(side="left", padx=(16, 0))
+
+        def show(kind):
+            message.pack_forget()
+            run.pack_forget()
+            w["Keep"].pack_forget()
+            if kind == "Run":
+                run.pack(side="left")
+            elif kind != "Nothing":
+                message.pack(side="left")
+            w["Keep"].pack(side="left", padx=(12, 0))
+
+        w["Out_Type"].configure(command=show)
+        show(out_type)
+        self.midi_map_widgets.append(w)
+
+    def _add_midi_map_row(self):
+        self.apply_midi_map_changes()
+        rows = [] if self.df_midi_map is None else self.df_midi_map.to_dict("records")
+        rows.append({"In_Type": "PC", "Out_Type": "CC", "Out_Number": "0", "Keep": "N"})
+        self.df_midi_map = pd.DataFrame(rows, columns=MIDI_MAP_COLUMNS).astype(object)
+        self.populate_midi_map()
+
+    def _remove_midi_map_row(self, widgets):
+        self.midi_map_widgets.remove(widgets)
+        self.apply_midi_map_changes()
+        self.populate_midi_map()
+
+    def apply_midi_map_changes(self):
+        rows = [{k: v.value() for k, v in w.items()} for w in self.midi_map_widgets]
+        if self.midi_map_widgets or self.df_midi_map is not None:
+            self.df_midi_map = pd.DataFrame(rows, columns=MIDI_MAP_COLUMNS)
+
     # --- SysEx tab -----------------------------------------------------------------
     def _setup_sysex_tab(self):
         tab = self.tabview.tab("SysEx")
@@ -2939,6 +3069,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.apply_bank_switch_changes()
         self.apply_setlist_changes()
         self.apply_combo_changes()
+        self.apply_midi_map_changes()
         self.apply_sysex_changes()
         for idx, w in self.global_widgets.items():
             self.df_global.at[idx, "Value"] = w.value()
@@ -3005,6 +3136,7 @@ class MidiCommanderGUI(ctk.CTk):
             df_setlist=self.df_setlist,
             df_bank_expression=self.df_bank_exp,
             df_combos=self.df_combos,
+            df_midi_map=self.df_midi_map,
         )
 
     def _config_text(self):

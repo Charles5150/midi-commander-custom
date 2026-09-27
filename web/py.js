@@ -55,6 +55,8 @@ export class Tools {
       config: this.bridge.CONFIG_SIZE,
       doubleOffset: this.bridge.DOUBLE_PRESS_OFFSET,
       double: this.bridge.DOUBLE_PRESS_SIZE,
+      ext2Offset: this.bridge.EXT2_OFFSET,
+      ext2: this.bridge.EXT2_SIZE,
     };
   }
 

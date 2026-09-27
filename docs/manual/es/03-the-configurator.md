@@ -94,6 +94,10 @@ Las listas de comandos de los pulsadores Bank Down y Bank Up, una por pulsador y
 
 Dos pulsadores pisados a la vez, una combinación por fila: los dos pulsadores, el banco en el que cuenta o todos los bancos, y la lista que ejecuta, indicada por banco, botón y pulsación corta, larga o doble. Cuánto espera un pulsador al otro es **Two switches together within** en la pestaña Global. Mira [Combo_Settings](05-buttons.md#combo_settings).
 
+## MIDI Map
+
+Lo que llega por USB traducido para el equipo de la salida DIN, cada entrada en dos líneas: **When**, el tipo, canal, número y valores que casan, y **Becomes**, el mensaje que envía en su lugar o la lista de botón que ejecuta. Los campos de la segunda línea siguen a su tipo. **Add an entry** y **Remove** las añaden y las quitan, hasta 32. Mira [Traducir lo que llega](11-devices.md#traducir-lo-que-llega).
+
 ## Setlist
 
 El orden que siguen Bank Up / Down cuando **Follow the setlist** (`Setlist_Mode`) está activado: un desplegable por posición, con cada banco por número y nombre. La lista termina en la primera fila vacía. Mira [Setlist](04-banks.md#setlist).

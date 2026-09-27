@@ -129,6 +129,51 @@ kemper> dly
 
 It has not been tried against a real Kemper yet. The numbers it speaks — the maker's `00 20 33`, the functions, the module pages and the beacon — are the ones the Profiler's MIDI documentation and the open controllers that talk to one use, and a test checks the firmware's list against the tools', so if an amp ever disagrees the fix will be in that table of numbers and nowhere else.
 
+
+## Translating what comes in
+
+A DAW, a sequencer or a keyboard on USB rarely speaks the language of the old pedal on the DIN cable: the DAW changes scene with a Program Change, the delay wants two CCs; the keyboard's mod wheel is CC 1, the amp's volume CC 11 and the other way round. The **MIDI map** puts the pedal in the middle and translates.
+
+Each entry says **when**, a message arriving over USB, and what it **becomes**:
+
+- **When**: its type, `Note`, `CC`, `PC`, `Pressure` (Channel Pressure) or `PitchBend`; its channel or any; its number (the note, the CC, the program) or any; and a range of values, 0 to 127 unless narrowed. A `Note Off` counts as a note of velocity 0, a PC's value is its program, and a pitch bend's is its upper seven bits.
+- **Becomes** another message on the DIN output: another type, channel or number, empty for the same, and the value range scaled onto another. From 127 to 0 turns it round, one value alone sends that value every time, and nothing keeps the value as it came. A PC made with no number takes the value as its program, so `CC 20` becomes `PC` of its value.
+- Or it **runs a button's list**, named by bank, button and short, long or double press, as a [`Macro`](06-commands.md#macros) does. The list runs as a press would, with its commands on USB and DIN; a `Note Off`, a velocity 0 or a value below 64 runs it with its toggles off, so a pad held down holds a toggle on.
+- Or **Nothing**, which only stops the message.
+
+Every entry that matches acts, so one message can make several: two entries on the same PC send two CCs. A message some entry matched goes no further as it came, unless one of them has **also as it came** ticked; what the entries make goes out whether `USB_MIDI_Thru` is on or not, and a message no entry matches goes on through the thru as ever. Up to 32 entries per configuration.
+
+The map works alongside everything else the pedal listens for. [`Remote_Mode`](12-configuration-file.md#usb-midi) comes first, and a message pressing a switch goes no further; bank selection by PC or CC, `LED_Feedback` and following the host's programs still see a message the map translated.
+
+**In the configurator** it is the **MIDI Map** tab, each entry with its **When** and **Becomes**; the web configurator has it too.
+
+**In the demo**, a PC on channel 15 becomes CC 20 = 127 and CC 21 = the program on channel 2, the mod wheel on channel 14 becomes CC 11 on channel 1 turned round and also goes on as it came, note 36 on channel 14 holds the global bank's tuner on while it is down, and the pitch bend on channel 14 becomes CC 4.
+
+### MidiMap_Settings
+
+A row per entry. Empty cells take the default shown.
+
+| Column | Values | Meaning |
+|---|---|---|
+| `In_Type` | `Note`, `CC`, `PC`, `Pressure`, `PitchBend` | The message it matches. A row without one is left out. |
+| `In_Channel` | `Any`, 1–16 | Default any. |
+| `In_Number` | `Any`, 0–127 | The note, CC or program. `Pressure` and `PitchBend` have none: leave it empty. |
+| `In_Min`, `In_Max` | 0–127 | The values it matches. Default 0 and 127. |
+| `Out_Type` | `Note`, `CC`, `PC`, `Pressure`, `PitchBend`, `Run`, `Nothing` | What it becomes. Default the same type. |
+| `Out_Channel` | `Same`, 1–16 | Default the same. |
+| `Out_Number` | `Same`, 0–127 | Default the same; a `Note` or `CC` made from a `Pressure` or `PitchBend` needs one. |
+| `Out_Min`, `Out_Max` | 0–127 | `In_Min`..`In_Max` scaled onto these. Both empty: the value as it came; one alone: always that value. |
+| `Run_Bank`, `Run_Button`, `Run_List` | 0–31, `1`–`D`, `Short` / `Long` / `Double` | The list an `Out_Type` of `Run` runs. |
+| `Keep` | Y / N | Also as it came. |
+
+<details><summary>Under the hood</summary>
+
+The pages of a slot were full, so the map lives in a second extension area, two flash pages per slot above the power on banner's page, which the tools see as the configuration going on after the double press area. It starts with the marker `EXT2` and counts only when that is there. An entry is 12 bytes, described in `flash_midi_settings.h`. The map is looked up in the USB interrupt, as the thru is; a list to run is queued there, eight at most, and run by the main loop.
+
+</details>
+
+*Firmware 0.90 or later; older firmware gets everything else and the tools say the map was left out.*
+
 ---
 
 [← Editing on the pedal](10-editing-on-the-pedal.md) · [Contents](README.md) · [The configuration file →](12-configuration-file.md)

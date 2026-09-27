@@ -26,6 +26,7 @@ src="
   $fw/Core/Src/tiny_printf.c
   $fw/Core/Src/banner_store.c
   $fw/Core/Src/latency.c
+  $fw/Core/Src/midi_map.c
   $fw/USB_DEVICE/App/usbd_midi_if.c
   $fw/Middlewares/stm32-ssd1306-master/ssd1306/ssd1306.c
   $fw/Middlewares/stm32-ssd1306-master/ssd1306/ssd1306_fonts.c

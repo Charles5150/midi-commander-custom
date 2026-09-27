@@ -16,6 +16,7 @@ A configuration is a CSV with several sections, each introduced by a line starti
 | `BankSwitch_Settings` | What Bank Up and Bank Down send | [Banks](04-banks.md#bankswitch_settings) |
 | `Setlist` | The order Bank Up / Down follow | [Banks](04-banks.md#setlist) |
 | `Expression_Settings`, `BankExpression_Settings` | The two expression pedals, and per bank | [Expression pedals](08-expression.md) |
+| `MidiMap_Settings` | What comes in over USB, translated | [Templates and devices](11-devices.md#midimap_settings) |
 
 The file can be saved as UTF-8, with or without the mark Excel's **CSV UTF-8** puts at its start, or as the Windows-1252 of Excel's plain **CSV** on Windows. The display only draws the letters, digits and signs of plain ASCII, so in the configuration's name, the bank names, the labels and the cycle labels a letter with an accent goes as the plain letter, `Canción` as `Cancion` and `Ñu` as `Nu`, curly quotes and dashes as their plain forms, and anything else, such as `€`, as `?`. The configurator shows the text that way on leaving the field.
 
@@ -98,7 +99,7 @@ The settings of the whole pedal, as `Label,Value` rows. In the configurator they
 
 | Label | In the configurator | Values | What it does |
 |---|---|---|---|
-| `USB_MIDI_Thru` | USB to DIN thru | Y / N | Forward every other MIDI message received over USB (notes, CC, PC, pitch bend, system common, other devices' SysEx) to the DIN output. |
+| `USB_MIDI_Thru` | USB to DIN thru | Y / N | Forward every other MIDI message received over USB (notes, CC, PC, pitch bend, system common, other devices' SysEx) to the DIN output. A message the [MIDI map](11-devices.md#translating-what-comes-in) takes goes out as it says instead. |
 | `RealTime_Passthrough` | Clock and transport thru | Y / N | Forward MIDI Clock, Start, Continue and Stop received over USB to the DIN output. |
 | `Clock_Follow` | Follow the host's clock | Y / N | Measure MIDI clock arriving over USB, over two beats, and adopt its tempo; the display shows it as `EXT` and a tempo for 1.5 seconds when the clock is picked up or its tempo changes by two BPM or more. While that clock keeps arriving the pedal sends no clock of its own: with `RealTime_Passthrough` on the host's clock already reaches the DIN output, and with it off the pedal re-clocks the DIN output at the host's tempo. Half a second without a clock counts as stopped, and the pedal's own clock, if running, continues at the adopted tempo. Default N. |
 | `Beat_Counter` | Bar and beat on the display | Off / 1–15 | While a clock runs, the pedal's own or the host's followed by `Clock_Follow` from its Start to its Stop, the bank's info line shows the bar, the beat and the tempo, `12.3 120`, in bars of this many beats. Off leaves the info line alone. See [Bar and beat on the display](07-tempo.md#bar-and-beat-on-the-display). Default Off. Needs firmware 0.88 (the top four bits of global byte 35). |

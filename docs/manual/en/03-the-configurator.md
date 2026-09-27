@@ -92,6 +92,10 @@ The command lists of the Bank Down and Bank Up switches, one per switch and pres
 
 Two switches pressed together, one combination a row: the two switches, the bank it counts in or all banks, and the list it runs, named by bank, button and short, long or double press. How long a switch waits for the other one is **Two switches together within** in the Global tab. See [Combo_Settings](05-buttons.md#combo_settings).
 
+## MIDI Map
+
+What arrives over USB translated for the device on the DIN output, an entry in two lines: **When**, the type, channel, number and values it matches, and **Becomes**, the message it sends instead or the button's list it runs. The fields of the second line follow its type. **Add an entry** and **Remove** add and take them away, up to 32. See [Translating what comes in](11-devices.md#translating-what-comes-in).
+
 ## Setlist
 
 The order Bank Up / Down follow when **Follow the setlist** (`Setlist_Mode`) is on: one drop-down per position, listing every bank by number and name. The list ends at the first empty row. See [Setlist](04-banks.md#setlist).

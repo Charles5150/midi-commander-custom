@@ -20,6 +20,7 @@
 #include "banner_store.h"
 #include "state_store.h"
 #include "latency.h"
+#include "midi_map.h"
 #include <string.h>
 
 extern I2C_HandleTypeDef hi2c1;
@@ -610,6 +611,21 @@ static inline uint8_t usb_thru_enabled(void){
 static uint8_t thru_buf[48];
 static uint8_t thru_len = 0;
 
+static void thru_flush(void){
+	if(thru_len){
+		midiCmd_send_bytes_serial(thru_buf, thru_len);
+		thru_len = 0;
+	}
+}
+
+// What the MIDI map makes goes out whether the thru is on or not, and can be
+// more than a packet brought in
+static void thru_add(const uint8_t *data, uint8_t len){
+	if(thru_len + len > sizeof(thru_buf)) thru_flush();
+	memcpy(thru_buf + thru_len, data, len);
+	thru_len += len;
+}
+
 static void thru_push(const uint8_t *data, uint8_t len){
 	if(!usb_thru_enabled() || thru_len + len > sizeof(thru_buf)){
 		return;
@@ -618,11 +634,10 @@ static void thru_push(const uint8_t *data, uint8_t len){
 	thru_len += len;
 }
 
-static void thru_flush(void){
-	if(thru_len){
-		midiCmd_send_bytes_serial(thru_buf, thru_len);
-		thru_len = 0;
-	}
+// A channel message: through the MIDI map, then on through the thru unless an
+// entry took it
+static void thru_channel(const uint8_t *data, uint8_t len){
+	if(!midi_map_message(data, thru_add)) thru_push(data, len);
 }
 
 /*
@@ -772,7 +787,7 @@ uint16_t MIDI_DataRx(uint8_t *msg, uint16_t length)
 			} else {
 				sw_note_program(data[0], data[1]);	// next / previous preset follow the host
 			}
-			thru_push(data, len);
+			thru_channel(data, len);
 			break;
 
 		case CIN_NOTE_OFF:
@@ -780,7 +795,7 @@ uint16_t MIDI_DataRx(uint8_t *msg, uint16_t length)
 			if(handle_remote_message(cin, data)) break;
 			// May set the LED of a toggle button that sends this note
 			sw_feedback_message(data);
-			thru_push(data, len);
+			thru_channel(data, len);
 			break;
 
 		case CIN_THREE_BYTE_SYSTEM_COMMON:
@@ -789,10 +804,13 @@ uint16_t MIDI_DataRx(uint8_t *msg, uint16_t length)
 			thru_push(data, len);
 			break;
 
-		case CIN_TWO_BYTE_SYSTEM_COMMON:
-		case CIN_POLY_KEYPRESS:
 		case CIN_CHANNEL_PRESSURE:
 		case CIN_PITCHBEND_CHANGE:
+			thru_channel(data, len);
+			break;
+
+		case CIN_TWO_BYTE_SYSTEM_COMMON:
+		case CIN_POLY_KEYPRESS:
 			thru_push(data, len);
 			break;
 

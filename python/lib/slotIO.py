@@ -10,7 +10,7 @@ from math import ceil
 
 import lib.binaryUnpacker as unpacker
 from lib.configCsv import write_config_csv
-from lib.configPacker import pack_config, pack_flash_image
+from lib.configPacker import EXT2_MARKER, EXT2_OFFSET, pack_config, pack_flash_image
 from lib.midiDevice import (
     SYSEX_CMD_ERASE_FLASH,
     SYSEX_CMD_WRITE_FLASH,
@@ -65,13 +65,20 @@ def select_slot(dev, slot=None):
 def read_image(dev, version, progress=None):
     """Read the selected slot. Returns (config, image): the configuration
     proper, and the same followed by the double press area when the slot has
-    one (firmware 0.26 and a slot whose tools wrote it)."""
+    one (firmware 0.26 and a slot whose tools wrote it), then the second
+    extension area when it has that (0.90, and its marker is there)."""
     data = dev.read_settings(unpacker.CONFIG_SIZE, progress)
+    image = data
     if version_at_least(version, 0, 26) and data[37] == 1:
         extension = dev.read_settings(
             unpacker.DOUBLE_PRESS_SIZE, progress, start=unpacker.DOUBLE_PRESS_OFFSET)
-        return data, data.ljust(unpacker.DOUBLE_PRESS_OFFSET, b"\xff") + extension
-    return data, data
+        image = data.ljust(unpacker.DOUBLE_PRESS_OFFSET, b"\xff") + extension
+    if version_at_least(version, 0, 90):
+        head = dev.read_settings(16, None, start=unpacker.EXT2_OFFSET)
+        if head.startswith(EXT2_MARKER):
+            ext2 = head + dev.read_settings(unpacker.EXT2_SIZE - 16, progress, start=unpacker.EXT2_OFFSET + 16)
+            image = image.ljust(unpacker.EXT2_OFFSET, b"\xff") + ext2
+    return data, image
 
 
 def save_csv(path, data, image, note="Read from device"):
@@ -93,6 +100,7 @@ def save_csv(path, data, image, note="Read from device"):
         df_setlist=df_setlist,
         df_bank_expression=unpacker.unpack_bank_expression_settings(data),
         df_combos=unpacker.unpack_combos(data),
+        df_midi_map=unpacker.unpack_midi_map(image),
     )
     return df_global.loc[df_global["Label"] == "ConfigName", "Value"].iloc[0]
 
@@ -150,8 +158,17 @@ def write_image(dev, config, image, log=_quiet, progress=None):
     """Erase the selected slot and write ``image`` into it.
 
     Firmware older than 0.26 has no double press area: the configuration is
-    then written on its own, marked as having none.
+    then written on its own, marked as having none. Older than 0.90 has no
+    second extension area, so no MIDI map.
     """
+    if len(image) > EXT2_OFFSET:
+        try:
+            new_enough = dev.firmware_at_least(0, 90)
+        except DeviceTimeout:
+            new_enough = False
+        if not new_enough:
+            log("WARNING: the MIDI map needs firmware 0.90 or later; writing everything else")
+            image = image[:EXT2_OFFSET] if config[37] == 1 else config  # the double press area stays
     if len(image) > len(config):
         try:
             new_enough = dev.firmware_at_least(0, 26)

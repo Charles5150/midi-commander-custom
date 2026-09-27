@@ -968,3 +968,11 @@ Bank_Number,Exp1_CC,Exp1_Channel,Exp1_Min,Exp1_Max,Exp2_CC,Exp2_Channel,Exp2_Min
 Switches,Bank,Run_Bank,Run_Button,Run_List
 3+4,All,30,B,Short
 3+4,12,30,4,Short
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+* MidiMap_Settings,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+In_Type,In_Channel,In_Number,In_Min,In_Max,Out_Type,Out_Channel,Out_Number,Out_Min,Out_Max,Run_Bank,Run_Button,Run_List,Keep
+PC,15,,,,CC,2,20,127,,,,,N
+PC,15,,,,CC,2,21,,,,,,N
+CC,14,1,,,CC,1,11,127,0,,,,Y
+Note,14,36,,,Run,,,,,30,B,Short,N
+PitchBend,14,,,,CC,1,4,,,,,,N

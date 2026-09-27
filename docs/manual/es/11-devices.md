@@ -129,6 +129,51 @@ kemper> dly
 
 Todavía no se ha probado con un Kemper de verdad. Los números que usa —el `00 20 33` del fabricante, las funciones, las páginas de módulos y la baliza— son los de la documentación MIDI del Profiler y los de los controladores abiertos que hablan con él, y un test compara la lista del firmware con la de las herramientas, así que si algún ampli no está de acuerdo, el arreglo estará en esa tabla de números y en ningún otro sitio.
 
+
+## Traducir lo que llega
+
+Un DAW, un secuenciador o un teclado conectados por USB rara vez hablan el idioma del pedal antiguo que cuelga del cable DIN: el DAW cambia de escena con un Program Change y el delay quiere dos CC; la rueda de modulación del teclado es el CC 1, y el volumen del ampli el CC 11 y al revés. El **mapa MIDI** pone la pedalera en medio y traduce.
+
+Cada entrada dice **cuándo**, un mensaje que llega por USB, y en qué **se convierte**:
+
+- **Cuándo**: su tipo, `Note`, `CC`, `PC`, `Pressure` (Channel Pressure) o `PitchBend`; su canal o cualquiera; su número (la nota, el CC, el programa) o cualquiera; y un rango de valores, de 0 a 127 si no se estrecha. Un `Note Off` cuenta como una nota de velocidad 0, el valor de un PC es su programa, y el de un pitch bend sus siete bits altos.
+- **Se convierte** en otro mensaje por la salida DIN: otro tipo, canal o número, vacío para el mismo, y el rango de valores llevado a otro. De 127 a 0 le da la vuelta, un solo valor envía siempre ese valor, y nada deja el valor como llegó. Un PC hecho sin número toma el valor como programa, así que `CC 20` se convierte en el `PC` de su valor.
+- O **ejecuta la lista de un botón**, indicada por banco, botón y pulsación corta, larga o doble, como hace un [`Macro`](06-commands.md#macros). La lista se ejecuta como la ejecutaría una pulsación, con sus comandos por USB y DIN; un `Note Off`, una velocidad 0 o un valor por debajo de 64 la ejecutan con sus toggles apagados, así que un pad pisado mantiene un toggle encendido.
+- O **Nothing**, que solo detiene el mensaje.
+
+Actúan todas las entradas que casan, así que un mensaje puede dar varios: dos entradas con el mismo PC envían dos CC. Un mensaje que ha casado con alguna entrada ya no sigue tal cual, salvo que una de ellas tenga marcado **also as it came**; lo que hacen las entradas sale tanto si `USB_MIDI_Thru` está activado como si no, y un mensaje que no casa con ninguna sigue por el thru como siempre. Hasta 32 entradas por configuración.
+
+El mapa convive con todo lo demás que escucha la pedalera. [`Remote_Mode`](12-configuration-file.md#usb-midi) va primero, y un mensaje que pisa un pulsador no sigue; la selección de banco por PC o CC, `LED_Feedback` y el seguimiento de los programas del host siguen viendo un mensaje que el mapa ha traducido.
+
+**En el configurador** es la pestaña **MIDI Map**, cada entrada con su **When** y su **Becomes**; el configurador web también la tiene.
+
+**En el demo**, un PC en el canal 15 se convierte en CC 20 = 127 y CC 21 = el programa en el canal 2, la rueda de modulación en el canal 14 se convierte en el CC 11 del canal 1 dado la vuelta y además sigue tal cual, la nota 36 en el canal 14 mantiene encendido el afinador del banco global mientras está pisada, y el pitch bend del canal 14 se convierte en el CC 4.
+
+### MidiMap_Settings
+
+Una fila por entrada. Las celdas vacías toman el valor por defecto indicado.
+
+| Columna | Valores | Significado |
+|---|---|---|
+| `In_Type` | `Note`, `CC`, `PC`, `Pressure`, `PitchBend` | El mensaje con el que casa. Una fila sin él se ignora. |
+| `In_Channel` | `Any`, 1–16 | Por defecto cualquiera. |
+| `In_Number` | `Any`, 0–127 | La nota, el CC o el programa. `Pressure` y `PitchBend` no tienen: déjalo vacío. |
+| `In_Min`, `In_Max` | 0–127 | Los valores con los que casa. Por defecto 0 y 127. |
+| `Out_Type` | `Note`, `CC`, `PC`, `Pressure`, `PitchBend`, `Run`, `Nothing` | En qué se convierte. Por defecto el mismo tipo. |
+| `Out_Channel` | `Same`, 1–16 | Por defecto el mismo. |
+| `Out_Number` | `Same`, 0–127 | Por defecto el mismo; un `Note` o `CC` hecho a partir de un `Pressure` o `PitchBend` necesita uno. |
+| `Out_Min`, `Out_Max` | 0–127 | `In_Min`..`In_Max` llevado a estos. Los dos vacíos: el valor como llegó; solo uno: siempre ese valor. |
+| `Run_Bank`, `Run_Button`, `Run_List` | 0–31, `1`–`D`, `Short` / `Long` / `Double` | La lista que ejecuta un `Out_Type` `Run`. |
+| `Keep` | Y / N | Además tal cual llegó. |
+
+<details><summary>Por dentro</summary>
+
+Las páginas de un slot estaban llenas, así que el mapa vive en una segunda zona de extensión, dos páginas de flash por slot por encima de la página del banner de arranque, que las herramientas ven como la configuración que sigue tras la zona de doble pulsación. Empieza con la marca `EXT2` y solo cuenta si está. Una entrada ocupa 12 bytes, descritos en `flash_midi_settings.h`. El mapa se consulta en la interrupción USB, igual que el thru; una lista a ejecutar se pone en cola allí, ocho como mucho, y la ejecuta el bucle principal.
+
+</details>
+
+*Firmware 0.90 o posterior; un firmware anterior recibe todo lo demás y las herramientas avisan de que el mapa se ha quedado fuera.*
+
 ---
 
 [← Editar en la pedalera](10-editing-on-the-pedal.md) · [Índice](README.md) · [El archivo de configuración →](12-configuration-file.md)

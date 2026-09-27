@@ -22,7 +22,8 @@ from lib.cmdBinaryPacker import (
     SONG_POSITION_MAX, VAR_COUNT, VAR_DEFAULT_TOP, VAR_MODES, WAIT_BAR_MAX,
 )
 from lib.configPacker import (
-    BUTTON_IDS, COMBO_COLUMNS, COMBO_COUNT, NUM_BANKS, SETLIST_MAX, SYSEX_STRING_COUNT,
+    BUTTON_IDS, COMBO_COLUMNS, COMBO_COUNT, MIDI_MAP_COLUMNS, MIDI_MAP_COUNT, MIDI_MAP_OUT_TYPES,
+    MIDI_MAP_TYPES, NUM_BANKS, SETLIST_MAX, SYSEX_STRING_COUNT,
 )
 
 CHANNELS = [str(i) for i in range(1, 17)]
@@ -346,6 +347,26 @@ SECTION_COLUMNS = {
         {"col": "Run_Button", "label": "button", **_choice(BUTTON_IDS)},
         {"col": "Run_List", "label": "list", **_choice(MACRO_LISTS)},
     ],
+    # Out_* only for a message, Run_* only for a list: "when" as in commands
+    "MidiMap_Settings": [
+        {"col": "In_Type", "label": "type", **_choice(list(MIDI_MAP_TYPES))},
+        {"col": "In_Channel", "label": "ch", **_choice(["Any"] + CHANNELS, blank="Any")},
+        {"col": "In_Number", "label": "number", "kind": "text", "max": 3,
+         "when": {"In_Type": ["Note", "CC", "PC"]}},
+        {"col": "In_Min", "label": "from", **_int(0, 127)},
+        {"col": "In_Max", "label": "to", **_int(0, 127)},
+        {"col": "Out_Type", "label": "type", **_choice(list(MIDI_MAP_OUT_TYPES))},
+        {"col": "Out_Channel", "label": "ch", **_choice(["Same"] + CHANNELS, blank="Same"),
+         "when": {"Out_Type": list(MIDI_MAP_TYPES)}},
+        {"col": "Out_Number", "label": "number", "kind": "text", "max": 4,
+         "when": {"Out_Type": list(MIDI_MAP_TYPES)}},
+        {"col": "Out_Min", "label": "from", **_int(0, 127), "when": {"Out_Type": list(MIDI_MAP_TYPES)}},
+        {"col": "Out_Max", "label": "to", **_int(0, 127), "when": {"Out_Type": list(MIDI_MAP_TYPES)}},
+        {"col": "Run_Bank", "label": "bank", **_int(0, 31), "when": {"Out_Type": ["Run"]}},
+        {"col": "Run_Button", "label": "button", **_choice(BUTTON_IDS), "when": {"Out_Type": ["Run"]}},
+        {"col": "Run_List", "label": "list", **_choice(MACRO_LISTS), "when": {"Out_Type": ["Run"]}},
+        {"col": "Keep", "label": "Also as it came", **CHECK},
+    ],
 }
 
 
@@ -369,4 +390,6 @@ def schema() -> dict:
         "setlistMax": SETLIST_MAX,
         "comboCount": COMBO_COUNT,
         "comboColumns": COMBO_COLUMNS,
+        "midiMapCount": MIDI_MAP_COUNT,
+        "midiMapColumns": MIDI_MAP_COLUMNS,
     }

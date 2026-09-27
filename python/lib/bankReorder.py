@@ -100,7 +100,7 @@ def move_bank(frames: dict, src: int, dst: int) -> dict:
     """The configuration's frames with bank `src` moved to place `dst`.
 
     `frames` holds the GUI's DataFrames by name (buttons, long, double, enter,
-    banks, bank_exp, bank_switch, setlist, combos, global); missing or None
+    banks, bank_exp, bank_switch, setlist, combos, midi_map, global); missing or None
     ones are passed through.
     """
     if src == dst:
@@ -126,6 +126,12 @@ def move_bank(frames: dict, src: int, dst: int) -> dict:
             if col in combos.columns:
                 combos[col] = [_renumber(v, mapping) for v in combos[col]]
         out["combos"] = combos
+
+    midi_map = frames.get("midi_map")
+    if midi_map is not None and "Run_Bank" in midi_map.columns:
+        midi_map = midi_map.copy().astype(object)
+        midi_map["Run_Bank"] = [_renumber(v, mapping) for v in midi_map["Run_Bank"]]
+        out["midi_map"] = midi_map
 
     glob = frames.get("global")
     if glob is not None:

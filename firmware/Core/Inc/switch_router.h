@@ -46,6 +46,9 @@ void sw_set_mod_speed(uint8_t index);
 // Ask for a bank change from outside the main loop (e.g. an incoming MIDI
 // message handled in the USB interrupt). Applied by handle_switches.
 void sw_request_bank(uint8_t bank);
+// The same for a list, as a Macro names it (bank, button | list << 4), run as
+// a tap with its toggles on or off. Up to eight wait; more are dropped.
+void sw_request_list(uint8_t bank, uint8_t which, bool on);
 
 // LED_Feedback: queue an incoming CC, Note On or Note Off (the three MIDI
 // bytes) from the USB interrupt. handle_switches applies it to the toggle

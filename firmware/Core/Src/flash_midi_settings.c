@@ -46,6 +46,10 @@ _Static_assert(CFG_DOUBLE_CMDS_SIZE <= FLASH_DOUBLE_PAGES * FLASH_PAGE_SIZE,
 		"double press commands do not fit in the extension pages");
 _Static_assert(FLASH_EXT_ADDR(CONFIG_SLOTS) <= FLASH_SLOT0_ADDR,
 		"extension areas run into slot 0");
+_Static_assert(FLASH_EXT2_ADDR(CONFIG_SLOTS) <= FLASH_BASE + 256U * 1024U,
+		"second extension areas do not fit in 256 kB");
+_Static_assert(EXT2_MAP_OFF + MIDI_MAP_COUNT * MIDI_MAP_STRIDE <= FLASH_EXT2_PAGES * FLASH_PAGE_SIZE,
+		"the MIDI map does not fit in the second extension area");
 
 static uint8_t active_slot = 0;
 static uint8_t target_slot = 0;
@@ -100,9 +104,14 @@ bool flash_settings_double_stored(void){
 	return pGlobalSettings[GLOBAL_SETTINGS_DOUBLE_STORED] == 1;
 }
 
+const uint8_t *flash_settings_midi_map(void){
+	const uint8_t *ext = (const uint8_t*)FLASH_EXT2_ADDR(active_slot);
+	return *(const uint32_t*)ext == EXT2_MARKER ? ext + EXT2_MAP_OFF : NULL;
+}
+
 /*
  * Where 16 bytes at a tools offset live: the slot's own pages, or past them the
- * slot's extension area. 0 when the chunk is outside both.
+ * slot's extension areas. 0 when the chunk is outside all of them.
  */
 static uint32_t image_address(uint8_t slot, uint32_t offset){
 	if(offset + 16 <= FLASH_SETTINGS_SIZE){
@@ -110,6 +119,9 @@ static uint32_t image_address(uint8_t slot, uint32_t offset){
 	}
 	if(offset >= CFG_DOUBLE_CMDS_OFF && offset + 16 <= FLASH_IMAGE_SIZE){
 		return FLASH_EXT_ADDR(slot) + (offset - CFG_DOUBLE_CMDS_OFF);
+	}
+	if(offset >= CFG_EXT2_OFF && offset + 16 <= FLASH_IMAGE2_SIZE){
+		return FLASH_EXT2_ADDR(slot) + (offset - CFG_EXT2_OFF);
 	}
 	return 0;
 }
@@ -184,11 +196,16 @@ bool flash_settings_erase(void){
 
 	HAL_FLASH_Unlock();
 	HAL_StatusTypeDef status = HAL_FLASHEx_Erase(&eraseInit, &pageError);
-	// The extension area belongs to the slot too: a tool that writes no double
-	// press commands must not leave the previous ones behind
+	// The extension areas belong to the slot too: a tool that writes no double
+	// press commands or MIDI map must not leave the previous ones behind
 	if(status == HAL_OK){
 		eraseInit.PageAddress = FLASH_EXT_ADDR(target_slot);
 		eraseInit.NbPages = FLASH_DOUBLE_PAGES;
+		status = HAL_FLASHEx_Erase(&eraseInit, &pageError);
+	}
+	if(status == HAL_OK){
+		eraseInit.PageAddress = FLASH_EXT2_ADDR(target_slot);
+		eraseInit.NbPages = FLASH_EXT2_PAGES;
 		status = HAL_FLASHEx_Erase(&eraseInit, &pageError);
 	}
 	HAL_FLASH_Lock();

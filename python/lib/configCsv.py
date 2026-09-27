@@ -64,6 +64,7 @@ def write_config_csv(
     df_setlist: pd.DataFrame = None,
     df_bank_expression: pd.DataFrame = None,
     df_combos: pd.DataFrame = None,
+    df_midi_map: pd.DataFrame = None,
 ) -> None:
     with open(path, "w", newline="", encoding="utf-8") as f:
         f.write("# Notes" + PAD + "\n")
@@ -125,3 +126,8 @@ def write_config_csv(
             f.write(PAD + "\n")
             f.write("* Combo_Settings" + PAD + "\n")
             df_combos.to_csv(f, index=False)
+
+        if df_midi_map is not None and len(df_midi_map):
+            f.write(PAD + "\n")
+            f.write("* MidiMap_Settings" + PAD + "\n")
+            df_midi_map.to_csv(f, index=False)

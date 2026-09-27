@@ -91,7 +91,9 @@ test("the demo written over SysEx reads back the same", async () => {
   const sim = simWithDemo();
   const pedal = await Pedal.open(sim.access);
   assert.deepEqual((await pedal.selectSlot(null)).valid, [0]);
-  const sizes = { config: demo.config.length, double: demo.image.length - 12 * 2048, doubleOffset: 12 * 2048 };
+  // As the page takes them from the tools (py.js): the double press area,
+  // then the second extension area with the MIDI map
+  const sizes = { config: demo.config.length, double: 10240, doubleOffset: 12 * 2048, ext2Offset: 17 * 2048, ext2: 16 + 32 * 12 };
   const back = await running(sim, () => pedal.readImage(firmwareVersion, sizes));
   assert.deepEqual(back.data, demo.config);
   assert.deepEqual(back.image, demo.image);
@@ -181,4 +183,24 @@ test("MIDI into the page's port: raw bytes to USB events and back", () => {
   const p = new MidiParser((m) => got.push(m));
   p.push([0x90, 60, 100, 62, 0, 0xf8, 0xf0, 1, 2, 0xf7, 0xc0, 3]);
   assert.deepEqual(got, [[0x90, 60, 100], [0x90, 62, 0], [0xf8], [0xf0, 1, 2, 0xf7], [0xc0, 3]]);
+});
+
+test("the demo's MIDI map turns what comes in over USB into what goes out on DIN", async () => {
+  const sim = simWithDemo();
+  const seen = watch(sim);
+  const send = (bytes) => { sim.usbIn(bytes); sim.run(20); return seen.splice(0); };
+  // A scene change from the DAW on channel 15 becomes two CCs on channel 2,
+  // the second carrying the program; the PC itself stays behind
+  assert.deepEqual(send([0xce, 5]), ["DIN b1 14 7f", "DIN b1 15 05"]);
+  // The mod wheel on channel 14 turns round into CC 11 on channel 1, and goes
+  // on as it came too, through the USB thru
+  assert.deepEqual(send([0xbd, 1, 100]), ["DIN b0 0b 1b", "DIN bd 01 64"]);
+  // The pitch bend's upper seven bits as CC 4
+  assert.deepEqual(send([0xed, 0x11, 0x50]), ["DIN b0 04 50"]);
+  // Nothing in the map for this one: the thru passes it untouched
+  assert.deepEqual(send([0xb2, 7, 99]), ["DIN b2 07 63"]);
+  // A pad (note 36) runs the global bank's tuner button: on while it is down,
+  // off when it comes up, on both outputs like a press
+  assert.deepEqual(send([0x9d, 36, 90]), ["USB b0 44 7f", "DIN b0 44 7f"]);
+  assert.deepEqual(send([0x8d, 36, 0]), ["USB b0 44 00", "DIN b0 44 00"]);
 });

@@ -36,6 +36,7 @@ SECTION_ARGS = [
     ("Setlist", "df_setlist"),
     ("BankExpression_Settings", "df_bank_expression"),
     ("Combo_Settings", "df_combos"),
+    ("MidiMap_Settings", "df_midi_map"),
 ]
 
 
@@ -125,7 +126,7 @@ def check(text: str) -> str:
 
 def image_to_sections(data: bytes, image: bytes) -> str:
     """Sections JSON for a slot read from the pedal: its configuration, and the
-    same followed by the double press area when it has one (see slotIO.read_image)."""
+    same followed by the extension areas it has (see slotIO.read_image)."""
     data, image = _bytes(data), _bytes(image)
     (df_global, df_banks, df_buttons, df_long, df_exp,
      df_enter, df_sysex, df_bank_switch, df_setlist) = unpacker.unpack_config(data)
@@ -142,6 +143,7 @@ def image_to_sections(data: bytes, image: bytes) -> str:
         "Setlist": df_setlist,
         "BankExpression_Settings": unpacker.unpack_bank_expression_settings(data),
         "Combo_Settings": unpacker.unpack_combos(data),
+        "MidiMap_Settings": unpacker.unpack_midi_map(image),
     }
     # Through a CSV and back, so the cells are the text a CSV file holds
     csv = sections_to_csv(_to_json({k: v for k, v in sections.items() if v is not None}))
@@ -152,3 +154,5 @@ def image_to_sections(data: bytes, image: bytes) -> str:
 CONFIG_SIZE = unpacker.CONFIG_SIZE
 DOUBLE_PRESS_OFFSET = unpacker.DOUBLE_PRESS_OFFSET
 DOUBLE_PRESS_SIZE = unpacker.DOUBLE_PRESS_SIZE
+EXT2_OFFSET = unpacker.EXT2_OFFSET
+EXT2_SIZE = unpacker.EXT2_SIZE

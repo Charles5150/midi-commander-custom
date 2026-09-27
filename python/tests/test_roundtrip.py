@@ -631,6 +631,10 @@ class FirmwareLayoutTest(unittest.TestCase):
             ("CFG_DOUBLE_CMDS_SIZE", "DOUBLE_PRESS_SIZE"),
             ("FLASH_DOUBLE_PAGES", "DOUBLE_PRESS_PAGES"),
             ("FLASH_IMAGE_SIZE", "IMAGE_SIZE"),
+            ("CFG_EXT2_OFF", "EXT2_OFFSET"),
+            ("EXT2_MAP_OFF", "EXT2_MAP_OFFSET"),
+            ("MIDI_MAP_COUNT", "MIDI_MAP_COUNT"),
+            ("MIDI_MAP_STRIDE", "MIDI_MAP_STRIDE"),
             ("MIDI_NUM_BANKS", "NUM_BANKS"),
             ("MIDI_ROM_KEY_STRIDE", "BUTTON_STRIDE"),
             ("MIDI_ROM_CMD_SIZE", "CMD_SIZE"),
@@ -1103,7 +1107,8 @@ class DoublePressTest(unittest.TestCase):
         image = packer.pack_flash_image(self.sections)
         config = packer.pack_config(self.sections)
         U = unpacker
-        self.assertEqual(len(image), U.DOUBLE_PRESS_OFFSET + U.DOUBLE_PRESS_SIZE)
+        self.assertEqual(len(image), U.EXT2_OFFSET + U.EXT2_SIZE)   # the MIDI map follows
+        image = image[: U.DOUBLE_PRESS_OFFSET + U.DOUBLE_PRESS_SIZE]
         # The configuration itself is untouched, and since 0.59 it fills the
         # slot's pages, so the extension follows it with no gap
         self.assertEqual(image[: len(config)], config)
@@ -1145,7 +1150,8 @@ class DoublePressTest(unittest.TestCase):
         self.assertEqual((row["A_CommandType"], row["B_CommandType"]), ("Wait", "Button"))
 
     def test_without_double_press_image_is_the_config(self):
-        sections = {k: v for k, v in self.sections.items() if k != packer.DOUBLE_PRESS_SECTION}
+        sections = {k: v for k, v in self.sections.items()
+                    if k not in (packer.DOUBLE_PRESS_SECTION, packer.MIDI_MAP_SECTION)}
         self.assertEqual(packer.pack_flash_image(sections), packer.pack_config(sections))
         self.assertIsNone(packer.pack_double_press(sections))
 
@@ -3403,6 +3409,9 @@ class PedalEditorTest(unittest.TestCase):
                 self.assertEqual(at // page, (at + 3) // page, at)
 
 
+FLASH_IMAGE2_SIZE = unpacker.EXT2_OFFSET + packer.EXT2_PAGES * 2048
+
+
 class FakePedal:
     """A pedal in memory that answers the SysEx the slot tools use: four slots
     of flash, a target selected with SELECT_SLOT, erase, write and read."""
@@ -3412,7 +3421,7 @@ class FakePedal:
         self.version = version
         self.active = active
         self.target = active
-        self.flash = {s: bytearray(b"\xff" * unpacker.IMAGE_SIZE) for s in range(4)}
+        self.flash = {s: bytearray(b"\xff" * FLASH_IMAGE2_SIZE) for s in range(4)}
         self.resets = 0
         self.fail_write_at = fail_write_at  # a byte offset whose write fails, as 0.71 answers
         # Byte offsets whose answer, or whose write message, goes astray once (#147)
@@ -3450,7 +3459,7 @@ class FakePedal:
     def send(self, data):
         from lib import midiDevice as md
         if data[0] == md.SYSEX_CMD_ERASE_FLASH:
-            self.flash[self.target] = bytearray(b"\xff" * unpacker.IMAGE_SIZE)
+            self.flash[self.target] = bytearray(b"\xff" * FLASH_IMAGE2_SIZE)
         elif data[0] == md.SYSEX_CMD_WRITE_FLASH:
             at = ((data[1] << 7) | data[2]) * 16
             self.writes[at] += 1
@@ -4285,6 +4294,153 @@ class ComboTest(unittest.TestCase):
         self.assertEqual(table[:8], bytes([0x32, 0, 30, 0x05, 0x32, 13, 30, 0x03]))
 
 
+class MidiMapTest(unittest.TestCase):
+    """Messages arriving over USB turned into others (0.90), in the second
+    extension area."""
+
+    FIRMWARE = os.path.join(os.path.dirname(__file__), "..", "..", "firmware", "Core")
+
+    def source(self, *name):
+        with open(os.path.join(self.FIRMWARE, *name)) as handle:
+            return handle.read()
+
+    def sections(self, rows):
+        sections = dict(read_config_csv(DEMO_CSV))
+        sections[packer.MIDI_MAP_SECTION] = pd.DataFrame(rows, columns=packer.MIDI_MAP_COLUMNS)
+        return sections
+
+    def ext2(self, rows):
+        return packer.pack_flash_image(self.sections(rows))[unpacker.EXT2_OFFSET:]
+
+    def test_constants_agree(self):
+        header = self.source("Inc", "flash_midi_settings.h")
+        for name, want in (("MIDI_MAP_UNUSED", 0xFF), ("MIDI_MAP_ANY", 0xFF), ("MIDI_MAP_NOTHING", 0),
+                           ("MIDI_MAP_RUN", packer.MIDI_MAP_OUT_TYPES["Run"]), ("MIDI_MAP_KEEP", 1),
+                           ("FLASH_EXT2_PAGES", packer.EXT2_PAGES),
+                           ("EXT2_MARKER", struct.unpack("<I", packer.EXT2_MARKER)[0])):
+            m = re.search(rf"^#define\s+{name}\s+\((0x[0-9A-Fa-f]+|\d+)U?\)", header, re.M)
+            self.assertIsNotNone(m, name)
+            self.assertEqual(int(m.group(1), 0), want, name)
+        # The table fits its two pages, and they are above the banner's page
+        self.assertLessEqual(unpacker.EXT2_SIZE, packer.EXT2_PAGES * 2048)
+        self.assertIn("FLASH_BANNER_ADDR + FLASH_PAGE_SIZE", header)
+
+    def test_packs_the_table(self):
+        ext = self.ext2([
+            {"In_Type": "PC", "In_Channel": "15", "Out_Type": "CC", "Out_Channel": "2", "Out_Number": "20",
+             "Out_Min": "127"},
+            {"In_Type": "cc", "In_Number": "7", "In_Min": "10", "In_Max": "100", "Out_Type": "PitchBend",
+             "Out_Min": "0", "Out_Max": "127", "Keep": "Y"},
+            {"In_Type": "Note", "In_Channel": "Any", "In_Number": "36", "Out_Type": "Run", "Run_Bank": "30",
+             "Run_Button": "b", "Run_List": "long"},
+            {"In_Type": "Pressure", "Out_Type": "Nothing"},
+            {"In_Type": "Note", "In_Number": "60", "Out_Type": "", "Out_Channel": "3"},   # same type
+            {"In_Type": "", "Out_Type": "CC"},                                           # left out
+        ])
+        self.assertEqual(ext[:16], b"EXT2" + b"\xff" * 12)
+        table = ext[16:]
+        self.assertEqual(table[:60], bytes([
+            0xC0, 15, 0xFF, 0, 127, 0xB0, 2, 20, 127, 127, 0, 0xFF,
+            0xB0, 0, 7, 10, 100, 0xE0, 0, 0xFF, 0, 127, 1, 0xFF,
+            0x90, 0, 36, 0, 127, 0x01, 30, 0x15, 0xFF, 0xFF, 0, 0xFF,
+            0xD0, 0, 0xFF, 0, 127, 0x00, 0, 0xFF, 0xFF, 0xFF, 0, 0xFF,
+            0x90, 0, 60, 0, 127, 0x90, 3, 0xFF, 0xFF, 0xFF, 0, 0xFF,
+        ]))
+        self.assertEqual(table[60:], b"\xff" * (unpacker.EXT2_SIZE - 16 - 60))
+        back = unpacker.unpack_midi_map(bytes(unpacker.EXT2_OFFSET) + ext)
+        self.assertEqual(back["In_Type"].tolist(), ["PC", "CC", "Note", "Pressure", "Note"])
+        self.assertEqual(back.iloc[2][["Run_Bank", "Run_Button", "Run_List"]].tolist(), ["30", "B", "Long"])
+        self.assertEqual(back.iloc[1][["In_Min", "In_Max", "Out_Min", "Out_Max", "Keep"]].tolist(),
+                         ["10", "100", "0", "127", "Y"])
+        # and packed again it is the same
+        again = self.sections([])
+        again[packer.MIDI_MAP_SECTION] = back
+        self.assertEqual(packer.pack_flash_image(again)[unpacker.EXT2_OFFSET:], ext)
+
+    def test_refuses_what_it_cannot_store(self):
+        good = {"In_Type": "CC", "In_Number": "1", "Out_Type": "CC", "Out_Number": "2"}
+        for field, bad in (("In_Type", "SysEx"), ("In_Channel", "17"), ("In_Channel", "0"),
+                           ("In_Number", "128"), ("In_Min", "x"), ("Out_Type", "Clock"),
+                           ("Out_Channel", "17"), ("Out_Number", "-1"), ("Out_Min", "200")):
+            with self.assertRaises(ValueError, msg=f"{field}={bad}"):
+                self.ext2([{**good, field: bad}])
+        with self.assertRaises(ValueError):
+            self.ext2([{**good, "In_Min": "100", "In_Max": "10"}])
+        # a pitch bend has no number: none to match, none to keep
+        with self.assertRaises(ValueError):
+            self.ext2([{**good, "In_Type": "PitchBend"}])
+        with self.assertRaises(ValueError):
+            self.ext2([{**good, "In_Type": "PitchBend", "In_Number": "", "Out_Number": ""}])
+        self.ext2([{**good, "In_Type": "PitchBend", "In_Number": ""}])
+        for field, bad in (("Run_Bank", "32"), ("Run_Bank", ""), ("Run_Button", "E"), ("Run_List", "Triple")):
+            run = {"In_Type": "PC", "Out_Type": "Run", "Run_Bank": "1", "Run_Button": "A", "Run_List": "Short"}
+            with self.assertRaises(ValueError, msg=f"{field}={bad}"):
+                self.ext2([{**run, field: bad}])
+        self.ext2([good] * packer.MIDI_MAP_COUNT)
+        with self.assertRaises(ValueError):
+            self.ext2([good] * (packer.MIDI_MAP_COUNT + 1))
+
+    def test_without_a_map_the_area_is_not_written(self):
+        sections = read_config_csv(SAMPLE_CSV)
+        self.assertNotIn(packer.MIDI_MAP_SECTION, sections)
+        self.assertIsNone(packer.pack_ext2(sections))
+        self.assertLessEqual(len(packer.pack_flash_image(sections)), unpacker.EXT2_OFFSET)
+        self.assertEqual(len(unpacker.unpack_midi_map(packer.pack_flash_image(sections))), 0)
+        # Without the marker nothing there is read, whatever it holds
+        image = bytes(unpacker.EXT2_OFFSET) + b"EXT1" + self.ext2([{"In_Type": "PC", "Out_Type": "PC"}])[4:]
+        self.assertEqual(len(unpacker.unpack_midi_map(image)), 0)
+
+    def test_demo(self):
+        """A PC from the DAW becomes two CCs, the mod wheel turns round, a pad runs the tuner."""
+        m = read_config_csv(DEMO_CSV)[packer.MIDI_MAP_SECTION]
+        self.assertEqual(m["In_Type"].tolist(), ["PC", "PC", "CC", "Note", "PitchBend"])
+        self.assertEqual(m["Out_Type"].tolist(), ["CC", "CC", "CC", "Run", "CC"])
+
+    def test_write_and_read_back(self):
+        from unittest import mock
+
+        import lib.slotIO as slot_io
+
+        sections = read_config_csv(DEMO_CSV)
+        config, image = slot_io.pack_sections(sections)
+        with mock.patch.object(slot_io, "time", mock.Mock(sleep=lambda s: None)):
+            pedal = FakePedal(version="0.90")
+            slot_io.write_image(pedal, config, image)
+            data, back = slot_io.read_image(pedal, "0.90")
+            self.assertEqual(back, image)
+            # Older firmware: everything else is written, the map is not
+            logged = []
+            pedal = FakePedal(version="0.89")
+            slot_io.write_image(pedal, config, image, log=logged.append)
+            self.assertTrue(any("0.90" in line for line in logged), logged)
+            self.assertEqual(bytes(pedal.flash[0][: unpacker.EXT2_OFFSET]), image[: unpacker.EXT2_OFFSET])
+            self.assertEqual(bytes(pedal.flash[0][unpacker.EXT2_OFFSET:]).count(0xFF), 2 * 2048)
+            data, back = slot_io.read_image(pedal, "0.89")
+            self.assertEqual(back, image[: unpacker.EXT2_OFFSET])
+
+    def test_csv_round_trip(self):
+        import tempfile
+
+        from lib import slotIO
+
+        image = packer.pack_flash_image(read_config_csv(DEMO_CSV))
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "back.csv")
+            slotIO.save_csv(path, image[: unpacker.CONFIG_SIZE], image)
+            again = read_config_csv(path)
+            self.assertIn(packer.MIDI_MAP_SECTION, again)
+            self.assertEqual(packer.pack_flash_image(again), image)
+
+    def test_firmware(self):
+        """Where the firmware looks at the map, and what it leaves alone."""
+        rx = self.source("..", "USB_DEVICE", "App", "usbd_midi_if.c")
+        self.assertIn("if(!midi_map_message(data, thru_add)) thru_push(data, len);", rx)
+        self.assertEqual(rx.count("thru_channel(data, len);"), 3)
+        flash = self.source("Src", "flash_midi_settings.c")
+        self.assertIn("eraseInit.PageAddress = FLASH_EXT2_ADDR(target_slot);", flash)
+        self.assertIn("== EXT2_MARKER ? ext + EXT2_MAP_OFF : NULL", flash)
+
+
 class BootBannerTest(unittest.TestCase):
     """The configuration's name crossing the display at power on (0.62)."""
 
@@ -4670,7 +4826,7 @@ class FlashWriteErrorTest(unittest.TestCase):
         found, not sent again."""
         from lib.slotIO import pack_sections, write_image
         config, image = pack_sections(read_config_csv(DEMO_CSV))
-        pedal = FakePedal(lose_answer_at={160, 4096})
+        pedal = FakePedal(version="0.90", lose_answer_at={160, 4096})
         write_image(pedal, config, image)
         self.assertEqual(bytes(pedal.flash[0][:len(image)]), image)
         self.assertEqual((pedal.writes[160], pedal.writes[4096]), (1, 1))
@@ -4679,7 +4835,7 @@ class FlashWriteErrorTest(unittest.TestCase):
         """#147: the message itself went astray: the block reads erased and goes again."""
         from lib.slotIO import pack_sections, write_image
         config, image = pack_sections(read_config_csv(DEMO_CSV))
-        pedal = FakePedal(lose_write_at={160, 4096})
+        pedal = FakePedal(version="0.90", lose_write_at={160, 4096})
         write_image(pedal, config, image)
         self.assertEqual(bytes(pedal.flash[0][:len(image)]), image)
         self.assertEqual((pedal.writes[160], pedal.writes[4096]), (2, 2))

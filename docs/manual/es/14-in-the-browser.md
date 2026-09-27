@@ -39,7 +39,7 @@ Las pestañas siguen las del configurador de escritorio:
 
 - **Banks**: los 32 bancos a la izquierda; el nombre y la línea de información del banco; sus ocho botones colocados como en la pedalera, 1 a 4 arriba y A a D abajo, cada uno con su etiqueta y su primer comando. Pulsa un botón para editarlo: **Press**, **Long press** y **Double press** tienen diez comandos cada una, de A a J, y **Press** además la etiqueta, el modo del LED, el grupo exclusivo y las opciones del botón. Cada comando muestra los campos que necesita su tipo, como en el configurador, con una línea que dice qué hace. Debajo de los botones, **On entering this bank** y **Expression pedals in this bank**.
 - **Global**: todos los ajustes globales, en los grupos del configurador, con las mismas opciones y rangos.
-- **Expression**, **Bank switches**, **SysEx**, **Setlist** y **Combos**, como en el configurador.
+- **Expression**, **Bank switches**, **SysEx**, **Setlist**, **Combos** y **MIDI map**, como en el configurador.
 
 Cada cambio se comprueba al hacerlo. Si la configuración no se puede empaquetar, una línea roja bajo la barra de herramientas dice qué está mal y dónde, y no se puede guardar ni escribir hasta arreglarlo.
 

@@ -42,6 +42,25 @@ SETLIST_MAX = 32
 COMBO_SECTION = "Combo_Settings"
 COMBO_COUNT = 12
 COMBO_COLUMNS = ["Switches", "Bank", "Run_Bank", "Run_Button", "Run_List"]
+# The second extension area (firmware 0.90): two pages per slot after the
+# double press area, counted only when it starts with EXT2_MARKER
+DOUBLE_PRESS_PAGES = 5
+EXT2_OFFSET = DOUBLE_PRESS_OFFSET + DOUBLE_PRESS_PAGES * FLASH_PAGE_SIZE
+EXT2_PAGES = 2
+EXT2_MARKER = b"EXT2"
+EXT2_MAP_OFFSET = 16
+# MIDI map: messages arriving over USB turned into others on the DIN output
+MIDI_MAP_SECTION = "MidiMap_Settings"
+MIDI_MAP_COUNT = 32
+MIDI_MAP_STRIDE = 12
+MIDI_MAP_COLUMNS = ["In_Type", "In_Channel", "In_Number", "In_Min", "In_Max",
+                    "Out_Type", "Out_Channel", "Out_Number", "Out_Min", "Out_Max",
+                    "Run_Bank", "Run_Button", "Run_List", "Keep"]
+# The message types, by the status byte the firmware compares
+MIDI_MAP_TYPES = {"Note": 0x90, "CC": 0xB0, "PC": 0xC0, "Pressure": 0xD0, "PitchBend": 0xE0}
+MIDI_MAP_RUN = "Run"
+MIDI_MAP_NOTHING = "Nothing"
+MIDI_MAP_OUT_TYPES = {**MIDI_MAP_TYPES, MIDI_MAP_RUN: 0x01, MIDI_MAP_NOTHING: 0x00}
 BANK_SWITCH_LISTS = [("Down", "Short"), ("Down", "Long"), ("Up", "Short"), ("Up", "Long")]
 SYSEX_STRING_COUNT = 16
 SYSEX_STRING_MAX = 23
@@ -234,6 +253,99 @@ def pack_combos(df) -> bytes:
                                         (lists[list_text.upper()] << 4) | BUTTON_IDS.index(button)])
         n += 1
     return bytes(out)
+
+
+def empty_midi_map():
+    """A MidiMap_Settings frame with no entries."""
+    import pandas as pd
+
+    return pd.DataFrame(columns=MIDI_MAP_COLUMNS)
+
+
+def _map_name(text, names, what):
+    """A type cell -> its name in ``names``, whatever the case."""
+    for name in names:
+        if name.upper() == text.upper():
+            return name
+    raise ValueError(f"{what} must be one of {', '.join(names)}, not {text!r}")
+
+
+def _map_number(text, what, blank, lo=0, hi=127):
+    """A number cell of the map: ``blank`` when empty, Any or Same."""
+    if text == "" or text.upper() in ("ANY", "SAME", "ALL"):
+        return blank
+    try:
+        v = int(float(text))
+    except ValueError:
+        v = -1
+    if not lo <= v <= hi:
+        raise ValueError(f"{what} must be {lo}-{hi}, not {text!r}")
+    return v
+
+
+def pack_midi_map(df) -> bytes:
+    """MIDI_MAP_STRIDE bytes per entry, as flash_midi_settings.h describes
+    them; rows without In_Type are left out and the rest of the table is
+    erased flash (0xFF)."""
+    out = bytearray(b"\xff" * (MIDI_MAP_COUNT * MIDI_MAP_STRIDE))
+    if df is None:
+        return bytes(out)
+    n = 0
+    for _, row in df.iterrows():
+        in_text = _cell(row.get("In_Type"))
+        if in_text == "":
+            continue
+        n += 1
+        if n > MIDI_MAP_COUNT:
+            raise ValueError(f"At most {MIDI_MAP_COUNT} MIDI map entries fit in a configuration")
+        with _at(f"{MIDI_MAP_SECTION} entry {n}"):
+            in_type = _map_name(in_text, MIDI_MAP_TYPES, "In_Type")
+            out_type = _map_name(_cell(row.get("Out_Type")) or in_type, MIDI_MAP_OUT_TYPES, "Out_Type")
+            in_channel = _map_number(_cell(row.get("In_Channel")), "In_Channel", 0, 1, 16)
+            numbered = in_type in ("Note", "CC", "PC")
+            in_number = _map_number(_cell(row.get("In_Number")), "In_Number", 0xFF)
+            if not numbered and in_number != 0xFF:
+                raise ValueError(f"a {in_type} has no number: leave In_Number empty")
+            in_min = _map_number(_cell(row.get("In_Min")), "In_Min", 0)
+            in_max = _map_number(_cell(row.get("In_Max")), "In_Max", 127)
+            if in_min > in_max:
+                raise ValueError(f"In_Min {in_min} is above In_Max {in_max}")
+            entry = [MIDI_MAP_TYPES[in_type], in_channel, in_number, in_min, in_max,
+                     MIDI_MAP_OUT_TYPES[out_type]]
+            if out_type == MIDI_MAP_RUN:
+                bank = _map_number(_cell(row.get("Run_Bank")), "Run_Bank", -1, 0, NUM_BANKS - 1)
+                if bank < 0:
+                    raise ValueError(f"Run_Bank must be a bank 0-{NUM_BANKS - 1}")
+                button = _cell(row.get("Run_Button")).upper()
+                if button not in BUTTON_IDS:
+                    raise ValueError(f"Run_Button must be one of {', '.join(BUTTON_IDS)}, not {row.get('Run_Button')!r}")
+                lists = {m.upper(): i for i, m in enumerate(cbp.MACRO_LISTS)}
+                list_text = (_cell(row.get("Run_List")) or cbp.MACRO_LISTS[0]).upper()
+                if list_text not in lists:
+                    raise ValueError(f"Run_List must be one of {', '.join(cbp.MACRO_LISTS)}, not {row.get('Run_List')!r}")
+                entry += [bank, (lists[list_text] << 4) | BUTTON_IDS.index(button), 0xFF, 0xFF]
+            else:
+                out_channel = _map_number(_cell(row.get("Out_Channel")), "Out_Channel", 0, 1, 16)
+                out_number = _map_number(_cell(row.get("Out_Number")), "Out_Number", 0xFF)
+                if out_type in ("Note", "CC") and out_number == 0xFF and not numbered:
+                    raise ValueError(f"a {in_type} has no number to keep: give the {out_type} an Out_Number")
+                lo_text, hi_text = _cell(row.get("Out_Min")), _cell(row.get("Out_Max"))
+                # Neither: the value as it came; one: that value always
+                out_min = _map_number(lo_text or hi_text, "Out_Min", 0xFF)
+                out_max = _map_number(hi_text or lo_text, "Out_Max", 0xFF)
+                entry += [out_channel, out_number, out_min, out_max]
+            keep = 1 if _cell(row.get("Keep")).upper().startswith("Y") else 0
+            entry += [keep, 0xFF]
+        out[(n - 1) * MIDI_MAP_STRIDE : n * MIDI_MAP_STRIDE] = bytes(entry)
+    return bytes(out)
+
+
+def pack_ext2(sections: dict):
+    """The second extension area, or None when nothing goes there."""
+    table = pack_midi_map(sections.get(MIDI_MAP_SECTION))
+    if table.count(0xFF) == len(table):
+        return None
+    return EXT2_MARKER.ljust(EXT2_MAP_OFFSET, b"\xff") + table
 
 
 def empty_sysex_strings():
@@ -501,12 +613,16 @@ def pack_double_press(sections: dict):
 
 def pack_flash_image(sections: dict) -> bytes:
     """Everything the tools write: the configuration and, when any button has
-    one, the double press commands after the slot's pages (firmware 0.26)."""
+    one, the double press commands after the slot's pages (firmware 0.26),
+    then the second extension area when it holds something (0.90)."""
     image = pack_config(sections)
     double = pack_double_press(sections)
-    if double is None:
-        return image
-    return image.ljust(DOUBLE_PRESS_OFFSET, b"\xff") + double
+    if double is not None:
+        image = image.ljust(DOUBLE_PRESS_OFFSET, b"\xff") + double
+    ext2 = pack_ext2(sections)
+    if ext2 is not None:
+        image = image.ljust(EXT2_OFFSET, b"\xff") + ext2
+    return image
 
 
 def pack_config(sections: dict) -> bytes:

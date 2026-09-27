@@ -841,6 +841,21 @@ void sw_request_bank(uint8_t bank){
 	if(bank < MIDI_NUM_BANKS) requested_bank = bank;
 }
 
+// Lists the MIDI map asks for from the USB interrupt, run by handle_switches:
+// the bank, the button and which of its lists as a Macro names them, and on
+#define LIST_REQUESTS	(8)
+static volatile uint8_t list_req[LIST_REQUESTS][3];
+static volatile uint8_t list_req_in = 0, list_req_out = 0;
+
+void sw_request_list(uint8_t bank, uint8_t which, bool on){
+	uint8_t next = (uint8_t)((list_req_in + 1) % LIST_REQUESTS);
+	if(next == list_req_out) return;	// full: a host sending faster than lists run
+	list_req[list_req_in][0] = bank;
+	list_req[list_req_in][1] = which;
+	list_req[list_req_in][2] = on;
+	list_req_in = next;
+}
+
 /*
  * Setlist: when enabled, relative bank moves follow a stored order instead of
  * the bank numbers. The list ends at the first entry that is not a valid bank,
@@ -3687,6 +3702,18 @@ static bool editor_switches(uint32_t now){
 	return true;
 }
 
+// Each as a tap, the press pass then the release pass, as a bank switch's
+static void requested_lists(void){
+	while(list_req_out != list_req_in){
+		uint8_t rom[4] = {0, list_req[list_req_out][0], list_req[list_req_out][1], 0};
+		uint8_t on = list_req[list_req_out][2];
+		list_req_out = (uint8_t)((list_req_out + 1) % LIST_REQUESTS);
+		uint8_t *base = macro_list(rom);
+		if(base) run_cmd_list(base, 0, 0, on ? MIDI_CONTROL_ON : MIDI_CONTROL_OFF,
+				PENDING_OWNER_NONE, LIST_UP_AFTER, true);
+	}
+}
+
 void handle_switches(void){
 	virtual_task();
 	latency_take_mark();	// the switch changes this pass handles
@@ -3697,6 +3724,8 @@ void handle_switches(void){
 		requested_bank = 0xFF;
 		goto_bank(target);
 	}
+
+	requested_lists();
 
 	// A configuration switch waits until every button is up
 	if(pending_config != 0xFF && all_switches_released()){

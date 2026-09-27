@@ -16,6 +16,7 @@ Una configuración es un CSV con varias secciones, cada una introducida por una 
 | `BankSwitch_Settings` | Lo que envían Bank Up y Bank Down | [Bancos](04-banks.md#bankswitch_settings) |
 | `Setlist` | El orden que siguen Bank Up / Down | [Bancos](04-banks.md#setlist) |
 | `Expression_Settings`, `BankExpression_Settings` | Los dos pedales de expresión, y por banco | [Pedales de expresión](08-expression.md) |
+| `MidiMap_Settings` | Lo que llega por USB, traducido | [Plantillas y equipos](11-devices.md#midimap_settings) |
 
 El archivo puede guardarse en UTF-8, con o sin la marca que pone al principio el **CSV UTF-8** de Excel, o en el Windows-1252 del **CSV** normal de Excel en Windows. La pantalla solo dibuja las letras, cifras y signos del ASCII simple, así que en el nombre de la configuración, los nombres de banco, las etiquetas y las etiquetas de ciclo una letra con tilde va como la letra sin ella, `Canción` como `Cancion` y `Ñu` como `Nu`, las comillas tipográficas y las rayas como sus formas simples, y cualquier otra cosa, como `€`, como `?`. El configurador muestra el texto así al salir del campo.
 
@@ -98,7 +99,7 @@ Los ajustes de toda la pedalera, como filas `Label,Value`. En el configurador so
 
 | Etiqueta | En el configurador | Valores | Qué hace |
 |---|---|---|---|
-| `USB_MIDI_Thru` | USB to DIN thru | Y / N | Reenvía a la salida DIN todos los demás mensajes MIDI que llegan por USB (notas, CC, PC, pitch bend, system common, SysEx de otros aparatos). |
+| `USB_MIDI_Thru` | USB to DIN thru | Y / N | Reenvía a la salida DIN todos los demás mensajes MIDI que llegan por USB (notas, CC, PC, pitch bend, system common, SysEx de otros aparatos). Un mensaje que recoge el [mapa MIDI](11-devices.md#traducir-lo-que-llega) sale como este diga. |
 | `RealTime_Passthrough` | Clock and transport thru | Y / N | Reenvía a la salida DIN el MIDI Clock, Start, Continue y Stop que llegan por USB. |
 | `Clock_Follow` | Follow the host's clock | Y / N | Mide el reloj MIDI que llega por USB, durante dos tiempos, y adopta su tempo; la pantalla lo muestra como `EXT` y un tempo durante 1,5 segundos cuando engancha el reloj o su tempo cambia dos BPM o más. Mientras ese reloj sigue llegando, la pedalera no envía reloj propio: con `RealTime_Passthrough` activado el reloj del ordenador ya llega a la salida DIN, y con él desactivado la pedalera vuelve a generar el reloj en la salida DIN al tempo del ordenador. Medio segundo sin reloj cuenta como parado, y el reloj propio de la pedalera, si estaba en marcha, sigue al tempo adoptado. Por defecto N. |
 | `Beat_Counter` | Bar and beat on the display | Off / 1–15 | Mientras corre un reloj, el propio de la pedalera o el del ordenador que sigue `Clock_Follow` entre su Start y su Stop, la línea de información del banco muestra el compás, el tiempo y el tempo, `12.3 120`, en compases de estos tiempos. Off deja la línea de información como está. Ver [Compás y tiempo en la pantalla](07-tempo.md#compás-y-tiempo-en-la-pantalla). Por defecto Off. Necesita el firmware 0.88 (los cuatro bits altos del byte global 35). |

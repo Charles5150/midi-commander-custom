@@ -16,6 +16,11 @@ Memory layout (see firmware/Core/Src/flash_midi_settings.c):
 
 import pandas as pd
 
+from lib.configPacker import (
+    EXT2_MAP_OFFSET, EXT2_MARKER, MIDI_MAP_COLUMNS, MIDI_MAP_COUNT, MIDI_MAP_OUT_TYPES,
+    MIDI_MAP_RUN, MIDI_MAP_STRIDE, MIDI_MAP_TYPES,
+)
+
 from lib.cmdBinaryPacker import (
     CMD_NO_CMD_NIBBLE,
     CMD_WAIT_MODE,
@@ -131,6 +136,9 @@ DOUBLE_PRESS_OFFSET = SLOT_PAGES * FLASH_PAGE_SIZE
 DOUBLE_PRESS_SIZE = NUM_BANKS * len(BUTTON_IDS) * BUTTON_STRIDE
 DOUBLE_PRESS_PAGES = 5
 IMAGE_SIZE = DOUBLE_PRESS_OFFSET + DOUBLE_PRESS_PAGES * FLASH_PAGE_SIZE
+# The second extension area follows (firmware 0.90), see configPacker
+EXT2_OFFSET = IMAGE_SIZE
+EXT2_SIZE = EXT2_MAP_OFFSET + MIDI_MAP_COUNT * MIDI_MAP_STRIDE
 EXP_CURVE_NAMES = {0: "Linear", 1: "Log", 2: "Exp"}
 EXP_OUTPUT_NAMES = {0: "CC", 1: "PitchBend", 2: "CC14", 3: "Speed"}
 EXP_BUTTON_IDS = ["1", "2", "3", "4", "A", "B", "C", "D"]
@@ -725,6 +733,48 @@ def unpack_combos(data: bytes) -> pd.DataFrame:
             "Run_List": MACRO_LISTS[which] if which < len(MACRO_LISTS) else MACRO_LISTS[0],
         })
     return pd.DataFrame(rows, columns=COMBO_COLUMNS)
+
+
+def unpack_midi_map(image: bytes) -> pd.DataFrame:
+    """The MIDI map of a slot's full image, empty when its second extension
+    area was never written; unused and invalid entries are left out."""
+    rows = []
+    ext = bytes(image[EXT2_OFFSET:EXT2_OFFSET + EXT2_SIZE])
+    if not ext.startswith(EXT2_MARKER):
+        return pd.DataFrame(rows, columns=MIDI_MAP_COLUMNS)
+    in_names = {v: k for k, v in MIDI_MAP_TYPES.items()}
+    out_names = {v: k for k, v in MIDI_MAP_OUT_TYPES.items()}
+    number = lambda v, blank: blank if v == 0xFF else str(v)
+    for i in range(MIDI_MAP_COUNT):
+        e = ext[EXT2_MAP_OFFSET + i * MIDI_MAP_STRIDE :][:MIDI_MAP_STRIDE]
+        if len(e) < MIDI_MAP_STRIDE or e[0] not in in_names or e[5] not in out_names:
+            continue
+        row = dict.fromkeys(MIDI_MAP_COLUMNS, "")
+        row.update({
+            "In_Type": in_names[e[0]],
+            "In_Channel": str(e[1]) if 1 <= e[1] <= 16 else "Any",
+            "In_Number": number(e[2], "Any"),
+            "In_Min": str(e[3]), "In_Max": str(e[4]),
+            "Out_Type": out_names[e[5]],
+            "Keep": "Y" if e[10] == 1 else "N",
+        })
+        if row["In_Type"] not in ("Note", "CC", "PC"):
+            row["In_Number"] = ""
+        if row["Out_Type"] == MIDI_MAP_RUN:
+            which = (e[7] >> 4) & 0x03
+            row.update({
+                "Run_Bank": str(e[6]) if e[6] < NUM_BANKS else "0",
+                "Run_Button": BUTTON_IDS[e[7] & 0x07],
+                "Run_List": MACRO_LISTS[which] if which < len(MACRO_LISTS) else MACRO_LISTS[0],
+            })
+        else:
+            row.update({
+                "Out_Channel": str(e[6]) if 1 <= e[6] <= 16 else "Same",
+                "Out_Number": number(e[7], "Same"),
+                "Out_Min": number(e[8], ""), "Out_Max": number(e[9], ""),
+            })
+        rows.append(row)
+    return pd.DataFrame(rows, columns=MIDI_MAP_COLUMNS)
 
 
 def unpack_sysex_strings(data: bytes) -> pd.DataFrame:

@@ -185,14 +185,28 @@ export class Pedal {
   // The selected slot, as slotIO.read_image: {data, image}
   async readImage(version, sizes, progress) {
     const data = await this.readSettings(sizes.config, progress);
+    let image = data;
+    const append = (offset, bytes) => {
+      const out = new Uint8Array(offset + bytes.length).fill(0xff);
+      out.set(image);
+      out.set(bytes, offset);
+      image = out;
+    };
     if (versionAtLeast(version, 0, 26) && data[37] === 1) {
-      const ext = await this.readSettings(sizes.double, progress, sizes.doubleOffset);
-      const image = new Uint8Array(sizes.doubleOffset + ext.length).fill(0xff);
-      image.set(data);
-      image.set(ext, sizes.doubleOffset);
-      return { data, image };
+      append(sizes.doubleOffset, await this.readSettings(sizes.double, progress, sizes.doubleOffset));
     }
-    return { data, image: data };
+    // The second extension area counts when it starts with its marker (0.90)
+    if (versionAtLeast(version, 0, 90) && sizes.ext2) {
+      const head = await this.readSettings(16, null, sizes.ext2Offset);
+      if (String.fromCharCode(...head.slice(0, 4)) === "EXT2") {
+        const rest = await this.readSettings(sizes.ext2 - 16, progress, sizes.ext2Offset + 16);
+        const ext2 = new Uint8Array(sizes.ext2);
+        ext2.set(head);
+        ext2.set(rest, 16);
+        append(sizes.ext2Offset, ext2);
+      }
+    }
+    return { data, image };
   }
 
   async _writeChunk(x, chunk, log) {
@@ -226,7 +240,11 @@ export class Pedal {
   }
 
   // Erase the selected slot and write image into it (slotIO.write_image)
-  async writeImage(version, config, image, log = () => {}, progress) {
+  async writeImage(version, config, image, log = () => {}, progress, ext2Offset = 34816) {
+    if (image.length > ext2Offset && !versionAtLeast(version, 0, 90)) {
+      log("WARNING: the MIDI map needs firmware 0.90 or later; writing everything else");
+      image = config[37] === 1 ? image.slice(0, ext2Offset) : config;
+    }
     if (image.length > config.length && !versionAtLeast(version, 0, 26)) {
       log("WARNING: double press needs firmware 0.26 or later; writing everything else");
       image = Uint8Array.from(config);

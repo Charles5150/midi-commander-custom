@@ -39,7 +39,7 @@ The tabs follow the desktop configurator's:
 
 - **Banks**: the 32 banks on the left; a bank's name and info line; its eight buttons laid out as on the pedal, 1 to 4 on top and A to D below, each with its label and first command. Click a button to edit it: **Press**, **Long press** and **Double press** each hold ten commands, A to J, and **Press** also the label, the LED mode, the exclusive group and the button's flags. Each command shows the fields its type needs, as in the configurator, with a line saying what it does. Below the buttons, **On entering this bank** and **Expression pedals in this bank**.
 - **Global**: every global setting, in the configurator's groups, with the same choices and ranges.
-- **Expression**, **Bank switches**, **SysEx**, **Setlist** and **Combos**, as in the configurator.
+- **Expression**, **Bank switches**, **SysEx**, **Setlist**, **Combos** and **MIDI map**, as in the configurator.
 
 Every change is checked as it is made. When the configuration could not be packed, a red line under the toolbar says what is wrong and where, and it can be neither saved nor written until that is fixed.
 

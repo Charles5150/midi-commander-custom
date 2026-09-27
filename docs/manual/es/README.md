@@ -16,7 +16,7 @@ El manual del firmware a medida para la **MeloAudio Midi Commander**, que en Eur
 | 8 | [Pedales de expresión](08-expression.md) | Calibración, curvas, rangos, destino por banco, envío al entrar en un banco, auto-engage, interruptores en punta y talón |
 | 9 | [La pantalla](09-the-display.md) | Lo que muestra la pantalla, el texto que envía el ordenador, el banner al encender |
 | 10 | [Editar en la pedalera](10-editing-on-the-pedal.md) | El editor en la propia pantalla de la pedalera, y el modo seguro |
-| 11 | [Plantillas y equipos](11-devices.md) | Configuraciones listas para el FM3, el HX Stomp y el Kemper Player, y el Kemper en las dos direcciones |
+| 11 | [Plantillas y equipos](11-devices.md) | Configuraciones listas para el FM3, el HX Stomp y el Kemper Player, el Kemper en las dos direcciones, y la traducción de lo que llega por USB |
 | 12 | [El archivo de configuración](12-configuration-file.md) | El CSV, la configuración de demostración y todos los ajustes globales |
 | 13 | [Herramientas de línea de comandos](13-command-line-tools.md) | Flashear, leer de vuelta, copias de seguridad, textos y pruebas desde un terminal |
 | 14 | [En el navegador](14-in-the-browser.md) | El configurador web: editar, leer, escribir y hacer copias, la pedalera en directo y las actualizaciones de firmware, sin instalar nada, y una pedalera simulada |
