@@ -311,32 +311,38 @@ Everything above sends one way: the pedal tells the amp what to do and hopes it 
 
 **To turn it on**, tick **Talk to a Kemper** in the configurator's **Global** tab (`Kemper_Mode` `Y` in the CSV), or start from the [Kemper Player template](#kemper-profiler-player-template), which has it on. The on-pedal editor offers it as `KEMPER`.
 
-Two things come back and are worth seeing from the floor:
+Three things come back and are worth seeing from the floor:
 
 - **The rig you are on**, in the small line beside the bank name, and there it stays, bank after bank, until the rig changes. Eleven characters fit; a longer name, up to 32, [scrolls across once](09-the-display.md#text-from-the-computer) when the rig changes and whenever a bank is entered. The pedal asks for it every second, so it is right even when the rig was changed on the amp itself.
 - **Which effect modules are running.** A module switching on or off is turned into the Control Change that switches that module — 17 and 18 for stomps A and B, 19, 20, 22 and 24 for C, D, X and MOD, 26 and 28 for delay and reverb, and 27 and 29 which keep their tails — and handed to the same machinery as [`LED_Feedback`](12-configuration-file.md#global_settings). Any toggle button that sends one of those ends up lit or dark like the amp, in every bank, whether the module was switched with your foot, on the amp's own buttons or from a third place. Nothing is sent back because of it, so the two cannot chase each other, and the channel does not have to match: the amp's answers carry none.
+- **The tuner.** While the amp's tuner is up, the pedal's display is a tuner: the note in letters twice the large size, and under it a scale with a needle, left of the middle when flat and right when sharp, with an arrow on that side pointing the way to turn. In tune, the note is boxed in and the needle filled in. The tuner is up however it was opened, with your foot or on the amp, and a button that sends CC 31, the Player template's `TUNR`, is lit while it is. When it closes the bank screen is back as it was; if the amp stops answering for three seconds, the pedal closes its tuner too.
 
 **Which Kempers.** The answers come in over USB. On a **Profiler Player** that is the very socket the pedal is already plugged into: the Player is the host, powers the pedal and speaks MIDI over it, so nothing else is needed. A Profiler head or Stage would have to reach the pedal's own MIDI input, which the hardware does not have, so there the pedal keeps talking one way as before.
 
 <details><summary>Under the hood</summary>
 
-The pedal sends the amp the message that asks it to report what it is doing from now on, and repeats it every five seconds, which is what tells the amp somebody is still on the other end. Six of the eight modules the amp reports by itself; the delay and the reverb it does not, so the pedal asks for those two every second, and for the rig name every second too. It asks for all eight when it starts and again whenever the rig changes. Safe mode keeps `Kemper_Mode` off, so no beacon and no questions go out.
+The pedal sends the amp the message that asks it to report what it is doing from now on, and repeats it every five seconds, which is what tells the amp somebody is still on the other end. Six of the eight modules the amp reports by itself; the delay and the reverb it does not, so the pedal asks for those two every second, and for the rig name every second too. It asks for all eight when it starts and again whenever the rig changes. The beacon asks for the tuner's readings only while the tuner is up, so they are not on the wire the rest of the time. Safe mode keeps `Kemper_Mode` off, so no beacon and no questions go out.
 
 </details>
 
-*Firmware 0.55 or later.*
+*Firmware 0.55 or later; the tuner, 1.07 or later.*
 
 ### Tried without an amp
 
-The conversation was tested against `python/Kemper_Sim.py`, a Kemper of make believe that answers over the same USB link a Player would use: it replies to what the pedal asks and lets you change the rig or switch a module to watch the pedal follow.
+The conversation was tested against `python/Kemper_Sim.py`, a Kemper of make believe that answers over the same USB link a Player would use: it replies to what the pedal asks and lets you change the rig, switch a module or tune a string to watch the pedal follow.
 
 ```bash
 .venv/bin/python python/Kemper_Sim.py
 kemper> rig Brit Crunch DLX
 kemper> dly
+kemper> tune A -1500
+kemper> sweep E
+kemper> tuner
 ```
 
-It has not been tried against a real Kemper yet. The numbers it speaks — the maker's `00 20 33`, the functions, the module pages and the beacon — are the ones the Profiler's MIDI documentation and the open controllers that talk to one use, and a test checks the firmware's list against the tools', so if an amp ever disagrees the fix will be in that table of numbers and nowhere else.
+`tune` opens the tuner and has it hear a note, off by the number given, 0 being in tune and about 3400 the end of the scale; `sweep` brings a string up to pitch from flat, and `tuner` closes it again, as CC 31 from the pedal does.
+
+It has not been tried against a real Kemper yet. The numbers it speaks — the maker's `00 20 33`, the functions, the module pages, the tuner's and the beacon — are the ones the Profiler's MIDI documentation and the open controllers that talk to one use, and a test checks the firmware's list against the tools', so if an amp ever disagrees the fix will be in that table of numbers and nowhere else.
 
 
 ## Three USB ports

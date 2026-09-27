@@ -9,6 +9,7 @@
 #define INC_DISPLAY_H_
 
 #include <stdint.h>
+#include <stdbool.h>
 
 void display_init(void);
 // The configuration's name at boot, or its banner if it has one turned on
@@ -70,6 +71,15 @@ uint8_t display_host_text(uint8_t place, uint8_t how, const uint8_t *text, uint8
 void display_editor(const char *title, const char lines[][DISPLAY_EDIT_COLS + 1],
 		uint8_t count, uint8_t cursor);
 void display_editor_end(void);
+
+/*
+ * The amp's tuner, drawn full screen from what it reports (kemper.c): the note
+ * in large letters and a needle showing how far off it is. Called from the
+ * USB interrupt; the main loop draws. Off gives the bank screen back.
+ */
+void display_tuner(bool on);
+void display_tuner_note(uint8_t note);		// a MIDI note number
+void display_tuner_deviance(uint16_t value);	// 0 to 16383, 8192 in tune
 
 // Ask for the current bank screen to be redrawn from the main loop
 // (e.g. after a toggle state changed), without blocking the caller.

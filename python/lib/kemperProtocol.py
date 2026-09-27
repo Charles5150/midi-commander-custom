@@ -6,8 +6,8 @@ shaped like this::
     F0 00 20 33 02 7F <function> <instance> <page> <parameter> ... F7
 
 The pedal's Kemper_Mode uses a small corner of it: the beacon that asks the amp
-to keep reporting itself, the rig name, and the on/off state of the effect
-modules. The same numbers are in ``firmware/Core/Src/kemper.c``, and a test
+to keep reporting itself, the rig name, the on/off state of the effect modules,
+and the tuner's note and how far off it is. The same numbers are in ``firmware/Core/Src/kemper.c``, and a test
 checks the two lists against each other.
 """
 
@@ -31,6 +31,20 @@ FN_BEACON = 0x7E        # ask to be told of changes from now on
 PAGE_RIG = 0x00
 PARAM_RIG_NAME = 0x01
 PARAM_ON_OFF = 0x03     # in an effect module's page
+
+# The tuner, reported only while it is up: whether it is, the note heard as a
+# MIDI note number, and how far off, 0 to 16383 with 8192 in tune. CC 31 opens
+# and closes it.
+PAGE_MODE = 0x7F
+PARAM_MODE = 0x7E
+MODE_TUNER = 1
+PAGE_NOTE = 0x7D
+PARAM_NOTE = 0x54
+PAGE_DEVIANCE = 0x7C
+PARAM_DEVIANCE = 0x0F
+DEVIANCE_IN_TUNE = 8192
+CC_TUNER = 31
+NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
 # Every effect module: the page it answers on and the Control Change that
 # switches it, which is the one a button of the configuration sends.
@@ -77,6 +91,19 @@ def parameter(page: int, number: int, value: int) -> list:
 def module_state(name: str, on: bool) -> list:
     """The amp reporting that one of its effect modules is running, or not."""
     return parameter(MODULE_PAGES[name], PARAM_ON_OFF, 1 if on else 0)
+
+
+def tuner_mode(on: bool) -> list:
+    """The amp saying its tuner is up, or that it is back to playing."""
+    return parameter(PAGE_MODE, PARAM_MODE, MODE_TUNER if on else 0)
+
+
+def tuner_note(note: int) -> list:
+    return parameter(PAGE_NOTE, PARAM_NOTE, note)
+
+
+def tuner_deviance(value: int) -> list:
+    return parameter(PAGE_DEVIANCE, PARAM_DEVIANCE, max(0, min(16383, value)))
 
 
 def string_parameter(page: int, number: int, text: str) -> list:

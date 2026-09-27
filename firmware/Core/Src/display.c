@@ -22,6 +22,10 @@
  * text (banner_store.c) or the configuration's name, then the firmware
  * version, cross the screen in large letters, once. Any switch ends it, and
  * the bank screen waits for it underneath.
+ *
+ * With Kemper_Mode on, the amp's tuner takes the whole screen while it is up:
+ * the note twice the size of the large font, and a scale under it with a
+ * needle, which is drawn solid and with the note boxed in once it is in tune.
  */
 #include "main.h"
 #include "flash_midi_settings.h"
@@ -120,6 +124,26 @@ static uint32_t banner_next = 0;
 #define BANNER_V	('\x01')
 static const uint16_t banner_v[18] = {
 	0, 0, 0, 0, 0, 0x60C0, 0x3180, 0x3180, 0x3180, 0x1B00, 0x1B00, 0x1B00, 0x0E00, 0x0E00, 0x0600, 0, 0, 0};
+
+/*
+ * The tuner. Written from the USB interrupt as the amp reports, drawn from the
+ * main loop as often as the screen can go out.
+ */
+#define TUNER_NOTE_SCALE	(2)
+#define TUNER_NOTE_Y		(2)
+#define TUNER_SCALE_Y		(46)	// the scale's line; the needle stands on it
+#define TUNER_HALF_W		(60)	// either side of the middle
+#define TUNER_FULL		(3400)	// a deviance this far off reaches the end
+#define TUNER_IN_TUNE		(350)	// and this close is in tune
+#define TUNER_CENTRE		(8192)
+#define TUNER_NO_NOTE		(0xFF)
+static volatile uint8_t tuner_on = 0;
+static volatile uint8_t tuner_dirty = 0;
+static volatile uint8_t tuner_note = TUNER_NO_NOTE;
+static volatile uint16_t tuner_deviance = TUNER_CENTRE;
+static const char *const note_names[12] = {
+	"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
+};
 
 void display_init(void){
     ssd1306_Init();
@@ -620,6 +644,7 @@ void display_editor_end(void){
 static void show_overlay(const char *msg){
 	if(banner_running()) return;	// the banner is not cut short for a readout
 	if(preview_bank != 0xFF) return;	// nor the bank being chosen
+	if(tuner_on) return;			// nor the tuner
 	if(moment_showing) moment_done();
 	if(refresh_pending) render_bank(current_bank);	// a bank just entered, under the readout
 	fill_rect(50, 6, SSD1306_WIDTH - 50, 10, Black);
@@ -752,8 +777,98 @@ static bool beat_update(void){
 	return true;
 }
 
+void display_tuner(bool on){
+	tuner_on = on;
+	tuner_note = TUNER_NO_NOTE;	// until the amp hears one
+	tuner_deviance = TUNER_CENTRE;
+	tuner_dirty = 1;
+	if(!on) refresh_pending = 1;	// the bank screen, as it was
+}
+
+void display_tuner_note(uint8_t note){
+	if(note == tuner_note) return;
+	tuner_note = note;
+	tuner_dirty = 1;
+}
+
+void display_tuner_deviance(uint16_t value){
+	if(value == tuner_deviance) return;
+	tuner_deviance = value;
+	tuner_dirty = 1;
+}
+
+// A character of the large font, each of its pixels a square of scale
+static void draw_big_char(uint8_t x, uint8_t y, char ch, uint8_t scale, SSD1306_COLOR color){
+	const uint16_t *rows = ssd1306_Glyph(ch, Font_11x18);
+	for(uint8_t i=0; i<Font_11x18.FontHeight; i++){
+		for(uint8_t j=0; j<Font_11x18.FontWidth; j++){
+			if((uint16_t)(rows[i] << j) & 0x8000){
+				fill_rect((uint8_t)(x + j * scale), (uint8_t)(y + i * scale), scale, scale, color);
+			}
+		}
+	}
+}
+
+static void draw_tuner(void){
+	tuner_dirty = 0;
+	uint8_t note = tuner_note;
+	int32_t off = (int32_t)tuner_deviance - TUNER_CENTRE;
+	bool in_tune = note != TUNER_NO_NOTE && off <= TUNER_IN_TUNE && off >= -TUNER_IN_TUNE;
+
+	ssd1306_Fill(Black);
+
+	// The note, in the middle; boxed in, the other way round, when in tune
+	const char *name = (note == TUNER_NO_NOTE) ? "-" : note_names[note % 12];
+	uint8_t w = (uint8_t)(strlen(name) * Font_11x18.FontWidth * TUNER_NOTE_SCALE);
+	uint8_t x = (uint8_t)((SCREEN_SHOWN_W - w) / 2);
+	SSD1306_COLOR fg = White;
+	if(in_tune){
+		fill_rect((uint8_t)(x - 6), 0, (uint8_t)(w + 12), TUNER_SCALE_Y - 6, White);
+		fg = Black;
+	}
+	for(uint8_t i=0; name[i]; i++){
+		draw_big_char((uint8_t)(x + i * Font_11x18.FontWidth * TUNER_NOTE_SCALE),
+				TUNER_NOTE_Y, name[i], TUNER_NOTE_SCALE, fg);
+	}
+
+	// The scale: a line, a mark every quarter and a tall one in the middle
+	uint8_t mid = SCREEN_SHOWN_W / 2;
+	ssd1306_Line(mid - TUNER_HALF_W, TUNER_SCALE_Y, mid + TUNER_HALF_W, TUNER_SCALE_Y, White);
+	for(int8_t q=-4; q<=4; q++){
+		uint8_t mx = (uint8_t)(mid + q * TUNER_HALF_W / 4);
+		uint8_t tall = (q == 0) ? 6 : 3;
+		ssd1306_Line(mx, TUNER_SCALE_Y - tall, mx, TUNER_SCALE_Y + tall, White);
+	}
+	if(note == TUNER_NO_NOTE){
+		ssd1306_UpdateScreen();
+		return;
+	}
+
+	// The needle under the line, filled in when in tune
+	if(off > TUNER_FULL) off = TUNER_FULL;
+	if(off < -TUNER_FULL) off = -TUNER_FULL;
+	uint8_t nx = (uint8_t)(mid + off * TUNER_HALF_W / TUNER_FULL);
+	if(in_tune){
+		fill_rect((uint8_t)(nx - 2), TUNER_SCALE_Y + 2, 5, 16, White);
+	} else {
+		ssd1306_DrawRectangle((uint8_t)(nx - 2), TUNER_SCALE_Y + 2, (uint8_t)(nx + 2), TUNER_SCALE_Y + 17, White);
+		// Which way to turn: the arrows point to the middle
+		draw_big_char(off < 0 ? 2 : SCREEN_SHOWN_W - 2 - Font_11x18.FontWidth, 12,
+				off < 0 ? '>' : '<', 1, White);
+	}
+	ssd1306_UpdateScreen();
+}
+
 void display_task(void){
 	if(editor_on) return;	// the editor draws its own screen
+	if(tuner_on){
+		// The tuner has the screen; the rest waits under it, the banner
+		// too, and comes back when it closes
+		if(ssd1306_Busy()) return;
+		banner_on = 0;
+		if(tuner_dirty) draw_tuner();
+		return;
+	}
 	// The last screen is still going out: come back rather than wait for it,
 	// so a press is never held up behind a scroll step
 	if(ssd1306_Busy()) return;

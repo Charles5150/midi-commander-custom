@@ -3807,6 +3807,30 @@ class KemperModeTest(unittest.TestCase):
         self.assertEqual(self.define(text, "KEMPER_BEACON_AGAIN"), kp.BEACON_AGAIN)
         self.assertEqual(self.define(text, "KEMPER_BEACON_LEASE"), kp.BEACON_LEASE)
 
+    def test_tuner_matches_firmware(self):
+        """The tuner's parameters, and the CC the template's tuner button sends (1.07)."""
+        text = self.kemper_c()
+        for name in ("PAGE_MODE", "PARAM_MODE", "MODE_TUNER", "PAGE_NOTE", "PARAM_NOTE",
+                     "PAGE_DEVIANCE", "PARAM_DEVIANCE", "CC_TUNER"):
+            self.assertEqual(self.define(text, "KEMPER_" + name), getattr(kp, name), name)
+        # the Kemper Player template's TUNR button, lit and dark with the amp
+        buttons = read_config_csv(KEMPER_PLAYER_CSV)["Button_Settings"]
+        tuner = buttons[buttons["Label"].astype(str).str.strip() == "TUNR"].iloc[0]
+        self.assertEqual(int(float(tuner["A_Number_(PC/CC/Note)"])), kp.CC_TUNER)
+        self.assertEqual(str(tuner["A_Toggle_(CC/PB/Note)"]).strip().upper(), "Y")
+        display = self.firmware(os.path.join("Src", "display.c"))
+        names = display.split("note_names[12] = {", 1)[1].split("};", 1)[0]
+        self.assertEqual(re.findall(r'"([^"]+)"', names), kp.NOTE_NAMES)
+
+    def test_tuner_messages(self):
+        """Byte for byte, as the amp reports its tuner."""
+        self.assertEqual(kp.tuner_mode(True), [0xF0, 0x00, 0x20, 0x33, 0x00, 0x00,
+                                               0x01, 0x00, 0x7F, 0x7E, 0x00, 0x01, 0xF7])
+        self.assertEqual(kp.tuner_note(57)[8:12], [0x7D, 0x54, 0x00, 57])
+        self.assertEqual(kp.tuner_deviance(8192)[8:12], [0x7C, 0x0F, 0x40, 0x00])
+        self.assertEqual(kp.tuner_deviance(-5)[10:12], [0, 0])          # kept in range
+        self.assertEqual(kp.tuner_deviance(20000)[10:12], [0x7F, 0x7F])
+
     def test_modules_match_firmware(self):
         """The same eight modules, each with its page and its Control Change."""
         import re
@@ -3910,6 +3934,30 @@ class KemperModeTest(unittest.TestCase):
         self.assertIn(kp.rig_name(amp.rig), answers)
         self.assertIn(kp.module_state("Delay", True), answers)
         self.assertTrue(all(kp.is_kemper(a) for a in answers))
+
+    def test_the_make_believe_amp_has_a_tuner(self):
+        """CC 31 opens it, and a note sent opens it too."""
+        import mido
+
+        class Port:
+            def __init__(self, queue=None):
+                self.queue = list(queue or [])
+                self.sent = []
+
+            def poll(self):
+                return self.queue.pop(0) if self.queue else None
+
+            def send(self, message):
+                self.sent.append([0xF0] + list(message.data) + [0xF7])
+
+        inport, outport = Port([mido.Message("control_change", control=31, value=127)]), Port()
+        amp = kemper_sim.FakeKemper(inport, outport)
+        self.assertEqual(amp.poll(), ["tuner on"])
+        self.assertEqual(outport.sent, [kp.tuner_mode(True)])
+        amp.set_tuner(False)
+        outport.sent.clear()
+        amp.tune("A", -100)
+        self.assertEqual(outport.sent, [kp.tuner_mode(True), kp.tuner_note(57), kp.tuner_deviance(8092)])
 
 
 class MacroTest(unittest.TestCase):

@@ -311,32 +311,38 @@ Todo lo anterior va en una sola dirección: la pedalera le dice al ampli qué ha
 
 **Para activarlo**, marca **Talk to a Kemper** en la pestaña **Global** del configurador (`Kemper_Mode` `Y` en el CSV), o parte de la [plantilla del Kemper Player](#plantilla-para-kemper-profiler-player), que lo trae activado. El editor de la pedalera lo ofrece como `KEMPER`.
 
-Vuelven dos cosas que merece la pena ver desde el suelo:
+Vuelven tres cosas que merece la pena ver desde el suelo:
 
 - **El rig en el que estás**, en la línea pequeña junto al nombre del banco, y ahí se queda, banco tras banco, hasta que cambia el rig. Caben once caracteres; un nombre más largo, de hasta 32, [se desplaza por la pantalla una vez](09-the-display.md#texto-desde-el-ordenador) cuando cambia el rig y cada vez que entras en un banco. La pedalera lo pregunta cada segundo, así que acierta aunque el rig se haya cambiado en el propio ampli.
 - **Qué módulos de efecto están funcionando.** Un módulo que se enciende o se apaga se convierte en el Control Change que activa ese módulo —17 y 18 para los stomps A y B, 19, 20, 22 y 24 para C, D, X y MOD, 26 y 28 para delay y reverb, y 27 y 29, que conservan las colas— y se pasa al mismo mecanismo que [`LED_Feedback`](12-configuration-file.md#global_settings). Cualquier botón toggle que envíe uno de esos queda encendido o apagado igual que el ampli, en todos los bancos, tanto si el módulo se cambió con tu pie como con los botones del propio ampli o desde otro sitio. No se envía nada de vuelta por ello, así que los dos no pueden perseguirse, y el canal no tiene por qué coincidir: las respuestas del ampli no llevan canal.
+- **El afinador.** Mientras el afinador del ampli está abierto, la pantalla de la pedalera es un afinador: la nota en letras del doble del tamaño grande y, debajo, una escala con una aguja, a la izquierda del centro cuando está baja y a la derecha cuando está alta, con una flecha en ese lado que indica hacia dónde girar. Afinada, la nota queda dentro de un recuadro y la aguja se rellena. El afinador está abierto lo abras como lo abras, con el pie o en el ampli, y un botón que envíe el CC 31, el `TUNR` de la plantilla del Player, está encendido mientras lo está. Al cerrarse vuelve la pantalla del banco tal como estaba; si el ampli deja de contestar durante tres segundos, la pedalera cierra también su afinador.
 
 **Qué Kempers.** Las respuestas llegan por USB. En un **Profiler Player** es la misma toma a la que ya está conectada la pedalera: el Player hace de ordenador, alimenta la pedalera y habla MIDI por ahí, así que no hace falta nada más. Un Profiler en cabezal o un Stage tendrían que llegar a la entrada MIDI propia de la pedalera, que el hardware no tiene, así que ahí la pedalera sigue hablando en una sola dirección, como antes.
 
 <details><summary>Por dentro</summary>
 
-La pedalera envía al ampli el mensaje que le pide que informe de lo que hace a partir de ese momento, y lo repite cada cinco segundos, que es lo que le dice al ampli que sigue habiendo alguien al otro lado. De los ocho módulos, el ampli informa de seis por su cuenta; del delay y la reverb no, así que la pedalera pregunta por esos dos cada segundo, y por el nombre del rig también cada segundo. Pregunta por los ocho al arrancar y cada vez que cambia el rig. El modo seguro deja `Kemper_Mode` desactivado, así que no sale ni la baliza ni ninguna pregunta.
+La pedalera envía al ampli el mensaje que le pide que informe de lo que hace a partir de ese momento, y lo repite cada cinco segundos, que es lo que le dice al ampli que sigue habiendo alguien al otro lado. De los ocho módulos, el ampli informa de seis por su cuenta; del delay y la reverb no, así que la pedalera pregunta por esos dos cada segundo, y por el nombre del rig también cada segundo. Pregunta por los ocho al arrancar y cada vez que cambia el rig. La baliza pide las lecturas del afinador solo mientras está abierto, así que el resto del tiempo no ocupan el cable. El modo seguro deja `Kemper_Mode` desactivado, así que no sale ni la baliza ni ninguna pregunta.
 
 </details>
 
-*Firmware 0.55 o posterior.*
+*Firmware 0.55 o posterior; el afinador, 1.07 o posterior.*
 
 ### Probado sin ampli
 
-La conversación se probó contra `python/Kemper_Sim.py`, un Kemper de mentira que responde por el mismo enlace USB que usaría un Player: contesta a lo que pregunta la pedalera y te deja cambiar el rig o activar un módulo para ver cómo lo sigue la pedalera.
+La conversación se probó contra `python/Kemper_Sim.py`, un Kemper de mentira que responde por el mismo enlace USB que usaría un Player: contesta a lo que pregunta la pedalera y te deja cambiar el rig, activar un módulo o afinar una cuerda para ver cómo lo sigue la pedalera.
 
 ```bash
 .venv/bin/python python/Kemper_Sim.py
 kemper> rig Brit Crunch DLX
 kemper> dly
+kemper> tune A -1500
+kemper> sweep E
+kemper> tuner
 ```
 
-Todavía no se ha probado con un Kemper de verdad. Los números que usa —el `00 20 33` del fabricante, las funciones, las páginas de módulos y la baliza— son los de la documentación MIDI del Profiler y los de los controladores abiertos que hablan con él, y un test compara la lista del firmware con la de las herramientas, así que si algún ampli no está de acuerdo, el arreglo estará en esa tabla de números y en ningún otro sitio.
+`tune` abre el afinador y le hace oír una nota, desviada en el número indicado, siendo 0 afinada y unos 3400 el final de la escala; `sweep` sube una cuerda hasta su nota desde abajo, y `tuner` lo cierra de nuevo, como hace el CC 31 desde la pedalera.
+
+Todavía no se ha probado con un Kemper de verdad. Los números que usa —el `00 20 33` del fabricante, las funciones, las páginas de módulos, las del afinador y la baliza— son los de la documentación MIDI del Profiler y los de los controladores abiertos que hablan con él, y un test compara la lista del firmware con la de las herramientas, así que si algún ampli no está de acuerdo, el arreglo estará en esa tabla de números y en ningún otro sitio.
 
 
 ## Tres puertos USB

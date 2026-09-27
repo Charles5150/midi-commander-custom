@@ -14,6 +14,10 @@
  * dark like the amp, however the module was switched. Nothing is sent to the
  * amp because of what it reports, so the two cannot chase each other.
  *
+ * While the amp's tuner is up it also reports the note it hears and how far
+ * off it is, and the pedal draws its own tuner from them, full screen, so the
+ * tuning can be read from the floor.
+ *
  * The answers come in over USB, which on a Profiler Player is the socket the
  * pedal is plugged into, the Player being the host that also powers it.
  */
@@ -45,6 +49,19 @@
 #define KEMPER_PAGE_RIG		(0x00)	// the rig itself
 #define KEMPER_PARAM_RIG_NAME	(0x01)
 #define KEMPER_PARAM_ON_OFF	(0x03)	// in an effect module's page
+
+// The tuner, reported only while it is up, as the beacon asks
+#define KEMPER_PAGE_MODE	(0x7F)
+#define KEMPER_PARAM_MODE	(0x7E)	// 1 while the tuner is up
+#define KEMPER_MODE_TUNER	(1)
+#define KEMPER_PAGE_NOTE	(0x7D)
+#define KEMPER_PARAM_NOTE	(0x54)	// a MIDI note number, C being a multiple of 12
+#define KEMPER_PAGE_DEVIANCE	(0x7C)
+#define KEMPER_PARAM_DEVIANCE	(0x0F)	// 0 to 16383, 8192 in tune
+#define KEMPER_CC_TUNER		(31)	// what opens and closes it
+// Nothing heard from the amp for this long while the tuner is up (it answers
+// the rig name every second): it is gone, and the tuner with it
+#define KEMPER_SILENT_MS	(3000)
 
 /*
  * The beacon: 7E, the instance, 40, the set of parameters asked for, the flags
@@ -100,6 +117,8 @@ static bool started = false;
 static volatile bool ask_modules = false;	// set from the USB interrupt
 static uint32_t beacon_at = 0;
 static uint32_t name_at = 0;
+static volatile bool tuner_on = false;		// set from the USB interrupt
+static volatile uint32_t heard_at = 0;
 
 bool kemper_is_on(void){
 	return pGlobalSettings[GLOBAL_SETTINGS_KEMPER_MODE] == 1 && !sw_safe_mode();
@@ -113,6 +132,10 @@ void kemper_reset(void){
 	ask_modules = false;
 	beacon_at = 0;
 	name_at = 0;
+	if(tuner_on){
+		tuner_on = false;
+		display_tuner(false);
+	}
 }
 
 static void kemper_send(const uint8_t *body, uint8_t body_len){
@@ -190,6 +213,10 @@ void kemper_task(void){
 		ask_modules = false;
 		kemper_ask_modules();
 	}
+	if(tuner_on && (int32_t)(now - heard_at) >= KEMPER_SILENT_MS){
+		tuner_on = false;		// the amp is gone: its tuner is no use
+		display_tuner(false);
+	}
 }
 
 // --- reading what the amp says ----------------------------------------------
@@ -209,6 +236,16 @@ static void kemper_module_state(uint8_t page, uint8_t on){
 	}
 }
 
+// The amp's tuner opened or closed, however it was: the screen follows, and
+// so does any button that sends the CC that opens it
+static void kemper_tuner(bool on){
+	if(on == tuner_on) return;
+	tuner_on = on;
+	display_tuner(on);
+	uint8_t msg[3] = { 0xB0, KEMPER_CC_TUNER, on ? 127 : 0 };
+	sw_feedback_any_channel(msg);
+}
+
 static void kemper_rig_name(const uint8_t *text, uint8_t len){
 	if(len > sizeof(rig_name) - 1) len = sizeof(rig_name) - 1;
 	if(len == strlen(rig_name) && memcmp(rig_name, text, len) == 0) return;
@@ -224,10 +261,21 @@ static void kemper_message(const uint8_t *msg, uint8_t len){
 	uint8_t function = msg[KEMPER_HEAD_LEN];
 	uint8_t page = msg[KEMPER_HEAD_LEN + 2];
 	uint8_t parameter = msg[KEMPER_HEAD_LEN + 3];
+	heard_at = HAL_GetTick();
 
 	if(function == KEMPER_FN_PARAM && len >= KEMPER_HEAD_LEN + 6){
-		if(parameter == KEMPER_PARAM_ON_OFF){
-			kemper_module_state(page, msg[KEMPER_HEAD_LEN + 5] & 0x7F);
+		uint16_t value = (uint16_t)(((msg[KEMPER_HEAD_LEN + 4] & 0x7F) << 7)
+				| (msg[KEMPER_HEAD_LEN + 5] & 0x7F));
+		if(page == KEMPER_PAGE_MODE && parameter == KEMPER_PARAM_MODE){
+			kemper_tuner(value == KEMPER_MODE_TUNER);
+		} else if(page == KEMPER_PAGE_NOTE && parameter == KEMPER_PARAM_NOTE){
+			kemper_tuner(true);	// a note is only reported with the tuner up
+			display_tuner_note((uint8_t)(value & 0x7F));
+		} else if(page == KEMPER_PAGE_DEVIANCE && parameter == KEMPER_PARAM_DEVIANCE){
+			kemper_tuner(true);
+			display_tuner_deviance(value);
+		} else if(parameter == KEMPER_PARAM_ON_OFF){
+			kemper_module_state(page, (uint8_t)value);
 		}
 	} else if(function == KEMPER_FN_STRING){
 		if(page == KEMPER_PAGE_RIG && parameter == KEMPER_PARAM_RIG_NAME){

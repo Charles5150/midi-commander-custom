@@ -4,7 +4,8 @@ The pedal, with Kemper_Mode on, sends the amp a beacon every five seconds and
 asks it for the rig name and for the state of its eight effect modules. This
 answers those questions, in the amp's own System Exclusive dialect, and lets
 you change the rig or switch a module on and off to see the pedal follow: the
-rig name on its display, the modules on the LEDs of the buttons that send them.
+rig name on its display, the modules on the LEDs of the buttons that send them,
+and its tuner full screen while the amp's is up.
 
     python3 Kemper_Sim.py
 
@@ -13,6 +14,10 @@ Then, at the prompt:
     rig Crunch DLX      name the rig the pedal shows
     a / b / c / d       switch Stomp A, B, C or D on or off
     x / mod / dly / rev the same for the others
+    tuner               open or close the tuner, as CC 31 from the pedal does
+    tune A -1500        the note the tuner hears and how far off, -8192 to
+                        8191 (0 in tune, the needle's end at about 3400)
+    sweep E             a string brought up to pitch, from flat to in tune
     show                what the amp is supposed to be doing
     quit
 
@@ -44,6 +49,7 @@ class FakeKemper:
         self.last_beacon = []
         self.name_requests = 0
         self.module_requests = 0
+        self.tuner = False
 
     # --- the amp speaking ---------------------------------------------------
     def _send(self, message):
@@ -70,6 +76,19 @@ class FakeKemper:
                 return name
         return None
 
+    def set_tuner(self, on):
+        self.tuner = on
+        self._send(kp.tuner_mode(on))
+
+    def tune(self, note, offset):
+        """The tuner hearing a note (a name or a MIDI number), offset from in tune."""
+        if isinstance(note, str):
+            note = 48 + kp.NOTE_NAMES.index(note.upper())
+        if not self.tuner:
+            self.set_tuner(True)
+        self._send(kp.tuner_note(note))
+        self._send(kp.tuner_deviance(kp.DEVIANCE_IN_TUNE + offset))
+
     # --- and listening ------------------------------------------------------
     def poll(self, seconds=0.0):
         """Answer whatever the pedal has asked. Returns what it asked for."""
@@ -83,6 +102,10 @@ class FakeKemper:
                 time.sleep(0.005)
                 continue
 
+            if msg.type == "control_change" and msg.control == kp.CC_TUNER:
+                asked.append("tuner " + ("on" if msg.value >= 64 else "off"))
+                self.set_tuner(msg.value >= 64)
+                continue
             if msg.type == "control_change":
                 # A real amp switches the module and says so
                 name = self.module_for_cc(msg.control)
@@ -158,14 +181,34 @@ def main() -> int:
                 name = SHORTCUTS[word]
                 amp.set_module(name, not amp.modules[name])
                 print(f"  {name}: {'on' if amp.modules[name] else 'off'}")
+            elif word == "tuner":
+                amp.set_tuner(not amp.tuner)
+                print(f"  tuner: {'on' if amp.tuner else 'off'}")
+            elif word == "tune":
+                parts = rest.split()
+                try:
+                    note = parts[0] if parts else "A"
+                    note = int(note) if note.isdigit() else note
+                    amp.tune(note, int(parts[1]) if len(parts) > 1 else 0)
+                except (ValueError, IndexError):
+                    print("  tune <C..B or a note number> [offset]")
+            elif word == "sweep":
+                note = (rest or "E").strip().upper()
+                if note not in kp.NOTE_NAMES:
+                    print("  sweep <C..B>")
+                    continue
+                for offset in range(-4000, 1, 100):
+                    amp.tune(note, offset)
+                    amp.poll(0.04)
             elif word == "show":
-                print(f"  rig: {amp.rig}")
+                print(f"  rig: {amp.rig}, tuner {'on' if amp.tuner else 'off'}")
                 for name, _, cc, _ in kp.MODULES:
                     print(f"  {name:8} {'on ' if amp.modules[name] else 'off'}  (CC {cc})")
                 print(f"  beacons {amp.beacons}, rig name asked {amp.name_requests} times,"
                       f" modules {amp.module_requests}")
             else:
-                print("  rig <name> | a b c d x mod dly rev | show | quit")
+                print("  rig <name> | a b c d x mod dly rev | tuner | tune <note> [offset]"
+                      " | sweep <note> | show | quit")
             amp.poll(0.05)
 
 

@@ -490,3 +490,38 @@ test("the tools know the three ports by name on macOS, Windows and Linux", () =>
   assert.deepEqual(kinds(["MIDI Commander Custom:MIDI Commander Custom MIDI 1 20:0", "MIDI Commander Custom:MIDI Commander Custom MIDI 2 20:1",
     "MIDI Commander Custom:MIDI Commander Custom MIDI 3 20:2"]), ["pedal", "din", "config"]);
 });
+
+// The Kemper reporting one parameter, as it answers the beacon
+const kemperParam = (page, param, value) => [0xf0, 0x00, 0x20, 0x33, 0x00, 0x00, 0x01, 0x00, page, param, (value >> 7) & 0x7f, value & 0x7f, 0xf7];
+const lit = (sim, x, y) => Boolean(sim.screen()[(y >> 3) * 130 + x] & (1 << (y & 7)));
+
+test("with Kemper_Mode, the amp's tuner takes the screen while it is up", async () => {
+  const sim = simWithDemo(await flashWith(packDemo("g = d['Global_Settings']\ng.loc[g.Label == 'Kemper_Mode', 'Value'] = 'Y'")));
+  sim.run(10000);                           // the demo's power on banner goes by first
+  const kemper = (page, param, value) => { sim.usbIn(kemperParam(page, param, value)); sim.run(60); };
+  assert.ok(infoLineIs(sim, "1/10>S01"));
+
+  kemper(0x7f, 0x7e, 1);                    // the tuner opens: no note yet
+  assert.ok(!infoLineIs(sim, "1/10>S01"), "the tuner has the screen");
+  assert.ok(lit(sim, 64, 40) && lit(sim, 64, 52), "the scale's middle mark");
+  assert.ok(!lit(sim, 64, 56), "and no needle");
+
+  kemper(0x7d, 0x54, 57);                   // an A
+  kemper(0x7c, 0x0f, 8192 + 100);           // in tune: the note boxed in, the needle solid
+  assert.ok(lit(sim, 48, 1) && lit(sim, 80, 1), "the box");
+  assert.ok(lit(sim, 65, 56), "the needle, filled in");
+
+  kemper(0x7c, 0x0f, 8192 + 3400);          // sharp: the needle at the right end
+  assert.ok(!lit(sim, 48, 1) && !lit(sim, 80, 1), "no box");
+  assert.ok(lit(sim, 122, 50) && lit(sim, 122, 60) && !lit(sim, 124, 56), "the needle's outline");
+  assert.ok(!lit(sim, 65, 56));
+
+  kemper(0x7f, 0x7e, 0);                    // closed on the amp: the bank is back
+  sim.run(100);
+  assert.ok(infoLineIs(sim, "1/10>S01"));
+
+  kemper(0x7d, 0x54, 64);                   // a note opens it too, then the amp goes quiet
+  assert.ok(!infoLineIs(sim, "1/10>S01"));
+  sim.run(3500);
+  assert.ok(infoLineIs(sim, "1/10>S01"), "an amp that stops answering takes its tuner away");
+});
