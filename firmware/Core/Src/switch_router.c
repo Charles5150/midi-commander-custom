@@ -2112,6 +2112,13 @@ typedef struct {
 
 static seq_t seqs[SEQ_SLOTS];
 
+// An LFO or a sequence running, which a flash erase would be heard in
+bool sw_modulating(void){
+	for(uint8_t i=0; i<LFO_SLOTS; i++) if(lfos[i].active) return true;
+	for(uint8_t i=0; i<SEQ_SLOTS; i++) if(seqs[i].active) return true;
+	return false;
+}
+
 // The commands a sequence can play, one step at a time
 static inline bool cmd_takes_steps(const uint8_t *pRom){
 	uint8_t type = pRom[0] & 0xF0;

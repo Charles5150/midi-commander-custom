@@ -48,6 +48,7 @@ void sw_trigger_button(uint8_t sw);
 // index into LFO_DIV_TICKS, or MOD_SPEED_OWN to give each its own back
 #define MOD_SPEED_OWN	(0xFF)
 void sw_set_mod_speed(uint8_t index);
+bool sw_modulating(void);	// an LFO or a sequence is running
 
 // Ask for a bank change from outside the main loop (e.g. an incoming MIDI
 // message handled in the USB interrupt). Applied by handle_switches.

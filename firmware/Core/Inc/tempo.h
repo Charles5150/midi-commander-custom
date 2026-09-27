@@ -37,6 +37,8 @@ void tempo_clock_start(void);
 void tempo_clock_stop(void);
 void tempo_clock_toggle(void);
 bool tempo_clock_running(void);
+// The pedal's clock running, or a clock from the host in the last half second
+bool tempo_keeping_time(void);
 
 // Called from SysTick every millisecond.
 void tempo_tick_1ms(void);

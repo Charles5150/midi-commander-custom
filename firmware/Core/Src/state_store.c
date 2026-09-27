@@ -27,6 +27,12 @@
  * still in it is read with its own entry size, so an update comes back on the
  * same slot, bank and toggles, and the next save starts the region afresh.
  *
+ * Erasing the region stalls the pedal for 80-160 ms, which a running clock,
+ * LFO or sequence would stumble on. So it is done early, from half full on,
+ * at a save made while nothing keeps time; while something does, the second
+ * half takes the saves, and when that is full too the save waits until the
+ * music stops (a flush, before an upload or sleep, does not wait).
+ *
  * The slot is saved whatever Remember_State says, since the pedal must come
  * back on the configuration it was left on; the bank and toggles are only
  * restored when that configuration asks for it.
@@ -37,6 +43,7 @@
 #include "flash_midi_settings.h"
 #include "midi_defines.h"
 #include "switch_router.h"
+#include "tempo.h"
 #include <string.h>
 
 #define STATE_STORE_ADDR	(FLASH_STATE_ADDR)
@@ -175,13 +182,13 @@ static HAL_StatusTypeDef write_masks(uint32_t addr, const uint32_t *masks){
 }
 
 static void write_entry(uint8_t bank, uint8_t slot, const uint32_t *toggles,
-		const uint32_t *long_toggles, const uint32_t *double_toggles){
+		const uint32_t *long_toggles, const uint32_t *double_toggles, bool quiet){
 	// Flash programming stalls the CPU anyway; disabling interrupts keeps a
 	// SysEx flash write arriving over USB from re-entering the HAL flash lock.
 	__disable_irq();
 	HAL_FLASH_Unlock();
 
-	if(next_free >= STATE_ENTRIES){
+	if(next_free >= STATE_ENTRIES || (quiet && next_free >= STATE_ENTRIES / 2)){
 		erase_region();
 		next_free = 0;
 	}
@@ -250,7 +257,12 @@ static void save(bool now){
 			&& memcmp(double_toggles, last_saved_double, sizeof(last_saved_double)) == 0){
 		return; // Nothing changed since the last save
 	}
-	write_entry(bank, slot, toggles, long_toggles, double_toggles);
+	bool quiet = !tempo_keeping_time() && !sw_modulating();
+	if(!now && !quiet && next_free >= STATE_ENTRIES){
+		state_store_mark_dirty();	// full: the erase waits for the music to stop
+		return;
+	}
+	write_entry(bank, slot, toggles, long_toggles, double_toggles, quiet);
 }
 
 void state_store_task(void){

@@ -66,6 +66,7 @@ static volatile uint32_t ext_window_start = 0;
 static volatile uint16_t ext_clock_count = 0;
 static volatile uint16_t ext_bpm_measured = 0;	// 0 until a full window
 static volatile bool ext_seen = false;
+static volatile uint32_t any_clock_tick = 0;	// last clock from the host, followed or not
 static volatile bool ext_restart = true;
 static uint16_t ext_bpm_shown = 0;
 static bool display_update = false;
@@ -75,8 +76,9 @@ static inline bool follow_enabled(void){
 }
 
 void tempo_external_clock(void){
-	if(!follow_enabled()) return;
 	uint32_t now = HAL_GetTick();
+	any_clock_tick = now;
+	if(!follow_enabled()) return;
 	if(ext_restart || !ext_seen || (now - ext_last_clock_tick) > EXT_TIMEOUT_MS){
 		// First clock of a new run: the measurement window starts here
 		ext_restart = false;
@@ -127,6 +129,11 @@ bool tempo_external_present(void){
 	if(!follow_enabled() || !ext_seen) return false;
 	uint32_t last = ext_last_clock_tick;	// read before now, so now >= last
 	return (HAL_GetTick() - last) <= EXT_TIMEOUT_MS;
+}
+
+bool tempo_keeping_time(void){
+	uint32_t last = any_clock_tick;	// read before now, so now >= last
+	return clock_running || (HAL_GetTick() - last) <= EXT_TIMEOUT_MS;
 }
 
 bool tempo_take_display_update(void){
