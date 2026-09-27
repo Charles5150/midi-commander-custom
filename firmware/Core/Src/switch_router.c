@@ -114,6 +114,8 @@ typedef struct {
 typedef struct {
 	uint32_t systick_timout;
 	uint8_t *pRomCmd;
+	uint8_t channel;	// the channel a Chan command forced, 0 for none
+	uint8_t outputs_off;	// and the outputs it turned off
 } delayed_cmd_t;
 
 #define SW_PORTA_MASK (SW_1_Pin | SW_2_Pin | SW_E_Pin | SW_D_Pin | SW_C_Pin)
@@ -483,8 +485,7 @@ static void send_stored_sysex(const uint8_t *pRom){
 	for(uint8_t i=0; i<len; i++) msg[1+i] = entry[1+i] & 0x7F;
 	msg[1+len] = SYSEX_END;
 
-	sysex_send_message(msg, len + 2);
-	midiCmd_send_bytes_serial(msg, len + 2);
+	midiCmd_send_sysex(msg, len + 2);
 }
 
 /*
@@ -1101,6 +1102,9 @@ void handle_delayed_cmds(void){
 	for(int i=0; i<MAX_DELAYED_CMDS; i++){
 		if(delayed_cmds[i].systick_timout < HAL_GetTick()){
 			uint8_t* pRom = delayed_cmds[i].pRomCmd;
+			// The Off goes where the On went, whatever Chan command sent it
+			midiCmd_force_channel(delayed_cmds[i].channel);
+			midiCmd_limit_outputs(delayed_cmds[i].outputs_off);
 			switch(*pRom & 0xF0){
 			case CMD_PB_NIBBLE:
 				midiCmd_send_pb_command_from_rom(pRom, MIDI_CONTROL_OFF);
@@ -1117,6 +1121,8 @@ void handle_delayed_cmds(void){
 			default:
 				break;
 			}
+			midiCmd_force_channel(0);
+			midiCmd_limit_outputs(0);
 			delayed_cmds[i].systick_timout = UINT32_MAX;
 		}
 	}
@@ -1127,6 +1133,8 @@ void set_cmd_duration_delay(uint8_t *pRom){
 	int slot = get_available_delayed_cmd_slot();
 	if(slot >= 0){
 		delayed_cmds[slot].pRomCmd = pRom;
+		delayed_cmds[slot].channel = midiCmd_forced_channel();
+		delayed_cmds[slot].outputs_off = midiCmd_outputs_off();
 		delayed_cmds[slot].systick_timout = HAL_GetTick() + midiCmd_get_delay(pRom);
 	}
 }
@@ -2204,11 +2212,6 @@ static bool if_holds(const uint8_t *pRom){
 }
 
 /*
- * One command, sent once on every channel the Chan command above it named.
- * Without one, or when it names no channel at all, the command goes out once
- * as it stands.
- */
-/*
  * Macro: a command that runs another button's list in place, so a sequence
  * wanted in many banks is stored once and called with four bytes wherever it
  * is needed. Byte 1 is the bank, byte 2 the button in its low nibble and which
@@ -2240,11 +2243,18 @@ static bool macro_on_stack(const frame_t *st, uint8_t depth, const uint8_t *base
 	return false;
 }
 
+/*
+ * One command, sent once on every channel the Chan command above it named,
+ * and only to the outputs it leaves on. Without one, or when it names no
+ * channel at all, the command goes out once on its own channel.
+ */
 static void send_on_channels(const uint8_t *chan, uint8_t *pRom, uint8_t toggle, bool up){
 	uint16_t mask = chan ? chan_mask(chan) : 0;
+	midiCmd_limit_outputs(chan ? chan[1] : 0);	// USB or DIN alone, if it says so
 	if(mask == 0){
 		if(up) handle_cmd_sw_up(pRom, toggle);
 		else handle_cmd_sw_down(pRom, toggle);
+		midiCmd_limit_outputs(0);
 		return;
 	}
 	for(uint8_t ch=0; ch<16; ch++){
@@ -2254,6 +2264,7 @@ static void send_on_channels(const uint8_t *chan, uint8_t *pRom, uint8_t toggle,
 		else handle_cmd_sw_down(pRom, toggle);
 	}
 	midiCmd_force_channel(0);
+	midiCmd_limit_outputs(0);
 }
 
 /*

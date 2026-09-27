@@ -30,7 +30,7 @@ A file written by hand packs as written or says what is wrong and where. `Comman
 | 0 | An index of `Bank` commands jumping to the other banks |
 | 1 | A looper layout: CC toggles, the four track buttons as an exclusive group, and a long press on one button |
 | 2 | The three LED modes side by side, and momentary versus toggle |
-| 3 | Program Changes, with and without Bank Select, and a patch selected on entry |
+| 3 | Program Changes, with and without Bank Select, a patch selected on entry, and PC on DIN alone with CC on USB alone (hold P 0) |
 | 4 | Keyboard keys: plain, with modifiers, held, and a Down/Up combination |
 | 5 | Media keys; held, the same buttons drive a recorder instead, as MMC, Song Select and Song Position |
 | 6 | Tap tempo, clock start/stop, transport, BPM up/down (hold SYNC for 120 BPM), TREM, a tremolo on CC 14 that follows the tempo, and a four note arpeggio held on STRT |

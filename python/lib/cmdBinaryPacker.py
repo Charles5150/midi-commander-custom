@@ -88,10 +88,15 @@ SONG_MODES = ["Select", "Position"]
 SONG_POSITION_MAX = 16383
 # Chan: sends the command right below it on the channels it names. The sixteen
 # channels are a bit each: byte 2 holds channels 1-7, byte 3 channels 8-14, and
-# the two low bits of byte 1 channels 15 and 16.
+# the two low bits of byte 1 channels 15 and 16. Bits 2 and 3 of byte 1 turn
+# an output off for that command, so it goes to the DIN port or USB alone.
 CMD_CHAN_MODE = 9
 CHAN_15_BIT = 0x01
 CHAN_16_BIT = 0x02
+CHAN_NO_USB = 0x04
+CHAN_NO_DIN = 0x08
+# The outputs a Chan command sends to, as KeyMode says them
+CHAN_OUTPUTS = {"Both": 0, "DIN": CHAN_NO_USB, "USB": CHAN_NO_DIN}
 # And a step sequencer: a run of Seq commands above a CC or Note command plays
 # it one step at a time, locked to the tempo. Each command holds two steps, in
 # bytes 2 and 3, a step being a value 0-127, SEQ_REST for one that sends
@@ -735,16 +740,25 @@ def channel_list_text(mask: int) -> str:
 
 
 def cmd_chan(cmd):
-    """Send the command right below this one on several channels.
+    """Send the command right below this one on several channels, or to one
+    output alone.
 
     Channel holds the list, "1 2 3" or "1-3". The command below goes out once
     per channel, whatever channel of its own it carries, and whatever the
-    configuration's global channel says.
+    configuration's global channel says. KeyMode is the output: Both (or
+    empty), USB or DIN. With an output and no channels the command keeps its
+    own channel.
     """
     mask = parse_channel_list(cmd.get("Channel_(PC/CC/Note/PB)"))
-    if mask == 0:
-        raise ValueError("Chan needs a channel list, like 1 2 3")
-    byte1 = 0
+    output = str(cmd.get("KeyMode_(Key)", "") or "").strip()
+    if output.lower() in ("", "nan"):
+        output = "Both"
+    names = {k.lower(): k for k in CHAN_OUTPUTS}
+    if output.lower() not in names:
+        raise ValueError(f"Chan output must be Both, USB or DIN, not {output!r}")
+    byte1 = CHAN_OUTPUTS[names[output.lower()]]
+    if mask == 0 and byte1 == 0:
+        raise ValueError("Chan needs a channel list, like 1 2 3, or an output, USB or DIN")
     if mask & (1 << 14):
         byte1 |= CHAN_15_BIT
     if mask & (1 << 15):

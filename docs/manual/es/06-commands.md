@@ -25,7 +25,7 @@ En el configurador, una lista son diez casillas, de la A a la J. Elige el tipo d
 | `PCInc` | El preset siguiente o el anterior | [Preset siguiente y anterior](#preset-siguiente-y-anterior) |
 | `Key` | Una tecla del teclado del ordenador | [Teclas del teclado](#teclas-del-teclado) |
 | `Media` | Una tecla multimedia: play, siguiente, volumen… | [Teclas multimedia](#teclas-multimedia) |
-| `Chan` | Envía el comando de abajo por varios canales | [Un canal, o varios](#un-canal-o-varios) |
+| `Chan` | Envía el comando de abajo por varios canales, o solo por USB o por DIN | [Un canal, o varios](#un-canal-o-varios), [USB, DIN o las dos](#usb-din-o-las-dos) |
 | `Wait` | Una pausa en la lista | [Pausas](#pausas) |
 | `Ramp` | Convierte el CC de abajo en un paseo lento hasta su valor | [Rampas de CC](#rampas-de-cc) |
 | `Exp` | Cambia lo que envía un pedal de expresión | [Cambiar el destino de un pedal de expresión](#cambiar-el-destino-de-un-pedal-de-expresión) |
@@ -45,7 +45,7 @@ En el configurador, una lista son diez casillas, de la A a la J. Elige el tipo d
 
 ## Enviar MIDI
 
-Todo lo de este grupo sale a la vez por USB y por la salida DIN.
+Todo lo de este grupo sale a la vez por USB y por la salida DIN, salvo que un [`Chan`](#usb-din-o-las-dos) encima elija una.
 
 ### Program Change
 
@@ -257,6 +257,35 @@ En la demo, mantener A en el banco 11 silencia los canales 1, 2 y 3 con un solo 
 </details>
 
 *Firmware 0.51 o posterior.*
+
+### USB, DIN o las dos
+
+Cada mensaje sale a la vez por USB y por la salida DIN. Con un ordenador por USB y un ampli por el cable DIN, eso es un mensaje de más: el ordenador recibe el Program Change del ampli, el ampli las notas que eran para el ordenador, y un DAW que reenvía su MIDI al ampli se lo manda todo por segunda vez.
+
+El mismo comando `Chan` elige la salida del comando que tiene justo debajo, con `KeyMode`:
+
+| `KeyMode` | El comando sale por |
+|---|---|
+| `Both`, o vacío | USB y DIN, como siempre |
+| `USB` | solo USB |
+| `DIN` | solo la salida DIN |
+
+`Channel` puede quedarse vacío: el comando conserva entonces su propio canal y solo cambia la salida. Con canales, el comando sale por cada uno de ellos, y solo por esa salida.
+
+- También cuenta al soltar, y para la `Duration` de una nota o una inflexión: el Off sale por donde salió el On.
+- Todo lo que envía la pedalera puede ir a una sola salida así: PC, CC, notas, inflexiones, SysEx, MMC, Song, Start, Stop y Panic.
+- Un `Ramp`, `LFO`, `Seq` o `Exp` encima del comando ocupa el sitio que tomaría el `Chan`, así que el CC que mueven sale por las dos.
+- El MIDI que llega del ordenador y se reenvía a DIN, y el reloj MIDI, salen como siempre.
+
+En la demo, mantener P 0 en el banco 3 pasa el ampli al programa 10 por DIN y se lo cuenta al ordenador con el CC 70 por USB.
+
+<details><summary>Por dentro</summary>
+
+Los bits 2 y 3 del byte 1 del comando `Chan`: 0x04 apaga el USB y 0x08 la salida DIN. Un `Chan` sin canales solo elige la salida. El firmware anterior a la 0.84 ignora los bits y envía ese comando por las dos salidas.
+
+</details>
+
+*Firmware 0.84 o posterior.*
 
 ## Dar forma a una lista
 

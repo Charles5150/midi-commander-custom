@@ -29,9 +29,13 @@ int8_t midiCmd_send_song_position(uint16_t beats);
 int8_t midiCmd_send_mmc(uint8_t command, uint16_t seconds);
 int8_t midiCmd_send_panic(void);
 void midiCmd_send_byte_serial(uint8_t byteMessage);
-void midiCmd_send_bytes_serial(const uint8_t *data, uint8_t len);
+void midiCmd_send_bytes_serial(const uint8_t *data, uint8_t len);	// DIN only, whatever the outputs
+void midiCmd_send_sysex(uint8_t *msg, uint8_t len);	// F0 to F7, to the outputs that are on
 
 void midiCmd_force_channel(uint8_t channel);	// 1-16 while a Chan command sends, 0 to stop forcing
+uint8_t midiCmd_forced_channel(void);	// the channel being forced, 0 for none
+void midiCmd_limit_outputs(uint8_t off);	// CHAN_NO_USB | CHAN_NO_DIN while a Chan command sends, 0 after
+uint8_t midiCmd_outputs_off(void);	// the outputs a Chan command turned off
 uint8_t midiCmd_channel(uint8_t stored);	// the channel a command really goes out on
 uint8_t midiCmd_get_cmd_toggle(uint8_t *pRom);
 uint32_t midiCmd_get_delay(uint8_t *pRom);

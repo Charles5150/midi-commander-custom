@@ -29,6 +29,8 @@ from lib.cmdBinaryPacker import (
     CMD_CHAN_MODE,
     CHAN_15_BIT,
     CHAN_16_BIT,
+    CHAN_NO_USB,
+    CHAN_NO_DIN,
     channel_list_text,
     CMD_SEQ_MODE,
     steps_text,
@@ -367,6 +369,10 @@ def unpack_command(raw: bytes, cycle_labels=None) -> dict:
         if b1 & CHAN_16_BIT:
             mask |= 1 << 15
         cmd["Channel_(PC/CC/Note/PB)"] = channel_list_text(mask)
+        if b1 & CHAN_NO_USB:
+            cmd["KeyMode_(Key)"] = "DIN"
+        elif b1 & CHAN_NO_DIN:
+            cmd["KeyMode_(Key)"] = "USB"
     elif cmd_type == CMD_PC_NIBBLE and b2 in PC_REL_MARKERS:
         cmd["CommandType"] = "PCInc"
         cmd["Channel_(PC/CC/Note/PB)"] = channel

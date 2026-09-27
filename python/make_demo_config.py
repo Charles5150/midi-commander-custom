@@ -306,6 +306,15 @@ def build() -> Demo:
 
     # --- bank 3: program changes, with and without bank select -----------
     d.pc(3, "1", "P 0", "0")
+    # Held, P 0 changes the amp on the DIN port alone and tells the computer
+    # with a CC on USB alone: each Chan picks the output of the command below
+    d.long_press(3, "1", CommandType="Chan", **{"KeyMode_(Key)": "DIN"})
+    d.long_press(3, "1", slot="B", CommandType="PC",
+                 **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": "10"})
+    d.long_press(3, "1", slot="C", CommandType="Chan", **{"KeyMode_(Key)": "USB"})
+    d.long_press(3, "1", slot="D", CommandType="CC",
+                 **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": "70",
+                    "OnValue_(CC/PB)": "127", "OffValue_(CC)": "0"})
     d.pc(3, "2", "P 1", "1")
     d.pc(3, "3", "CH 5", "7", ch="5")
     d.pc(3, "4", "CH16", "42", ch="16")

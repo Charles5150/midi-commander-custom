@@ -27,7 +27,7 @@ from lib.cmdBinaryPacker import (  # noqa: E402
     EXP_TARGETS, HID_SPECIAL_KEYS, LFO_DIVISIONS, LFO_SHAPES, MEDIA_KEYS, RAMP_MAX_MS,
     MMC_COMMANDS, MMC_LOCATE_MAX, SONG_MODES, SONG_POSITION_MAX,
     VAR_MODES, VAR_COUNT, VAR_DEFAULT_TOP, IF_TESTS, IF_BUTTON_TESTS, IF_VALUE_TESTS,
-    SCENE_BUTTONS, MACRO_LISTS, LISTEN_LOOKS, BUTTON_ACTIONS, button_mode, command_type,
+    SCENE_BUTTONS, MACRO_LISTS, LISTEN_LOOKS, BUTTON_ACTIONS, CHAN_OUTPUTS, button_mode, command_type,
 )
 from lib.configCsv import read_config_csv, write_config_csv  # noqa: E402
 from lib.displayText import display_text  # noqa: E402
@@ -801,12 +801,16 @@ class SlotEditor:
             ).pack(side="left", padx=8)
         elif cmd_type == "Chan":
             self._label("Channels")
-            w = TextEntry(self.params, 47, clean(self.initial.get("Channel_(PC/CC/Note/PB)")), width=140)
+            w = TextEntry(self.params, 47, clean(self.initial.get("Channel_(PC/CC/Note/PB)")), width=110)
             w.pack(side="left")
             self.widgets["chanlist"] = w
+            self._label("Output")
+            w = Option(self.params, list(CHAN_OUTPUTS), clean(self.initial.get("KeyMode_(Key)")) or "Both", width=75)
+            w.pack(side="left")
+            self.widgets["chanout"] = w
             ctk.CTkLabel(
                 self.params,
-                text="(the command right below goes out on each of them, \"1 2 3\" or \"1-3\")",
+                text="(\"1 2 3\" or \"1-3\"; empty: its own)",
                 text_color=MUTED,
             ).pack(side="left", padx=8)
         elif cmd_type == "Ramp":
@@ -1035,6 +1039,7 @@ class SlotEditor:
             out["OnValue_(CC/PB)"] = w["songvalue"].value()
         if cmd_type == "Chan":
             out["Channel_(PC/CC/Note/PB)"] = w["chanlist"].value().strip()
+            out["KeyMode_(Key)"] = "" if w["chanout"].value() == "Both" else w["chanout"].value()
         if cmd_type == "Cycle":
             out["OnValue_(CC/PB)"] = w["cyclelabel"].value().strip()
         if cmd_type == "LFO":

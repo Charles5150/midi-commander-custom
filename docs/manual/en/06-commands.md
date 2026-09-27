@@ -25,7 +25,7 @@ In the configurator a list is ten slots, A to J. Choose a slot's command type an
 | `PCInc` | The next or previous preset | [Next and previous preset](#next-and-previous-preset) |
 | `Key` | A key of a computer keyboard | [Keyboard keys](#keyboard-keys) |
 | `Media` | A media key: play, next, volume… | [Media keys](#media-keys) |
-| `Chan` | Sends the command below on several channels | [One channel, or several](#one-channel-or-several) |
+| `Chan` | Sends the command below on several channels, or on USB or DIN alone | [One channel, or several](#one-channel-or-several), [USB, DIN or both](#usb-din-or-both) |
 | `Wait` | A pause in the list | [Pauses](#pauses) |
 | `Ramp` | Turns the CC below into a slow walk to its value | [CC ramps](#cc-ramps) |
 | `Exp` | Changes what an expression pedal sends | [Changing an expression pedal's target](#changing-an-expression-pedals-target) |
@@ -45,7 +45,7 @@ In the configurator a list is ten slots, A to J. Choose a slot's command type an
 
 ## Sending MIDI
 
-Everything in this group goes out over USB and the DIN output at once.
+Everything in this group goes out over USB and the DIN output at once, unless a [`Chan`](#usb-din-or-both) above it picks one.
 
 ### Program Change
 
@@ -257,6 +257,35 @@ In the demo, holding A in bank 11 mutes channels 1, 2 and 3 with one CC.
 </details>
 
 *Firmware 0.51 or later.*
+
+### USB, DIN or both
+
+Every message goes out on USB and on the DIN output at once. With a computer on USB and an amp on the DIN cable, that is one message too many: the computer gets the amp's Program Change, the amp gets the notes meant for the computer, and a DAW that passes its MIDI through to the amp sends it all a second time.
+
+The same `Chan` command picks the output of the command right below it, with `KeyMode`:
+
+| `KeyMode` | The command goes out on |
+|---|---|
+| `Both`, or empty | USB and DIN, as always |
+| `USB` | USB alone |
+| `DIN` | the DIN output alone |
+
+`Channel` may stay empty: the command then keeps its own channel and only the output changes. With channels in it, the command goes out on each of them, on that output alone.
+
+- It counts for the release too, and for a note's or a bend's `Duration`: the Off goes where the On went.
+- Everything the pedal sends can be sent to one output this way: PC, CC, notes, bends, SysEx, MMC, Song, Start, Stop and Panic.
+- A `Ramp`, `LFO`, `Seq` or `Exp` above the command sits in the place the `Chan` would take, so the CC they drive goes out on both.
+- MIDI coming from the computer and passed through to DIN, and the MIDI clock, go out as ever.
+
+In the demo, holding P 0 in bank 3 changes the amp to program 10 on DIN, and tells the computer with CC 70 on USB.
+
+<details><summary>Under the hood</summary>
+
+Bits 2 and 3 of the `Chan` command's byte 1: 0x04 turns USB off, 0x08 the DIN output. A `Chan` naming no channel only chooses the output. Firmware before 0.84 ignores the bits and sends such a command on both outputs.
+
+</details>
+
+*Firmware 0.84 or later.*
 
 ## Shaping a list
 

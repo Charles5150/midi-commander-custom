@@ -69,11 +69,53 @@ void midiCmd_force_channel(uint8_t channel){
 	forced_channel = (channel <= 16) ? channel : 0;
 }
 
+uint8_t midiCmd_forced_channel(void){
+	return forced_channel;
+}
+
 uint8_t midiCmd_channel(uint8_t stored){
 	if(forced_channel) return (uint8_t)(forced_channel - 1) & 0x0F;
 	uint8_t global = pGlobalSettings[GLOBAL_SETTINGS_GLOBAL_CHANNEL];
 	if(global >= 1 && global <= 16) return (uint8_t)(global - 1) & 0x0F;
 	return stored & 0x0F;
+}
+
+/*
+ * Which outputs a message goes out on. Everything goes to USB and to the DIN
+ * port alike, unless a Chan command above the command sending it turns one of
+ * them off: CHAN_NO_USB or CHAN_NO_DIN, set only while that command sends. A
+ * PC for the amp on DIN then does not also reach the computer, and a note for
+ * the computer does not reach the amp. Messages coming in over USB and passed
+ * through to DIN, and the MIDI clock, go out as ever.
+ */
+static uint8_t outputs_off = 0;
+
+void midiCmd_limit_outputs(uint8_t off){
+	outputs_off = off & (CHAN_NO_USB | CHAN_NO_DIN);
+}
+
+uint8_t midiCmd_outputs_off(void){
+	return outputs_off;
+}
+
+static void usb_tx(uint8_t *msg, uint16_t len){
+	if(!(outputs_off & CHAN_NO_USB)) MIDI_DataTx(msg, len);
+}
+
+// The bytes a serial buffer just filled goes out with: none, which leaves the
+// buffer free, when the DIN output is off
+static uint8_t din_len(uint32_t len){
+	return (outputs_off & CHAN_NO_DIN) ? 0 : (uint8_t)len;
+}
+
+static void din_bytes(const uint8_t *data, uint8_t len){
+	if(!(outputs_off & CHAN_NO_DIN)) midiCmd_send_bytes_serial(data, len);
+}
+
+// A whole SysEx message, F0 to F7, to the outputs that are on
+void midiCmd_send_sysex(uint8_t *msg, uint8_t len){
+	if(!(outputs_off & CHAN_NO_USB)) sysex_send_message(msg, len);
+	din_bytes(msg, len);
 }
 
 uint8_t midiCmd_get_cmd_toggle(uint8_t *pRom){
@@ -150,12 +192,12 @@ int8_t midiCmd_send_stop_command(void){
 	*(usbBuf++) = 0; // Pad
 
 	*serialBuf = 0xFC;
-	midi_uart_out_buffer_bytes_to_tx[buffer_no] = 1;
+	midi_uart_out_buffer_bytes_to_tx[buffer_no] = din_len(1);
 
 	__enable_irq();
 
 	uint8_t usb_bytes_to_tx = usbBuf - midi_usb_assembly_buffer;
-	MIDI_DataTx(midi_usb_assembly_buffer, usb_bytes_to_tx);
+	usb_tx(midi_usb_assembly_buffer, usb_bytes_to_tx);
 
 	midi_serial_transmit();
 	return 0;
@@ -223,8 +265,8 @@ int8_t midiCmd_send_panic(void){
 			u[3] = 0;
 			memcpy(&ser[ch * 3], &u[1], 3);
 		}
-		MIDI_DataTx(usb, sizeof(usb));
-		midiCmd_send_bytes_serial(ser, sizeof(ser));
+		usb_tx(usb, sizeof(usb));
+		din_bytes(ser, sizeof(ser));
 	}
 	return 0;
 }
@@ -236,16 +278,16 @@ int8_t midiCmd_send_panic(void){
  */
 int8_t midiCmd_send_song_select(uint8_t song){
 	uint8_t usb[4] = { CIN_TWO_BYTE_SYSTEM_COMMON, 0xF3, song & 0x7F, 0 };
-	MIDI_DataTx(usb, 4);
-	midiCmd_send_bytes_serial(&usb[1], 2);
+	usb_tx(usb, 4);
+	din_bytes(&usb[1], 2);
 	return 0;
 }
 
 int8_t midiCmd_send_song_position(uint16_t beats){
 	uint8_t usb[4] = { CIN_THREE_BYTE_SYSTEM_COMMON, 0xF2,
 			beats & 0x7F, (beats >> 7) & 0x7F };
-	MIDI_DataTx(usb, 4);
-	midiCmd_send_bytes_serial(&usb[1], 3);
+	usb_tx(usb, 4);
+	din_bytes(&usb[1], 3);
 	return 0;
 }
 
@@ -276,8 +318,7 @@ int8_t midiCmd_send_mmc(uint8_t command, uint16_t seconds){
 	}
 	msg[len++] = SYSEX_END;
 
-	sysex_send_message(msg, len);
-	midiCmd_send_bytes_serial(msg, len);
+	midiCmd_send_sysex(msg, len);
 	return 0;
 }
 
@@ -298,12 +339,12 @@ int8_t midiCmd_send_start_command(void){
 	*(usbBuf++) = 0; // Pad
 
 	*serialBuf = 0xFA;
-	midi_uart_out_buffer_bytes_to_tx[buffer_no] = 1;
+	midi_uart_out_buffer_bytes_to_tx[buffer_no] = din_len(1);
 
 	__enable_irq();
 
 	uint8_t usb_bytes_to_tx = usbBuf - midi_usb_assembly_buffer;
-	MIDI_DataTx(midi_usb_assembly_buffer, usb_bytes_to_tx);
+	usb_tx(midi_usb_assembly_buffer, usb_bytes_to_tx);
 
 	midi_serial_transmit();
 	return 0;
@@ -329,12 +370,12 @@ int8_t midiCmd_send_pb_command_from_rom(uint8_t *pRom, uint8_t on_off){
 	memcpy(serialBuf, (usbBuf-3), 3);
 	serialBuf += 3;
 
-	midi_uart_out_buffer_bytes_to_tx[buffer_no] = serialBuf - &midi_uart_out_buffer[buffer_no][0];
+	midi_uart_out_buffer_bytes_to_tx[buffer_no] = din_len(serialBuf - &midi_uart_out_buffer[buffer_no][0]);
 
 	__enable_irq();
 
 	uint8_t usb_bytes_to_tx = usbBuf - midi_usb_assembly_buffer;
-	MIDI_DataTx(midi_usb_assembly_buffer, usb_bytes_to_tx);
+	usb_tx(midi_usb_assembly_buffer, usb_bytes_to_tx);
 
 	midi_serial_transmit();
 	return 0;
@@ -360,12 +401,12 @@ int8_t midiCmd_send_note_command_from_rom(uint8_t *pRom, uint8_t on_off){
 	memcpy(serialBuf, (usbBuf-3), 3);
 	serialBuf += 3;
 
-	midi_uart_out_buffer_bytes_to_tx[buffer_no] = serialBuf - &midi_uart_out_buffer[buffer_no][0];
+	midi_uart_out_buffer_bytes_to_tx[buffer_no] = din_len(serialBuf - &midi_uart_out_buffer[buffer_no][0]);
 
 	__enable_irq();
 
 	uint8_t usb_bytes_to_tx = usbBuf - midi_usb_assembly_buffer;
-	MIDI_DataTx(midi_usb_assembly_buffer, usb_bytes_to_tx);
+	usb_tx(midi_usb_assembly_buffer, usb_bytes_to_tx);
 
 	midi_serial_transmit();
 	return 0;
@@ -391,12 +432,12 @@ int8_t midiCmd_send_cc(uint8_t channel, uint8_t cc_number, uint8_t value)
 	memcpy(serialBuf, (usbBuf-3), 3);
 	serialBuf += 3;
 
-	midi_uart_out_buffer_bytes_to_tx[buffer_no] = serialBuf - &midi_uart_out_buffer[buffer_no][0];
+	midi_uart_out_buffer_bytes_to_tx[buffer_no] = din_len(serialBuf - &midi_uart_out_buffer[buffer_no][0]);
 
 	__enable_irq();
 
 	uint8_t usb_bytes_to_tx = usbBuf - midi_usb_assembly_buffer;
-	MIDI_DataTx(midi_usb_assembly_buffer, usb_bytes_to_tx);
+	usb_tx(midi_usb_assembly_buffer, usb_bytes_to_tx);
 
 	midi_serial_transmit();
 	return 0;
@@ -428,12 +469,12 @@ int8_t midiCmd_send_cc14(uint8_t channel, uint8_t cc_number, uint16_t value)
 		serialBuf += 3;
 	}
 
-	midi_uart_out_buffer_bytes_to_tx[buffer_no] = serialBuf - &midi_uart_out_buffer[buffer_no][0];
+	midi_uart_out_buffer_bytes_to_tx[buffer_no] = din_len(serialBuf - &midi_uart_out_buffer[buffer_no][0]);
 
 	__enable_irq();
 
 	uint8_t usb_bytes_to_tx = usbBuf - midi_usb_assembly_buffer;
-	MIDI_DataTx(midi_usb_assembly_buffer, usb_bytes_to_tx);
+	usb_tx(midi_usb_assembly_buffer, usb_bytes_to_tx);
 
 	midi_serial_transmit();
 	return 0;
@@ -474,12 +515,12 @@ int8_t midiCmd_send_cc_command_from_rom(uint8_t *pRom, uint8_t on_off){
 	memcpy(serialBuf, (usbBuf-3), 3);
 	serialBuf += 3;
 
-	midi_uart_out_buffer_bytes_to_tx[buffer_no] = serialBuf - &midi_uart_out_buffer[buffer_no][0];
+	midi_uart_out_buffer_bytes_to_tx[buffer_no] = din_len(serialBuf - &midi_uart_out_buffer[buffer_no][0]);
 
 	__enable_irq();
 
 	uint8_t usb_bytes_to_tx = usbBuf - midi_usb_assembly_buffer;
-	MIDI_DataTx(midi_usb_assembly_buffer, usb_bytes_to_tx);
+	usb_tx(midi_usb_assembly_buffer, usb_bytes_to_tx);
 
 	midi_serial_transmit();
 
@@ -546,12 +587,12 @@ int8_t midiCmd_send_pc_command_from_rom(uint8_t *pRom){
 	memcpy(serialBuf, (usbBuf-3), 2);
 	serialBuf += 2;
 
-	midi_uart_out_buffer_bytes_to_tx[buffer_no] = serialBuf - &midi_uart_out_buffer[buffer_no][0];
+	midi_uart_out_buffer_bytes_to_tx[buffer_no] = din_len(serialBuf - &midi_uart_out_buffer[buffer_no][0]);
 
 	__enable_irq();
 
 	uint8_t usb_bytes_to_tx = usbBuf - midi_usb_assembly_buffer;
-	MIDI_DataTx(midi_usb_assembly_buffer, usb_bytes_to_tx);
+	usb_tx(midi_usb_assembly_buffer, usb_bytes_to_tx);
 
 	midi_serial_transmit();
 	return 0;

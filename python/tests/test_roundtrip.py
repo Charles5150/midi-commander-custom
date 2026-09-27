@@ -6,6 +6,7 @@ Run from the repository root:
 """
 
 import os
+import re
 import sys
 import struct
 import unittest
@@ -2865,6 +2866,47 @@ class ChannelsTest(unittest.TestCase):
         for text in ("", "0", "17", "1 99"):
             with self.assertRaises(ValueError, msg=text):
                 self.pack_chan(text)
+
+    @staticmethod
+    def pack_output(channels, output):
+        row = {f"A_{f}": "" for f in unpacker.CMD_FIELDS}
+        row["A_CommandType"] = "Chan"
+        row["A_Channel_(PC/CC/Note/PB)"] = channels
+        row["A_KeyMode_(Key)"] = output
+        return bytes(cbp.pack_row(pd.Series(row)))[:4]
+
+    def test_output_bits_match_firmware(self):
+        path = os.path.join(os.path.dirname(__file__), "..", "..", "firmware", "Core", "Inc", "midi_defines.h")
+        with open(path) as handle:
+            text = handle.read()
+        for name, value in (("CHAN_NO_USB", cbp.CHAN_NO_USB), ("CHAN_NO_DIN", cbp.CHAN_NO_DIN)):
+            fw = re.search(r"^#define\s+" + name + r"\s+\((0x[0-9A-Fa-f]+)\)", text, re.M)
+            self.assertEqual(int(fw.group(1), 16), value)
+        # clear of the channel bits and of the toggle bit
+        self.assertEqual((cbp.CHAN_NO_USB | cbp.CHAN_NO_DIN) & (cbp.CHAN_15_BIT | cbp.CHAN_16_BIT | 0x80), 0)
+
+    def test_output_round_trip(self):
+        for channels, output, packed in (
+                ("", "DIN", [0x09, 0x04, 0, 0]),
+                ("", "usb", [0x09, 0x08, 0, 0]),
+                ("1 2", "DIN", [0x09, 0x04, 0x03, 0]),
+                ("16", "USB", [0x09, 0x0A, 0, 0]),
+                ("3", "Both", [0x09, 0x00, 0x04, 0]),
+                ("3", "", [0x09, 0x00, 0x04, 0])):
+            got = self.pack_output(channels, output)
+            self.assertEqual(list(got), packed, (channels, output))
+            back = unpacker.unpack_command(got)
+            self.assertEqual(back["CommandType"], "Chan")
+            self.assertEqual(norm(back.get("Channel_(PC/CC/Note/PB)", "")), channels)
+            wanted = {"both": "", "": ""}.get(output.lower(), output.upper())
+            self.assertEqual(norm(back.get("KeyMode_(Key)", "")), wanted)
+
+    def test_output_alone_or_nothing(self):
+        """An output alone is enough; neither channels nor output is not."""
+        self.assertEqual(list(self.pack_output("", "DIN")), [0x09, 0x04, 0, 0])
+        for channels, output in (("", "Both"), ("", ""), ("1", "MIDI"), ("1", "5")):
+            with self.assertRaises(ValueError, msg=(channels, output)):
+                self.pack_output(channels, output)
 
     def test_chan_is_not_an_empty_command(self):
         """It shares the empty command type, but zero is still no command."""

@@ -152,9 +152,14 @@
 // of byte 1 channels 15 and 16 (byte 1 keeps its top bit clear, as that is
 // what marks a command as toggling). Naming channels on purpose also beats
 // the global channel, which an empty list would otherwise move it to.
+// Bits 2 and 3 of byte 1 turn an output off for that command: CHAN_NO_USB
+// sends it to the DIN port alone, CHAN_NO_DIN to USB alone. A Chan naming no
+// channel only chooses the output, and the command keeps its own channel.
 #define CMD_CHAN_MODE		(9)
 #define CHAN_15_BIT		(0x01)
 #define CHAN_16_BIT		(0x02)
+#define CHAN_NO_USB		(0x04)
+#define CHAN_NO_DIN		(0x08)
 // Seq: same empty command type, low nibble 10. A run of them above a CC or
 // Note command turns it into a step sequencer: while the button is held, or
 // its toggle is on, that command goes out one step at a time, locked to the
