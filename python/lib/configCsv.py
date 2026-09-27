@@ -66,68 +66,70 @@ def write_config_csv(
     df_combos: pd.DataFrame = None,
     df_midi_map: pd.DataFrame = None,
 ) -> None:
+    # "\n" everywhere: pandas would end its rows with os.linesep, "\r\n" on
+    # Windows, among the section lines written here with "\n"
     with open(path, "w", newline="", encoding="utf-8") as f:
         f.write("# Notes" + PAD + "\n")
         f.write(f"# {note}" + PAD + "\n")
         f.write("#" + PAD + "\n")
 
         f.write("* Global_Settings" + PAD + "\n")
-        df_global.to_csv(f, index=False)
+        df_global.to_csv(f, index=False, lineterminator="\n")
         f.write(PAD + "\n")
 
         f.write("* Bank_Naming" + PAD + "\n")
-        df_banks.to_csv(f, index=False)
+        df_banks.to_csv(f, index=False, lineterminator="\n")
         f.write(PAD + "\n")
 
         f.write("* Button_Settings" + PAD + "\n")
-        df_buttons.to_csv(f, index=False)
+        df_buttons.to_csv(f, index=False, lineterminator="\n")
 
         if df_long_press is not None:
             f.write(PAD + "\n")
             f.write("* LongPress_Settings" + PAD + "\n")
-            df_long_press.to_csv(f, index=False)
+            df_long_press.to_csv(f, index=False, lineterminator="\n")
 
         if df_double_press is not None:
             f.write(PAD + "\n")
             f.write("* DoublePress_Settings" + PAD + "\n")
-            df_double_press.to_csv(f, index=False)
+            df_double_press.to_csv(f, index=False, lineterminator="\n")
 
         if df_expression is not None:
             f.write(PAD + "\n")
             f.write("* Expression_Settings" + PAD + "\n")
-            df_expression.to_csv(f, index=False)
+            df_expression.to_csv(f, index=False, lineterminator="\n")
 
         if df_bank_enter is not None:
             f.write(PAD + "\n")
             f.write("* BankEnter_Settings" + PAD + "\n")
-            df_bank_enter.to_csv(f, index=False)
+            df_bank_enter.to_csv(f, index=False, lineterminator="\n")
 
         if df_sysex is not None:
             f.write(PAD + "\n")
             f.write("* SysEx_Strings" + PAD + "\n")
-            df_sysex.to_csv(f, index=False)
+            df_sysex.to_csv(f, index=False, lineterminator="\n")
 
         if df_bank_switch is not None:
             f.write(PAD + "\n")
             f.write("* BankSwitch_Settings" + PAD + "\n")
-            df_bank_switch.to_csv(f, index=False)
+            df_bank_switch.to_csv(f, index=False, lineterminator="\n")
 
         if df_setlist is not None:
             f.write(PAD + "\n")
             f.write("* Setlist" + PAD + "\n")
-            df_setlist.to_csv(f, index=False)
+            df_setlist.to_csv(f, index=False, lineterminator="\n")
 
         if df_bank_expression is not None:
             f.write(PAD + "\n")
             f.write("* BankExpression_Settings" + PAD + "\n")
-            df_bank_expression.to_csv(f, index=False)
+            df_bank_expression.to_csv(f, index=False, lineterminator="\n")
 
         if df_combos is not None and len(df_combos):
             f.write(PAD + "\n")
             f.write("* Combo_Settings" + PAD + "\n")
-            df_combos.to_csv(f, index=False)
+            df_combos.to_csv(f, index=False, lineterminator="\n")
 
         if df_midi_map is not None and len(df_midi_map):
             f.write(PAD + "\n")
             f.write("* MidiMap_Settings" + PAD + "\n")
-            df_midi_map.to_csv(f, index=False)
+            df_midi_map.to_csv(f, index=False, lineterminator="\n")
