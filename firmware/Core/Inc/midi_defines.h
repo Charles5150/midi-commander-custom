@@ -328,7 +328,8 @@
 #define GLOBAL_SETTINGS_BANK_SWITCH_MODE (15)	// What the Bank Up/Down switches do
 // Bytes 16..31 hold ConfigName, so anything new starts at 32
 #define GLOBAL_SETTINGS_SLEEP_AFTER_MIN (32)	// Idle minutes before the display and LEDs go out (0 = never)
-#define GLOBAL_SETTINGS_SETLIST_MODE (33)	// 1 = Bank Up/Down follow the setlist order instead of bank numbers
+#define GLOBAL_SETTINGS_SETLIST_MODE (33)	// 1 = Bank Up/Down follow the setlist order instead of bank numbers, 2 = and the display shows the place in it
+#define SETLIST_SHOWN		(2)
 #define GLOBAL_SETTINGS_CLOCK_FOLLOW (34)	// 1 = adopt the tempo of MIDI clock arriving over USB
 #define GLOBAL_SETTINGS_LED_FEEDBACK (35)	// bits: LED_FEEDBACK_HOST, LED_FEEDBACK_LINK, EXP_SEND_ON_BANK, BEAT_COUNTER; 0xFF = none
 #define LED_FEEDBACK_HOST	(0x01)	// incoming CC/Note over USB set matching toggle buttons

@@ -45,9 +45,17 @@ In the configurator, put the banks in order in the **Setlist** tab, one drop-dow
 - A `GoTo` and a bank change from incoming MIDI still go to the exact bank asked for.
 - The list only counts while **Follow the setlist** is on, so you can keep one stored and switch it off.
 
+### Where you are in it
+
+On stage, the display can tell you where you are in the set. Tick **… and show the place** under **Follow the setlist** and, in a bank of the list, the info line shows the song's place and the name of the next one: `3/12>INTR` is the third song of twelve, and `INTR` comes next. The last song shows `12/12 END`. The bank's name stays where it is, on the left.
+
+- A bank that is not in the list keeps its own info line.
+- On a [second page](#second-page), the place is that of the bank the page belongs to.
+- A text from the computer in the info line, the bar and beat of a running clock (`Beat_Counter`) and the readouts such as the tempo still show over it.
+
 ### In the CSV
 
-`Setlist_Mode` `Y` in `Global_Settings` turns it on, `N` (the default) off. The `Setlist` section is optional: rows of `Position` and `Bank_Number` (0–31). Up to 32 entries, ordered by `Position`, so rows may be in any order and positions may skip numbers; invalid bank numbers are dropped.
+`Setlist_Mode` `Y` in `Global_Settings` turns it on, `N` (the default) off, and `Setlist_Display` `Y` shows the place in it (firmware 0.94). The `Setlist` section is optional: rows of `Position` and `Bank_Number` (0–31). Up to 32 entries, ordered by `Position`, so rows may be in any order and positions may skip numbers; invalid bank numbers are dropped.
 
 ## Bank preview
 

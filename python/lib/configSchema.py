@@ -100,6 +100,7 @@ GLOBAL_GROUPS = [
         ("Bank_Jump_Step", "Long press jumps", "banks, 1-31"),
         ("Bank_Preview", "Preview banks", "seconds a bank shown by Bank Up / Down waits for a button to confirm it, 0 = off"),
         ("Setlist_Mode", "Follow the setlist", "Bank Up / Down use the order in the Setlist tab"),
+        ("Setlist_Display", "… and show the place", "the info line shows the song's place and the next one, 3/12>INTR"),
         ("Bank_Change_Mode", "Change bank from MIDI", "an incoming PC or CC selects the bank"),
         ("Bank_Change_Channel", "… listening on channel", ""),
         ("Bank_Change_CC", "… with CC number", "when the mode is CC"),
@@ -135,7 +136,7 @@ CHECK = {"kind": "check"}
 GLOBAL_FIELDS = {
     "MIDI_Channel": _choice(CHANNELS),
     **{label: CHECK for label in ("RealTime_Passthrough", "USB_MIDI_Thru", "Remember_State",
-                                  "Setlist_Mode", "Clock_Follow", "LED_Feedback", "Link_Toggles",
+                                  "Setlist_Mode", "Setlist_Display", "Clock_Follow", "LED_Feedback", "Link_Toggles",
                                   "Edit_Lock", "Kemper_Mode")},
     "Bank_Up_LED_Mode": _choice(LED_MODES),
     "Bank_Down_LED_Mode": _choice(LED_MODES),

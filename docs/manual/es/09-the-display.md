@@ -15,7 +15,7 @@ Lo que muestra la pantalla casi todo el tiempo:
 - **Debajo:** una rejilla de 2×4 colocada como la pedalera, con los botones **1 2 3 4** en la fila de arriba y **A B C D** en la de abajo. Cada casilla muestra la etiqueta del botón, o su identificador si no tiene.
 - **Toggles:** la casilla de un toggle se dibuja invertida mientras está encendido, así que el estado de todo el banco se ve de un vistazo.
 
-Un [botón de ciclo](05-buttons.md#botones-de-ciclo) muestra la etiqueta del último estado que envió, y una [segunda página](04-banks.md#segunda-página) muestra las etiquetas de la página en lugar de las del banco. Con `Kemper_Mode` activado, el rig en el que estás ocupa la línea de información ([Kemper en las dos direcciones](11-devices.md#kemper-en-las-dos-direcciones)).
+Un [botón de ciclo](05-buttons.md#botones-de-ciclo) muestra la etiqueta del último estado que envió, y una [segunda página](04-banks.md#segunda-página) muestra las etiquetas de la página en lugar de las del banco. Con `Setlist_Display` activado, una canción del setlist muestra su puesto en él y la canción siguiente en la línea de información, `3/12>INTR` ([Dónde estás en ella](04-banks.md#dónde-estás-en-ella)). Con `Kemper_Mode` activado, el rig en el que estás ocupa la línea de información ([Kemper en las dos direcciones](11-devices.md#kemper-en-las-dos-direcciones)).
 
 ### Lo que aparece encima
 

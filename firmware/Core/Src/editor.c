@@ -378,6 +378,7 @@ typedef struct {
 } setting_t;
 
 static const char *const bank_switch_names[] = {"Bank", "Bank+MIDI", "MIDI only"};
+static const char *const setlist_names[] = {"No", "Yes", "Shown"};
 
 static const setting_t settings[] = {
 	{"LONGPRES", GLOBAL_SETTINGS_LONG_PRESS,          S_MS,     5,   200, 50,  true,  NULL},
@@ -391,7 +392,7 @@ static const setting_t settings[] = {
 	{"GLOBBANK", GLOBAL_SETTINGS_GLOBAL_BANK,         S_NUM,    0,    32, 0,   false, NULL},
 	{"BANK SW",  GLOBAL_SETTINGS_BANK_SWITCH_MODE,    S_CHOICE, 0,     2, 0,   false, bank_switch_names},
 	{"PREVIEW",  GLOBAL_SETTINGS_BANK_PREVIEW,        S_SEC,    0,    60, 0,   false, NULL},
-	{"SETLIST",  GLOBAL_SETTINGS_SETLIST_MODE,        S_ONOFF,  0,     1, 0,   false, NULL},
+	{"SETLIST",  GLOBAL_SETTINGS_SETLIST_MODE,        S_CHOICE, 0,     2, 0,   false, setlist_names},
 	{"REMEMBER", GLOBAL_SETTINGS_REMEMBER_STATE,      S_ONOFF,  0,     1, 0,   false, NULL},
 	{"CLOCKFLW", GLOBAL_SETTINGS_CLOCK_FOLLOW,        S_ONOFF,  0,     1, 0,   false, NULL},
 	{"LEDFEEDB", GLOBAL_SETTINGS_LED_FEEDBACK,        S_FLAG,   LED_FEEDBACK_HOST, 1, 0, false, NULL},

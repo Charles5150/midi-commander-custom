@@ -60,7 +60,7 @@ A command of any other type is shown by name and left exactly as it is until the
 | `GLOBBANK` | the bank set aside for the global buttons (`Global_Bank`), as the editor shows its number, 0 for none |
 | `BANK SW` | what the bank switches do (`Bank_Switch_Mode`) |
 | `PREVIEW` | the bank preview time (`Bank_Preview`) |
-| `SETLIST` | follow the setlist (`Setlist_Mode`) |
+| `SETLIST` | follow the setlist (`Setlist_Mode`): `No`, `Yes`, or `Shown`, which also shows the place in it (`Setlist_Display`) |
 | `REMEMBER` | remember state (`Remember_State`) |
 | `CLOCKFLW` | clock follow (`Clock_Follow`) |
 | `LEDFEEDB` | LED feedback (`LED_Feedback`) |

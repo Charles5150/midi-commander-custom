@@ -76,6 +76,9 @@ static uint8_t moment_showing = 0;
 static char beat_text[12];
 static char count_text[6];	// "IN 3", room for the compiler's worst case
 
+// The place in the setlist and the next song, "3/12>INTR" (Setlist_Display)
+static char setlist_text[14];
+
 /*
  * Scrolling a text too wide for its place: still for a moment at the start,
  * then moved along until its end shows, still again, and back to the start
@@ -321,7 +324,7 @@ static void draw_top(uint8_t bank, uint8_t over_place, const char *override){
 	}
 	if(bank == current_bank && preview_bank == 0xFF){
 		if(!text[DISPLAY_TEXT_NAME][0]) text[DISPLAY_TEXT_NAME] = count_text;
-		if(!text[DISPLAY_TEXT_INFO][0]) text[DISPLAY_TEXT_INFO] = beat_text;
+		if(!text[DISPLAY_TEXT_INFO][0]) text[DISPLAY_TEXT_INFO] = beat_text[0] ? beat_text : setlist_text;
 	}
 	// A moment's text in the bank name or info shows even over a whole line
 	if(override && over_place <= DISPLAY_TEXT_NAME){
@@ -412,6 +415,26 @@ static void moment_done(void){
 	scroll_px = 0;
 }
 
+// The place in the setlist, and the next song's name without its spaces
+static void setlist_update(void){
+	uint8_t n, next;
+	uint8_t at = sw_setlist_place(&n, &next);
+	if(!at){
+		setlist_text[0] = 0;
+		return;
+	}
+	char name[5] = "END";
+	if(next != 0xFF){
+		const uint8_t *src = pBankStrings + (12 * next);
+		uint8_t k = 0;
+		for(uint8_t i=0; i<4; i++){
+			if(src[i] > ' ' && src[i] < 0x7F) name[k++] = (char)src[i];
+		}
+		name[k] = 0;
+	}
+	snprintf(setlist_text, sizeof(setlist_text), "%u/%u%c%s", at, n, next != 0xFF ? '>' : ' ', name);
+}
+
 // The bank screen as it stands: a long text keeps its place in its scroll
 // The bank screen into the buffer, without sending it
 static void render_bank(uint8_t bankNumber){
@@ -420,6 +443,7 @@ static void render_bank(uint8_t bankNumber){
 	if(bankNumber != current_bank) drop_bank_text();
 	current_bank = bankNumber;
 	uint8_t fresh = scroll_take_fresh();
+	setlist_update();
 
 	ssd1306_Fill(Black);
 	draw_top(bankNumber, 0, NULL);

@@ -45,9 +45,17 @@ En el configurador, pon los bancos en orden en la pestaña **Setlist**, un despl
 - Un `GoTo` y un cambio de banco por MIDI entrante siguen yendo al banco exacto que se pide.
 - La lista solo cuenta mientras **Follow the setlist** está activado, así que puedes tener una guardada y desactivarla.
 
+### Dónde estás en ella
+
+En el escenario, la pantalla puede decirte por dónde vas del repertorio. Marca **… and show the place**, debajo de **Follow the setlist**, y en un banco de la lista la línea de información muestra el puesto de la canción y el nombre de la siguiente: `3/12>INTR` es la tercera canción de doce, y después viene `INTR`. La última muestra `12/12 END`. El nombre del banco sigue en su sitio, a la izquierda.
+
+- Un banco que no está en la lista conserva su propia línea de información.
+- En una [segunda página](#segunda-página), el puesto es el del banco al que pertenece la página.
+- Un texto del ordenador en la línea de información, el compás y el tiempo de un reloj en marcha (`Beat_Counter`) y las lecturas como el tempo siguen apareciendo encima.
+
 ### En el CSV
 
-`Setlist_Mode` `Y` en `Global_Settings` lo activa, y `N` (lo predeterminado) lo desactiva. La sección `Setlist` es opcional: filas de `Position` y `Bank_Number` (0–31). Hasta 32 puestos, ordenados por `Position`, así que las filas pueden ir en cualquier orden y los puestos pueden saltarse números; los números de banco no válidos se descartan.
+`Setlist_Mode` `Y` en `Global_Settings` lo activa, y `N` (lo predeterminado) lo desactiva; `Setlist_Display` `Y` muestra el puesto en la lista (firmware 0.94). La sección `Setlist` es opcional: filas de `Position` y `Bank_Number` (0–31). Hasta 32 puestos, ordenados por `Position`, así que las filas pueden ir en cualquier orden y los puestos pueden saltarse números; los números de banco no válidos se descartan.
 
 ## Vista previa de banco
 

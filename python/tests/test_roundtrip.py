@@ -790,7 +790,7 @@ class SetlistTest(unittest.TestCase):
         expected = [0, 12, 15, 13, 14, 18, 16, 17, 19, 20]
         self.assertEqual(raw[:len(expected)], expected)
         self.assertEqual(raw[len(expected):], [0xFF] * (32 - len(expected)))
-        self.assertEqual(packed[33], 1)
+        self.assertEqual(packed[33], 2)     # with Setlist_Display on
         back = unpacker.unpack_config(packed)
         self.assertEqual([int(b) for b in back[8]["Bank_Number"]], expected)
         self.assertEqual(back[0].set_index("Label")["Value"]["Setlist_Mode"], "Y")
@@ -825,6 +825,31 @@ class SetlistTest(unittest.TestCase):
         g = sections["Global_Settings"]
         g.loc[g["Label"] == "Setlist_Mode", "Value"] = "N"
         self.assertEqual(packer.pack_config(sections)[33], 0)
+
+    def pack_modes(self, mode, shown):
+        sections = read_config_csv(DEMO_CSV)
+        g = sections["Global_Settings"]
+        g.loc[g["Label"] == "Setlist_Mode", "Value"] = mode
+        if shown is None:
+            sections["Global_Settings"] = g[g["Label"] != "Setlist_Display"]
+        else:
+            g.loc[g["Label"] == "Setlist_Display", "Value"] = shown
+        return packer.pack_config(sections)
+
+    def test_display_round_trips(self):
+        for mode, shown, byte in (("Y", "Y", 2), ("Y", "N", 1), ("N", "N", 0)):
+            packed = self.pack_modes(mode, shown)
+            self.assertEqual(packed[33], byte, (mode, shown))
+            back = unpacker.unpack_config(packed)[0].set_index("Label")["Value"]
+            self.assertEqual((back["Setlist_Mode"], back["Setlist_Display"]), (mode, shown))
+
+    def test_display_needs_the_setlist(self):
+        """Showing the place means nothing when Bank Up/Down do not follow it."""
+        self.assertEqual(self.pack_modes("N", "Y")[33], 0)
+
+    def test_display_missing_means_off(self):
+        """A CSV from before 0.94 keeps the setlist as it was."""
+        self.assertEqual(self.pack_modes("Y", None)[33], 1)
 
 
 class SetlistCompatibilityTest(unittest.TestCase):
@@ -870,7 +895,7 @@ class ClockFollowTest(unittest.TestCase):
     def test_neighbours_untouched(self):
         """The new byte must not disturb the settings either side of it."""
         packed = self.pack_with("Y")
-        self.assertEqual(packed[33], 1)     # Setlist_Mode in the demo
+        self.assertEqual(packed[33], 2)     # Setlist_Mode and Setlist_Display in the demo
         self.assertEqual(packed[32], 15)    # Sleep_After_Min in the demo
 
 

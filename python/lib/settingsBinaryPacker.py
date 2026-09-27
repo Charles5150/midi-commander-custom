@@ -18,6 +18,7 @@ GLOBAL_SETTINGS_BANK_SWITCH_MODE = 15
 # 16..31 hold ConfigName, so new settings start at 32
 GLOBAL_SETTINGS_SLEEP_AFTER_MIN = 32
 GLOBAL_SETTINGS_SETLIST_MODE = 33
+SETLIST_SHOWN = 2
 GLOBAL_SETTINGS_CLOCK_FOLLOW = 34
 GLOBAL_SETTINGS_LED_FEEDBACK = 35
 LED_FEEDBACK_HOST = 0x01
@@ -184,6 +185,9 @@ def pack_global_settings(df):
     # Bank Up/Down follow the Setlist section instead of bank numbers
     if "Setlist_Mode" in df.index and "Y" in str(df.loc["Setlist_Mode", "Value"]).upper():
         bin_list[GLOBAL_SETTINGS_SETLIST_MODE] = 1
+        # ... and the display shows the place in it and the next song
+        if "Setlist_Display" in df.index and "Y" in str(df.loc["Setlist_Display", "Value"]).upper():
+            bin_list[GLOBAL_SETTINGS_SETLIST_MODE] = SETLIST_SHOWN
 
     # Adopt the tempo of MIDI clock arriving over USB
     if "Clock_Follow" in df.index and "Y" in str(df.loc["Clock_Follow", "Value"]).upper():

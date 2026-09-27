@@ -26,6 +26,7 @@ uint8_t sw_preview_bank(void);	// the bank previewed, 0xFF when none
 // while the group is chosen, then | 1 + the group of eight banks picked
 #define PREVIEW_DIRECT	(0x80)
 #define DIRECT_GROUP	(8)	// banks per group
+uint8_t sw_setlist_place(uint8_t *count, uint8_t *next);	// place in the setlist shown, 0 for none
 uint8_t sw_count_in(void);	// beats before a count-in (Wait Count) goes, 0 for none
 void sw_get_toggle_states(uint32_t out[8]);
 void sw_get_long_toggle_states(uint32_t out[8]);

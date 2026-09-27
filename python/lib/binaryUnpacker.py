@@ -231,7 +231,7 @@ def unpack_global_settings(data: bytes) -> pd.DataFrame:
         ("Bank_Change_CC", str(g[14] if g[14] <= 127 else 0)),
         ("Bank_Switch_Mode", {1: "Bank+MIDI", 2: "MIDI only"}.get(g[15], "Bank")),
         ("Sleep_After_Min", "0" if g[32] in (0, 0xFF) else str(min(g[32], 60))),
-        ("Setlist_Mode", "Y" if g[33] == 1 else "N"),
+        ("Setlist_Mode", "Y" if g[33] in (1, 2) else "N"),
         ("Clock_Follow", "Y" if g[34] == 1 else "N"),
         ("LED_Feedback", "Y" if g[35] != 0xFF and g[35] & 0x01 else "N"),
         ("Link_Toggles", "Y" if g[35] != 0xFF and g[35] & 0x02 else "N"),
@@ -247,6 +247,7 @@ def unpack_global_settings(data: bytes) -> pd.DataFrame:
         ("Combo_ms", str((g[45] if 0 < g[45] < 0xFF else 8) * 10)),
         ("Boot_Banner", {1: "Slow", 2: "Normal", 3: "Fast"}.get(g[46], "Off")),
         ("Bank_Preview", str(g[47] if 0 < g[47] <= 60 else 0)),
+        ("Setlist_Display", "Y" if g[33] == 2 else "N"),
     ]
     return pd.DataFrame(rows, columns=["Label", "Value"])
 

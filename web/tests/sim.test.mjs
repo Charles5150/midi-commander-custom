@@ -309,3 +309,39 @@ test("a Scene Save stores the bank's toggles into a scene, kept after a restart"
   state = await pedal.getState();
   assert.deepEqual(state.toggles.slice(0, 6), [false, true, false, false, false, true]);
 });
+
+// The 7x10 font of the firmware, rows of 16 bits from ' ' on
+const font7x10 = (() => {
+  const src = fs.readFileSync(path.join(root, "firmware/Middlewares/stm32-ssd1306-master/ssd1306/ssd1306_fonts.c"), "utf8");
+  const body = /Font7x10\s*\[\]\s*=\s*\{([\s\S]*?)\};/.exec(src)[1].replace(/\/\/.*$/gm, "");
+  return body.match(/0x[0-9a-fA-F]+/g).map(Number);
+})();
+
+// Whether the info line (x 50-127, y 6-15) holds just this text
+function infoLineIs(sim, text) {
+  const screen = sim.screen();
+  for (let x = 50; x < 128; x++) {
+    for (let y = 6; y < 16; y++) {
+      const i = Math.floor((x - 50) / 7), ch = text.charCodeAt(i);
+      const want = i < text.length && ch > 32
+        && Boolean((font7x10[(ch - 32) * 10 + y - 6] << ((x - 50) % 7)) & 0x8000);
+      const lit = Boolean(screen[(y >> 3) * 130 + x] & (1 << (y & 7)));
+      if (lit !== want) return false;
+    }
+  }
+  return true;
+}
+
+test("with Setlist_Display, the info line shows the place in the setlist and the next song", () => {
+  const sim = simWithDemo();
+  sim.run(10000);                           // the demo's power on banner goes by first
+  assert.ok(infoLineIs(sim, "1/10>S01"), "HOME opens the setlist");
+  tap(sim, 9);                              // Bank Up: the next song
+  assert.ok(infoLineIs(sim, "2/10>S04"), "the second song, bank 12, and the one after it");
+  tap(sim, 8);
+  tap(sim, 8);                              // Bank Down from HOME: the last song
+  assert.ok(infoLineIs(sim, "10/10 END"));
+  tap(sim, 9);                              // round to HOME, then to a bank not in the list
+  tap(sim, 0);
+  assert.ok(infoLineIs(sim, "looper"), "a bank off the setlist keeps its own info");
+});

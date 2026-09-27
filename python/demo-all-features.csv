@@ -37,6 +37,7 @@ Global_Bank,30
 Combo_ms,80
 Boot_Banner,Normal
 Bank_Preview,0
+Setlist_Display,Y
 ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 * Bank_Naming,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 Bank_Number,Bank_Name_Large,Bank_Info_Small

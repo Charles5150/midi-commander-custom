@@ -1336,6 +1336,7 @@ class MidiCommanderGUI(ctk.CTk):
                 ("Combo_ms", "80"),
                 ("Boot_Banner", "Off"),
                 ("Bank_Preview", "0"),
+                ("Setlist_Display", "N"),
             ]
             missing = [{"Label": l, "Value": v} for l, v in defaults if l not in labels]
             if missing:

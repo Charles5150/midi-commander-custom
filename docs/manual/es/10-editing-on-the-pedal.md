@@ -60,7 +60,7 @@ Un comando de cualquier otro tipo se muestra por su nombre y se deja exactamente
 | `GLOBBANK` | el banco reservado para los botones globales (`Global_Bank`), con su número tal como lo muestra el editor, 0 para ninguno |
 | `BANK SW` | qué hacen los pulsadores de banco (`Bank_Switch_Mode`) |
 | `PREVIEW` | el tiempo de la vista previa de banco (`Bank_Preview`) |
-| `SETLIST` | seguir el setlist (`Setlist_Mode`) |
+| `SETLIST` | seguir el setlist (`Setlist_Mode`): `No`, `Yes`, o `Shown`, que además muestra el puesto en él (`Setlist_Display`) |
 | `REMEMBER` | recordar el estado (`Remember_State`) |
 | `CLOCKFLW` | seguir el reloj (`Clock_Follow`) |
 | `LEDFEEDB` | LED que siguen al ordenador (`LED_Feedback`) |

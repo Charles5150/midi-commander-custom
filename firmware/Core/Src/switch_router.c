@@ -914,7 +914,8 @@ void sw_request_list(uint8_t bank, uint8_t which, bool on){
  * change from MIDI) are unaffected.
  */
 static uint8_t setlist_len(void){
-	if(pGlobalSettings[GLOBAL_SETTINGS_SETLIST_MODE] != 1) return 0;
+	uint8_t v = pGlobalSettings[GLOBAL_SETTINGS_SETLIST_MODE];
+	if(v != 1 && v != SETLIST_SHOWN) return 0;
 	uint8_t n = 0;
 	while(n < SETLIST_MAX && pSetlist[n] < MIDI_NUM_BANKS) n++;
 	return n;
@@ -931,6 +932,23 @@ static uint8_t setlist_step(uint8_t n, uint8_t from, int16_t delta){
 	while(j < 0) j += n;
 	while(j >= n) j -= n;
 	return pSetlist[j];
+}
+
+/*
+ * Where the song is in the setlist, for the display (Setlist_Display): its
+ * place counted from 1 and the bank after it, 0xFF after the last song.
+ * 0 when not shown or not in the list.
+ */
+uint8_t sw_setlist_place(uint8_t *count, uint8_t *next){
+	if(pGlobalSettings[GLOBAL_SETTINGS_SETLIST_MODE] != SETLIST_SHOWN) return 0;
+	uint8_t n = setlist_len(), bank = home_bank();
+	for(uint8_t i=0; i<n; i++){
+		if(pSetlist[i] != bank) continue;
+		*count = n;
+		*next = (i + 1 < n) ? pSetlist[i + 1] : 0xFF;
+		return i + 1;
+	}
+	return 0;
 }
 
 // Step through the banks from a bank, wrapping around at both ends
