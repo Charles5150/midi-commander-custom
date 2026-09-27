@@ -29,6 +29,14 @@ platformio run -e midi_debug    # ST-Link image at 0x08000000
 The first build downloads the ARM toolchain. CI builds both environments on
 every push and pull request.
 
+The firmware has 76 KB of flash, 0x08003000 to 0x08016000, where the double
+press areas and the configuration slots begin (see the DFU linker script), so
+`.pio/build/midi_dfu/firmware.bin` must stay under 77,824 bytes. The
+percentage PlatformIO prints counts the whole chip: look at the file. The
+build links with `-flto`, which took the image from 77,700 bytes to 73,712
+with the same code, and any flag that changes what the compiler generates
+is worth a run of the stress and latency tests below.
+
 `midi_dfu` also packages the binary as a DfuSe container through `scripts/post_build_dfuse.py` and `tools/bin_to_dfuse.py`, writing `artifacts/dfu/platformio-<timestamp>.dfu` and a stable `artifacts/dfu/platformio-latest.dfu`. Flash it as in [Getting started](docs/manual/en/02-getting-started.md#1-flash-the-firmware), or let PlatformIO do it:
 
 ```bash
