@@ -74,12 +74,18 @@ jobs:
         env:
           PYTHON: python
 
-      - name: Import check for the GUI and tools
+      - name: Import check for the tools
         run: |
           cd python
           python -c "import lib.configPacker, lib.binaryUnpacker, lib.midiDevice, lib.configCsv"
           python CSV_to_Flash.py --help
           python Flash_to_CSV.py --help
+
+      - name: The configurator's window
+        # Opened on a virtual display: every tab, and each CSV saved as loaded
+        run: |
+          sudo apt-get install -y xvfb
+          GUI_TEST=1 xvfb-run -a python -m unittest python/tests/test_gui.py -v
 
   install:
     # What a user does on each system: the launcher sets up .venv, then the tests run in it

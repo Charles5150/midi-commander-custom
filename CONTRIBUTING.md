@@ -101,6 +101,12 @@ The Python tools have tests: round trips through the configuration packers, the 
 .venv/bin/python -m unittest discover -s python/tests
 ```
 
+They also check that the demo and the templates are what their scripts write, so after changing `python/make_*.py` run it and commit its CSV. The desktop configurator has a test that opens it, shows every tab and saves each of those CSVs back from its fields, which must pack to the same bytes. It needs a display and opens the window for a minute or two, so it runs only when asked:
+
+```bash
+GUI_TEST=1 .venv/bin/python -m unittest python/tests/test_gui.py
+```
+
 The simulated pedal of the web configurator has tests of its own, which run the firmware built to WebAssembly (see [firmware/sim/README.md](firmware/sim/README.md) for what the build needs):
 
 ```bash
@@ -108,7 +114,7 @@ sh firmware/sim/build.sh
 PYTHON=$PWD/.venv/bin/python node --test web/tests/*.test.mjs
 ```
 
-GitHub Actions builds both firmware images and runs these tests on every push and pull request.
+GitHub Actions builds both firmware images and runs these tests on every push and pull request, the configurator's on a virtual display, and the Python tests again on Windows, macOS and Ubuntu in the environment the launchers make.
 
 **Before a release**, with the pedal on USB and the demo configuration (`python/demo-all-features.csv`) active, run the stress test as well. It needs nothing else, no foot and no DIN device, and takes about a minute:
 
