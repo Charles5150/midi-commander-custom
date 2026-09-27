@@ -141,6 +141,18 @@ BUTTON_THIS_BANK = 0x7F
 # The top bits of bytes 2 (low) and 3 (high) are how the LED shows the on value.
 CMD_LISTEN_MODE = 14
 LISTEN_LOOKS = ["Steady", "Slow", "Fast", "Dim"]
+# Param: the last mode of the empty type, bits 4-6 of byte 1 its kind. NRPN
+# and RPN turn the CC right below them into that parameter, the number in
+# bytes 2 (low 7 bits) and 3 (high); the CC's values go out on Data Entry, and
+# the 14-bit kinds send them on CC 38 as well. Pressure is a command of its
+# own, Channel Pressure: toggle bit and channel in byte 1, On and Off values
+# in bytes 2 and 3.
+CMD_PARAM_MODE = 15
+PARAM_RPN = 1
+PARAM_FINE = 2
+PARAM_PRESSURE = 4
+NRPN_KINDS = ["NRPN", "RPN", "NRPN 14-bit", "RPN 14-bit"]   # index = kind
+NRPN_MAX = 16383
 
 # A relative Program Change is a PC whose Bank Select MSB byte, where 0x80 and
 # above already meant "none", holds one of these markers
@@ -1015,6 +1027,32 @@ def cmd_listen(cmd):
             on | ((look & 1) << 7), off | ((look & 2) << 6)]
 
 
+def cmd_nrpn(cmd):
+    """Turn the CC command right below this one into an NRPN or RPN.
+
+    KeyMode is the kind, one of NRPN_KINDS (NRPN when empty), Number the
+    parameter 0-16383. The CC below keeps its channel, toggle and values; its
+    On and Off values go out on Data Entry, followed by the null RPN.
+    """
+    text = cell_text(cmd.get("KeyMode_(Key)", ""))
+    kinds = {k.upper(): i for i, k in enumerate(NRPN_KINDS)}
+    if text.upper() not in kinds and text != "":
+        raise ValueError(f"NRPN kind must be one of {', '.join(NRPN_KINDS)}, not {text!r}")
+    kind = kinds.get(text.upper(), 0)
+    number = ranged_int(cmd.get("Number_(PC/CC/Note)", ""), 0, NRPN_MAX, "NRPN parameter")
+    return [CMD_NO_CMD_NIBBLE | CMD_PARAM_MODE, kind << 4, number & 0x7F, (number >> 7) & 0x7F]
+
+
+def cmd_pressure(cmd):
+    """Channel Pressure, a command that behaves like a CC: OnValue on the press,
+    OffValue on the release or when a toggle goes off (empty sends nothing)."""
+    return [CMD_NO_CMD_NIBBLE | CMD_PARAM_MODE,
+            (PARAM_PRESSURE << 4) | channel_nibble(cmd.get("Channel_(PC/CC/Note/PB)", ""))
+            | get_toggle_bit(str(cmd.get("Toggle_(CC/PB/Note)", ""))),
+            ranged_int(cmd.get("OnValue_(CC/PB)", ""), 0, 127, "Pressure OnValue", 127),
+            cc_off_value(cmd.get("OffValue_(CC)", ""))]
+
+
 def cmd_none(cmd):
     return [0, 0, 0, 0]
 
@@ -1048,6 +1086,8 @@ cmd_route_table = {
     "Macro": cmd_macro,
     "Button": cmd_button,
     "Listen": cmd_listen,
+    "NRPN": cmd_nrpn,
+    "Pressure": cmd_pressure,
 }
 
 

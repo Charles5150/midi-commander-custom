@@ -1139,6 +1139,35 @@ void set_cmd_duration_delay(uint8_t *pRom){
 	}
 }
 
+/*
+ * An NRPN or RPN command (see CMD_PARAM_MODE) right above the CC being sent,
+ * set only while it sends: the CC's value then goes out as that parameter.
+ */
+static const uint8_t *cc_param = NULL;
+
+static int8_t send_cc_rom(uint8_t *pRom, uint8_t on_off){
+	if(cc_param == NULL) return midiCmd_send_cc_command_from_rom(pRom, on_off);
+	uint8_t value = on_off ? pRom[2] : pRom[3];
+	if(value > 0x7F) return 0;	// no Off value
+	return midiCmd_send_param(pRom[0], cc_param, value);
+}
+
+// Channel Pressure, a command of its own that behaves like a CC
+static int8_t send_pressure(const uint8_t *pRom, uint8_t on_off){
+	uint8_t value = on_off ? pRom[2] : pRom[3];
+	if(value > 0x7F) return 0;
+	return midiCmd_send_pressure(pRom[1], value);
+}
+
+static inline bool cmd_is_param(const uint8_t *pRom){
+	return (pRom[0] & 0xF0) == CMD_NO_CMD_NIBBLE && (pRom[0] & 0x0F) == CMD_PARAM_MODE;
+}
+
+// An NRPN or RPN, which reaches the CC right below it, unlike Channel Pressure
+static inline bool cmd_is_nrpn(const uint8_t *pRom){
+	return cmd_is_param(pRom) && PARAM_KIND(pRom) < PARAM_PRESSURE;
+}
+
 void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 	/*
 	 * Assume success by default since this was the behavior before adding this status.
@@ -1156,13 +1185,13 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 		break;
 	case CMD_CC_NIBBLE:
 		if(midiCmd_get_cmd_toggle(pRom)){
-			status = midiCmd_send_cc_command_from_rom(pRom, toggleState);
-			if(status == 0 && (toggleState || pRom[3] <= 0x7F)){	// only what went out
+			status = send_cc_rom(pRom, toggleState);
+			if(status == 0 && !cc_param && (toggleState || pRom[3] <= 0x7F)){	// only what went out
 				link_push(0xB0 | midiCmd_channel(pRom[0]), pRom[1], toggleState ? pRom[2] : pRom[3]);
 			}
 		} else {
 			// Not toggling, so set command and either set a duration or not
-			status = midiCmd_send_cc_command_from_rom(pRom, MIDI_CONTROL_ON);
+			status = send_cc_rom(pRom, MIDI_CONTROL_ON);
 		}
 		break;
 	case CMD_PB_NIBBLE:
@@ -1282,6 +1311,11 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 				status = midiCmd_send_song_select(cmd_value14(pRom) & 0x7F);
 			}
 			break;
+		case CMD_PARAM_MODE:
+			if(PARAM_KIND(pRom) == PARAM_PRESSURE){
+				status = send_pressure(pRom, midiCmd_get_cmd_toggle(pRom) ? toggleState : MIDI_CONTROL_ON);
+			}
+			break;
 		default:
 			break;
 		}
@@ -1310,7 +1344,12 @@ void handle_cmd_sw_up(uint8_t *pRom, uint8_t toggleState){
 		break;
 	case CMD_CC_NIBBLE:
 		if(!midiCmd_get_cmd_toggle(pRom)){
-			status = midiCmd_send_cc_command_from_rom(pRom, MIDI_CONTROL_OFF);
+			status = send_cc_rom(pRom, MIDI_CONTROL_OFF);
+		}
+		break;
+	case CMD_NO_CMD_NIBBLE:
+		if(cmd_is_param(pRom) && PARAM_KIND(pRom) == PARAM_PRESSURE && !midiCmd_get_cmd_toggle(pRom)){
+			status = send_pressure(pRom, MIDI_CONTROL_OFF);
 		}
 		break;
 	case CMD_PB_NIBBLE:
@@ -2318,6 +2357,7 @@ static bool run_list_stack(frame_t *st, uint8_t depth, uint8_t toggle,
 	const uint8_t *lfo = NULL;	// an LFO just above the command
 	const uint8_t *chan = NULL;	// a Chan just above the command
 	const uint8_t *add = NULL;	// an Exp in Add mode just above the command
+	const uint8_t *nrpn = NULL;	// an NRPN or RPN just above the command
 	const uint8_t *seq = NULL;	// the first of a run of Seq commands above it
 	uint8_t seq_cmds = 0;
 	bool skip = false;		// an If above said no to the command coming
@@ -2335,12 +2375,14 @@ static bool run_list_stack(frame_t *st, uint8_t depth, uint8_t toggle,
 		const uint8_t *lfo_cmd = lfo;
 		const uint8_t *chan_cmd = chan;
 		const uint8_t *add_cmd = add;
+		const uint8_t *nrpn_cmd = nrpn;
 		const uint8_t *seq_run = seq;
 		uint8_t seq_run_cmds = seq_cmds;
-		ramp = 0;	// a Ramp, LFO, Chan or Add only reaches the command right below it
+		ramp = 0;	// a Ramp, LFO, Chan, Add or NRPN only reaches the command right below it
 		lfo = NULL;
 		chan = NULL;
 		add = NULL;
+		nrpn = NULL;
 		if(cmd_is_ramp(pRom)){
 			ramp = ramp_time_ms(pRom);
 			continue;
@@ -2357,6 +2399,10 @@ static bool run_list_stack(frame_t *st, uint8_t depth, uint8_t toggle,
 			add = pRom;
 			continue;
 		}
+		if(cmd_is_nrpn(pRom)){
+			nrpn = pRom;
+			continue;
+		}
 		if(cmd_is_seq(pRom)){
 			if(seq == NULL) seq = pRom;	// a run of them holds the steps
 			seq_cmds++;
@@ -2370,6 +2416,7 @@ static bool run_list_stack(frame_t *st, uint8_t depth, uint8_t toggle,
 			lfo = lfo_cmd;
 			chan = chan_cmd;
 			add = add_cmd;
+			nrpn = nrpn_cmd;
 			seq = seq_run;
 			seq_cmds = seq_run_cmds;
 			continue;
@@ -2444,7 +2491,9 @@ static bool run_list_stack(frame_t *st, uint8_t depth, uint8_t toggle,
 			}
 			seq_stop(pRom[0] & 0x0F, pRom[1] & 0x7F);	// switched off: then its Off value
 		}
+		cc_param = nrpn_cmd;
 		send_on_channels(chan_cmd, pRom, toggle, false);
+		cc_param = NULL;
 	}
 
 	if(!called) depth--;	// this list is finished: back to the one that called it
@@ -2478,6 +2527,7 @@ static void run_list_up(uint8_t *base, uint8_t first, uint8_t toggle, uint8_t fl
 	bool skip = false;
 	bool called = false;
 	const uint8_t *chan = NULL;
+	const uint8_t *nrpn = NULL;
 	for(uint8_t j=f->next; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
 		uint8_t *pRom = base + j * MIDI_ROM_CMD_SIZE;
 		if(cmd_is_cycle(pRom)) break;
@@ -2501,9 +2551,10 @@ static void run_list_up(uint8_t *base, uint8_t first, uint8_t toggle, uint8_t fl
 			continue;
 		}
 		if(skip && !cmd_is_ramp(pRom) && !cmd_is_lfo(pRom)
-				&& !cmd_is_chan(pRom) && !cmd_is_seq(pRom) && !cmd_is_exp_add(pRom)){
+				&& !cmd_is_chan(pRom) && !cmd_is_seq(pRom) && !cmd_is_exp_add(pRom)
+				&& !cmd_is_nrpn(pRom)){
 			skip = false;		// the command it held back, and no Off for it
-			ramp = 0; lfo = false; seq = false; add = false; chan = NULL;
+			ramp = 0; lfo = false; seq = false; add = false; chan = NULL; nrpn = NULL;
 			continue;
 		}
 		uint32_t ramp_ms = ramp;
@@ -2511,11 +2562,13 @@ static void run_list_up(uint8_t *base, uint8_t first, uint8_t toggle, uint8_t fl
 		bool seq_above = seq;
 		bool add_above = add;
 		const uint8_t *chan_cmd = chan;
+		const uint8_t *nrpn_cmd = nrpn;
 		ramp = cmd_is_ramp(pRom) ? ramp_time_ms(pRom) : 0;
 		lfo = cmd_is_lfo(pRom);
 		seq = cmd_is_seq(pRom);
 		add = cmd_is_exp_add(pRom);
 		chan = cmd_is_chan(pRom) ? pRom : NULL;
+		nrpn = cmd_is_nrpn(pRom) ? pRom : NULL;
 		if(add_above && (*pRom & 0xF0) == CMD_CC_NIBBLE) continue;	// the pedal's, no Off
 		if(lfo_above && (*pRom & 0xF0) == CMD_CC_NIBBLE && !midiCmd_get_cmd_toggle(pRom)){
 			lfo_stop(pRom[0] & 0x0F, pRom[1] & 0x7F);	// released: then its Off value
@@ -2529,7 +2582,9 @@ static void run_list_up(uint8_t *base, uint8_t first, uint8_t toggle, uint8_t fl
 			if(!midiCmd_get_cmd_toggle(pRom)) ramp_cc(pRom, MIDI_CONTROL_OFF, ramp_ms);
 			continue;
 		}
+		cc_param = nrpn_cmd;
 		send_on_channels(chan_cmd, pRom, toggle, true);
+		cc_param = NULL;
 	}
 
 	if(!called) depth--;

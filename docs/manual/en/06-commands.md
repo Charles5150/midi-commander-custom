@@ -16,6 +16,8 @@ In the configurator a list is ten slots, A to J. Choose a slot's command type an
 | `CC` | Control Change | [Control Change](#control-change) |
 | `Note` | Note On, and Note Off to let it go | [Notes](#notes) |
 | `PB` | Pitch Bend | [Pitch Bend](#pitch-bend) |
+| `NRPN` | Turns the CC below into an NRPN or RPN | [NRPN and RPN](#nrpn-and-rpn) |
+| `Pressure` | Channel Pressure | [Channel Pressure](#channel-pressure) |
 | `SysEx` | One of sixteen stored SysEx messages | [Custom SysEx](#custom-sysex) |
 | `Start`, `Stop` | MIDI Start and Stop | [Start and Stop](#start-and-stop) |
 | `MMC` | The transport of a recorder or a DAW | [Driving a recorder or a sequencer](#driving-a-recorder-or-a-sequencer) |
@@ -72,6 +74,45 @@ Until the tools of firmware 0.17, an empty Bank Select was packed as a 0, so eve
 ### Pitch Bend
 
 `Channel` is the channel and `OnValue` the bend, −8192 to 8191. The bend goes back to the centre on the release, after `Duration` if one is set, or on the next press with `Toggle`, in the same way as a note.
+
+### NRPN and RPN
+
+Some synths, effects and plugins keep most of their parameters beyond the 128 CCs, behind NRPNs (Non-Registered Parameter Numbers), and every synth has a few RPNs (Registered), such as its pitch bend range. `CommandType` `NRPN` turns the `CC` command right below it into one: `Number` is the parameter, 0–16383, as the device's manual lists it, and the CC keeps the rest, its `Channel`, its `OnValue` and `OffValue` and its `Toggle`. The CC's own `Number` is not used.
+
+| `KeyMode` | Sends |
+|---|---|
+| `NRPN`, or empty | An NRPN |
+| `RPN` | An RPN: 0 is the pitch bend range in semitones, 1 fine tuning, 2 coarse tuning |
+| `NRPN 14-bit`, `RPN 14-bit` | The same, with the value's low half on CC 38 as well, for a device that reads 14 bits: 0 stays 0 and 127 becomes 16383 |
+
+- A manual that gives the parameter as two numbers, MSB and LSB, means MSB × 128 + LSB: MSB 3, LSB 10 is 394.
+- Each value goes out as the parameter (CC 99 and 98, or 101 and 100 for an RPN), the value on Data Entry (CC 6), and then the null RPN (CC 101 and 100 at 127), so that a stray Data Entry later cannot change the parameter by mistake.
+- It works as the CC would: a value on the press, the `OffValue` on the release or when a toggle goes off, nothing when `OffValue` is empty. The global channel and an `If` above work as usual.
+- Like a `Ramp`, an `NRPN` only reaches the command right below it, so a `Chan`, `Ramp`, `LFO` or `Seq` cannot also sit on that CC.
+
+In the demo, holding UP and DOWN in bank 9 sets the bend range to 12 and to 2 semitones (RPN 0), and holding HOLD toggles NRPN 1000 between its top and bottom in 14 bits.
+
+<details><summary>Under the hood</summary>
+
+Stored by the low nibble of the empty command type, 15, with the kind in bits 4–6 of byte 1 (1 for RPN, 2 for 14 bits) and the parameter in bytes 2 (low 7 bits) and 3 (high 7 bits). Firmware before 0.86 ignores it and sends the CC below as a plain CC, so update the firmware first.
+
+</details>
+
+*Firmware 0.86 or later.*
+
+### Channel Pressure
+
+Aftertouch for the whole channel, which many synths route to vibrato, the filter or the volume. `CommandType` `Pressure` behaves like a CC without a number: `Channel`, `OnValue` sent on the press (127 when empty), `OffValue` on the release or when a toggle goes off (empty sends nothing), and `Toggle`. A `Chan` above it works as it does for any command, and **Learn** in the configurator picks it up from a keyboard.
+
+In the demo, holding BLIP in bank 9 sends a pressure of 100 while held.
+
+<details><summary>Under the hood</summary>
+
+The same low nibble 15, kind 4 in bits 4–6 of byte 1, whose low nibble is the channel and top bit the toggle; bytes 2 and 3 are the On and Off values. Firmware before 0.86 ignores it.
+
+</details>
+
+*Firmware 0.86 or later.*
 
 ### Start and Stop
 
@@ -568,17 +609,17 @@ The reference: every column of a command slot in the CSV, and what each command 
 
 | Field | PC | CC | Note | PB | Key | Meaning |
 |---|---|---|---|---|---|---|
-| `CommandType` | | | | | | `PC`, `PCInc`, `CC`, `CCInc`, `Note`, `PB`, `Key`, `Media`, `Bank`, `SysEx`, `Tap`, `Start`, `Stop`, `MMC`, `Song`, `Panic`, `Scene`, `Wait`, `Ramp`, `LFO`, `Seq`, `Exp`, `Chan`, `Value`, `If`, `Macro`, `Button`, `Listen`, `Cycle` (short press only), `Leave` (a bank's enter list only), or empty for none |
+| `CommandType` | | | | | | `PC`, `PCInc`, `CC`, `CCInc`, `Note`, `PB`, `Key`, `Media`, `Bank`, `SysEx`, `Tap`, `Start`, `Stop`, `MMC`, `Song`, `Panic`, `Scene`, `Wait`, `Ramp`, `LFO`, `Seq`, `Exp`, `Chan`, `Value`, `If`, `Macro`, `Button`, `Listen`, `NRPN`, `Pressure`, `Cycle` (short press only), `Leave` (a bank's enter list only), or empty for none |
 | `Channel_(PC/CC/Note/PB)` | ✓ | ✓ | ✓ | ✓ | | MIDI channel 1–16. Exp: empty for the pedal's own. Chan: the list of channels, `1 2 3` or `1-3` |
-| `Number_(PC/CC/Note)` | ✓ | ✓ | ✓ | | ✓ | PC: program 0–127. CC: controller number. Note: note number. Key: modifier mask. Exp: the CC the pedal sends. Value: which of the eight, 1–8. If: the button it looks at, `1`–`4` or `A`–`D`, or the value, 1–8. Macro and Button: the button, `1`–`4` or `A`–`D`. Listen: the CC it listens on. Wait `Bar`: the beats in a bar, 1–32, empty for 4 |
-| `OnValue_(CC/PB)` | | ✓ | | ✓ | ✓ | CC: value on press (0–127). PB: −8192..8191. Key: key name. Media: media key name. Cycle: the state's label, up to 4 characters. Exp: the pedal, 1 or 2. MMC `Locate`: where to go, in seconds. Song: the song number 0–127, or the position in sixteenth notes. LFO: the length of a cycle, `1/16T` `1/16` `1/8T` `1/8` `1/4T` `1/8.` `1/4` `1/2T` `1/4.` `1/2` `1/2.` `1/1` `2/1` `4/1` (empty for `1/4`). Seq: its two steps, a value 0–127 or `-` for a silent one, `100 -`. Value: the amount. If: what the value is compared with, or the bank. Bank: the bank, or how many to move. Macro: the bank the button is in. Button: the same, or empty for the bank showing. Listen: the value meaning on, 127 when empty |
-| `OffValue_(CC)` | | ✓ | | | | CC: value on release / toggle off (0–127), empty for none. Value: the highest it goes, 127 when empty. Listen: the value meaning off, 0 when empty |
+| `Number_(PC/CC/Note)` | ✓ | ✓ | ✓ | | ✓ | PC: program 0–127. CC: controller number. Note: note number. Key: modifier mask. Exp: the CC the pedal sends. Value: which of the eight, 1–8. If: the button it looks at, `1`–`4` or `A`–`D`, or the value, 1–8. Macro and Button: the button, `1`–`4` or `A`–`D`. Listen: the CC it listens on. NRPN: the parameter, 0–16383. Wait `Bar`: the beats in a bar, 1–32, empty for 4 |
+| `OnValue_(CC/PB)` | | ✓ | | ✓ | ✓ | CC: value on press (0–127). PB: −8192..8191. Key: key name. Media: media key name. Cycle: the state's label, up to 4 characters. Exp: the pedal, 1 or 2. MMC `Locate`: where to go, in seconds. Song: the song number 0–127, or the position in sixteenth notes. LFO: the length of a cycle, `1/16T` `1/16` `1/8T` `1/8` `1/4T` `1/8.` `1/4` `1/2T` `1/4.` `1/2` `1/2.` `1/1` `2/1` `4/1` (empty for `1/4`). Seq: its two steps, a value 0–127 or `-` for a silent one, `100 -`. Value: the amount. If: what the value is compared with, or the bank. Bank: the bank, or how many to move. Macro: the bank the button is in. Button: the same, or empty for the bank showing. Listen: the value meaning on, 127 when empty. Pressure: the value on press, 127 when empty |
+| `OffValue_(CC)` | | ✓ | | | | CC: value on release / toggle off (0–127), empty for none. Value: the highest it goes, 127 when empty. Listen: the value meaning off, 0 when empty. Pressure: as a CC |
 | `BankSelect_(PC)` | ✓ | | | | | 0–16383, sent as CC#32 (LSB) before the PC |
 | `BankSelectHighByte_(PC)` | ✓ | | | | | Y: also send CC#0 (MSB) |
 | `Toggle_(CC/PB/Note)` | | ✓ | ✓ | ✓ | ✓ | Y: alternate on / off on successive presses. Key / Media: hold until the next press |
 | `Velocity_(Note)` | | | ✓ | | | 0–127 |
 | `Duration_(Note/PB)` | | | ✓ | ✓ | ✓ | In 10 ms steps, 0–127 (max 1.27 s). Media: same as Key. Wait: the pause in milliseconds, up to 2550. Ramp: its time in milliseconds, up to 655350 |
-| `KeyMode_(Key)` | | | | | ✓ | Normal / Down / Up. CCInc and PCInc: Up / Down / Up Repeat / Down Repeat. Tap: Tap / Clock / Set / Up / Down / Up Repeat / Down Repeat. Listen: Steady / Slow / Fast / Dim. Exp: CC / Off / Own / Speed / Add. LFO: Sine / Triangle / SawUp / SawDown / Square / Random (empty for Sine). Seq: how long a step lasts, the same note divisions as the LFO (empty for `1/8`), read from the first command of the run. MMC: Play / Stop / Record / RecordExit / Pause / FastForward / Rewind / Locate / DeferredPlay / Chase / Eject / Reset (empty for Play). Song: Select / Position. Value: Set / Add / Sub (empty for Set). If: Button on / Button off / Value = / Value <> / Value < / Value >= / Bank is / Bank is not. Bank: GoTo / Up / Down / Back / Page / Config / NextConfig. Macro: Short / Long / Double. Button: Press / On / Off / Set On / Set Off, then Long or Double for those lists. Wait: Time / Beat / Bar (empty for Time) |
+| `KeyMode_(Key)` | | | | | ✓ | Normal / Down / Up. CCInc and PCInc: Up / Down / Up Repeat / Down Repeat. Tap: Tap / Clock / Set / Up / Down / Up Repeat / Down Repeat. Listen: Steady / Slow / Fast / Dim. Exp: CC / Off / Own / Speed / Add. LFO: Sine / Triangle / SawUp / SawDown / Square / Random (empty for Sine). Seq: how long a step lasts, the same note divisions as the LFO (empty for `1/8`), read from the first command of the run. MMC: Play / Stop / Record / RecordExit / Pause / FastForward / Rewind / Locate / DeferredPlay / Chase / Eject / Reset (empty for Play). Song: Select / Position. Value: Set / Add / Sub (empty for Set). If: Button on / Button off / Value = / Value <> / Value < / Value >= / Bank is / Bank is not. Bank: GoTo / Up / Down / Back / Page / Config / NextConfig. Macro: Short / Long / Double. Button: Press / On / Off / Set On / Set Off, then Long or Double for those lists. Wait: Time / Beat / Bar (empty for Time). NRPN: NRPN / RPN / NRPN 14-bit / RPN 14-bit (empty for NRPN) |
 
 ---
 

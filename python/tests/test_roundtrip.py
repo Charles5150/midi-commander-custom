@@ -4607,3 +4607,54 @@ class FlashWriteErrorTest(unittest.TestCase):
         self.assertEqual(code, 4)
         self.assertIn("could not write its flash", out.getvalue())
         self.assertEqual(pedal.resets, 0)
+
+
+class ParamTest(unittest.TestCase):
+    """NRPN and RPN above a CC, and Channel Pressure (#137)."""
+
+    @staticmethod
+    def pack(ctype, **cols):
+        row = {f"A_{f}": "" for f in unpacker.CMD_FIELDS}
+        row["A_CommandType"] = ctype
+        names = {"mode": "KeyMode_(Key)", "number": "Number_(PC/CC/Note)", "channel": "Channel_(PC/CC/Note/PB)",
+                 "on": "OnValue_(CC/PB)", "off": "OffValue_(CC)", "toggle": "Toggle_(CC/PB/Note)"}
+        for k, v in cols.items():
+            row["A_" + names[k]] = v
+        return bytes(cbp.pack_row(pd.Series(row)))[:4]
+
+    def test_nrpn_encoding(self):
+        """Low nibble 15 of the empty type, the kind in bits 4-6 of byte 1 and
+        the parameter in bytes 2 (low) and 3 (high)."""
+        self.assertEqual(list(self.pack("NRPN", number="300")), [0x0F, 0x00, 300 & 0x7F, 300 >> 7])
+        self.assertEqual(list(self.pack("NRPN", mode="RPN", number="0")), [0x0F, 0x10, 0, 0])
+        self.assertEqual(list(self.pack("nrpn", mode="nrpn 14-bit", number="16383")), [0x0F, 0x20, 0x7F, 0x7F])
+        self.assertEqual(list(self.pack("NRPN", mode="RPN 14-bit", number="5")), [0x0F, 0x30, 5, 0])
+
+    def test_pressure_encoding(self):
+        self.assertEqual(list(self.pack("Pressure", channel="3", on="90", off="0", toggle="Y")),
+                         [0x0F, 0x80 | 0x40 | 2, 90, 0])
+        # Empty On is 127, empty Off sends nothing, as with a CC
+        self.assertEqual(list(self.pack("Pressure")), [0x0F, 0x40, 127, 0x80])
+
+    def test_round_trip(self):
+        for mode, number in (("NRPN", "0"), ("RPN", "2"), ("NRPN 14-bit", "8191"), ("RPN 14-bit", "16383")):
+            d = unpacker.unpack_command(self.pack("NRPN", mode=mode, number=number))
+            self.assertEqual((d["CommandType"], d["KeyMode_(Key)"], d["Number_(PC/CC/Note)"]),
+                             ("NRPN", mode, number))
+        d = unpacker.unpack_command(self.pack("Pressure", channel="16", on="100", off="", toggle="Y"))
+        self.assertEqual((d["CommandType"], d["Channel_(PC/CC/Note/PB)"], d["OnValue_(CC/PB)"],
+                          d["OffValue_(CC)"], d["Toggle_(CC/PB/Note)"]), ("Pressure", "16", "100", "", "Y"))
+
+    def test_bad_values(self):
+        for cols in ({"number": "16384"}, {"number": "-1"}, {"number": ""}, {"number": "1", "mode": "RPN 7"}):
+            with self.assertRaises(ValueError):
+                self.pack("NRPN", **cols)
+        with self.assertRaises(ValueError):
+            self.pack("Pressure", on="128")
+
+    def test_firmware_agrees(self):
+        with open(os.path.join(os.path.dirname(HERE), "..", "firmware", "Core", "Inc", "midi_defines.h")) as f:
+            defines = f.read()
+        for name, value in (("CMD_PARAM_MODE", cbp.CMD_PARAM_MODE), ("PARAM_RPN", cbp.PARAM_RPN),
+                            ("PARAM_FINE", cbp.PARAM_FINE), ("PARAM_PRESSURE", cbp.PARAM_PRESSURE)):
+            self.assertRegex(defines, rf"#define\s+{name}\s+\({value}\)")

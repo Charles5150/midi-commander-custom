@@ -19,6 +19,8 @@ int8_t midiCmd_send_cc_command_from_rom(uint8_t *pRom, uint8_t on_off);
 int8_t midiCmd_send_cc(uint8_t channel, uint8_t cc_number, uint8_t value);
 int8_t midiCmd_send_cc14(uint8_t channel, uint8_t cc_number, uint16_t value);
 int8_t midiCmd_send_pb(uint8_t channel, uint16_t value);
+int8_t midiCmd_send_param(uint8_t channel, const uint8_t *param, uint8_t value);	// NRPN / RPN, see CMD_PARAM_MODE
+int8_t midiCmd_send_pressure(uint8_t channel, uint8_t value);
 int8_t midiCmd_send_note_command_from_rom(uint8_t *pRom, uint8_t on_off);
 int8_t midiCmd_send_pb_command_from_rom(uint8_t *pRom, uint8_t on_off);
 int8_t midiCmd_send_stop_command(void);

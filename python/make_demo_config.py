@@ -453,6 +453,22 @@ def build() -> Demo:
     d.bend(9, "B", "UP", 4000)
     d.bend(9, "C", "DOWN", -4000)
     d.bend(9, "D", "BLIP", 8191, duration="20")
+    # Held, UP and DOWN set the bend range with RPN 0 (Pitch Bend
+    # Sensitivity): an NRPN or RPN command turns the CC below it into that
+    # parameter, and the CC's value is the number of semitones
+    for btn, semis in (("B", "12"), ("C", "2")):
+        d.long_press(9, btn, CommandType="NRPN", **{"KeyMode_(Key)": "RPN", "Number_(PC/CC/Note)": "0"})
+        d.long_press(9, btn, slot="B", CommandType="CC",
+                     **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": "0",
+                        "OnValue_(CC/PB)": semis, "OffValue_(CC)": ""})
+    # Held, BLIP swells the whole channel with Channel Pressure while held
+    d.long_press(9, "D", CommandType="Pressure",
+                 **{"Channel_(PC/CC/Note/PB)": "1", "OnValue_(CC/PB)": "100", "OffValue_(CC)": "0"})
+    # Held, HOLD toggles a synth's NRPN 1000 between its top and bottom, in 14 bits
+    d.long_press(9, "4", CommandType="NRPN", **{"KeyMode_(Key)": "NRPN 14-bit", "Number_(PC/CC/Note)": "1000"})
+    d.long_press(9, "4", slot="B", CommandType="CC",
+                 **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": "0",
+                    "OnValue_(CC/PB)": "127", "OffValue_(CC)": "0", "Toggle_(CC/PB/Note)": "Y"})
 
     # --- bank 10: bank navigation from buttons -------------------------------
     d.bank_cmd(10, "1", "HOME", "GoTo", 0)

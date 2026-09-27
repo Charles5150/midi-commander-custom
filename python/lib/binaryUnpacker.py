@@ -27,6 +27,9 @@ from lib.cmdBinaryPacker import (
     CMD_MMC_MODE,
     CMD_SONG_MODE,
     CMD_CHAN_MODE,
+    CMD_PARAM_MODE,
+    PARAM_PRESSURE,
+    NRPN_KINDS,
     CHAN_15_BIT,
     CHAN_16_BIT,
     CHAN_NO_USB,
@@ -367,6 +370,17 @@ def unpack_command(raw: bytes, cycle_labels=None) -> dict:
         look = (b2 >> 7) | ((b3 >> 6) & 2)
         if look:
             cmd["KeyMode_(Key)"] = LISTEN_LOOKS[look]
+    elif cmd_type == CMD_NO_CMD_NIBBLE and (b0 & 0x0F) == CMD_PARAM_MODE and (b1 >> 4) & 7 == PARAM_PRESSURE:
+        cmd["CommandType"] = "Pressure"
+        cmd["Channel_(PC/CC/Note/PB)"] = str((b1 & 0x0F) + 1)
+        cmd["Toggle_(CC/PB/Note)"] = toggle
+        cmd["OnValue_(CC/PB)"] = str(b2 & 0x7F)
+        cmd["OffValue_(CC)"] = str(b3) if b3 <= 0x7F else ""
+    elif cmd_type == CMD_NO_CMD_NIBBLE and (b0 & 0x0F) == CMD_PARAM_MODE:
+        cmd["CommandType"] = "NRPN"
+        kind = (b1 >> 4) & 7
+        cmd["KeyMode_(Key)"] = NRPN_KINDS[kind] if kind < len(NRPN_KINDS) else NRPN_KINDS[0]
+        cmd["Number_(PC/CC/Note)"] = str((b2 & 0x7F) | ((b3 & 0x7F) << 7))
     elif cmd_type == CMD_NO_CMD_NIBBLE and (b0 & 0x0F) == CMD_CHAN_MODE:
         cmd["CommandType"] = "Chan"
         mask = (b2 & 0x7F) | ((b3 & 0x7F) << 7)

@@ -2,8 +2,8 @@
 
 Press Learn in the configurator, move a knob or press a button on a device
 the computer hears (a USB MIDI device, a DAW's virtual port, the pedal
-itself), and the first Program Change, Control Change, Note On or Pitch Bend
-that arrives sets the command's type, channel and number. Clock, SysEx and
+itself), and the first Program Change, Control Change, Note On, Pitch Bend or
+Channel Pressure that arrives sets the command's type, channel and number. Clock, SysEx and
 the other system messages are passed over, as is a Note On at velocity 0,
 which is a Note Off.
 
@@ -15,12 +15,13 @@ import time
 
 import mido
 
-LEARNABLE = ("program_change", "control_change", "note_on", "pitchwheel")
+LEARNABLE = ("program_change", "control_change", "note_on", "pitchwheel", "aftertouch")
 
 # The command type a message becomes, and the ones that keep their type
 # when they are already chosen: a CC learned on a CCInc or a Listen sets its
 # CC number
-COMMAND_OF = {"program_change": "PC", "control_change": "CC", "note_on": "Note", "pitchwheel": "PB"}
+COMMAND_OF = {"program_change": "PC", "control_change": "CC", "note_on": "Note", "pitchwheel": "PB",
+              "aftertouch": "Pressure"}
 KEEPS = {"control_change": ("CC", "CCInc", "Listen"), "program_change": ("PC", "PCInc")}
 
 CHANNEL = "Channel_(PC/CC/Note/PB)"
@@ -47,6 +48,8 @@ def describe(msg, channel: bool = True) -> str:
         text = f"Note {msg.note} velocity {msg.velocity}"
     elif msg.type == "pitchwheel":
         text = f"Pitch Bend {msg.pitch}"
+    elif msg.type == "aftertouch":
+        text = f"Channel Pressure {msg.value}"
     else:
         return str(msg)
     return f"{text} on channel {msg.channel + 1}" if channel else text
@@ -93,6 +96,11 @@ def learned_fields(msg, current: dict) -> dict:
     elif kind == "pitchwheel":
         if _empty(current.get(ON)):
             out[ON] = str(msg.pitch)
+    elif kind == "aftertouch":
+        if _empty(current.get(ON)):
+            out[ON] = str(msg.value or 127)
+        if _empty(current.get(OFF)):
+            out[OFF] = "0"
     return out
 
 

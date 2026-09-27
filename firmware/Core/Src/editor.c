@@ -163,6 +163,8 @@ static const char *other_name(const uint8_t *c){
 		case CMD_IF_MODE:		return "If";
 		case CMD_MACRO_MODE:	return c[3] ? "Button" : "Macro";
 		case CMD_LISTEN_MODE:	return "Listen";
+		case CMD_PARAM_MODE:	return PARAM_KIND(c) == PARAM_PRESSURE ? "Pressure"
+								: (PARAM_KIND(c) & PARAM_RPN) ? "RPN" : "NRPN";
 		default:				return "?";
 		}
 	}

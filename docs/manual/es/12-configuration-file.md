@@ -36,7 +36,7 @@ Un archivo escrito a mano se empaqueta tal como está escrito o dice qué está 
 | 6 | Tap tempo, arranque y parada del reloj, transporte, BPM arriba y abajo (mantén SYNC para 120 BPM), TREM, un trémolo en el CC 14 que sigue el tempo (mantenlo para el CC 21 en el siguiente compás), y un arpegio de cuatro notas manteniendo STRT |
 | 7 | CC relativo, arriba y abajo, con y sin vuelta, VOL+ y VOL- que se repiten mientras se mantienen, y dos rampas de CC: un swell en toggle y una subida momentánea |
 | 8 | Mensajes SysEx guardados, incluida una entrada vacía que no envía nada; un WAH en D que el pedal 1 enciende y apaga solo; VOL en C, que convierte el pedal 1 en pedal de volumen (CC 7) mientras está encendido; y P2 X en B, que silencia el pedal 2 mientras está encendido |
-| 9 | Notas y pitch bend, con duraciones y toggles |
+| 9 | Notas y pitch bend, con duraciones y toggles; al mantenerlos, UP y DOWN fijan el rango de pitch bend (RPN 0), BLIP envía Channel Pressure y HOLD alterna un NRPN |
 | 10 | Navegar entre bancos desde botones, absoluta y relativa; B, PREV, vuelve al banco de donde venías |
 | 11 | Varios comandos encadenados en un botón, pulsación corta frente a larga, un botón de ciclo que recorre cuatro canales de ampli (D) y un boost que se enclava con un toque y es momentáneo si lo mantienes (4). Al entrar en el banco se envía CC 59 127 y al salir CC 59 0; mantener A silencia los canales 1, 2 y 3 con un solo CC |
 | 12–29 | Un setlist: cada banco selecciona su patch al entrar y tiene controles de looper, con REC y PLAY enlazados con los del banco 1 y entre sí (`Link_Toggles`). En la canción 1 (banco 12), D es PG 2, que muestra el banco 31 como su segunda página; en las demás canciones D es un botón global, el tap del banco 30 |

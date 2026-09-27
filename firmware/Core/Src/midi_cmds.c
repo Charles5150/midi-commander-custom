@@ -16,7 +16,7 @@ extern UART_HandleTypeDef huart2;
 // The USB doesn't need a buffering arrangement at this level, as when a call is made to tx, the data is copied
 // completely into the USB's own endpoint transmit buffers. Therefore a single array is declared here to use for
 // assembling messages into before being passed to the USB stack.
-uint8_t midi_usb_assembly_buffer[16];
+uint8_t midi_usb_assembly_buffer[24];	// six events: an NRPN with its null
 
 /*
  * Serial buffer management.
@@ -444,10 +444,10 @@ int8_t midiCmd_send_cc(uint8_t channel, uint8_t cc_number, uint8_t value)
 }
 
 /*
- * A 14-bit CC: the MSB on cc_number and the LSB on cc_number + 32, in one
- * buffer so the pair is never split. cc_number must be below 32.
+ * Several Control Changes on one channel in one buffer, so the run is never
+ * split: `pairs` holds each one's number and value, up to six of them.
  */
-int8_t midiCmd_send_cc14(uint8_t channel, uint8_t cc_number, uint16_t value)
+static int8_t send_cc_run(uint8_t channel, const uint8_t *pairs, uint8_t n)
 {
 	__disable_irq();
 	int8_t buffer_no = get_next_available_tx_buffer();
@@ -459,11 +459,11 @@ int8_t midiCmd_send_cc14(uint8_t channel, uint8_t cc_number, uint16_t value)
 	uint8_t *serialBuf = &(midi_uart_out_buffer[buffer_no][0]);
 	uint8_t *usbBuf = midi_usb_assembly_buffer;
 
-	for(uint8_t k = 0; k < 2; k++){
+	for(uint8_t k = 0; k < n; k++){
 		*(usbBuf++) = CIN_CONTROL_CHANGE;
 		*(usbBuf++) = 0xB0 | midiCmd_channel(channel);
-		*(usbBuf++) = k ? (cc_number & 0x1F) + 32 : cc_number & 0x1F;
-		*(usbBuf++) = k ? value & 0x7F : (value >> 7) & 0x7F;
+		*(usbBuf++) = pairs[2 * k] & 0x7F;
+		*(usbBuf++) = pairs[2 * k + 1] & 0x7F;
 
 		memcpy(serialBuf, (usbBuf-3), 3);
 		serialBuf += 3;
@@ -475,6 +475,68 @@ int8_t midiCmd_send_cc14(uint8_t channel, uint8_t cc_number, uint16_t value)
 
 	uint8_t usb_bytes_to_tx = usbBuf - midi_usb_assembly_buffer;
 	usb_tx(midi_usb_assembly_buffer, usb_bytes_to_tx);
+
+	midi_serial_transmit();
+	return 0;
+}
+
+/*
+ * A 14-bit CC: the MSB on cc_number and the LSB on cc_number + 32, in one
+ * buffer so the pair is never split. cc_number must be below 32.
+ */
+int8_t midiCmd_send_cc14(uint8_t channel, uint8_t cc_number, uint16_t value)
+{
+	uint8_t pairs[4] = {cc_number & 0x1F, (value >> 7) & 0x7F, (cc_number & 0x1F) + 32, value & 0x7F};
+	return send_cc_run(channel, pairs, 2);
+}
+
+/*
+ * An NRPN or RPN, as the Param command `param` names it (see CMD_PARAM_MODE):
+ * the parameter, the value on Data Entry, its low half too when fine, and the
+ * null RPN after it.
+ */
+int8_t midiCmd_send_param(uint8_t channel, const uint8_t *param, uint8_t value)
+{
+	uint8_t kind = PARAM_KIND(param);
+	uint8_t lsb = (kind & PARAM_RPN) ? 100 : 98;	// the MSB's number is one above
+	uint8_t pairs[12], *p = pairs;
+	*p++ = lsb + 1; *p++ = param[3];
+	*p++ = lsb;     *p++ = param[2];
+	*p++ = 6;       *p++ = value;
+	if(kind & PARAM_FINE){
+		*p++ = 38;  *p++ = value;
+	}
+	*p++ = 101;     *p++ = 127;
+	*p++ = 100;     *p++ = 127;
+	return send_cc_run(channel, pairs, (uint8_t)((p - pairs) / 2));
+}
+
+// Channel Pressure (aftertouch for the whole channel)
+int8_t midiCmd_send_pressure(uint8_t channel, uint8_t value)
+{
+	__disable_irq();
+	int8_t buffer_no = get_next_available_tx_buffer();
+	if(buffer_no < 0){
+		__enable_irq();
+		return ERROR_BUFFERS_FULL;
+	}
+
+	uint8_t *serialBuf = &(midi_uart_out_buffer[buffer_no][0]);
+	uint8_t *usbBuf = midi_usb_assembly_buffer;
+
+	*(usbBuf++) = CIN_CHANNEL_PRESSURE;
+	*(usbBuf++) = 0xD0 | midiCmd_channel(channel);
+	*(usbBuf++) = value & 0x7F;
+	*(usbBuf++) = 0;
+
+	memcpy(serialBuf, midi_usb_assembly_buffer + 1, 2);
+	serialBuf += 2;
+
+	midi_uart_out_buffer_bytes_to_tx[buffer_no] = din_len(serialBuf - &midi_uart_out_buffer[buffer_no][0]);
+
+	__enable_irq();
+
+	usb_tx(midi_usb_assembly_buffer, 4);
 
 	midi_serial_transmit();
 	return 0;

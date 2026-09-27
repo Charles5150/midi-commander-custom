@@ -67,6 +67,11 @@ class LearnedFieldsTest(unittest.TestCase):
         self.assertEqual((out["CommandType"], out[ml.NUMBER], out[ml.ON], out[ml.OFF]),
                          ("Listen", "22", "1", "0"))
 
+    def test_channel_pressure(self):
+        out = ml.learned_fields(mido.Message("aftertouch", channel=3, value=80), EMPTY)
+        self.assertEqual((out["CommandType"], out[ml.CHANNEL], out[ml.ON], out[ml.OFF]), ("Pressure", "4", "80", "0"))
+        self.assertEqual(ml.describe(mido.Message("aftertouch", channel=3, value=80)), "Channel Pressure 80 on channel 4")
+
     def test_other_fields_are_kept(self):
         current = dict(EMPTY, CommandType="CC", **{"Toggle_(CC/PB/Note)": "Y"})
         out = ml.learned_fields(mido.Message("control_change", control=1, value=1), current)
@@ -81,7 +86,8 @@ class LearnableTest(unittest.TestCase):
         self.assertFalse(ml.learnable(mido.Message("note_off")))
         self.assertFalse(ml.learnable(mido.Message("clock")))
         self.assertFalse(ml.learnable(mido.Message("sysex", data=[0x7D, 1])))
-        self.assertFalse(ml.learnable(mido.Message("aftertouch")))
+        self.assertTrue(ml.learnable(mido.Message("aftertouch")))
+        self.assertFalse(ml.learnable(mido.Message("polytouch")))
 
     def test_poll_skips_what_cannot(self):
         class Port:

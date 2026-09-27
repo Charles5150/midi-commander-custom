@@ -252,6 +252,22 @@
 #define LISTEN_SLOW			(1)
 #define LISTEN_FAST			(2)
 #define LISTEN_DIM			(3)
+// Param: same empty command type, low nibble 15, the last one free. Bits 4-6
+// of byte 1 say which kind. For NRPN and RPN it works like a Ramp: it turns
+// the CC command right below it into that parameter, bytes 2 (low 7 bits) and
+// 3 (high 7 bits) holding the parameter number, and the CC's On and Off values
+// go out as Data Entry (CC 6), then the null RPN (127/127) so that nothing
+// sent after it changes the parameter by mistake. PARAM_FINE also sends the
+// value's low half on CC 38, the 7 bits repeated, so 0 stays 0 and 127 is
+// 16383. The CC's own number is not used.
+// PARAM_PRESSURE is a command of its own instead, Channel Pressure: byte 1
+// holds the toggle bit and the channel in its low nibble, bytes 2 and 3 the
+// On and Off values, an Off above 127 sending nothing, like a CC.
+#define CMD_PARAM_MODE		(15)
+#define PARAM_KIND(c)		(((c)[1] >> 4) & 7U)
+#define PARAM_RPN			(1)	// bit of the kind: RPN rather than NRPN
+#define PARAM_FINE			(2)	// bit of the kind: Data Entry LSB too
+#define PARAM_PRESSURE		(4)
 #define CMD_PC_NIBBLE		(0xC0)
 // Relative Program Change: a PC whose byte 2 (the Bank Select MSB, 0x80 and up
 // meaning none) holds one of these markers. Byte 1 is the step, byte 3 the last

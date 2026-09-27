@@ -36,7 +36,7 @@ A file written by hand packs as written or says what is wrong and where. `Comman
 | 6 | Tap tempo, clock start/stop, transport, BPM up/down (hold SYNC for 120 BPM), TREM, a tremolo on CC 14 that follows the tempo (hold it for CC 21 on the next bar), and a four note arpeggio held on STRT |
 | 7 | Relative CC, up and down, with and without wrapping, VOL+ and VOL- repeating while held, and two CC ramps: a toggle swell and a momentary rise |
 | 8 | Stored SysEx messages, including an empty entry that sends nothing, a WAH on D that pedal 1 switches on and off by itself, VOL on C, which turns pedal 1 into a volume pedal (CC 7) while it is on, and P2 X on B, which silences pedal 2 while it is on |
-| 9 | Notes and pitch bend, with durations and toggles |
+| 9 | Notes and pitch bend, with durations and toggles; held, UP and DOWN set the bend range (RPN 0), BLIP sends Channel Pressure and HOLD toggles an NRPN |
 | 10 | Bank navigation from buttons, absolute and relative; B, PREV, goes back to the bank you came from |
 | 11 | Several commands chained on one button, short versus long press, and a cycle button stepping through four amp channels (D), and a boost that latches on a tap and is momentary when held (4). Entering the bank sends CC 59 127 and leaving it CC 59 0; holding A mutes channels 1, 2 and 3 with one CC |
 | 12–29 | A setlist: each bank selects its patch on entry and has looper controls, REC and PLAY linked with bank 1's and each other's (`Link_Toggles`). On song 1 (bank 12), D is PG 2, which shows bank 31 as its second page; on the other songs D is a global button, the tap from bank 30 |

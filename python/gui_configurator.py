@@ -27,7 +27,7 @@ from lib.cmdBinaryPacker import (  # noqa: E402
     EXP_TARGETS, HID_SPECIAL_KEYS, LFO_DIVISIONS, LFO_SHAPES, MEDIA_KEYS, RAMP_MAX_MS,
     MMC_COMMANDS, MMC_LOCATE_MAX, SONG_MODES, SONG_POSITION_MAX,
     VAR_MODES, VAR_COUNT, VAR_DEFAULT_TOP, IF_TESTS, IF_BUTTON_TESTS, IF_VALUE_TESTS,
-    SCENE_BUTTONS, MACRO_LISTS, LISTEN_LOOKS, BUTTON_ACTIONS, CHAN_OUTPUTS, WAIT_BAR_MAX, button_mode, command_type,
+    SCENE_BUTTONS, MACRO_LISTS, LISTEN_LOOKS, BUTTON_ACTIONS, CHAN_OUTPUTS, WAIT_BAR_MAX, NRPN_KINDS, NRPN_MAX, button_mode, command_type,
 )
 from lib.configCsv import read_config_csv, write_config_csv  # noqa: E402
 from lib.displayText import display_text  # noqa: E402
@@ -180,7 +180,7 @@ BUTTON_GROUPS = ["None", "1", "2", "3", "4"]
 CHANNELS = [str(i) for i in range(1, 17)]
 NO_COMMAND = "(none)"
 THIS_BANK = "This bank"
-COMMAND_TYPES = [NO_COMMAND, "PC", "PCInc", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "MMC", "Song", "Panic", "Scene", "Wait", "Ramp", "LFO", "Seq", "Exp", "Chan", "Value", "If", "Macro", "Button", "Listen"]
+COMMAND_TYPES = [NO_COMMAND, "PC", "PCInc", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "MMC", "Song", "Panic", "Scene", "Wait", "Ramp", "LFO", "Seq", "Exp", "Chan", "Value", "If", "Macro", "Button", "Listen", "NRPN", "Pressure"]
 # Cycle splits a button's short press list into states, so only that list offers it
 SHORT_COMMAND_TYPES = COMMAND_TYPES + ["Cycle"]
 # Leave splits a bank's enter list into the commands on entering and on leaving
@@ -624,6 +624,23 @@ class SlotEditor:
                 self.initial = dict(self.initial, **{"OffValue_(CC)": ""})
             self._int("off", "Off", "OffValue_(CC)", 0, 127)
             self._check("toggle", "Toggle", "Toggle_(CC/PB/Note)")
+        elif cmd_type == "Pressure":
+            self._channel()
+            self._int("on", "On", "OnValue_(CC/PB)", 0, 127)
+            off = clean(self.initial.get("OffValue_(CC)"))
+            if off and to_int(off) > 127:
+                self.initial = dict(self.initial, **{"OffValue_(CC)": ""})
+            self._int("off", "Off", "OffValue_(CC)", 0, 127)
+            self._check("toggle", "Toggle", "Toggle_(CC/PB/Note)")
+            ctk.CTkLabel(self.params, text="(Channel Pressure)",
+                         text_color=MUTED).pack(side="left", padx=8)
+        elif cmd_type == "NRPN":
+            w = Option(self.params, NRPN_KINDS, clean(self.initial.get("KeyMode_(Key)")) or NRPN_KINDS[0], width=110)
+            w.pack(side="left")
+            self.widgets["nrpnkind"] = w
+            self._int("number", "Param", "Number_(PC/CC/Note)", 0, NRPN_MAX, width=65)
+            ctk.CTkLabel(self.params, text="(the CC below sends its values to this parameter)",
+                         text_color=MUTED).pack(side="left", padx=8)
         elif cmd_type == "Note":
             self._channel()
             self._int("number", "Note", "Number_(PC/CC/Note)", 0, 127)
@@ -1082,6 +1099,9 @@ class SlotEditor:
                 out["Number_(PC/CC/Note)"] = w["ifwhich"].value()
             if "ifvalue" in w:
                 out["OnValue_(CC/PB)"] = w["ifvalue"].value()
+        if cmd_type == "NRPN":
+            kind = w["nrpnkind"].value()
+            out["KeyMode_(Key)"] = "" if kind == NRPN_KINDS[0] else kind
         if cmd_type == "Listen":
             look = w["listenlook"].value()
             out["KeyMode_(Key)"] = "" if look == LISTEN_LOOKS[0] else look
