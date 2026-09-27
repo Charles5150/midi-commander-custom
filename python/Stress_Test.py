@@ -23,6 +23,9 @@ the pedal sending on its own too: it must keep answering and, from firmware
 0.65, which times its presses itself, no press may take more than 5 ms from
 the switch to its first MIDI message.
 
+From firmware 0.70 both expression pedals are held at the heel for the run,
+so an empty jack that drifts does not slip its CC in.
+
 The screen is checked in the pedal's buffer, which is what GET_SCREEN reads;
 the panel itself is only seen by eye, so look at it when the script ends.
 """
@@ -507,10 +510,15 @@ def main():
         dev = MidiCommander().__enter__()
     except DeviceNotFound as e:
         sys.exit(f"The pedal is not on USB: {e}")
+    held = False
     try:
         version = dev.get_version()
         if not version_at_least(version, 0, 60):
             sys.exit(f"Firmware {version}: this test needs 0.60 or later")
+        held = version_at_least(version, 0, 70)
+        if held:
+            for pedal in (0, 1):
+                dev.set_pedal(pedal, 0.0)
         link = Link(dev)
         start = link.ask_state()
         if not is_demo(link):
@@ -563,6 +571,9 @@ def main():
         link.bank(start["bank"])
         link.wait(0.4)
     finally:
+        if held:
+            for pedal in (0, 1):
+                dev.set_pedal(pedal, None)
         dev.__exit__(None, None, None)
 
     print(f"\n{sum(results)}/{len(results)} OK in {time.monotonic() - started:.0f} s (seed {seed})")
