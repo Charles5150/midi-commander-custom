@@ -305,6 +305,7 @@
 #define BANK_MODE_PAGE		(5)	// Bank command low nibble: show bank byte 1 as this bank's second page, or go back
 #define BANK_MODE_BACK		(6)	// Bank command low nibble: go back to the bank left last
 #define BANK_MODE_REVEAL	(7)	// Bank command low nibble: show the long press labels while held
+#define BANK_MODE_DIRECT	(8)	// Bank command low nibble: choose a bank with two presses, group then bank
 #define CONFIG_NEXT		(0x80)
 #define CMD_SCENE_NIBBLE	(0xA0)	// Scene: byte1 = buttons affected (bit 0 = button 1 .. bit 7 = D), byte2 = wanted states
 

@@ -4518,6 +4518,35 @@ class LongLabelTest(unittest.TestCase):
         self.assertIn("return ext2_part(EXT2_LONG_LABELS_OFF);", flash)
 
 
+class BankDirectTest(unittest.TestCase):
+    """Choosing any bank with two presses, Bank Direct (0.92)."""
+
+    source = MidiMapTest.source
+    FIRMWARE = MidiMapTest.FIRMWARE
+
+    def test_command(self):
+        self.assertEqual(cbp.cmd_bank({"KeyMode_(Key)": "Direct", "OnValue_(CC/PB)": "7"}), [0x48, 0, 0, 0])
+        cmd = unpacker.unpack_command(bytes([0x48, 0, 0, 0]))
+        self.assertEqual((cmd["CommandType"], cmd["KeyMode_(Key)"], cmd["OnValue_(CC/PB)"]),
+                         ("Bank", "Direct", ""))
+        from lib.configSchema import BANK_MODES
+        self.assertIn("Direct", BANK_MODES)
+
+    def test_demo(self):
+        """Held, button 3 of HOME opens the chooser."""
+        packed = packer.pack_flash_image(read_config_csv(DEMO_CSV))
+        long_press = unpacker.unpack_long_press_settings(packed)
+        three = long_press[(long_press["Bank_Number"] == "0") & (long_press["Button_Identifier"] == "3")].iloc[0]
+        self.assertEqual((three["A_CommandType"], three["A_KeyMode_(Key)"]), ("Bank", "Direct"))
+
+    def test_firmware(self):
+        defines = self.source("Inc", "midi_defines.h")
+        self.assertRegex(defines, r"#define BANK_MODE_DIRECT\s+\(8\)")
+        router = self.source("Src", "switch_router.c")
+        self.assertIn("case BANK_MODE_DIRECT:      direct_show(PREVIEW_DIRECT); break;", router)
+        self.assertIn("target = (uint8_t)((group - 1) * DIRECT_GROUP + i);", router)
+
+
 class BootBannerTest(unittest.TestCase):
     """The configuration's name crossing the display at power on (0.62)."""
 

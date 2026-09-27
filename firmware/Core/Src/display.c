@@ -257,7 +257,14 @@ static void draw_cell(uint8_t bank, uint8_t sw){
 		label[1] = 0;
 	}
 
-	uint8_t active = sw_button_is_toggle(bank, sw) && sw_get_toggle_state(bank, sw);
+	uint8_t active;
+	if(bank & PREVIEW_DIRECT){
+		// Choosing a bank: the bank you are in shows inverted
+		active = bank != PREVIEW_DIRECT &&
+			((bank & 0x7F) - 1) * DIRECT_GROUP + sw == sw_get_home_bank();
+	} else {
+		active = sw_button_is_toggle(bank, sw) && sw_get_toggle_state(bank, sw);
+	}
 	SSD1306_COLOR bg = active ? White : Black;
 	SSD1306_COLOR fg = active ? Black : White;
 
@@ -460,7 +467,16 @@ void display_preview(uint8_t bankNumber){
 
 static void draw_preview(void){
 	refresh_pending = 0;
-	const uint8_t *pString = pBankStrings + (12 * preview_bank);
+	const uint8_t *pString;
+	char direct[20];	// 4 large, 8 small
+	if(preview_bank & PREVIEW_DIRECT){
+		uint8_t first = (uint8_t)(((preview_bank & 0x7F) - 1) * DIRECT_GROUP);
+		if(preview_bank == PREVIEW_DIRECT) snprintf(direct, sizeof(direct), "BANK0-31    ");
+		else snprintf(direct, sizeof(direct), "BANK%u-%u     ", first, first + DIRECT_GROUP - 1);
+		pString = (const uint8_t *)direct;
+	} else {
+		pString = pBankStrings + (12 * preview_bank);
+	}
 	ssd1306_Fill(Black);
 	fill_rect(0, 0, SSD1306_WIDTH, ROW_TOP_Y - 3, White);
 	ssd1306_SetCursor(1, 1);

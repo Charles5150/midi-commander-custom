@@ -613,7 +613,10 @@ static void set_reveal(bool on){
 	display_request_refresh();
 }
 
+static const uint8_t *direct_label(uint8_t sw);
+
 const uint8_t *sw_button_label(uint8_t bank, uint8_t sw){
+	if(sw_preview_bank() != 0xFF && (sw_preview_bank() & PREVIEW_DIRECT)) return direct_label(sw);
 	bank = button_bank(bank, sw);	// a global button shows the stored label
 	uint16_t k = (uint16_t)(bank * MIDI_NUM_SWITCHES + sw);
 	if(reveal){
@@ -773,6 +776,36 @@ static void preview_end(void){
 
 uint8_t sw_preview_bank(void){
 	return preview_bank;
+}
+
+/*
+ * Bank Direct: a Bank command in BANK_MODE_DIRECT turns the buttons into a
+ * bank chooser, through the preview. Buttons 1-4 show the four groups of
+ * eight banks, then the eight buttons the names of the group's banks, and the
+ * second press goes there. A-D on the first step, or DIRECT_WAIT_MS with no
+ * press, drop it.
+ */
+#define DIRECT_WAIT_MS	(10000)
+
+static void direct_show(uint8_t value){
+	preview_bank = value;
+	preview_tick = HAL_GetTick();
+	display_preview(value);
+}
+
+static const uint8_t *direct_label(uint8_t sw){
+	static uint8_t text[8];	// the first BUTTON_LABEL_LEN are shown
+	uint8_t group = preview_bank & 0x7F;
+	if(!group){
+		if(sw >= 4) return (const uint8_t *)"-   ";
+		snprintf((char *)text, sizeof(text), "%u+  ", sw * DIRECT_GROUP);
+		return text;
+	}
+	uint8_t bank = (uint8_t)((group - 1) * DIRECT_GROUP + sw);
+	const uint8_t *name = pBankStrings + 12 * bank;
+	if(name[0] != 0xFF && name[0] != ' ') return name;
+	snprintf((char *)text, sizeof(text), "%u   ", bank);
+	return text;
 }
 
 /*
@@ -1311,6 +1344,7 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 		case BANK_MODE_PAGE:        pending_page = pRom[1] & 0x7F; break;
 		case BANK_MODE_BACK:        pending_bank = previous_bank; break;
 		case BANK_MODE_REVEAL:      set_reveal(true); break;
+		case BANK_MODE_DIRECT:      direct_show(PREVIEW_DIRECT); break;
 		default: pending_bank = (pRom[1] < MIDI_NUM_BANKS) ? pRom[1] : 0xFF; break;
 		}
 		break;
@@ -2882,7 +2916,7 @@ static void bank_switch_press(uint8_t which, int16_t delta, bool long_press){
 		fire_bank_switch_cmds(which, long_press);
 		return;
 	}
-	uint8_t from = (preview_bank != 0xFF) ? preview_bank : home_bank();
+	uint8_t from = (preview_bank < MIDI_NUM_BANKS) ? preview_bank : home_bank();
 	uint8_t to = bank_step_from(from, delta);
 	if(to == home_bank()){
 		preview_end();	// back where you are: nothing to confirm
@@ -2912,11 +2946,22 @@ static void preview_switches(uint32_t now){
 		clear_changed(sw_pins[i].changed, sw_pins[i].pin);
 		preview_held |= (uint8_t)(1U << i);
 		uint8_t target = preview_bank;
+		if(target & PREVIEW_DIRECT){
+			uint8_t group = target & 0x7F;
+			if(!group){
+				// The group: 1-4, anything else drops the chooser
+				if(i < 4) direct_show((uint8_t)(PREVIEW_DIRECT | (i + 1)));
+				else preview_end();
+				continue;
+			}
+			target = (uint8_t)((group - 1) * DIRECT_GROUP + i);
+		}
 		latency_begin();
 		goto_bank(target);
 		latency_end();
 	}
-	if(preview_bank != 0xFF && (now - preview_tick) >= bank_preview_ms()) preview_end();
+	uint32_t wait = (preview_bank & PREVIEW_DIRECT) ? DIRECT_WAIT_MS : bank_preview_ms();
+	if(preview_bank != 0xFF && (now - preview_tick) >= wait) preview_end();
 }
 
 static void handle_bank_switch(bank_press_t *bp, GPIO_TypeDef *port, uint16_t pin,

@@ -222,3 +222,47 @@ test("held, a Bank Reveal button shows the long press labels", async () => {
   sim.run(200);
   assert.deepEqual((await pedal.getState()).labels, own.labels, "let go, the buttons' own labels are back");
 });
+
+test("held, a Bank Direct button chooses any bank with two presses", async () => {
+  const sim = simWithDemo();
+  const pedal = await Pedal.open(sim.access);
+  assert.equal((await pedal.getState()).bank, 0);
+  sim.footswitch(2, true);                  // hold 3 on HOME past the long press
+  sim.run(1200);
+  sim.footswitch(2, false);
+  sim.run(200);
+  let state = await pedal.getState();
+  assert.equal(state.bank, 0, "nothing changes yet");
+  assert.deepEqual(state.labels, ["0+", "8+", "16+", "24+", "-", "-", "-", "-"]);
+  const seen = watch(sim);
+  tap(sim, 2);                              // the group 16-23
+  state = await pedal.getState();
+  assert.deepEqual(state.labels, ["S05", "S06", "S07", "S08", "S09", "S10", "S11", "S12"]);
+  assert.deepEqual(seen, [], "choosing sends nothing");
+  tap(sim, 5);                              // B: bank 21
+  state = await pedal.getState();
+  assert.equal(state.bank, 21);
+  assert.equal(state.bankName, "S10");
+  assert.notEqual(state.labels[0], "16+", "the bank's own labels");
+});
+
+test("A-D, or ten seconds without a press, drop the Bank Direct chooser", async () => {
+  const sim = simWithDemo();
+  const pedal = await Pedal.open(sim.access);
+  const home = (await pedal.getState()).labels;
+  const open = () => { sim.footswitch(2, true); sim.run(1200); sim.footswitch(2, false); sim.run(200); };
+  open();
+  const seen = watch(sim);
+  tap(sim, 4);                              // A: no group there
+  let state = await pedal.getState();
+  assert.equal(state.bank, 0);
+  assert.deepEqual(state.labels, home);
+  assert.deepEqual(seen, [], "and the press of A does nothing else");
+  open();
+  sim.run(9000);
+  assert.equal((await pedal.getState()).labels[0], "0+", "still waiting");
+  sim.run(1500);
+  state = await pedal.getState();
+  assert.equal(state.bank, 0);
+  assert.deepEqual(state.labels, home);
+});

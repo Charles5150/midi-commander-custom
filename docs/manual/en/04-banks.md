@@ -80,6 +80,7 @@ Any button can move you between banks with a `Bank` command, alongside whatever 
 | `Page` | Shows another bank as this one's [second page](#second-page). |
 | `Config`, `NextConfig` | Switches to another [configuration](#four-configurations). |
 | `Reveal` | While held, every button shows the label of its long press; see [Labels for the long press](05-buttons.md#labels-for-the-long-press). |
+| `Direct` | Two presses choose any bank: its group of eight, then the bank; see [Any bank in two presses](#any-bank-in-two-presses). |
 
 The change happens after the button's remaining commands have been sent, so a button can send MIDI and then move to another bank. In the CSV it is `CommandType` `Bank`, with the action in `KeyMode` and the bank or the number of banks in `OnValue`; nothing else in the command is used.
 
@@ -98,6 +99,32 @@ The demo's bank 10 button B, PREV, is one.
 <details><summary>Under the hood</summary>
 
 Stored as low nibble 6 of the `Bank` command. Firmware before 0.49 takes it as `GoTo` bank 0.
+
+</details>
+
+## Any bank in two presses
+
+With the setlist changed on the fly, or a song called from the floor, stepping bank by bank takes too long. A `Direct` button turns the eight buttons into a bank chooser for two presses:
+
+1. Press it, and the display shows `BANK` with the four groups of eight banks on buttons 1–4: `0+`, `8+`, `16+`, `24+`.
+2. Press the group's button, and the eight buttons show the names of its eight banks, the bank you are in inverted.
+3. Press the button under the bank's name, and the pedal goes there, as a `GoTo` would, the leave and enter commands included.
+
+Bank 21, for example, is 3 (`16+`) then B, the sixth of that group.
+
+- Nothing is sent while you choose, and the two presses do nothing else, nor do their releases. Buttons A–D on the first step drop the chooser.
+- Ten seconds with no press drop it too, and the display goes back to the bank you are in, as does picking the bank you are in.
+- Bank Up / Down, a bank change from MIDI or a configuration switch leave it and do what they always do.
+- Banks with no name show their number.
+- It works through the [bank preview](#bank-preview), whether that is on or not, so texts from the computer and tempo readouts wait until you are done.
+
+It is most at hand on a long press: in the demo, holding 3 on HOME (bank 0) opens it, and a short press of 3 still goes to bank 3.
+
+*Firmware 0.92 or later.*
+
+<details><summary>Under the hood</summary>
+
+Stored as low nibble 8 of the `Bank` command, with no value. Firmware before 0.92 takes it as `GoTo` bank 0.
 
 </details>
 

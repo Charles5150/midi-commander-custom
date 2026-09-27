@@ -491,10 +491,10 @@ def unpack_command(raw: bytes, cycle_labels=None) -> dict:
         cmd["CommandType"] = "Bank"
         mode = b0 & 0x0F
         cmd["KeyMode_(Key)"] = {1: "Up", 2: "Down", 3: "Config", 4: "NextConfig", 5: "Page", 6: "Back",
-                                 7: "Reveal"}.get(mode, "GoTo")
+                                 7: "Reveal", 8: "Direct"}.get(mode, "GoTo")
         if mode == 3:
             cmd["OnValue_(CC/PB)"] = str(min(b1, 3) + 1)   # slots are 1-4 for people
-        elif mode in (4, 6, 7):
+        elif mode in (4, 6, 7, 8):
             cmd["OnValue_(CC/PB)"] = ""
         else:
             cmd["OnValue_(CC/PB)"] = str(b1)

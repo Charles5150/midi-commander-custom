@@ -22,6 +22,10 @@ uint8_t sw_get_current_page(void);
 // The bank the song is in: the one shown, or the one whose page is shown
 uint8_t sw_get_home_bank(void);
 uint8_t sw_preview_bank(void);	// the bank previewed, 0xFF when none
+// sw_preview_bank while a bank is chosen with two presses (Bank Direct): alone
+// while the group is chosen, then | 1 + the group of eight banks picked
+#define PREVIEW_DIRECT	(0x80)
+#define DIRECT_GROUP	(8)	// banks per group
 uint8_t sw_count_in(void);	// beats before a count-in (Wait Count) goes, 0 for none
 void sw_get_toggle_states(uint32_t out[8]);
 void sw_get_long_toggle_states(uint32_t out[8]);

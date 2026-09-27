@@ -565,9 +565,12 @@ def cmd_bank(cmd):
     configuration, no value. Page: OnValue is the bank shown as this bank's
     second page; pressed again, or on the page, it goes back. Back: returns to
     the bank left by the last bank change, no value. Reveal: while held, the
-    buttons show the labels of their long presses, no value.
+    buttons show the labels of their long presses, no value. Direct: the
+    buttons choose a group of eight banks and then one of them, no value.
     """
     mode_text = str(cmd.get("KeyMode_(Key)", "")).strip().upper().replace(" ", "")
+    if mode_text.startswith("DIRECT"):
+        return [CMD_BANK_NIBBLE | 8, 0, 0, 0]
     if mode_text.startswith("REVEAL"):
         return [CMD_BANK_NIBBLE | 7, 0, 0, 0]
     if mode_text.startswith("BACK"):

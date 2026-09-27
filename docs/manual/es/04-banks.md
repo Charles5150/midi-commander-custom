@@ -80,6 +80,7 @@ Cualquier botón puede moverte entre bancos con un comando `Bank`, además de lo
 | `Page` | Muestra otro banco como [segunda página](#segunda-página) de este. |
 | `Config`, `NextConfig` | Cambia a otra [configuración](#cuatro-configuraciones). |
 | `Reveal` | Mientras lo mantienes, cada botón muestra la etiqueta de su pulsación larga; ver [Etiquetas de la pulsación larga](05-buttons.md#etiquetas-de-la-pulsación-larga). |
+| `Direct` | Dos pulsaciones eligen cualquier banco: su grupo de ocho y luego el banco; ver [Cualquier banco en dos pulsaciones](#cualquier-banco-en-dos-pulsaciones). |
 
 El cambio se hace después de enviar el resto de comandos del botón, así que un botón puede enviar MIDI y luego llevarte a otro banco. En el CSV es `CommandType` `Bank`, con la acción en `KeyMode` y el banco o el número de bancos en `OnValue`; nada más del comando se usa.
 
@@ -98,6 +99,32 @@ En la demo, el botón B del banco 10, PREV, es uno de ellos.
 <details><summary>Por dentro</summary>
 
 Se guarda como el nibble bajo 6 del comando `Bank`. El firmware anterior a 0.49 lo toma como un `GoTo` al banco 0.
+
+</details>
+
+## Cualquier banco en dos pulsaciones
+
+Si el setlist cambia sobre la marcha o alguien pide una canción desde el público, ir banco a banco es demasiado lento. Un botón `Direct` convierte los ocho botones en un selector de bancos durante dos pulsaciones:
+
+1. Púlsalo y la pantalla muestra `BANK` con los cuatro grupos de ocho bancos en los botones 1–4: `0+`, `8+`, `16+`, `24+`.
+2. Pulsa el botón del grupo y los ocho botones muestran los nombres de sus ocho bancos, con el banco en el que estás en negativo.
+3. Pulsa el botón bajo el nombre del banco y la pedalera va allí, como lo haría un `GoTo`, con los comandos de salida y de entrada.
+
+El banco 21, por ejemplo, es 3 (`16+`) y luego B, el sexto de ese grupo.
+
+- Mientras eliges no se envía nada, y las dos pulsaciones no hacen nada más, ni al soltarlas. Los botones A–D en el primer paso cierran el selector.
+- También lo cierran diez segundos sin pulsar nada, y la pantalla vuelve al banco en el que estás, igual que si eliges ese mismo banco.
+- Bank Up / Down, un cambio de banco por MIDI o un cambio de configuración lo cierran y hacen lo de siempre.
+- Los bancos sin nombre muestran su número.
+- Funciona a través de la [vista previa de banco](#vista-previa-de-banco), esté activada o no, así que los textos del ordenador y los avisos de tempo esperan a que termines.
+
+Donde más a mano queda es en una pulsación larga: en la demo, mantener el 3 en HOME (banco 0) lo abre, y una pulsación corta del 3 sigue yendo al banco 3.
+
+*Firmware 0.92 o posterior.*
+
+<details><summary>Por dentro</summary>
+
+Se guarda como el nibble bajo 8 del comando `Bank`, sin valor. El firmware anterior a 0.92 lo toma como un `GoTo` al banco 0.
 
 </details>
 
