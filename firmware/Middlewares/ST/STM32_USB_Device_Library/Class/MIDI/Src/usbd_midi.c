@@ -134,7 +134,7 @@ static uint8_t  USBD_MIDI_DataOut (USBD_HandleTypeDef *pdev, uint8_t epnum)
  * sending never blocks. If the queue is full the new events are dropped,
  * which is the least bad option for a MIDI stream.
  */
-#define MIDI_TX_RING_SIZE	(256)
+#define MIDI_TX_RING_SIZE	(2048)
 
 static uint8_t midi_tx_ring[MIDI_TX_RING_SIZE];
 static volatile uint16_t midi_tx_head = 0;

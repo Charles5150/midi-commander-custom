@@ -15,13 +15,16 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const module = new WebAssembly.Module(fs.readFileSync(path.join(root, "web/pedal-sim.wasm")));
 const firmwareVersion = /FIRMWARE_VERSION\s+"([^"]+)"/.exec(fs.readFileSync(path.join(root, "firmware/Core/Inc/main.h"), "utf8"))[1];
 
-// The demo packed by the Python tools: {config, image}
-function packDemo() {
+// The demo packed by the Python tools: {config, image}. `tweak`, Python run
+// on its sections `d` before packing, changes it for one test
+function packDemo(tweak = "") {
   const script = [
     "import sys, json",
     "from lib.configCsv import read_config_csv",
     "from lib.slotIO import pack_sections",
-    "c, i = pack_sections(read_config_csv('demo-all-features.csv'))",
+    "d = read_config_csv('demo-all-features.csv')",
+    tweak,
+    "c, i = pack_sections(d)",
     "print(json.dumps([bytes(c).hex(), bytes(i).hex()]))",
   ].join("\n");
   const out = execFileSync(process.env.PYTHON || "python3", ["-c", script], { cwd: path.join(root, "python") });
@@ -48,24 +51,29 @@ async function running(sim, work) {
 let demo;
 let demoFlash;      // the flash of a simulator with the demo written in slot 1
 
-before(async () => {
-  demo = packDemo();
+// The flash of a simulator with a configuration written in slot 1
+async function flashWith(packed) {
   const sim = newSim();
   const pedal = await Pedal.open(sim.access);
   pedal.pause = 0;
   await running(sim, async () => {
     await pedal.selectSlot(0);
-    await pedal.writeImage(firmwareVersion, demo.config, demo.image);
+    await pedal.writeImage(firmwareVersion, packed.config, packed.image);
   });
   pedal.reset();
   await null;
   sim.run(10);
-  demoFlash = sim.flash;
+  return sim.flash;
+}
+
+before(async () => {
+  demo = packDemo();
+  demoFlash = await flashWith(demo);
 });
 
-function simWithDemo() {
+function simWithDemo(flash = demoFlash) {
   const sim = new Simulator(module, { persist: false });
-  sim.flash = Uint8Array.from(demoFlash);
+  sim.flash = Uint8Array.from(flash);
   sim.start();
   clearInterval(sim.timer);
   clearInterval(sim.saveTimer);
@@ -203,6 +211,37 @@ test("the demo's MIDI map turns what comes in over USB into what goes out on DIN
   // off when it comes up, on both outputs like a press
   assert.deepEqual(send([0x9d, 36, 90]), ["USB b0 44 7f", "DIN b0 44 7f"]);
   assert.deepEqual(send([0x8d, 36, 0]), ["USB b0 44 00", "DIN b0 44 00"]);
+});
+
+test("a bank's enter list of 80 messages reaches USB and DIN whole (before 1.03, 32 did)", async () => {
+  // Bank 7 of the demo, empty on entering, gets five CCs on all sixteen channels
+  const tweak = [
+    "e = d['BankEnter_Settings']",
+    "r = e.index[e.Bank_Number.astype(str) == '7'][0]",
+    "for k, letter in enumerate('ABCDEFGHIJ'):",
+    "    if k % 2 == 0:",
+    "        e.loc[r, letter + '_CommandType'] = 'Chan'",
+    "        e.loc[r, letter + '_Channel_(PC/CC/Note/PB)'] = '1-16'",
+    "    else:",
+    "        e.loc[r, letter + '_CommandType'] = 'CC'",
+    "        e.loc[r, letter + '_Channel_(PC/CC/Note/PB)'] = '1'",
+    "        e.loc[r, letter + '_Number_(PC/CC/Note)'] = str(40 + k // 2)",
+    "        e.loc[r, letter + '_OnValue_(CC/PB)'] = '1'",
+    "        e.loc[r, letter + '_Toggle_(CC/PB/Note)'] = 'N'",
+  ].join("\n");
+  const sim = simWithDemo(await flashWith(packDemo(tweak)));
+  const pedal = await Pedal.open(sim.access);
+  const seen = watch(sim);
+  const want = [];
+  for (let cc = 40; cc < 45; cc++) {
+    for (let ch = 0; ch < 16; ch++) want.push(`b${ch.toString(16)} ${cc.toString(16)} 01`);
+  }
+  sim.usbIn([0xb0, 32, 7]);                // the demo's Bank_Change_CC: to bank 7
+  sim.run(300);
+  const list = (port) => seen.filter((m) => m.startsWith(port) && /^.{4}b. 2[89a-c] 01$/.test(m)).map((m) => m.slice(4));
+  assert.equal((await pedal.getState()).bank, 7);
+  assert.deepEqual(list("USB"), want);
+  assert.deepEqual(list("DIN"), want);
 });
 
 test("held, a Bank Reveal button shows the long press labels", async () => {

@@ -183,7 +183,7 @@ It does not reset toggle states or controllers, but it does stop every [CC ramp]
 
 <details><summary>Under the hood</summary>
 
-The 32 messages go out packed into two USB packets and two serial buffers, so a panic cannot itself run out of transmit buffers.
+The 32 messages go out packed into two USB packets.
 
 </details>
 

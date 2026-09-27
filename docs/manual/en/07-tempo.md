@@ -24,6 +24,8 @@ The tempo is not saved: it starts at 120 BPM each time the pedal is switched on.
 
 A `Tap` command with **Action** `Clock` starts or stops the pedal's MIDI clock: MIDI Start or Stop, and then 24 clock bytes per quarter note to USB and DIN while it runs. The tempo shows on the display for a moment, with a leading `*` while the clock is running.
 
+The DIN output sends about one message a millisecond, so a bank sending many commands on entry keeps it busy for a while: 80 messages take about 77 ms. The clock does not wait behind them. Each clock byte goes out ahead of whatever is queued, within a millisecond, as MIDI allows a clock byte between any two bytes. Start, Continue and Stop keep their place in the queue, so a `Song` select sent before a Start still arrives first, and the clocks wait behind a Start that is still queued.
+
 The demo's bank 6 has tap tempo, clock start and stop, and transport buttons side by side.
 
 ## Setting the tempo

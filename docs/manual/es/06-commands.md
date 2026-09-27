@@ -183,7 +183,7 @@ No reinicia los toggles ni los controladores, pero sí para todas las [rampas de
 
 <details><summary>Por dentro</summary>
 
-Los 32 mensajes salen empaquetados en dos paquetes USB y dos buffers serie, así que un panic no puede quedarse él mismo sin buffers de envío.
+Los 32 mensajes salen empaquetados en dos paquetes USB.
 
 </details>
 

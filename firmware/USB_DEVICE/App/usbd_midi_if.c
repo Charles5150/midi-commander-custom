@@ -605,8 +605,8 @@ static inline uint8_t usb_thru_enabled(void){
 
 /*
  * Bytes forwarded to DIN are collected per USB packet and handed to the
- * serial driver in one go, so a packet costs one transmit buffer instead of
- * one per event. A 64 byte packet carries at most 16 events x 3 bytes.
+ * serial driver in one go. A 64 byte packet carries at most 16 events x 3
+ * bytes.
  */
 static uint8_t thru_buf[48];
 static uint8_t thru_len = 0;

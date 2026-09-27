@@ -24,6 +24,8 @@ El tempo no se guarda: empieza en 120 BPM cada vez que enciendes la pedalera.
 
 Un comando `Tap` con **Action** `Clock` pone en marcha o para el reloj MIDI de la pedalera: MIDI Start o Stop, y después 24 bytes de reloj por negra hacia USB y DIN mientras está en marcha. El tempo aparece un momento en la pantalla, con un `*` delante mientras el reloj está en marcha.
 
+La salida DIN envía más o menos un mensaje por milisegundo, así que un banco que manda muchos comandos al entrar la tiene ocupada un rato: 80 mensajes tardan unos 77 ms. El reloj no espera detrás de ellos. Cada byte de reloj sale por delante de lo que esté en cola, en menos de un milisegundo, porque MIDI permite meter un byte de reloj entre dos bytes cualesquiera. Start, Continue y Stop guardan su sitio en la cola, así que un `Song` enviado antes de un Start sigue llegando primero, y los relojes esperan detrás de un Start que aún está en cola.
+
 En la demo, el banco 6 tiene tap tempo, arranque y parada del reloj y botones de transporte uno al lado del otro.
 
 ## Fijar el tempo

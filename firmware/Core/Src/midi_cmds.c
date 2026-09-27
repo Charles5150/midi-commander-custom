@@ -13,44 +13,109 @@
 
 extern UART_HandleTypeDef huart2;
 
-// The USB doesn't need a buffering arrangement at this level, as when a call is made to tx, the data is copied
-// completely into the USB's own endpoint transmit buffers. Therefore a single array is declared here to use for
-// assembling messages into before being passed to the USB stack.
-uint8_t midi_usb_assembly_buffer[24];	// six events: an NRPN with its null
-
 /*
- * Serial buffer management.
+ * The DIN output.
  *
- * Because the midi serial port is relatively slow (compared to USB) and it has no inherent buffering in the stack beyond
- * the DMA transfer that is started, we're defining a series of "mailbox" type buffers that will be sent when something is
- * written to them. Since each push of a switch can potentially send MIDI_NUM_COMMANDS_PER_SWITCH commands as well as another
- * MIDI_NUM_COMMANDS_PER_SWITCH commands if not in toggle mode, then we need 2 * MIDI_NUM_COMMANDS_PER_SWITCH buffers.
+ * The serial port sends a byte every 0.32 ms, far slower than the pedal can
+ * make them, so what goes out waits here: a ring of bytes handed to the DMA a
+ * few at a time. A message goes in whole or not at all. Only a full ring, some
+ * 600 messages waiting at once, drops anything, and then on DIN alone: USB
+ * never waits for the slow port. Before 1.03 each message took a buffer of its
+ * own, 32 of them, and a bank sending a few commands on sixteen channels lost
+ * all but the first 32 messages, on USB too.
+ *
+ * The transfers are short so that the MIDI Clock, which may go out between any
+ * two bytes, jumps the queue and never waits behind a long list for more than
+ * a millisecond. Start, Continue and Stop keep their place, since a Song
+ * Select sent before a Start must arrive first; while one of them waits, the
+ * clocks queue behind it, or a device would count them before it starts.
  */
+#define DIN_RING_SIZE	(2048)	// a power of two
+#define DIN_CHUNK	(3)	// bytes per transfer: a clock waits one chunk at most
+#define DIN_CLOCKS_MAX	(8)
+
+static uint8_t din_ring[DIN_RING_SIZE];
+static volatile uint32_t din_in = 0;	// bytes ever queued
+static volatile uint32_t din_out = 0;	// bytes ever sent
+static uint16_t din_busy = 0;		// ring bytes in the transfer running, 0 for a clock
+static uint32_t din_transport_end = 0;	// din_in just after the last Start, Continue or Stop
+static volatile uint8_t din_clocks = 0;	// clocks waiting to jump the queue
+static uint8_t din_clock_byte = 0xF8;	// in RAM, where the DMA reads it
+
+static bool din_transport_waiting(void){
+	return (int32_t)(din_transport_end - din_out) > 0;
+}
+
 /*
- * One buffer per message in flight. A single press can send one message per
- * command on the way down and another on the way up, and the DIN port only
- * drains about one message per millisecond, so a fast player can outrun it.
- * Generous here: 32 x 48 bytes is cheap and makes running out very unlikely.
+ * Start the next transfer to the DIN output, if the UART is free. Called when
+ * something is queued, from the main loop or the USB interrupt (MIDI passed
+ * through to DIN), and from the end of the last transfer, so it decides and
+ * starts with interrupts off: before 0.65 it spun until HAL_UART_Transmit_DMA
+ * gave in, and an interrupt landing while the main loop was inside that call
+ * spun for ever on the lock the main loop held, hanging the pedal. A busy
+ * UART is simply left alone: its end of transfer starts the next one.
  */
-#define NO_BUFFERS (32)
-#define BUFFER_SIZE (48) // Holds every MIDI byte of one 64 byte USB packet (16 events x 3)
-
-// Implementing as a series of buffers
-uint8_t midi_uart_out_buffer[NO_BUFFERS][BUFFER_SIZE];
-uint8_t midi_uart_out_buffer_bytes_to_tx[NO_BUFFERS] = {0}; // Indicates that a buffer is ready to be sent, and therefore also can't be written to.
-uint8_t last_transmitted_buffer = NO_BUFFERS -1; // When a buffer is given to the DMA, this is set with the buffer number.  That allows buffers to be sent in order.
-
-// Note should only be called from critical section, not thread safe
-static int8_t get_next_available_tx_buffer(void){
-	// Starting at the last sent buffer, loop through and find the next available.
-	for(int i=0; i<NO_BUFFERS; i++){
-		uint8_t n = (last_transmitted_buffer + i + 1) % NO_BUFFERS;
-		if(midi_uart_out_buffer_bytes_to_tx[n] == 0){
-			return n;
+static void din_start(void){
+	uint32_t primask = __get_PRIMASK();
+	__disable_irq();
+	if(huart2.gState == HAL_UART_STATE_READY){
+		if(din_clocks){
+			if(HAL_UART_Transmit_DMA(&huart2, &din_clock_byte, 1) == HAL_OK){
+				din_clocks--;
+				din_busy = 0;
+			}
+		} else if(din_in != din_out){
+			uint32_t at = din_out % DIN_RING_SIZE;
+			uint32_t n = din_in - din_out;
+			if(n > DIN_CHUNK) n = DIN_CHUNK;
+			if(n > DIN_RING_SIZE - at) n = DIN_RING_SIZE - at;
+			if(HAL_UART_Transmit_DMA(&huart2, &din_ring[at], (uint16_t)n) == HAL_OK){
+				din_busy = (uint16_t)n;
+			}
 		}
 	}
+	if(!primask) __enable_irq();
+}
 
-	return -1;
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+{
+	if(huart->Instance == huart2.Instance){
+		din_out += din_busy;
+		din_busy = 0;
+		din_start();
+	}
+}
+
+// A whole message into the queue, or nothing if it does not fit
+static bool din_put(const uint8_t *data, uint32_t len){
+	uint32_t primask = __get_PRIMASK();
+	__disable_irq();
+	bool fits = len <= DIN_RING_SIZE - (din_in - din_out);
+	if(fits){
+		for(uint32_t i = 0; i < len; i++){
+			din_ring[(din_in + i) % DIN_RING_SIZE] = data[i];
+			if(data[i] == 0xFA || data[i] == 0xFB || data[i] == 0xFC){
+				din_transport_end = din_in + i + 1;
+			}
+		}
+		din_in += len;
+	}
+	if(!primask) __enable_irq();
+	din_start();
+	return fits;
+}
+
+// A MIDI Clock: ahead of everything, unless a Start or a Stop is waiting
+static void din_clock(void){
+	uint32_t primask = __get_PRIMASK();
+	__disable_irq();
+	if(din_transport_waiting()){
+		din_put(&din_clock_byte, 1);
+	} else if(din_clocks < DIN_CLOCKS_MAX){
+		din_clocks++;
+	}
+	if(!primask) __enable_irq();
+	din_start();
 }
 
 /*
@@ -102,14 +167,27 @@ static void usb_tx(uint8_t *msg, uint16_t len){
 	if(!(outputs_off & CHAN_NO_USB)) MIDI_DataTx(msg, len);
 }
 
-// The bytes a serial buffer just filled goes out with: none, which leaves the
-// buffer free, when the DIN output is off
-static uint8_t din_len(uint32_t len){
-	return (outputs_off & CHAN_NO_DIN) ? 0 : (uint8_t)len;
+static int8_t din_bytes(const uint8_t *data, uint8_t len){
+	if(outputs_off & CHAN_NO_DIN) return 0;
+	return din_put(data, len) ? 0 : ERROR_BUFFERS_FULL;
 }
 
-static void din_bytes(const uint8_t *data, uint8_t len){
-	if(!(outputs_off & CHAN_NO_DIN)) midiCmd_send_bytes_serial(data, len);
+/*
+ * USB events, four bytes each, to USB and their MIDI bytes to DIN, each output
+ * if it is on. Returns ERROR_BUFFERS_FULL when DIN had no room for them; USB
+ * has them all the same.
+ */
+static int8_t send_events(uint8_t *events, uint8_t len){
+	uint8_t din[3 * 16], n = 0;
+	usb_tx(events, len);
+	for(uint8_t i = 0; i + 3 < len; i += 4){
+		uint8_t cin = events[i] & 0x0F;
+		uint8_t k = (cin == CIN_PROGRAM_CHANGE || cin == CIN_CHANNEL_PRESSURE) ? 2
+				: (cin == CIN_SINGLE_BYTE) ? 1 : 3;
+		memcpy(&din[n], &events[i + 1], k);
+		n += k;
+	}
+	return din_bytes(din, n);
 }
 
 // A whole SysEx message, F0 to F7, to the outputs that are on
@@ -134,139 +212,62 @@ uint32_t midiCmd_get_delay(uint8_t *pRom){
 }
 
 /*
- * Start the next buffer waiting for the DIN output, if the UART is free.
- * Called from the main loop, from the USB interrupt (MIDI passed through to
- * DIN) and from the end of the last transfer, so it decides and starts with
- * interrupts off: before 0.65 it spun until HAL_UART_Transmit_DMA gave in,
- * and an interrupt landing while the main loop was inside that call spun for
- * ever on the lock the main loop held, hanging the pedal. A busy UART is
- * simply left alone: its end of transfer starts the next buffer.
- */
-void midi_serial_start_next_dma(void){
-	uint32_t primask = __get_PRIMASK();
-	__disable_irq();
-	if(huart2.gState == HAL_UART_STATE_READY){
-		// Find the next buffer ready for transmit
-		for(int i=0; i<NO_BUFFERS; i++){
-			uint8_t n = (last_transmitted_buffer + i + 1) % NO_BUFFERS;
-			if(midi_uart_out_buffer_bytes_to_tx[n] != 0){
-				if(HAL_UART_Transmit_DMA(&huart2, midi_uart_out_buffer[n],
-						midi_uart_out_buffer_bytes_to_tx[n]) == HAL_OK){
-					last_transmitted_buffer = n;
-				}
-				break;
-			}
-		}
-	}
-	if(!primask) __enable_irq();
-}
-
-static void midi_serial_transmit(void){
-	// Idle: load the next buffer. In a transfer: its end loads the next one
-	midi_serial_start_next_dma();
-}
-
-void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
-{
-	if(huart->Instance == huart2.Instance){
-		// last sent buffer is complete, start another transfer.
-		midi_uart_out_buffer_bytes_to_tx[last_transmitted_buffer] = 0;
-		midi_serial_start_next_dma();
-	}
-}
-
-int8_t midiCmd_send_stop_command(void){
-	__disable_irq();
-	int8_t buffer_no = get_next_available_tx_buffer();
-	if(buffer_no < 0){
-		__enable_irq();
-		return ERROR_BUFFERS_FULL;
-	}
-
-	uint8_t *serialBuf = &(midi_uart_out_buffer[buffer_no][0]);
-	uint8_t *usbBuf = midi_usb_assembly_buffer;
-
-	*(usbBuf++) = CIN_SINGLE_BYTE;
-	*(usbBuf++) = 0xFC; // Start byte
-	*(usbBuf++) = 0; // Pad
-	*(usbBuf++) = 0; // Pad
-
-	*serialBuf = 0xFC;
-	midi_uart_out_buffer_bytes_to_tx[buffer_no] = din_len(1);
-
-	__enable_irq();
-
-	uint8_t usb_bytes_to_tx = usbBuf - midi_usb_assembly_buffer;
-	usb_tx(midi_usb_assembly_buffer, usb_bytes_to_tx);
-
-	midi_serial_transmit();
-	return 0;
-}
-
-/*
- * Send raw bytes just through to the serial midi port, without touching USB.
- * Used to forward messages received over USB to the DIN output. Silently
- * drops the data if no transmit buffer is free or it doesn't fit in one.
+ * Send raw bytes just through to the serial midi port, without touching USB,
+ * whatever outputs a Chan command left on: messages received over USB and
+ * forwarded to the DIN output, and the clock. Silently drops a message the
+ * queue has no room for.
  */
 void midiCmd_send_bytes_serial(const uint8_t *data, uint8_t len){
-	if(len == 0 || len > BUFFER_SIZE){
-		return;
-	}
-
-	__disable_irq();
-	int8_t buffer_no = get_next_available_tx_buffer();
-	if(buffer_no < 0){
-		__enable_irq();
-		return;
-	}
-
-	memcpy(&(midi_uart_out_buffer[buffer_no][0]), data, len);
-	midi_uart_out_buffer_bytes_to_tx[buffer_no] = len;
-	__enable_irq();
-
-	midi_serial_transmit();
+	if(len == 0) return;
+	if(len == 1 && data[0] == 0xF8) din_clock();
+	else din_put(data, len);
 }
 
-/*
- * Send a single byte message just through to the serial midi port.
- * This is to transfer start/stop/sync messages through from the USB to the midi port
- */
 void midiCmd_send_byte_serial(uint8_t byteMessage){
 	midiCmd_send_bytes_serial(&byteMessage, 1);
 }
 
+// A single byte message, Start or Stop, to both outputs
+static int8_t send_realtime(uint8_t b){
+	uint8_t usb[4] = { CIN_SINGLE_BYTE, b, 0, 0 };
+	return send_events(usb, 4);
+}
+
+int8_t midiCmd_send_start_command(void){
+	return send_realtime(0xFA);
+}
+
+int8_t midiCmd_send_stop_command(void){
+	return send_realtime(0xFC);
+}
+
 /*
- * A MIDI Clock byte (0xF8) to both USB and the DIN output. Dropped silently
- * if the serial buffers are full: a late clock is worse than a missing one.
+ * A MIDI Clock byte (0xF8) to both USB and the DIN output, whatever else is
+ * waiting for the DIN output.
  */
 int8_t midiCmd_send_clock_command(void){
 	uint8_t usb[4] = { CIN_SINGLE_BYTE, 0xF8, 0, 0 };
 	MIDI_DataTx(usb, 4);
-	midiCmd_send_byte_serial(0xF8);
+	din_clock();
 	return 0;
 }
 
 /*
  * Panic: All Sound Off (CC 120) and All Notes Off (CC 123) on all sixteen
- * channels, to USB and the DIN output. The 32 messages go out as two full USB
- * packets and two full serial buffers rather than 32 separate sends, so one
- * press cannot use up the transmit buffers it is meant to rescue.
+ * channels, to USB and the DIN output, as two full USB packets.
  */
 int8_t midiCmd_send_panic(void){
 	static const uint8_t ccs[2] = { 120, 123 };
 	for(uint8_t half = 0; half < 2; half++){
 		uint8_t usb[64];
-		uint8_t ser[48];
 		for(uint8_t ch = 0; ch < 16; ch++){
 			uint8_t *u = &usb[ch * 4];
 			u[0] = CIN_CONTROL_CHANGE;
 			u[1] = 0xB0 | ch;
 			u[2] = ccs[half];
 			u[3] = 0;
-			memcpy(&ser[ch * 3], &u[1], 3);
 		}
-		usb_tx(usb, sizeof(usb));
-		din_bytes(ser, sizeof(ser));
+		send_events(usb, sizeof(usb));
 	}
 	return 0;
 }
@@ -279,16 +280,13 @@ int8_t midiCmd_send_panic(void){
 int8_t midiCmd_send_song_select(uint8_t song){
 	uint8_t usb[4] = { CIN_TWO_BYTE_SYSTEM_COMMON, 0xF3, song & 0x7F, 0 };
 	usb_tx(usb, 4);
-	din_bytes(&usb[1], 2);
-	return 0;
+	return din_bytes(&usb[1], 2);
 }
 
 int8_t midiCmd_send_song_position(uint16_t beats){
 	uint8_t usb[4] = { CIN_THREE_BYTE_SYSTEM_COMMON, 0xF2,
 			beats & 0x7F, (beats >> 7) & 0x7F };
-	usb_tx(usb, 4);
-	din_bytes(&usb[1], 3);
-	return 0;
+	return send_events(usb, 4);
 }
 
 /*
@@ -322,167 +320,47 @@ int8_t midiCmd_send_mmc(uint8_t command, uint16_t seconds){
 	return 0;
 }
 
-int8_t midiCmd_send_start_command(void){
-	__disable_irq();
-	int8_t buffer_no = get_next_available_tx_buffer();
-	if(buffer_no < 0){
-		__enable_irq();
-		return ERROR_BUFFERS_FULL;
-	}
-
-	uint8_t *serialBuf = &(midi_uart_out_buffer[buffer_no][0]);
-	uint8_t *usbBuf = midi_usb_assembly_buffer;
-
-	*(usbBuf++) = CIN_SINGLE_BYTE;
-	*(usbBuf++) = 0xFA; // Start byte
-	*(usbBuf++) = 0; // Pad
-	*(usbBuf++) = 0; // Pad
-
-	*serialBuf = 0xFA;
-	midi_uart_out_buffer_bytes_to_tx[buffer_no] = din_len(1);
-
-	__enable_irq();
-
-	uint8_t usb_bytes_to_tx = usbBuf - midi_usb_assembly_buffer;
-	usb_tx(midi_usb_assembly_buffer, usb_bytes_to_tx);
-
-	midi_serial_transmit();
-	return 0;
+// One channel message: its USB code, status, and the one or two data bytes
+static int8_t send_message(uint8_t cin, uint8_t status, uint8_t d1, uint8_t d2){
+	uint8_t usb[4] = { cin, status, d1 & 0x7F, d2 & 0x7F };
+	return send_events(usb, 4);
 }
 
-
 int8_t midiCmd_send_pb_command_from_rom(uint8_t *pRom, uint8_t on_off){
-	__disable_irq();
-	int8_t buffer_no = get_next_available_tx_buffer();
-	if(buffer_no < 0){
-		__enable_irq();
-		return ERROR_BUFFERS_FULL;
-	}
-
-	uint8_t *serialBuf = &(midi_uart_out_buffer[buffer_no][0]);
-	uint8_t *usbBuf = midi_usb_assembly_buffer;
-
-	*(usbBuf++) = CIN_PITCHBEND_CHANGE;
-	*(usbBuf++) = 0xE0| midiCmd_channel(pRom[0]); // Channel
-	*(usbBuf++) = on_off ? (pRom[1] & 0x7F) : 0x0; // PB LSB
-	*(usbBuf++) = on_off ? (pRom[2] & 0x7F) : (0X2000 >> 7) & 0X7f; // PB MSB
-
-	memcpy(serialBuf, (usbBuf-3), 3);
-	serialBuf += 3;
-
-	midi_uart_out_buffer_bytes_to_tx[buffer_no] = din_len(serialBuf - &midi_uart_out_buffer[buffer_no][0]);
-
-	__enable_irq();
-
-	uint8_t usb_bytes_to_tx = usbBuf - midi_usb_assembly_buffer;
-	usb_tx(midi_usb_assembly_buffer, usb_bytes_to_tx);
-
-	midi_serial_transmit();
-	return 0;
+	return send_message(CIN_PITCHBEND_CHANGE, 0xE0 | midiCmd_channel(pRom[0]),
+			on_off ? pRom[1] : 0, on_off ? pRom[2] : (0x2000 >> 7));
 }
 
 int8_t midiCmd_send_note_command_from_rom(uint8_t *pRom, uint8_t on_off){
-	__disable_irq();
-	int8_t buffer_no = get_next_available_tx_buffer();
-	if(buffer_no < 0){
-		__enable_irq();
-		return ERROR_BUFFERS_FULL;
-	}
-
-	uint8_t *serialBuf = &(midi_uart_out_buffer[buffer_no][0]);
-	uint8_t *usbBuf = midi_usb_assembly_buffer;
-
-	*(usbBuf++) = (on_off) ? CIN_NOTE_ON : CIN_NOTE_OFF;
-	*(usbBuf) = (on_off) ? 0x90 : 0x80; // Note on/off
-	*(usbBuf++) |= midiCmd_channel(pRom[0]); // Channel
-	*(usbBuf++) = pRom[1] & 0x7F; // Note Number
-	*(usbBuf++) = (on_off) ?  pRom[2] & 0x7F : 0; // Velocity
-
-	memcpy(serialBuf, (usbBuf-3), 3);
-	serialBuf += 3;
-
-	midi_uart_out_buffer_bytes_to_tx[buffer_no] = din_len(serialBuf - &midi_uart_out_buffer[buffer_no][0]);
-
-	__enable_irq();
-
-	uint8_t usb_bytes_to_tx = usbBuf - midi_usb_assembly_buffer;
-	usb_tx(midi_usb_assembly_buffer, usb_bytes_to_tx);
-
-	midi_serial_transmit();
-	return 0;
+	return send_message(on_off ? CIN_NOTE_ON : CIN_NOTE_OFF,
+			(on_off ? 0x90 : 0x80) | midiCmd_channel(pRom[0]),
+			pRom[1], on_off ? pRom[2] : 0);
 }
 
 int8_t midiCmd_send_cc(uint8_t channel, uint8_t cc_number, uint8_t value)
 {
-	__disable_irq();
-	int8_t buffer_no = get_next_available_tx_buffer();
-	if(buffer_no < 0){
-		__enable_irq();
-		return ERROR_BUFFERS_FULL;
-	}
-
-	uint8_t *serialBuf = &(midi_uart_out_buffer[buffer_no][0]);
-	uint8_t *usbBuf = midi_usb_assembly_buffer;
-
-	*(usbBuf++) = CIN_CONTROL_CHANGE;
-	*(usbBuf++) = 0xB0 | midiCmd_channel(channel);
-	*(usbBuf++) = cc_number & 0x7F;
-	*(usbBuf++) = value & 0x7F;
-
-	memcpy(serialBuf, (usbBuf-3), 3);
-	serialBuf += 3;
-
-	midi_uart_out_buffer_bytes_to_tx[buffer_no] = din_len(serialBuf - &midi_uart_out_buffer[buffer_no][0]);
-
-	__enable_irq();
-
-	uint8_t usb_bytes_to_tx = usbBuf - midi_usb_assembly_buffer;
-	usb_tx(midi_usb_assembly_buffer, usb_bytes_to_tx);
-
-	midi_serial_transmit();
-	return 0;
+	return send_message(CIN_CONTROL_CHANGE, 0xB0 | midiCmd_channel(channel), cc_number, value);
 }
 
 /*
- * Several Control Changes on one channel in one buffer, so the run is never
+ * Several Control Changes on one channel in one go, so the run is never
  * split: `pairs` holds each one's number and value, up to six of them.
  */
 static int8_t send_cc_run(uint8_t channel, const uint8_t *pairs, uint8_t n)
 {
-	__disable_irq();
-	int8_t buffer_no = get_next_available_tx_buffer();
-	if(buffer_no < 0){
-		__enable_irq();
-		return ERROR_BUFFERS_FULL;
-	}
-
-	uint8_t *serialBuf = &(midi_uart_out_buffer[buffer_no][0]);
-	uint8_t *usbBuf = midi_usb_assembly_buffer;
-
+	uint8_t usb[4 * 6];
 	for(uint8_t k = 0; k < n; k++){
-		*(usbBuf++) = CIN_CONTROL_CHANGE;
-		*(usbBuf++) = 0xB0 | midiCmd_channel(channel);
-		*(usbBuf++) = pairs[2 * k] & 0x7F;
-		*(usbBuf++) = pairs[2 * k + 1] & 0x7F;
-
-		memcpy(serialBuf, (usbBuf-3), 3);
-		serialBuf += 3;
+		usb[4 * k] = CIN_CONTROL_CHANGE;
+		usb[4 * k + 1] = 0xB0 | midiCmd_channel(channel);
+		usb[4 * k + 2] = pairs[2 * k] & 0x7F;
+		usb[4 * k + 3] = pairs[2 * k + 1] & 0x7F;
 	}
-
-	midi_uart_out_buffer_bytes_to_tx[buffer_no] = din_len(serialBuf - &midi_uart_out_buffer[buffer_no][0]);
-
-	__enable_irq();
-
-	uint8_t usb_bytes_to_tx = usbBuf - midi_usb_assembly_buffer;
-	usb_tx(midi_usb_assembly_buffer, usb_bytes_to_tx);
-
-	midi_serial_transmit();
-	return 0;
+	return send_events(usb, (uint8_t)(4 * n));
 }
 
 /*
  * A 14-bit CC: the MSB on cc_number and the LSB on cc_number + 32, in one
- * buffer so the pair is never split. cc_number must be below 32.
+ * go so the pair is never split. cc_number must be below 32.
  */
 int8_t midiCmd_send_cc14(uint8_t channel, uint8_t cc_number, uint16_t value)
 {
@@ -514,32 +392,7 @@ int8_t midiCmd_send_param(uint8_t channel, const uint8_t *param, uint8_t value)
 // Channel Pressure (aftertouch for the whole channel)
 int8_t midiCmd_send_pressure(uint8_t channel, uint8_t value)
 {
-	__disable_irq();
-	int8_t buffer_no = get_next_available_tx_buffer();
-	if(buffer_no < 0){
-		__enable_irq();
-		return ERROR_BUFFERS_FULL;
-	}
-
-	uint8_t *serialBuf = &(midi_uart_out_buffer[buffer_no][0]);
-	uint8_t *usbBuf = midi_usb_assembly_buffer;
-
-	*(usbBuf++) = CIN_CHANNEL_PRESSURE;
-	*(usbBuf++) = 0xD0 | midiCmd_channel(channel);
-	*(usbBuf++) = value & 0x7F;
-	*(usbBuf++) = 0;
-
-	memcpy(serialBuf, midi_usb_assembly_buffer + 1, 2);
-	serialBuf += 2;
-
-	midi_uart_out_buffer_bytes_to_tx[buffer_no] = din_len(serialBuf - &midi_uart_out_buffer[buffer_no][0]);
-
-	__enable_irq();
-
-	usb_tx(midi_usb_assembly_buffer, 4);
-
-	midi_serial_transmit();
-	return 0;
+	return send_message(CIN_CHANNEL_PRESSURE, 0xD0 | midiCmd_channel(channel), value, 0);
 }
 
 // Pitch Bend, value 0-16383 with 8192 in the middle
@@ -555,65 +408,13 @@ int8_t midiCmd_send_cc_command_from_rom(uint8_t *pRom, uint8_t on_off){
 		if(pRom[3] > 0x7F)
 			return 0;
 	}
-
-	__disable_irq();
-	int8_t buffer_no = get_next_available_tx_buffer();
-	if(buffer_no < 0){
-		__enable_irq();
-		return ERROR_BUFFERS_FULL;
-	}
-
-	uint8_t *serialBuf = &(midi_uart_out_buffer[buffer_no][0]);
-	uint8_t *usbBuf = midi_usb_assembly_buffer;
-
-	uint8_t cc_number = pRom[1] & 0x7F; // CC Number
-	uint8_t cc_value = (on_off) ?  pRom[2] & 0x7F : pRom[3] & 0x7F; // Value
-
-	*(usbBuf++) = CIN_CONTROL_CHANGE;
-	*(usbBuf++) = 0xB0 | midiCmd_channel(pRom[0]); // CC and Channel
-	*(usbBuf++) = cc_number;
-	*(usbBuf++) = cc_value;
-
-	memcpy(serialBuf, (usbBuf-3), 3);
-	serialBuf += 3;
-
-	midi_uart_out_buffer_bytes_to_tx[buffer_no] = din_len(serialBuf - &midi_uart_out_buffer[buffer_no][0]);
-
-	__enable_irq();
-
-	uint8_t usb_bytes_to_tx = usbBuf - midi_usb_assembly_buffer;
-	usb_tx(midi_usb_assembly_buffer, usb_bytes_to_tx);
-
-	midi_serial_transmit();
-
-	/*
-	 * Displaying messages on screen likely involves a delay which can be
-	 * detrimental on the timing of MIDI messages. So keep this commented and
-	 * only use for debugging. Using the display here also hides issues with
-	 * the serial transmission buffers. The delay in the display update allows
-	 * serial transmission to finish before the next time we enter this function.
-	 * So we never use multiple buffers at the same time and this can hide issues.
-	 */
-//	ssd1306_SetCursor(2, 10);
-//	char msg[25];
-//	sprintf(msg, "CC %d = %d", cc_number, cc_value);
-//	ssd1306_WriteString(msg, Font_6x8, White);
-//	ssd1306_UpdateScreen();
-
- 	return 0;
+	return send_message(CIN_CONTROL_CHANGE, 0xB0 | midiCmd_channel(pRom[0]),
+			pRom[1], on_off ? pRom[2] : pRom[3]);
 }
 
-
 int8_t midiCmd_send_pc_command_from_rom(uint8_t *pRom){
-	__disable_irq();
-	int8_t buffer_no = get_next_available_tx_buffer();
-	if(buffer_no < 0){
-		__enable_irq();
-		return ERROR_BUFFERS_FULL;
-	}
-
-	uint8_t *serialBuf = &(midi_uart_out_buffer[buffer_no][0]);
-	uint8_t *usbBuf = midi_usb_assembly_buffer;
+	uint8_t usb[12], *u = usb;
+	uint8_t channel = midiCmd_channel(pRom[0]);
 
 	/*
 	 * Bank select messages must be transmitted first, as
@@ -621,41 +422,24 @@ int8_t midiCmd_send_pc_command_from_rom(uint8_t *pRom){
 	 * message.
 	 */
 	if(pRom[2] < 0x80){ // Bank Select MSB
-		*(usbBuf++) = CIN_CONTROL_CHANGE;
-		*(usbBuf++) = 0xB0 | midiCmd_channel(pRom[0]);
-		*(usbBuf++) = MIDI_PC_BANK_SELECT_MSB;
-		*(usbBuf++) = pRom[2];
-
-		memcpy(serialBuf, (usbBuf-3), 3);
-		serialBuf += 3;
+		*u++ = CIN_CONTROL_CHANGE;
+		*u++ = 0xB0 | channel;
+		*u++ = MIDI_PC_BANK_SELECT_MSB;
+		*u++ = pRom[2];
 	}
 
 	if(pRom[3] < 0x80){ // Bank Select LSB
-		*(usbBuf++) = CIN_CONTROL_CHANGE;
-		*(usbBuf++) = 0xB0 | midiCmd_channel(pRom[0]);
-		*(usbBuf++) = MIDI_PC_BANK_SELECT_LSB;
-		*(usbBuf++) = pRom[3];
-
-		memcpy(serialBuf, (usbBuf-3), 3);
-		serialBuf += 3;
+		*u++ = CIN_CONTROL_CHANGE;
+		*u++ = 0xB0 | channel;
+		*u++ = MIDI_PC_BANK_SELECT_LSB;
+		*u++ = pRom[3];
 	}
 
 	// The program change message
-	*(usbBuf++) = CIN_PROGRAM_CHANGE;
-	*(usbBuf++) = 0xC0 | midiCmd_channel(pRom[0]);
-	*(usbBuf++) = pRom[1] & 0x7F;
-	*(usbBuf++) = 0; // must pad USB packets to 32b
+	*u++ = CIN_PROGRAM_CHANGE;
+	*u++ = 0xC0 | channel;
+	*u++ = pRom[1] & 0x7F;
+	*u++ = 0; // must pad USB packets to 32b
 
-	memcpy(serialBuf, (usbBuf-3), 2);
-	serialBuf += 2;
-
-	midi_uart_out_buffer_bytes_to_tx[buffer_no] = din_len(serialBuf - &midi_uart_out_buffer[buffer_no][0]);
-
-	__enable_irq();
-
-	uint8_t usb_bytes_to_tx = usbBuf - midi_usb_assembly_buffer;
-	usb_tx(midi_usb_assembly_buffer, usb_bytes_to_tx);
-
-	midi_serial_transmit();
-	return 0;
+	return send_events(usb, (uint8_t)(u - usb));
 }
