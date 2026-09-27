@@ -24,6 +24,7 @@ GENERATORS = {
     "make_fm3_template": os.path.join("templates", "FM3.csv"),
     "make_hx_stomp_template": os.path.join("templates", "HX_Stomp.csv"),
     "make_kemper_player_template": os.path.join("templates", "Kemper_Player.csv"),
+    "make_quad_cortex_template": os.path.join("templates", "Quad_Cortex.csv"),
 }
 
 

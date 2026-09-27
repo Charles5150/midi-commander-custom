@@ -6,7 +6,7 @@ La pedalera habla con un ordenador por USB y con el resto de tu equipo por su to
 
 ![Por dónde entra y sale el MIDI](../images/midi-routes-es.svg)
 
-Hay tres configuraciones listas en `python/templates/` que ponen los controles principales de un equipo bajo tus pies sin tener que configurar nada, o casi nada, en el equipo. Para usar una, ábrela con **Load CSV** en el configurador y pulsa **Flash to Device**, o desde un terminal:
+Hay cuatro configuraciones listas en `python/templates/` que ponen los controles principales de un equipo bajo tus pies sin tener que configurar nada, o casi nada, en el equipo. Para usar una, ábrela con **Load CSV** en el configurador y pulsa **Flash to Device**, o desde un terminal:
 
 ```bash
 .venv/bin/python python/CSV_to_Flash.py python/templates/FM3.csv
@@ -65,6 +65,34 @@ La HX Stomp tiene un mapa MIDI fijo, así que no hay que asignar nada: en **Glob
 | Snapshot | 69 | 0–2 snapshots 1–3, 8 siguiente, 9 anterior |
 
 Para usar otro canal, cambia `CHANNEL` al principio de `python/make_hx_stomp_template.py` y vuelve a ejecutarlo, o edita los botones en el configurador. Los presets por encima de 10C necesitan un Program Change con el número del preset, de 0 a 125.
+
+## Plantilla para Neural DSP Quad Cortex
+
+**`python/templates/Quad_Cortex.csv`** está lista para grabar y manejar un Neural DSP Quad Cortex por la salida DIN. Conecta el MIDI OUT de la pedalera al MIDI IN del Quad Cortex y alimenta la pedalera por USB.
+
+| Bancos | Botones |
+|---|---|
+| 0–29, `P000`–`P029` | Al entrar en el banco se carga el preset con el mismo número del setlist My Presets. 1 2 3 4 A B son las escenas A–F, C abre y cierra el afinador, D marca el tap tempo |
+| 30, `LOOP` | Looper X: Record / Overdub, Play / Stop, Undo / Redo, la vista del Looper X, One Shot, Half Speed, Reverse y tap |
+| 31, `FS` | Los pulsadores A–H, colocados como en el Quad Cortex: A–D en la fila de abajo, E–H en la de arriba |
+
+Bank Up / Down recorren los presets, y una pulsación larga salta diez. Los botones de escena forman un grupo exclusivo, así que el LED y la pantalla muestran la última escena elegida; pisar otra vez la que está encendida la apaga sin enviar nada. Los botones de pulsador actúan como si pisaras los del Quad Cortex, así que conmutan lo que tengan asignado en el modo en que esté, y los pedales de expresión mueven su Expression Pedal 1 y 2. El botón 4 del banco del looper abre la vista del Looper X con una pulsación y la cierra con la siguiente; One Shot, Half Speed y Reverse se encienden mientras están activos, contando desde que se abrió el looper.
+
+El Quad Cortex tiene un mapa MIDI fijo, así que no hay que asignar nada: en **Settings > Device > MIDI**, pon su MIDI Channel en 1, u OMNI. La plantilla envía, según el manual del Quad Cortex (CorOS 4.1.1):
+
+| Función | CC | Valores |
+|---|---|---|
+| Bank Select antes de cada preset | 0, 32 | 0 y 1: presets 0–127 de My Presets |
+| Expression Pedal 1, 2 | 1, 2 | los pedales |
+| Pulsadores A–H | 35–42 | 127 y 0, cada uno una pisada |
+| Escena | 43 | 0–5, escenas A–F |
+| Tap Tempo | 44 | 127, solo al pisar |
+| Afinador | 45 | 127 abre, 0 cierra |
+| Vista del Looper X | 48 | 0 abre, 127 cierra |
+| Looper X One Shot, Half Speed, Reverse | 50, 51, 55 | 127, cada uno un cambio |
+| Looper X Record / Overdub, Play / Stop, Undo / Redo | 53, 54, 56 | 127, solo al pisar |
+
+Para usar otro canal, u otro setlist, cambia `CHANNEL` o `SETLIST` al principio de `python/make_quad_cortex_template.py` y vuelve a ejecutarlo: `SETLIST` es el LSB del Bank Select, 0 para Factory Presets, 1 para My Presets y de 2 a 12 para los setlists del usuario. Las escenas G y H son el CC 43 con 6 y 7, para cualquier botón en el configurador.
 
 ## Plantilla para Kemper Profiler Player
 

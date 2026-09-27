@@ -30,6 +30,7 @@ DEMO_CSV = os.path.join(os.path.dirname(HERE), "demo-all-features.csv")
 FM3_CSV = os.path.join(os.path.dirname(HERE), "templates", "FM3.csv")
 HX_STOMP_CSV = os.path.join(os.path.dirname(HERE), "templates", "HX_Stomp.csv")
 KEMPER_PLAYER_CSV = os.path.join(os.path.dirname(HERE), "templates", "Kemper_Player.csv")
+QUAD_CORTEX_CSV = os.path.join(os.path.dirname(HERE), "templates", "Quad_Cortex.csv")
 
 
 def pack_csv(path: str) -> bytes:
@@ -2744,6 +2745,59 @@ class HxStompTemplateTest(unittest.TestCase):
         self.assertEqual(norm(self.button(31, "4")["A_OnValue_(CC/PB)"]), "8")    # next snapshot
 
     def test_expression_pedals_are_exp1_and_exp2(self):
+        values = self.globals.set_index("Label")["Value"]
+        self.assertEqual((norm(values["Exp1_CC"]), norm(values["Exp2_CC"])), ("1", "2"))
+
+
+class QuadCortexTemplateTest(unittest.TestCase):
+    """The Quad Cortex template packs and reads back as the template describes."""
+
+    @classmethod
+    def setUpClass(cls):
+        packed = packer.pack_config(read_config_csv(QUAD_CORTEX_CSV))
+        tables = unpacker.unpack_config(packed)
+        cls.globals, cls.banks, cls.buttons, cls.enter = tables[0], tables[1], tables[2], tables[5]
+
+    def button(self, bank, btn):
+        b = self.buttons
+        return b[(b["Bank_Number"].astype(str) == str(bank)) & (b["Button_Identifier"] == btn)].iloc[0]
+
+    def test_preset_banks_load_their_preset_from_my_presets(self):
+        for bank in (0, 7, 29):
+            row = self.enter[self.enter["Bank_Number"].astype(str) == str(bank)].iloc[0]
+            self.assertEqual(row["A_CommandType"], "PC")
+            self.assertEqual(norm(row["A_Number_(PC/CC/Note)"]), str(bank))
+            self.assertEqual(norm(row["A_BankSelect_(PC)"]), "1")       # CC#32 1, My Presets
+            self.assertEqual(row["A_BankSelectHighByte_(PC)"], "Y")      # CC#0 0, presets 0-127
+
+    def test_scene_buttons(self):
+        for btn, value in (("1", 0), ("4", 3), ("A", 4), ("B", 5)):
+            row = self.button(5, btn)
+            self.assertEqual(norm(row["A_Number_(PC/CC/Note)"]), "43")
+            self.assertEqual(norm(row["A_OnValue_(CC/PB)"]), str(value))
+            self.assertEqual(norm(row["A_OffValue_(CC)"]), "")   # sends nothing
+            self.assertEqual(norm(row["Group"]), "1")
+
+    def test_tuner_and_tap(self):
+        tuner = self.button(0, "C")
+        self.assertEqual(norm(tuner["A_Number_(PC/CC/Note)"]), "45")
+        self.assertEqual(tuner["A_Toggle_(CC/PB/Note)"], "Y")
+        tap = self.button(0, "D")
+        self.assertEqual(norm(tap["A_Number_(PC/CC/Note)"]), "44")
+        self.assertEqual(norm(tap["A_OffValue_(CC)"]), "")
+
+    def test_looper_bank(self):
+        self.assertEqual(norm(self.button(30, "1")["A_Number_(PC/CC/Note)"]), "53")
+        view = self.button(30, "4")                  # 0-63 opens the view, 64-127 closes it
+        self.assertEqual((norm(view["A_OnValue_(CC/PB)"]), norm(view["A_OffValue_(CC)"])), ("0", "127"))
+        rev = self.button(30, "C")                   # each 64-127 toggles reverse
+        self.assertEqual((norm(rev["A_Number_(PC/CC/Note)"]), norm(rev["A_OffValue_(CC)"])), ("55", "127"))
+
+    def test_footswitch_bank(self):
+        for btn, number in (("A", "35"), ("D", "38"), ("1", "39"), ("4", "42")):
+            self.assertEqual(norm(self.button(31, btn)["A_Number_(PC/CC/Note)"]), number)
+
+    def test_expression_pedals(self):
         values = self.globals.set_index("Label")["Value"]
         self.assertEqual((norm(values["Exp1_CC"]), norm(values["Exp2_CC"])), ("1", "2"))
 

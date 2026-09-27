@@ -95,7 +95,7 @@ En el configurador es donde se monta una configuración y se envía a la pedaler
 1. Conecta la pedalera en modo normal, no en modo DFU.
 2. Carga un punto de partida:
    - el configurador se abre con `python/demo-all-features.csv`, una configuración que usa todas las funciones, con etiquetas que dicen qué hace cada botón;
-   - o una de las [plantillas](11-devices.md) listas para un Fractal FM3, un Line 6 HX Stomp o un Kemper Player, con **Load CSV…**;
+   - o una de las [plantillas](11-devices.md) listas para un Fractal FM3, un Line 6 HX Stomp, un Neural DSP Quad Cortex o un Kemper Player, con **Load CSV…**;
    - o **Read from Device**, para partir de lo que tiene ahora la pedalera.
 3. Edítala.
 4. Pulsa **Flash to Device**.

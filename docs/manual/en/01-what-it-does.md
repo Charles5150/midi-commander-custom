@@ -110,6 +110,7 @@ Everything the firmware and its tools can do, grouped the way the manual is. Eac
 - **Two way with a Kemper.** With `Kemper_Mode` on, the pedal asks the amp about itself and follows the answers: the rig you are on written beside the bank name and the effect modules lighting the buttons that switch them, whether the module was switched with your foot, on the amp or from anywhere else; see [Two way with a Kemper](11-devices.md#two-way-with-a-kemper).
 - **Ready for the Fractal FM3.** A template that loads a preset per bank and puts scenes, tuner, tap tempo, the looper and block bypass under your feet; see [the FM3 template](11-devices.md#fractal-audio-fm3-template).
 - **Ready for the Line 6 HX Stomp.** A template with a preset per bank, snapshots, footswitches FS1–FS5, tuner, tap tempo and the looper, using the HX Stomp's own MIDI map so there is nothing to assign; see [the HX Stomp template](11-devices.md#line-6-hx-stomp-template).
+- **Ready for the Neural DSP Quad Cortex.** A template with a preset per bank, scenes, footswitches A–H, tuner, tap tempo and Looper X, using the Quad Cortex's own MIDI map so there is nothing to assign; see [the Quad Cortex template](11-devices.md#neural-dsp-quad-cortex-template).
 - **Ready for the Kemper Profiler Player.** A template with the Player's ten banks of five rigs, its effect modules and effect buttons, tuner and tap tempo, again with nothing to assign on the Player; see [the Kemper Player template](11-devices.md#kemper-profiler-player-template).
 
 ## The tools
