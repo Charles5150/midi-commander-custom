@@ -4,7 +4,7 @@
 
 Everything the configurator does can also be done from a terminal, which is handy for scripts, backups and a quick flash before a gig. Run the tools from the repository root, with the pedal connected over USB in normal mode, not DFU mode.
 
-The tools find the pedal by its USB MIDI name, `MIDI Commander Custom`, and check its firmware version before doing anything.
+The tools find the pedal by its USB MIDI name, `MIDI Commander Custom`, and check its firmware version before doing anything. With [three USB ports](11-devices.md#three-usb-ports) they use the third, `Config`, and never the DIN one.
 
 ## Choosing a configuration slot
 

@@ -6,6 +6,8 @@ GLOBAL_SETTINGS_REALTIME_PASS = 1
 GLOBAL_SETTINGS_EXP1_CC = 2
 GLOBAL_SETTINGS_EXP2_CC = 3
 GLOBAL_SETTINGS_USB_THRU = 6
+USB_THRU_ON = 0x01
+USB_THREE_PORTS = 0x02         # three USB MIDI ports (USB_Ports)
 GLOBAL_SETTINGS_REMEMBER_STATE = 7
 GLOBAL_SETTINGS_LONG_PRESS = 8
 GLOBAL_SETTINGS_LED_BRIGHTNESS = 9
@@ -97,7 +99,17 @@ def pack_global_settings(df):
 
     # USB to DIN thru: forward channel/system common/foreign SysEx (Y/N)
     if "USB_MIDI_Thru" in df.index and "Y" in str(df.loc["USB_MIDI_Thru", "Value"]).upper():
-        bin_list[GLOBAL_SETTINGS_USB_THRU] = 0x1
+        bin_list[GLOBAL_SETTINGS_USB_THRU] = USB_THRU_ON
+
+    # One USB MIDI port, or three: the pedal, the DIN output and the pedal
+    # again (firmware 1.04), in the same byte. Takes effect at the next start.
+    ports = str(df.loc["USB_Ports", "Value"]).strip() if "USB_Ports" in df.index else "1"
+    if ports in ("", "nan", "1"):
+        pass
+    elif ports == "3":
+        bin_list[GLOBAL_SETTINGS_USB_THRU] |= USB_THREE_PORTS
+    else:
+        raise ValueError(f"USB_Ports must be 1 or 3, not {ports!r}")
 
     # Restore last bank and toggle states at power on (Y/N)
     if "Remember_State" in df.index and "Y" in str(df.loc["Remember_State", "Value"]).upper():

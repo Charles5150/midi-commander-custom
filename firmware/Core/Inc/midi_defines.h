@@ -319,7 +319,9 @@
 #define GLOBAL_SETTINGS_EXP2_CC (3)
 #define GLOBAL_SETTINGS_BANK_UP_LED (4)
 #define GLOBAL_SETTINGS_BANK_DOWN_LED (5)
-#define GLOBAL_SETTINGS_USB_THRU (6)		// Forward channel, system common and foreign SysEx from USB to DIN
+#define GLOBAL_SETTINGS_USB_THRU (6)		// bits: USB_THRU_ON, USB_THREE_PORTS; 0xFF = none
+#define USB_THRU_ON		(0x01)	// forward channel, system common and foreign SysEx from USB to DIN
+#define USB_THREE_PORTS		(0x02)	// the pedal shows up as three USB MIDI ports (USB_Ports), from the next start
 #define GLOBAL_SETTINGS_REMEMBER_STATE (7)	// Restore last bank and toggle states at power on
 #define GLOBAL_SETTINGS_LONG_PRESS (8)		// Long press threshold in 10 ms units (0/0xFF = 500 ms)
 #define GLOBAL_SETTINGS_LED_BRIGHTNESS (9)		// Lit LED brightness in percent (0xFF = 100)

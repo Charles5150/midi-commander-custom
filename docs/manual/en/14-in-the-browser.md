@@ -12,7 +12,7 @@ It needs a browser with Web MIDI and WebUSB: **Chrome**, **Edge** or **Opera**, 
 
 Click **Connect the pedal**. The browser asks once whether the page may use MIDI devices, with SysEx: allow it. The header then shows the firmware and the slot the pedal is running. The page finds the pedal again by itself after it restarts.
 
-Close the desktop configurator and any other program using the pedal first: on Windows a MIDI port can only be open in one program at a time.
+Close the desktop configurator and any other program using the pedal first: on Windows a MIDI port can only be open in one program at a time. Or give the pedal [three USB ports](11-devices.md#three-usb-ports): the page then uses the third, and a DAW can keep the first.
 
 ## Without a pedal
 

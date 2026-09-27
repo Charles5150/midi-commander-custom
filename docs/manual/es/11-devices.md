@@ -130,6 +130,27 @@ kemper> dly
 Todavía no se ha probado con un Kemper de verdad. Los números que usa —el `00 20 33` del fabricante, las funciones, las páginas de módulos y la baliza— son los de la documentación MIDI del Profiler y los de los controladores abiertos que hablan con él, y un test compara la lista del firmware con la de las herramientas, así que si algún ampli no está de acuerdo, el arreglo estará en esa tabla de números y en ningún otro sitio.
 
 
+## Tres puertos USB
+
+Con `USB_Ports` a 3 la pedalera aparece en el ordenador como tres puertos MIDI USB en vez de uno:
+
+| Puerto | Nombre en macOS | Qué es |
+|---|---|---|
+| 1 | `MIDI Commander Custom Pedal` | La pedalera, como con un puerto. |
+| 2 | `MIDI Commander Custom DIN` | Directo a la toma MIDI OUT. |
+| 3 | `MIDI Commander Custom Config` | Otra vez la pedalera, para un segundo programa. |
+
+**El puerto 2** convierte la pedalera en una interfaz MIDI USB para el equipo de su salida DIN. Lo que un programa manda ahí sale por la toma MIDI OUT tal como llegó, reloj y SysEx incluidos, y la pedalera no lo ve: no cambia de banco, no pisa pulsadores ni sigue ese reloj, y no se aplican `USB_MIDI_Thru`, `RealTime_Passthrough` ni el mapa MIDI. Así una DAW puede tocar el sinte que hay detrás de la pedalera por el puerto 2 y hablar con la pedalera por el puerto 1, cada cosa por su lado. Por el puerto 2 no vuelve nada, porque la pedalera no tiene toma MIDI IN.
+
+**El puerto 3** es la misma pedalera que el puerto 1: lo que manda la pedalera sale por los dos, y escucha a los dos por igual. Un configurador recibe las respuestas por el puerto por el que preguntó. Está para un segundo programa: en Windows un puerto solo lo puede abrir un programa a la vez, así que mientras una DAW tiene el puerto 1, el configurador, la [página del navegador](14-in-the-browser.md) o las [herramientas de línea de comandos](13-command-line-tools.md) usan el 3. Las herramientas lo eligen solas cuando está, y nunca el puerto 2. Deja el puerto 3 desactivado en la DAW, o lo oirá todo dos veces.
+
+Los puertos cambian la próxima vez que arranca la pedalera; flashear una configuración la reinicia. Una DAW configurada con un puerto necesita que vuelvas a elegírselo, porque cambian los nombres, y por eso un puerto sigue siendo lo normal. Con tres puertos la pedalera da además un número de serie USB propio, para que macOS y Windows la configuren como un aparato nuevo en vez de quedarse con el único puerto que recuerdan; la entrada de un puerto se queda en Configuración de Audio MIDI, desconectada, para cuando vuelvas. Cambiar de configuración en la pedalera (`NextConfig`) mantiene los puertos con los que arrancó.
+
+Windows numera los puertos en vez de nombrarlos, `MIDIOUT2 (MIDI Commander Custom)` y así, y los núcleos de Linux antiguos los llaman `MIDI 1` a `MIDI 3`; las herramientas también conocen esos nombres, pero los tres puertos solo se han probado en macOS por ahora.
+
+Necesita el firmware 1.04 (el bit 1 del byte global 6, junto a `USB_MIDI_Thru` en el bit 0).
+
+
 ## Traducir lo que llega
 
 Un DAW, un secuenciador o un teclado conectados por USB rara vez hablan el idioma del pedal antiguo que cuelga del cable DIN: el DAW cambia de escena con un Program Change y el delay quiere dos CC; la rueda de modulación del teclado es el CC 1, y el volumen del ampli el CC 11 y al revés. El **mapa MIDI** pone la pedalera en medio y traduce.

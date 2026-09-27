@@ -12,7 +12,7 @@ Hace falta un navegador con Web MIDI y WebUSB: **Chrome**, **Edge** u **Opera**,
 
 Pulsa **Connect the pedal**. El navegador pregunta una vez si la página puede usar dispositivos MIDI, con SysEx: acéptalo. La cabecera muestra entonces el firmware y el slot que tiene en marcha la pedalera. Cuando la pedalera se reinicia, la página vuelve a encontrarla sola.
 
-Cierra antes el configurador de escritorio y cualquier otro programa que use la pedalera: en Windows un puerto MIDI solo puede estar abierto en un programa a la vez.
+Cierra antes el configurador de escritorio y cualquier otro programa que use la pedalera: en Windows un puerto MIDI solo puede estar abierto en un programa a la vez. O dale a la pedalera [tres puertos USB](11-devices.md#tres-puertos-usb): la página usa entonces el tercero, y una DAW puede quedarse con el primero.
 
 ## Sin pedalera
 

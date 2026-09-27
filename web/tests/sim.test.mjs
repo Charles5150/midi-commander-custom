@@ -9,7 +9,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { Simulator, toUsbEvents, MidiParser } from "../sim.js";
-import { Pedal } from "../pedal.js";
+import { Pedal, portKind } from "../pedal.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const module = new WebAssembly.Module(fs.readFileSync(path.join(root, "web/pedal-sim.wasm")));
@@ -384,4 +384,51 @@ test("with Setlist_Display, the info line shows the place in the setlist and the
   tap(sim, 9);                              // round to HOME, then to a bank not in the list
   tap(sim, 0);
   assert.ok(infoLineIs(sim, "looper"), "a bank off the setlist keeps its own info");
+});
+
+test("with USB_Ports at 3, cable 1 goes straight to DIN and the pedal answers on the cable asked", async () => {
+  const flash = await flashWith(packDemo("g = d['Global_Settings']\ng.loc[g.Label == 'USB_Ports', 'Value'] = '3'"));
+  const sim = simWithDemo(flash);
+  const pedal = await Pedal.open(sim.access);
+  const seen = watch(sim);
+  const events = [];
+  sim.onUsbEvents = (data) => { for (let i = 0; i < data.length; i += 4) events.push(data.slice(i, i + 4)); };
+  const bank = (await pedal.getState()).bank;
+  events.length = 0;
+
+  // On cable 1 the demo's Bank_Change_CC, a remote press and a SysEx for the
+  // device behind: all on DIN as they came, none of it seen by the pedal
+  sim.usbEvents([0x1b, 0xb0, 32, 7, 0x1b, 0xbf, 102, 127, 0x14, 0xf0, 0x00, 0x20, 0x17, 0x33, 0x01, 0xf7, 0x1b, 0xbf, 102, 0]);
+  sim.run(300);
+  assert.deepEqual(seen.filter((m) => m.startsWith("DIN")), ["DIN b0 20 07", "DIN bf 66 7f", "DIN f0 00 20 33 01 f7", "DIN bf 66 00"]);
+  assert.deepEqual(events, [], "nothing back on USB");
+  assert.equal((await pedal.getState()).bank, bank);
+  events.length = 0;
+
+  // GET_VERSION on cables 2 and 0 at once, their halves interleaved
+  sim.usbEvents([0x24, 0xf0, 0x7d, 0x3a, 0x04, 0xf0, 0x7d, 0x3a, 0x25, 0xf7, 0, 0, 0x05, 0xf7, 0, 0]);
+  sim.run(10);
+  await null;
+  const answers = events.filter((e) => e[1] === 0xf0 && e[3] === 0x3b).map((e) => e[0] >> 4);
+  assert.deepEqual(answers, [2, 0]);
+  events.length = 0;
+
+  // What the pedal sends goes out on cables 0 and 2 alike
+  sim.usbIn([0xb0, 32, 12]);               // bank 12 sends its enter list
+  sim.run(300);
+  await null;
+  const on = (cable) => events.filter((e) => e[0] >> 4 === cable).map((e) => [e[0] & 15, ...e.slice(1)]);
+  assert.ok(on(0).length > 0);
+  assert.deepEqual(on(2), on(0));
+  assert.deepEqual(on(1), []);
+});
+
+test("the tools know the three ports by name on macOS, Windows and Linux", () => {
+  const kinds = (names) => names.map(portKind);
+  assert.deepEqual(kinds(["MIDI Commander Custom", "MIDI Commander Custom Pedal", "MIDI Commander Custom DIN", "MIDI Commander Custom Config"]),
+    ["pedal", "pedal", "din", "config"]);
+  assert.deepEqual(kinds(["MIDI Commander Custom", "MIDIOUT2 (MIDI Commander Custom)", "MIDIIN3 (MIDI Commander Custom)"]),
+    ["pedal", "din", "config"]);
+  assert.deepEqual(kinds(["MIDI Commander Custom:MIDI Commander Custom MIDI 1 20:0", "MIDI Commander Custom:MIDI Commander Custom MIDI 2 20:1",
+    "MIDI Commander Custom:MIDI Commander Custom MIDI 3 20:2"]), ["pedal", "din", "config"]);
 });

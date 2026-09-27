@@ -68,6 +68,9 @@
 #define USBD_MAX_NUM_CONFIGURATION     1
 /*---------- -----------*/
 #define USBD_MAX_STR_DESC_SIZ     512
+
+/* The names of the three MIDI ports */
+#define USBD_SUPPORT_USER_STRING_DESC     1U
 /*---------- -----------*/
 #define USBD_DEBUG_LEVEL     0
 /*---------- -----------*/

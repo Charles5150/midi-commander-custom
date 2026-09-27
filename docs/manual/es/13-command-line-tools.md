@@ -4,7 +4,7 @@
 
 Todo lo que hace el configurador se puede hacer también desde un terminal, que viene bien para scripts, copias de seguridad y un flasheo rápido antes de un bolo. Ejecuta las herramientas desde la raíz del repositorio, con la pedalera conectada por USB en modo normal, no en modo DFU.
 
-Las herramientas encuentran la pedalera por su nombre MIDI USB, `MIDI Commander Custom`, y comprueban la versión de su firmware antes de hacer nada.
+Las herramientas encuentran la pedalera por su nombre MIDI USB, `MIDI Commander Custom`, y comprueban la versión de su firmware antes de hacer nada. Con [tres puertos USB](11-devices.md#tres-puertos-usb) usan el tercero, `Config`, y nunca el del DIN.
 
 ## Elegir una ranura de configuración
 

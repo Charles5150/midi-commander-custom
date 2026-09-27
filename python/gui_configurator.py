@@ -1312,6 +1312,7 @@ class MidiCommanderGUI(ctk.CTk):
                 ("Bank_Up_LED_Mode", "Normal"),
                 ("Bank_Down_LED_Mode", "Normal"),
                 ("USB_MIDI_Thru", "N"),
+                ("USB_Ports", "1"),
                 ("Remember_State", "N"),
                 ("Long_Press_ms", "500"),
                 ("LED_Brightness", "100"),

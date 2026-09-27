@@ -28,6 +28,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include "usbd_midi_if.h"
+#include "usbd_composite_midi_hid.h"
 #include "midi_defines.h"
 #include "midi_cmds.h"
 #include "switch_router.h"
@@ -202,6 +203,10 @@ int main(void)
   leds_init();
   sw_init();
   sw_led_init();
+
+  // One MIDI port or three, as this configuration says, until the next start
+  usb_ports_latch();
+  usb_composite_ports(usb_ports);
 
   boot_wait(1000);
   HAL_GPIO_WritePin(USB_ID_GPIO_Port, USB_ID_Pin, GPIO_PIN_SET);

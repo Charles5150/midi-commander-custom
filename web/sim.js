@@ -248,7 +248,11 @@ export class Simulator {
   }
 
   usbIn(bytes) {
-    const events = toUsbEvents(bytes);
+    this.usbEvents(toUsbEvents(bytes));
+  }
+
+  // USB MIDI events as they are, any cable: for tests of the three ports
+  usbEvents(events) {
     const e = this.e;
     for (let i = 0; i < events.length; i += 64) {
       const part = events.slice(i, i + 64);
@@ -280,7 +284,9 @@ export class Simulator {
 
   // USB MIDI events to whole messages, as Web MIDI hands them over
   _usbOut(data) {
+    if (this.onUsbEvents) this.onUsbEvents(Array.from(data));
     for (let i = 0; i + 4 <= data.length; i += 4) {
+      if (data[i] >> 4) continue;     // the simulated port is the first
       const cin = data[i] & 0x0f;
       const bytes = Array.from(data.subarray(i + 1, i + 1 + CIN_LENGTH[cin]));
       if (cin === 0x4 || (cin >= 0x5 && cin <= 0x7 && (this.sysex || bytes[0] === 0xf0))) {

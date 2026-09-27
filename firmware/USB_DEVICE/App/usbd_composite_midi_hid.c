@@ -26,6 +26,8 @@ static uint8_t  *USBD_Composite_GetCfgDesc (uint16_t *length);
 
 static uint8_t  *USBD_Composite_GetDeviceQualifierDesc (uint16_t *length);
 
+static uint8_t  *USBD_Composite_GetUsrStrDescriptor (USBD_HandleTypeDef *pdev, uint8_t index, uint16_t *length);
+
 USBD_ClassTypeDef  USBD_COMPOSITE_MIDI_HID =
 {
   USBD_Composite_Init,
@@ -42,7 +44,17 @@ USBD_ClassTypeDef  USBD_COMPOSITE_MIDI_HID =
   USBD_Composite_GetCfgDesc,
   USBD_Composite_GetCfgDesc,
   USBD_Composite_GetDeviceQualifierDesc,
+  USBD_Composite_GetUsrStrDescriptor,
 };
+
+/* The HID keyboard, interface 2, 25 bytes: the same in both descriptors */
+#define HID_INTERFACE_DESC \
+  /* Interface 2: HID, one endpoint, no boot protocol (reports carry IDs) */ \
+  0x09, USB_DESC_TYPE_INTERFACE, 0x02, 0x00, 0x01, 0x03, 0x00, 0x00, 0, \
+  /* HID descriptor 1.11, one report descriptor */ \
+  0x09, HID_DESCRIPTOR_TYPE, 0x11, 0x01, 0x00, 0x01, 0x22, HID_KEYBOARD_REPORT_DESC_SIZE, 0x00, \
+  /* Interrupt IN endpoint, polled every 10 ms */ \
+  0x07, USB_DESC_TYPE_ENDPOINT, HID_EPIN_ADDR, 0x03, HID_EPIN_SIZE, 0x00, 0x0A
 
 /* USB Composite Configuration Descriptor */
 #define USB_COMPOSITE_CONFIG_DESC_SIZ (126)
@@ -77,40 +89,63 @@ __ALIGN_BEGIN static uint8_t USBD_Composite_CfgDesc[USB_COMPOSITE_CONFIG_DESC_SI
   0x09, 0x05, MIDI_IN_EP, 0x02, 0x40, 0x00, 0x00, 0x00, 0x00,
   0x05, 0x25, 0x01, 0x01, 0x03,
   
-  /* --- HID Descriptor (25 bytes) --- */
-  /* Interface 2 */
-  0x09,         /*bLength: Interface Descriptor size*/
-  USB_DESC_TYPE_INTERFACE,/*bDescriptorType: Interface descriptor type*/
-  0x02,         /*bInterfaceNumber: Number of Interface*/ /* CHANGED TO 0x02 */
-  0x00,         /*bAlternateSetting: Alternate setting*/
-  0x01,         /*bNumEndpoints*/
-  0x03,         /*bInterfaceClass: HID*/
-  0x00,         /*bInterfaceSubClass : 0=no boot (reports carry IDs)*/
-  0x00,         /*nInterfaceProtocol : 0=none*/
-  0,            /*iInterface: Index of string descriptor*/
-
-  /******************** Descriptor of Joystick Mouse HID ********************/
-  /* 18 */
-  0x09,         /*bLength: HID Descriptor size*/
-  HID_DESCRIPTOR_TYPE, /*bDescriptorType: HID*/
-  0x11,         /*bcdHID: HID Class Spec release number*/
-  0x01,
-  0x00,         /*bCountryCode: Hardware target country*/
-  0x01,         /*bNumDescriptors: Number of HID class descriptors to follow*/
-  0x22,         /*bDescriptorType*/
-  HID_KEYBOARD_REPORT_DESC_SIZE,/*wItemLength: Total length of Report descriptor*/
-  0x00,
-  /******************** Descriptor of Mouse endpoint ********************/
-  /* 27 */
-  0x07,          /*bLength: Endpoint Descriptor size*/
-  USB_DESC_TYPE_ENDPOINT, /*bDescriptorType:*/
-
-  HID_EPIN_ADDR,     /*bEndpointAddress: Endpoint Address (IN)*/
-  0x03,          /*bmAttributes: Interrupt endpoint*/
-  HID_EPIN_SIZE, /*wMaxPacketSize: 4 Byte max */
-  0x00,
-  0x0A,          /*bInterval: Polling Interval (10 ms)*/
+  HID_INTERFACE_DESC
 };
+
+/*
+ * Three MIDI ports (USB_Ports): 1 the pedal, 2 the DIN output, 3 the pedal
+ * again, so a second program can have it while the first holds port 1 (on
+ * Windows only one program opens a port). Each port is a cable: an embedded
+ * and an external jack each way, the embedded ones named by a string.
+ */
+#define USB_COMPOSITE3_CONFIG_DESC_SIZ (190)
+#define MIDI_PORT_STR(c)	(0x10 + (c))
+#define MIDI_PORT_JACKS(c) \
+  0x06, 0x24, 0x02, 0x01, 4 * (c) + 1, MIDI_PORT_STR(c),                   /* IN jack, embedded */ \
+  0x06, 0x24, 0x02, 0x02, 4 * (c) + 2, 0x00,                               /* IN jack, external */ \
+  0x09, 0x24, 0x03, 0x01, 4 * (c) + 3, 0x01, 4 * (c) + 2, 0x01, MIDI_PORT_STR(c), /* OUT jack, embedded */ \
+  0x09, 0x24, 0x03, 0x02, 4 * (c) + 4, 0x01, 4 * (c) + 1, 0x01, 0x00       /* OUT jack, external */
+
+__ALIGN_BEGIN static uint8_t USBD_Composite3_CfgDesc[USB_COMPOSITE3_CONFIG_DESC_SIZ]  __ALIGN_END =
+{
+  0x09, 0x02, LOBYTE(USB_COMPOSITE3_CONFIG_DESC_SIZ), HIBYTE(USB_COMPOSITE3_CONFIG_DESC_SIZ), 0x03, 0x01, 0x00, 0x80, 0x31,
+
+  0x09, 0x04, 0x00, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00, // Standard AC Interface Descriptor
+  0x09, 0x24, 0x01, 0x00, 0x01, 0x09, 0x00, 0x01, 0x01, // Class-specific AC Interface Descriptor
+
+  0x09, 0x04, 0x01, 0x00, 0x02, 0x01, 0x03, 0x00, 0x00, // MIDIStreaming Interface Descriptors
+  0x07, 0x24, 0x01, 0x00, 0x01, 0x81, 0x00,             // MS Header, 129 bytes to the end of the endpoints
+
+  MIDI_PORT_JACKS(0),
+  MIDI_PORT_JACKS(1),
+  MIDI_PORT_JACKS(2),
+
+  // OUT endpoint: cables 0, 1, 2 are embedded IN jacks 1, 5, 9
+  0x09, 0x05, MIDI_OUT_EP, 0x02, 0x40, 0x00, 0x00, 0x00, 0x00,
+  0x07, 0x25, 0x01, 0x03, 0x01, 0x05, 0x09,
+
+  // IN endpoint: cables 0, 1, 2 are embedded OUT jacks 3, 7, 11
+  0x09, 0x05, MIDI_IN_EP, 0x02, 0x40, 0x00, 0x00, 0x00, 0x00,
+  0x07, 0x25, 0x01, 0x03, 0x03, 0x07, 0x0B,
+
+  HID_INTERFACE_DESC
+};
+
+static uint8_t *cfg_desc = USBD_Composite_CfgDesc;
+static uint16_t cfg_desc_len = sizeof(USBD_Composite_CfgDesc);
+
+extern uint8_t USBD_FS_DeviceDesc[];
+extern uint8_t USBD_StrDesc[];
+
+// Before USB starts. Another device release too, so Windows does not reuse
+// what it remembers of the other layout.
+void usb_composite_ports(uint8_t ports){
+  if(ports == 3){
+    cfg_desc = USBD_Composite3_CfgDesc;
+    cfg_desc_len = sizeof(USBD_Composite3_CfgDesc);
+    USBD_FS_DeviceDesc[12] = 0x30;	// bcdDevice 2.30
+  }
+}
 
 /* USB Device Qualifier Descriptor */
 __ALIGN_BEGIN static uint8_t USBD_Composite_DeviceQualifierDesc[USB_LEN_DEV_QUALIFIER_DESC]  __ALIGN_END =
@@ -190,12 +225,25 @@ static uint8_t  USBD_Composite_DataOut (USBD_HandleTypeDef *pdev, uint8_t epnum)
 
 static uint8_t  *USBD_Composite_GetCfgDesc (uint16_t *length)
 {
-  *length = sizeof (USBD_Composite_CfgDesc);
-  return USBD_Composite_CfgDesc;
+  *length = cfg_desc_len;
+  return cfg_desc;
 }
 
 static uint8_t  *USBD_Composite_GetDeviceQualifierDesc (uint16_t *length)
 {
   *length = sizeof (USBD_Composite_DeviceQualifierDesc);
   return USBD_Composite_DeviceQualifierDesc;
+}
+
+// The port names, for the jacks of the three port layout
+static uint8_t  *USBD_Composite_GetUsrStrDescriptor (USBD_HandleTypeDef *pdev, uint8_t index, uint16_t *length)
+{
+  static const char *const names[] = {"Pedal", "DIN", "Config"};
+  if(index < MIDI_PORT_STR(0) || index > MIDI_PORT_STR(2)){
+    USBD_CtlError(pdev, NULL);	// as for any string it does not have
+    *length = 0;
+    return NULL;
+  }
+  USBD_GetString((uint8_t *)names[index - MIDI_PORT_STR(0)], USBD_StrDesc, length);
+  return USBD_StrDesc;
 }

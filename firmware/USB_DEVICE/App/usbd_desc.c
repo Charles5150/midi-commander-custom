@@ -287,7 +287,9 @@ uint8_t * USBD_FS_SerialStrDescriptor(USBD_SpeedTypeDef speed, uint16_t *length)
    * ID */
   Get_SerialNum();
   /* USER CODE BEGIN USBD_FS_SerialStrDescriptor */
-
+  // Three MIDI ports (bcdDevice 2.30): a serial of its own, not a hex digit,
+  // or macOS and Windows keep the one port they remember for this one
+  if(USBD_FS_DeviceDesc[12] == 0x30) USBD_StringSerial[USB_SIZ_STRING_SERIAL - 2] = 'P';
   /* USER CODE END USBD_FS_SerialStrDescriptor */
   return (uint8_t *) USBD_StringSerial;
 }

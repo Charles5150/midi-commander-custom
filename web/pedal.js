@@ -30,6 +30,20 @@ export class NotFound extends Error {}
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const matches = (port) => /STM|MIDI Commander/.test(port.name || "");
+// With USB_Ports at 3 the pedal is three ports: 1 the pedal, 2 its DIN output,
+// 3 the pedal again. Named by the pedal on macOS and Linux, numbered by Windows
+// ("MIDIOUT2 (MIDI Commander Custom)"), as in lib/midiDevice.py.
+export function portKind(name) {
+  if (/\bDIN\b|^MIDI(IN|OUT)2 \(|\bMIDI 2 \d+:\d+$/.test(name)) return "din";
+  if (/\bConfig\b|^MIDI(IN|OUT)3 \(|\bMIDI 3 \d+:\d+$/.test(name)) return "config";
+  return "pedal";
+}
+// The port meant for the tools first; never the DIN one, whose SysEx would go
+// out to whatever is plugged in there
+const pedalPort = (ports) => {
+  const found = [...ports.values()].filter((p) => matches(p) && portKind(p.name) !== "din");
+  return found.find((p) => portKind(p.name) === "config") || found[0];
+};
 
 export function versionAtLeast(version, major, minor) {
   const parts = String(version).trim().split(".").slice(0, 2).map(Number);
@@ -87,8 +101,8 @@ export class Pedal {
       if (!navigator.requestMIDIAccess) throw new NotFound("this browser has no Web MIDI: use Chrome, Edge or Opera");
       access = await navigator.requestMIDIAccess({ sysex: true });
     }
-    const input = [...access.inputs.values()].find(matches);
-    const output = [...access.outputs.values()].find(matches);
+    const input = pedalPort(access.inputs);
+    const output = pedalPort(access.outputs);
     if (!input || !output) throw new NotFound("no Midi Commander found: check the USB cable, and close other programs using it");
     await input.open();
     await output.open();

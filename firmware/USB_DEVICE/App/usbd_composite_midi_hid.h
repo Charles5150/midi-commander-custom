@@ -20,6 +20,9 @@
 extern USBD_ClassTypeDef  USBD_COMPOSITE_MIDI_HID;
 #define USBD_COMPOSITE_MIDI_HID_CLASS    &USBD_COMPOSITE_MIDI_HID
 
+// 1 or 3 MIDI ports, before USB starts
+void usb_composite_ports(uint8_t ports);
+
 #ifdef __cplusplus
 }
 #endif

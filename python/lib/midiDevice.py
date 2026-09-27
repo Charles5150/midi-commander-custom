@@ -2,6 +2,8 @@
 
 import time
 
+import re
+
 import mido
 
 from lib.displayText import display_text
@@ -187,10 +189,31 @@ def _matches(name: str) -> bool:
     return "STM" in name or "MIDI Commander" in name
 
 
+# With USB_Ports at 3 the pedal is three ports: 1 the pedal, 2 its DIN output,
+# 3 the pedal again. Named by the pedal on macOS and Linux, numbered by Windows
+# ("MIDIOUT2 (MIDI Commander Custom)") and older Linux ("... MIDI 2 20:1").
+_DIN_PORT = re.compile(r"\bDIN\b|^MIDI(IN|OUT)2 \(|\bMIDI 2 \d+:\d+$")
+_CONFIG_PORT = re.compile(r"\bConfig\b|^MIDI(IN|OUT)3 \(|\bMIDI 3 \d+:\d+$")
+
+
+def port_kind(name: str) -> str:
+    """'din', 'config' or 'pedal', for a port that _matches."""
+    if _DIN_PORT.search(name):
+        return "din"
+    if _CONFIG_PORT.search(name):
+        return "config"
+    return "pedal"
+
+
+def _pedal_ports(names):
+    """The ports that reach the pedal, the one meant for the tools first: SysEx
+    sent to the DIN port would go out to whatever is plugged in there."""
+    found = [n for n in names if _matches(n) and port_kind(n) != "din"]
+    return sorted(found, key=lambda n: port_kind(n) != "config")
+
+
 def find_port_names():
-    inputs = [n for n in mido.get_input_names() if _matches(n)]
-    outputs = [n for n in mido.get_output_names() if _matches(n)]
-    return inputs, outputs
+    return _pedal_ports(mido.get_input_names()), _pedal_ports(mido.get_output_names())
 
 
 class MidiCommander:

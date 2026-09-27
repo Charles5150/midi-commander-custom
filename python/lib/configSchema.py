@@ -109,6 +109,7 @@ GLOBAL_GROUPS = [
     ("USB MIDI", [
         ("USB_MIDI_Thru", "USB to DIN thru", "forward notes, CC, PC and other devices' SysEx"),
         ("RealTime_Passthrough", "Clock and transport thru", "forward Clock, Start, Continue and Stop"),
+        ("USB_Ports", "USB MIDI ports", "3 = the pedal, the DIN output, and the pedal again for a second program; from the next start"),
         ("Clock_Follow", "Follow the host's clock", "adopt the tempo of MIDI clock from USB"),
         ("Beat_Counter", "Bar and beat on the display", "beats in a bar, shown while a clock runs; Off = not shown"),
         ("Remote_Mode", "Press from the computer", "CC or notes from USB press the switches"),
@@ -146,6 +147,7 @@ GLOBAL_FIELDS = {
     "Long_Press_ms": _int(100, 2500),
     "Double_Press_ms": _int(100, 1000),
     "Combo_ms": _int(20, 250),
+    "USB_Ports": _choice(["1", "3"]),
     "Beat_Counter": _choice(["Off"] + [str(n) for n in range(1, 16)]),
     "Boot_Banner": _choice(["Off", "Slow", "Normal", "Fast"]),
     "LED_Brightness": _int(1, 100),

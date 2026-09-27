@@ -252,6 +252,7 @@ EXPORT(sim_boot) void sim_boot(uint32_t reset_flags){
 	if((have_state || boot_restarted) && saved_slot != 0 && flash_settings_slot_valid(saved_slot)){
 		flash_settings_select(saved_slot);
 	}
+	usb_ports_latch();
 	display_setConfigName();
 	leds_init();
 	sw_init();

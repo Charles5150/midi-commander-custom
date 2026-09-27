@@ -726,6 +726,7 @@ def global_settings() -> pd.DataFrame:
                 ("Bank_Up_LED_Mode", "Normal"),
                 ("Bank_Down_LED_Mode", "Normal"),
                 ("USB_MIDI_Thru", "Y"),
+                ("USB_Ports", "1"),
                 ("Remember_State", "Y"),
                 ("Long_Press_ms", "500"),
                 ("LED_Brightness", "100"),

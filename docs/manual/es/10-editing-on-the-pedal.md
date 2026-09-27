@@ -66,6 +66,7 @@ Un comando de cualquier otro tipo se muestra por su nombre y se deja exactamente
 | `LEDFEEDB` | LED que siguen al ordenador (`LED_Feedback`) |
 | `LINKTOGL` | toggles enlazados (`Link_Toggles`) |
 | `USB THRU`, `RT THRU` | los dos thru (`USB_MIDI_Thru`, `RealTime_Passthrough`) |
+| `3 PORTS` | tres puertos MIDI USB (`USB_Ports`), desde el próximo arranque |
 | `KEMPER` | modo Kemper (`Kemper_Mode`) |
 | `EXP1 CC`, `EXP2 CC` | los números de CC de los pedales de expresión (`Exp1_CC`, `Exp2_CC`), 1–127 |
 | `EXP1SEND`, `EXP2SEND` | cada pedal envía su posición al entrar en un banco (`Send_On_Bank`) |

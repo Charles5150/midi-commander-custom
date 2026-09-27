@@ -1613,6 +1613,53 @@ class SendOnBankTest(unittest.TestCase):
         self.assertIn("#define EXP_SEND_ON_BANK(pedal)	(0x04U << (pedal))", text)
 
 
+class UsbPortsTest(unittest.TestCase):
+    """USB_Ports, bit 1 of global byte 6 beside USB_MIDI_Thru in bit 0: the
+    pedal as three USB MIDI ports (firmware 1.04)."""
+
+    def pack_with(self, ports, thru="Y"):
+        sections = read_config_csv(DEMO_CSV)
+        g = sections["Global_Settings"]
+        g.loc[g["Label"] == "USB_Ports", "Value"] = ports
+        g.loc[g["Label"] == "USB_MIDI_Thru", "Value"] = thru
+        return packer.pack_config(sections)
+
+    def test_round_trip_beside_the_thru(self):
+        for ports, thru, byte in (("1", "Y", 1), ("3", "Y", 3), ("3", "N", 2), ("1", "N", 0), ("", "N", 0)):
+            packed = self.pack_with(ports, thru)
+            self.assertEqual(packed[6], byte, (ports, thru))
+            back = unpacker.unpack_config(packed)[0].set_index("Label")["Value"]
+            self.assertEqual((back["USB_Ports"], back["USB_MIDI_Thru"]), (ports or "1", thru))
+
+    def test_bad_values_and_erased_byte(self):
+        for text in ("2", "4", "three"):
+            with self.assertRaises(ValueError, msg=text):
+                self.pack_with(text)
+        packed = bytearray(self.pack_with("3"))
+        packed[6] = 0xFF
+        back = unpacker.unpack_config(bytes(packed))[0].set_index("Label")["Value"]
+        self.assertEqual((back["USB_Ports"], back["USB_MIDI_Thru"]), ("1", "N"))
+
+    def test_bits_match_firmware(self):
+        from lib import settingsBinaryPacker as sbp
+        text = open(os.path.join(FIRMWARE, "Core", "Inc", "midi_defines.h")).read()
+        self.assertIn("#define USB_THRU_ON		(0x%02X)" % sbp.USB_THRU_ON, text)
+        self.assertIn("#define USB_THREE_PORTS		(0x%02X)" % sbp.USB_THREE_PORTS, text)
+
+    def test_tools_pick_the_config_port_never_din(self):
+        from lib import midiDevice as md
+        mac = ["IAC Driver Bus 1", "MIDI Commander Custom Pedal", "MIDI Commander Custom DIN",
+               "MIDI Commander Custom Config"]
+        self.assertEqual(md._pedal_ports(mac), ["MIDI Commander Custom Config", "MIDI Commander Custom Pedal"])
+        windows = ["MIDI Commander Custom", "MIDIOUT2 (MIDI Commander Custom)", "MIDIOUT3 (MIDI Commander Custom)"]
+        self.assertEqual(md._pedal_ports(windows), ["MIDIOUT3 (MIDI Commander Custom)", "MIDI Commander Custom"])
+        linux = ["MIDI Commander Custom:MIDI Commander Custom MIDI 1 20:0",
+                 "MIDI Commander Custom:MIDI Commander Custom MIDI 2 20:1",
+                 "MIDI Commander Custom:MIDI Commander Custom MIDI 3 20:2"]
+        self.assertEqual(md._pedal_ports(linux), [linux[2], linux[0]])
+        self.assertEqual(md._pedal_ports(["MIDI Commander Custom"]), ["MIDI Commander Custom"])
+
+
 class BeatCounterTest(unittest.TestCase):
     """Beat_Counter, bits 4-7 of global byte 35: bar.beat on the display in
     bars of that many beats, 0 = off (firmware 0.88)."""

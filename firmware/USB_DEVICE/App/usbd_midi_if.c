@@ -52,14 +52,21 @@ void abort_sysex_message(void){
 }
 
 /*
- * The assembly buffer is shared by the main loop (stored SysEx, MMC, Kemper)
- * and the answers the USB interrupt sends, so it is filled and queued with
- * interrupts masked: an answer landing halfway would corrupt what goes out.
+ * With three ports (USB_Ports) the pedal is on cables 0 and 2 alike: what it
+ * sends goes out on both, and an answer goes back on the cable its question
+ * came in on. Cable 1 is the DIN output's own.
  */
-void sysex_send_message(uint8_t* buffer, uint8_t length){
-	uint32_t primask = __get_PRIMASK();
-	__disable_irq();
-	uint8_t *buff_ptr = buffer;
+uint8_t usb_ports = 1;
+static uint8_t reply_cable = 0;		// the cable number in the high nibble
+
+void usb_ports_latch(void){
+	uint8_t v = pGlobalSettings[GLOBAL_SETTINGS_USB_THRU];
+	usb_ports = (v != 0xFF && (v & USB_THREE_PORTS)) ? 3 : 1;
+}
+
+// A SysEx message as USB MIDI events on cable 0, in the assembly buffer
+static uint16_t sysex_pack(const uint8_t* buffer, uint8_t length){
+	const uint8_t *buff_ptr = buffer;
 	uint8_t *assembly_ptr = sysex_tx_assembly_buffer;
 
 	while(buff_ptr < length + buffer){
@@ -90,8 +97,27 @@ void sysex_send_message(uint8_t* buffer, uint8_t length){
 			*assembly_ptr++ = 0xFF;
 		}
 	}
+	return (uint16_t)(assembly_ptr - sysex_tx_assembly_buffer);
+}
 
-	MIDI_DataTx(sysex_tx_assembly_buffer, assembly_ptr - sysex_tx_assembly_buffer);
+/*
+ * The assembly buffer is shared by the main loop (stored SysEx, MMC, Kemper)
+ * and the answers the USB interrupt sends, so it is filled and queued with
+ * interrupts masked: an answer landing halfway would corrupt what goes out.
+ */
+void sysex_send_message(uint8_t* buffer, uint8_t length){
+	uint32_t primask = __get_PRIMASK();
+	__disable_irq();
+	MIDI_DataTx(sysex_tx_assembly_buffer, sysex_pack(buffer, length));
+	__set_PRIMASK(primask);
+}
+
+static void sysex_answer(uint8_t* buffer, uint8_t length){
+	uint32_t primask = __get_PRIMASK();
+	__disable_irq();
+	uint16_t n = sysex_pack(buffer, length);
+	for(uint16_t i = 0; i < n; i += 4) sysex_tx_assembly_buffer[i] |= reply_cable;
+	USBD_MIDI_SendPacket(sysex_tx_assembly_buffer, n);
 	__set_PRIMASK(primask);
 }
 
@@ -108,7 +134,7 @@ static void sysex_flash_answer(uint8_t rsp, bool ok){
 	*(p++) = rsp;
 	if(!ok) *(p++) = 1;
 	*(p++) = SYSEX_END;
-	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
+	sysex_answer(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
 }
 
 /*
@@ -205,7 +231,7 @@ void sysex_read_flash(uint8_t* data_packet_start){
 	}
 	*(p++) = SYSEX_END;
 
-	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
+	sysex_answer(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
 }
 
 /*
@@ -233,7 +259,7 @@ void sysex_select_slot(uint8_t* data_packet_start){
 	*(p++) = flash_kb & 0x7F;
 	*(p++) = 1;
 	*(p++) = SYSEX_END;
-	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
+	sysex_answer(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
 }
 
 // The last presses' latency, see latency.c
@@ -244,7 +270,7 @@ void sysex_get_latency(uint8_t* data_packet_start){
 	*(p++) = SYSEX_RSP_GET_LATENCY;
 	p += latency_report(p, data_packet_start[0] == 1);
 	*(p++) = SYSEX_END;
-	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
+	sysex_answer(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
 }
 
 // Virtual pedal: press or release a switch as if by foot
@@ -260,7 +286,7 @@ void sysex_press_button(uint8_t* data_packet_start){
 	*(p++) = id & 0x7F;
 	*(p++) = down;
 	*(p++) = SYSEX_END;
-	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
+	sysex_answer(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
 }
 
 /*
@@ -309,7 +335,7 @@ void sysex_get_state(void){
 	*(p++) = sw_safe_mode() ? 1 : 0;
 	*(p++) = sw_preview_bank() & 0x7F;	// 0x7F when no bank is previewed
 	*(p++) = SYSEX_END;
-	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
+	sysex_answer(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
 }
 
 /*
@@ -345,7 +371,7 @@ void sysex_get_screen(uint8_t* data_packet_start){
 		}
 	}
 	*(p++) = SYSEX_END;
-	sysex_send_message(out, p - out);
+	sysex_answer(out, p - out);
 }
 
 /*
@@ -366,7 +392,7 @@ void sysex_set_text(uint8_t* data_packet_start, uint8_t text_len){
 	*(p++) = place;
 	*(p++) = how;
 	*(p++) = SYSEX_END;
-	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
+	sysex_answer(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
 }
 
 void sysex_get_version(void){
@@ -381,7 +407,7 @@ void sysex_get_version(void){
 	}
 	*(p++) = SYSEX_END;
 
-	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
+	sysex_answer(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
 }
 
 // Live expression pedal readings, for the calibration tool in the GUI
@@ -397,7 +423,7 @@ void sysex_get_pedals(void){
 		*(p++) = expression_get_midi(i) & 0x7F;
 	}
 	*(p++) = SYSEX_END;
-	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
+	sysex_answer(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
 }
 
 /*
@@ -417,7 +443,7 @@ void sysex_enter_dfu(uint8_t* data_packet_start){
 	midi_msg_tx_buffer[2] = SYSEX_RSP_ENTER_DFU;
 	midi_msg_tx_buffer[3] = possible ? 0 : 1;
 	midi_msg_tx_buffer[4] = SYSEX_END;
-	sysex_send_message(midi_msg_tx_buffer, 5);
+	sysex_answer(midi_msg_tx_buffer, 5);
 
 	if(possible){
 		dfu_entry_request();
@@ -444,7 +470,7 @@ void sysex_banner(uint8_t* data_packet_start, uint8_t text_len){
 	*(p++) = refused;
 	for(uint8_t i=0; i<len; i++) *(p++) = (uint8_t)text[i];
 	*(p++) = SYSEX_END;
-	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
+	sysex_answer(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
 }
 
 /*
@@ -464,7 +490,7 @@ void sysex_set_pedal(uint8_t* data_packet_start){
 	*(p++) = pedal & 0x7F;
 	*(p++) = hold;
 	*(p++) = SYSEX_END;
-	sysex_send_message(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
+	sysex_answer(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
 }
 
 void process_sysex_message(void){
@@ -599,8 +625,33 @@ static uint8_t sysex_foreign = 0;
 // (our own SysEx that overflowed the receive buffer).
 static uint8_t sysex_discard = 0;
 
+/*
+ * With three ports a SysEx can be coming in on cable 0 and on cable 2 at the
+ * same time: the one not being added to waits here, swapped in when its cable
+ * speaks again.
+ */
+static struct {
+	uint8_t buffer[SYSEX_MAX_LENGTH];
+	uint8_t counter, foreign, discard;
+} sysex_other;
+static uint8_t sysex_cable = 0;
+
+static void swap8(uint8_t *a, uint8_t *b){
+	uint8_t t = *a; *a = *b; *b = t;
+}
+
+static void sysex_use_cable(uint8_t cable){
+	if(cable == sysex_cable) return;
+	for(uint8_t i = 0; i < SYSEX_MAX_LENGTH; i++) swap8(&sysex_rx_buffer[i], &sysex_other.buffer[i]);
+	swap8(&sysex_rx_counter, &sysex_other.counter);
+	swap8(&sysex_foreign, &sysex_other.foreign);
+	swap8(&sysex_discard, &sysex_other.discard);
+	sysex_cable = cable;
+}
+
 static inline uint8_t usb_thru_enabled(void){
-	return pGlobalSettings[GLOBAL_SETTINGS_USB_THRU] == 1;
+	uint8_t v = pGlobalSettings[GLOBAL_SETTINGS_USB_THRU];
+	return v != 0xFF && (v & USB_THRU_ON);
 }
 
 /*
@@ -733,6 +784,7 @@ static void handle_sysex_event(uint8_t cin, const uint8_t *data, uint8_t len){
 	sysex_rx_counter += len;
 
 	if(is_end){
+		reply_cable = (uint8_t)(sysex_cable << 4);
 		process_sysex_message();
 	}
 }
@@ -744,6 +796,17 @@ uint16_t MIDI_DataRx(uint8_t *msg, uint16_t length)
 		uint8_t cin = msg[i] & 0x0F;
 		const uint8_t *data = msg + i + 1;
 		uint8_t len = cin_data_length[cin];
+
+		if(usb_ports == 3){
+			uint8_t cable = msg[i] >> 4;
+			if(cable == 1){
+				// The DIN port: straight out, whatever it is
+				if(len) thru_add(data, len);
+				continue;
+			}
+			if(cable > 2) continue;
+			sysex_use_cable(cable);
+		}
 
 		switch(cin){
 		case CIN_SYSEX_STARTS_OR_CONTINUES:
@@ -827,6 +890,19 @@ uint16_t MIDI_DataRx(uint8_t *msg, uint16_t length)
 uint16_t MIDI_DataTx(uint8_t *msg, uint16_t length)
 {
   latency_sent();
+  uint32_t primask = __get_PRIMASK();
+  __disable_irq();
   USBD_MIDI_SendPacket(msg, length);
+  if(usb_ports == 3){
+	  // The same again on cable 2, a packet at a time
+	  uint8_t copy[64];		// a full speed packet
+	  for(uint16_t i = 0; i < length; i += sizeof(copy)){
+		  uint16_t n = (length - i < sizeof(copy)) ? (length - i) : sizeof(copy);
+		  memcpy(copy, msg + i, n);
+		  for(uint16_t k = 0; k < n; k += 4) copy[k] = (copy[k] & 0x0F) | 0x20;
+		  USBD_MIDI_SendPacket(copy, (uint8_t)n);
+	  }
+  }
+  __set_PRIMASK(primask);
   return USBD_OK;
 }

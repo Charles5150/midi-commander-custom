@@ -38,6 +38,10 @@ void USBD_MIDI_SendPacket (uint8_t* buffer, uint8_t len);
 uint16_t MIDI_DataRx(uint8_t *msg, uint16_t length);
 uint16_t MIDI_DataTx(uint8_t *msg, uint16_t length);
 
+// 1, or 3 when the configuration asks for three ports; read once, before USB starts
+extern uint8_t usb_ports;
+void usb_ports_latch(void);
+
 // Send a complete SysEx message (F0 ... F7) over USB, split into USB MIDI events
 void sysex_send_message(uint8_t* buffer, uint8_t length);
 // Erases asked for by the tools, and the pause while the running slot is rewritten

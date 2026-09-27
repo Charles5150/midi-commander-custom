@@ -130,6 +130,27 @@ kemper> dly
 It has not been tried against a real Kemper yet. The numbers it speaks — the maker's `00 20 33`, the functions, the module pages and the beacon — are the ones the Profiler's MIDI documentation and the open controllers that talk to one use, and a test checks the firmware's list against the tools', so if an amp ever disagrees the fix will be in that table of numbers and nowhere else.
 
 
+## Three USB ports
+
+With `USB_Ports` at 3 the pedal shows up on the computer as three USB MIDI ports instead of one:
+
+| Port | Name on macOS | What it is |
+|---|---|---|
+| 1 | `MIDI Commander Custom Pedal` | The pedal, as with one port. |
+| 2 | `MIDI Commander Custom DIN` | Straight to the MIDI OUT socket. |
+| 3 | `MIDI Commander Custom Config` | The pedal again, for a second program. |
+
+**Port 2** makes the pedal a USB MIDI interface for the gear on its DIN output. Whatever a program sends there goes out of the MIDI OUT socket as it came, clock and SysEx included, and the pedal itself never sees it: it does not change bank, press switches or follow that clock, and `USB_MIDI_Thru`, `RealTime_Passthrough` and the MIDI map do not apply. So a DAW can play the synth behind the pedal on port 2 and talk to the pedal on port 1, each on its own. Nothing comes back on port 2, as the pedal has no MIDI IN socket.
+
+**Port 3** is the same pedal as port 1: what the pedal sends goes out on both, and it listens to both alike. A configurator gets its answers on the port it asked on. It is there for a second program: on Windows only one program at a time can open a port, so while a DAW holds port 1 the configurator, the [browser page](14-in-the-browser.md) or the [command line tools](13-command-line-tools.md) use port 3. The tools choose it by themselves when it is there, and never port 2. Leave port 3 off in the DAW, or it hears everything twice.
+
+The ports change the next time the pedal starts; flashing a configuration restarts it. A DAW set up with one port needs its port choosing again, as the names change, which is why one port stays the default. With three ports the pedal also gives a USB serial number of its own, so macOS and Windows set it up as a new device instead of keeping the one port they remember; the one port entry stays in Audio MIDI Setup, offline, for when you go back. Switching configuration on the pedal (`NextConfig`) keeps the ports it started with.
+
+Windows numbers the ports instead of naming them, `MIDIOUT2 (MIDI Commander Custom)` and so on, and older Linux kernels call them `MIDI 1` to `MIDI 3`; the tools know those names too, but three ports have only been tried on macOS so far.
+
+Needs firmware 1.04 (bit 1 of global byte 6, beside `USB_MIDI_Thru` in bit 0).
+
+
 ## Translating what comes in
 
 A DAW, a sequencer or a keyboard on USB rarely speaks the language of the old pedal on the DIN cable: the DAW changes scene with a Program Change, the delay wants two CCs; the keyboard's mod wheel is CC 1, the amp's volume CC 11 and the other way round. The **MIDI map** puts the pedal in the middle and translates.
