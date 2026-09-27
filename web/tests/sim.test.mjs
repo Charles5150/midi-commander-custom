@@ -92,8 +92,8 @@ test("the demo written over SysEx reads back the same", async () => {
   const pedal = await Pedal.open(sim.access);
   assert.deepEqual((await pedal.selectSlot(null)).valid, [0]);
   // As the page takes them from the tools (py.js): the double press area,
-  // then the second extension area with the MIDI map
-  const sizes = { config: demo.config.length, double: 10240, doubleOffset: 12 * 2048, ext2Offset: 17 * 2048, ext2: 16 + 32 * 12 };
+  // then the second extension area with the MIDI map and the long press labels
+  const sizes = { config: demo.config.length, double: 10240, doubleOffset: 12 * 2048, ext2Offset: 17 * 2048, ext2: 16 + 32 * 12 + 32 * 8 * 4 };
   const back = await running(sim, () => pedal.readImage(firmwareVersion, sizes));
   assert.deepEqual(back.data, demo.config);
   assert.deepEqual(back.image, demo.image);
@@ -203,4 +203,22 @@ test("the demo's MIDI map turns what comes in over USB into what goes out on DIN
   // off when it comes up, on both outputs like a press
   assert.deepEqual(send([0x9d, 36, 90]), ["USB b0 44 7f", "DIN b0 44 7f"]);
   assert.deepEqual(send([0x8d, 36, 0]), ["USB b0 44 00", "DIN b0 44 00"]);
+});
+
+test("held, a Bank Reveal button shows the long press labels", async () => {
+  const sim = simWithDemo();
+  tap(sim, 4);                              // MEDI: the media keys bank
+  const pedal = await Pedal.open(sim.access);
+  const own = await pedal.getState();
+  assert.equal(own.bankName, "MEDI");
+  const before = Array.from(sim.screen());
+  sim.footswitch(6, true);                  // hold C past the long press
+  sim.run(1200);
+  const held = await pedal.getState();
+  assert.deepEqual(held.labels, ["MPLY", "SNG2", "TOP0", "MSTP", "LOC0", "1:02", "HELD", "MREC"]);
+  sim.run(50);
+  assert.notDeepEqual(Array.from(sim.screen()), before, "the display shows them");
+  sim.footswitch(6, false);
+  sim.run(200);
+  assert.deepEqual((await pedal.getState()).labels, own.labels, "let go, the buttons' own labels are back");
 });

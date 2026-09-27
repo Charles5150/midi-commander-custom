@@ -83,7 +83,7 @@ def read_image(dev, version, progress=None):
 
 def save_csv(path, data, image, note="Read from device"):
     """Write a slot read with read_image as a configuration CSV. Returns its name."""
-    (df_global, df_banks, df_buttons, df_long, df_exp,
+    (df_global, df_banks, df_buttons, _, df_exp,
      df_enter, df_sysex, df_bank_switch, df_setlist) = unpacker.unpack_config(data)
     write_config_csv(
         path,
@@ -91,7 +91,7 @@ def save_csv(path, data, image, note="Read from device"):
         df_banks,
         df_buttons,
         note=note,
-        df_long_press=df_long,
+        df_long_press=unpacker.unpack_long_press_settings(image),
         df_double_press=unpacker.unpack_double_press_settings(image),
         df_expression=df_exp,
         df_bank_enter=df_enter,
@@ -167,7 +167,7 @@ def write_image(dev, config, image, log=_quiet, progress=None):
         except DeviceTimeout:
             new_enough = False
         if not new_enough:
-            log("WARNING: the MIDI map needs firmware 0.90 or later; writing everything else")
+            log("WARNING: the MIDI map and the long press labels need firmware 0.90 or later; writing everything else")
             image = image[:EXT2_OFFSET] if config[37] == 1 else config  # the double press area stays
     if len(image) > len(config):
         try:

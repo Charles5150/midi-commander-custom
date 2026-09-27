@@ -53,6 +53,8 @@ EXT2_MAP_OFFSET = 16
 MIDI_MAP_SECTION = "MidiMap_Settings"
 MIDI_MAP_COUNT = 32
 MIDI_MAP_STRIDE = 12
+# Long press labels (firmware 0.91), after the map
+EXT2_LONG_LABELS_OFFSET = EXT2_MAP_OFFSET + MIDI_MAP_COUNT * MIDI_MAP_STRIDE
 MIDI_MAP_COLUMNS = ["In_Type", "In_Channel", "In_Number", "In_Min", "In_Max",
                     "Out_Type", "Out_Channel", "Out_Number", "Out_Min", "Out_Max",
                     "Run_Bank", "Run_Button", "Run_List", "Keep"]
@@ -105,7 +107,7 @@ def empty_long_press_settings(num_banks=NUM_BANKS):
     rows = []
     for bank in range(num_banks):
         for btn in BUTTON_IDS:
-            row = {"Bank_Number": str(bank), "Button_Identifier": btn}
+            row = {"Bank_Number": str(bank), "Button_Identifier": btn, "Long_Label": ""}
             for slot in SLOT_NAMES:
                 for f in CMD_FIELDS:
                     row[f"{slot}_{f}"] = "N" if f.startswith("Toggle") else ""
@@ -340,12 +342,26 @@ def pack_midi_map(df) -> bytes:
     return bytes(out)
 
 
+def pack_long_labels(df) -> bytes:
+    """The labels of the long presses (the Long_Label column of LongPress_Settings,
+    firmware 0.91), LABEL_LEN bytes per button; all 0xFF when there are none."""
+    rows = {}
+    if df is not None and "Long_Label" in df.columns:
+        for _, row in df.iterrows():
+            rows[_key(row["Bank_Number"], row["Button_Identifier"])] = row.get("Long_Label", "")
+    if not any(_cell(v) for v in rows.values()):
+        return b"\xff" * (NUM_BANKS * len(BUTTON_IDS) * LABEL_LEN)
+    return b"".join(pack_label(rows.get((str(bank), btn), ""))
+                    for bank in range(NUM_BANKS) for btn in BUTTON_IDS)
+
+
 def pack_ext2(sections: dict):
     """The second extension area, or None when nothing goes there."""
     table = pack_midi_map(sections.get(MIDI_MAP_SECTION))
-    if table.count(0xFF) == len(table):
+    labels = pack_long_labels(sections.get(LONG_PRESS_SECTION))
+    if table.count(0xFF) == len(table) and labels.count(0xFF) == len(labels):
         return None
-    return EXT2_MARKER.ljust(EXT2_MAP_OFFSET, b"\xff") + table
+    return EXT2_MARKER.ljust(EXT2_MAP_OFFSET, b"\xff") + table + labels
 
 
 def empty_sysex_strings():

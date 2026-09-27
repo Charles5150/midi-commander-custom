@@ -1152,6 +1152,7 @@ class DoublePressTest(unittest.TestCase):
     def test_without_double_press_image_is_the_config(self):
         sections = {k: v for k, v in self.sections.items()
                     if k not in (packer.DOUBLE_PRESS_SECTION, packer.MIDI_MAP_SECTION)}
+        sections[packer.LONG_PRESS_SECTION] = sections[packer.LONG_PRESS_SECTION].assign(Long_Label="")
         self.assertEqual(packer.pack_flash_image(sections), packer.pack_config(sections))
         self.assertIsNone(packer.pack_double_press(sections))
 
@@ -4346,7 +4347,8 @@ class MidiMapTest(unittest.TestCase):
             0xD0, 0, 0xFF, 0, 127, 0x00, 0, 0xFF, 0xFF, 0xFF, 0, 0xFF,
             0x90, 0, 60, 0, 127, 0x90, 3, 0xFF, 0xFF, 0xFF, 0, 0xFF,
         ]))
-        self.assertEqual(table[60:], b"\xff" * (unpacker.EXT2_SIZE - 16 - 60))
+        self.assertEqual(table[60:packer.EXT2_LONG_LABELS_OFFSET - 16],
+                         b"\xff" * (packer.EXT2_LONG_LABELS_OFFSET - 16 - 60))
         back = unpacker.unpack_midi_map(bytes(unpacker.EXT2_OFFSET) + ext)
         self.assertEqual(back["In_Type"].tolist(), ["PC", "CC", "Note", "Pressure", "Note"])
         self.assertEqual(back.iloc[2][["Run_Bank", "Run_Button", "Run_List"]].tolist(), ["30", "B", "Long"])
@@ -4438,7 +4440,82 @@ class MidiMapTest(unittest.TestCase):
         self.assertEqual(rx.count("thru_channel(data, len);"), 3)
         flash = self.source("Src", "flash_midi_settings.c")
         self.assertIn("eraseInit.PageAddress = FLASH_EXT2_ADDR(target_slot);", flash)
-        self.assertIn("== EXT2_MARKER ? ext + EXT2_MAP_OFF : NULL", flash)
+        self.assertIn("== EXT2_MARKER ? ext + offset : NULL", flash)
+        self.assertIn("return ext2_part(EXT2_MAP_OFF);", flash)
+
+
+class LongLabelTest(unittest.TestCase):
+    """Labels for the long presses, shown while a Bank Reveal is held (0.91)."""
+
+    FIRMWARE = MidiMapTest.FIRMWARE
+    source = MidiMapTest.source
+
+    def long_sections(self, labels, with_map=False):
+        sections = dict(read_config_csv(SAMPLE_CSV if not with_map else DEMO_CSV))
+        df = packer.empty_long_press_settings()
+        for (bank, btn), text in labels.items():
+            df.loc[(df["Bank_Number"] == str(bank)) & (df["Button_Identifier"] == btn), "Long_Label"] = text
+        sections[packer.LONG_PRESS_SECTION] = df
+        return sections
+
+    def test_layout_agrees(self):
+        header = self.source("Inc", "flash_midi_settings.h")
+        self.assertIn("#define EXT2_LONG_LABELS_OFF	(EXT2_MAP_OFF + MIDI_MAP_COUNT * MIDI_MAP_STRIDE)", header)
+        self.assertEqual(packer.EXT2_LONG_LABELS_OFFSET, 16 + 32 * 12)
+        self.assertEqual(unpacker.EXT2_SIZE, packer.EXT2_LONG_LABELS_OFFSET + 32 * 8 * 4)
+        self.assertLessEqual(unpacker.EXT2_SIZE, packer.EXT2_PAGES * 2048)
+        defines = self.source("Inc", "midi_defines.h")
+        self.assertRegex(defines, r"#define BANK_MODE_REVEAL\s+\(7\)")
+
+    def test_labels_alone_write_the_area(self):
+        """No map, but labels: the marker, an empty map and the labels."""
+        image = packer.pack_flash_image(self.long_sections({(0, "1"): "PLAY", (31, "D"): "end"}))
+        ext = image[unpacker.EXT2_OFFSET:]
+        self.assertEqual(len(ext), unpacker.EXT2_SIZE)
+        self.assertEqual(ext[:4], b"EXT2")
+        self.assertEqual(ext[16:packer.EXT2_LONG_LABELS_OFFSET], b"\xff" * (32 * 12))
+        labels = ext[packer.EXT2_LONG_LABELS_OFFSET:]
+        self.assertEqual(labels[:4], b"PLAY")
+        self.assertEqual(labels[4:8], b"    ")
+        self.assertEqual(labels[-4:], b"end ")
+        self.assertEqual(len(unpacker.unpack_midi_map(image)), 0)
+        back = unpacker.unpack_long_press_settings(image)
+        self.assertEqual(back["Long_Label"].tolist()[:2], ["PLAY", ""])
+        self.assertEqual(back["Long_Label"].tolist()[-1], "end")
+
+    def test_no_labels_no_area(self):
+        sections = self.long_sections({})
+        self.assertIsNone(packer.pack_ext2(sections))
+        image = packer.pack_flash_image(sections)
+        self.assertEqual(set(unpacker.unpack_long_press_settings(image)["Long_Label"]), {""})
+        # A map alone keeps the labels erased, which the firmware reads as none
+        ext = packer.pack_flash_image(self.long_sections({}, with_map=True))[unpacker.EXT2_OFFSET:]
+        self.assertEqual(ext[:4], b"EXT2")
+        self.assertEqual(ext[packer.EXT2_LONG_LABELS_OFFSET:], b"\xff" * (32 * 8 * 4))
+
+    def test_reveal_command(self):
+        self.assertEqual(cbp.cmd_bank({"KeyMode_(Key)": "Reveal"}), [0x47, 0, 0, 0])
+        cmd = unpacker.unpack_command(bytes([0x47, 0, 0, 0]))
+        self.assertEqual((cmd["CommandType"], cmd["KeyMode_(Key)"], cmd["OnValue_(CC/PB)"]),
+                         ("Bank", "Reveal", ""))
+
+    def test_demo(self):
+        """Held, MUTE in bank 5 shows what the other buttons do when held."""
+        packed = packer.pack_flash_image(read_config_csv(DEMO_CSV))
+        long_press = unpacker.unpack_long_press_settings(packed)
+        bank5 = long_press[long_press["Bank_Number"] == "5"]
+        self.assertEqual(bank5["Long_Label"].tolist(),
+                         ["MPLY", "SNG2", "TOP0", "MSTP", "LOC0", "1:02", "HELD", "MREC"])
+        c = bank5[bank5["Button_Identifier"] == "C"].iloc[0]
+        self.assertEqual((c["A_CommandType"], c["A_KeyMode_(Key)"]), ("Bank", "Reveal"))
+
+    def test_firmware(self):
+        router = self.source("Src", "switch_router.c")
+        self.assertIn("case BANK_MODE_REVEAL:      set_reveal(true); break;", router)
+        self.assertIn("if(*pRom == (CMD_BANK_NIBBLE | BANK_MODE_REVEAL)) set_reveal(false);", router)
+        self.assertIn("const uint8_t *all = flash_settings_long_labels();", router)
+        flash = self.source("Src", "flash_midi_settings.c")
+        self.assertIn("return ext2_part(EXT2_LONG_LABELS_OFF);", flash)
 
 
 class BootBannerTest(unittest.TestCase):

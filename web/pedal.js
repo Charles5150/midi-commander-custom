@@ -242,7 +242,7 @@ export class Pedal {
   // Erase the selected slot and write image into it (slotIO.write_image)
   async writeImage(version, config, image, log = () => {}, progress, ext2Offset = 34816) {
     if (image.length > ext2Offset && !versionAtLeast(version, 0, 90)) {
-      log("WARNING: the MIDI map needs firmware 0.90 or later; writing everything else");
+      log("WARNING: the MIDI map and the long press labels need firmware 0.90 or later; writing everything else");
       image = config[37] === 1 ? image.slice(0, ext2Offset) : config;
     }
     if (image.length > config.length && !versionAtLeast(version, 0, 26)) {

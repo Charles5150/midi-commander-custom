@@ -478,11 +478,13 @@ function renderBanks(main) {
   const btnSec = section("Button_Settings");
   const pedal = h("div", { class: "pedal-grid" }, buttonIds.map((id) => {
     const r = rowOf("Button_Settings", { Bank_Number: state.bank, Button_Identifier: id }, false);
-    const label = r ? cell(r.sec, r.row, "Label") : "";
+    // On the Long press tab the labels a Reveal button shows
+    const lr = state.press === "Long" ? rowOf("LongPress_Settings", { Bank_Number: state.bank, Button_Identifier: id }, false) : null;
+    const label = state.press === "Long" ? (lr ? cell(lr.sec, lr.row, "Long_Label") : "") : r ? cell(r.sec, r.row, "Label") : "";
     return h("button", {
       class: `pedal-button${id === state.button ? " active" : ""}`,
       onclick: () => { state.button = id; render(); },
-    }, h("span", { class: "id" }, id), h("span", { class: "label" }, label || " "), h("span", { class: "sum" }, summary(btnSec, r && r.row)));
+    }, h("span", { class: "id" }, id), h("span", { class: "label" }, label || " "), h("span", { class: "sum" }, state.press === "Long" ? summary(lr && lr.sec, lr && lr.row) : summary(btnSec, r && r.row)));
   }));
 
   const presses = [["Short", "Press", "Button_Settings", shortCommandTypes], ["Long", "Long press", "LongPress_Settings", commandTypes], ["Double", "Double press", "DoublePress_Settings", commandTypes]];
@@ -498,6 +500,11 @@ function renderBanks(main) {
       const ctl = fieldControl(f, () => cell(own.sec, own.row, f.col), (v) => { setCell(own.sec, own.row, f.col, v); if (f.col === "Label") $(".pedal-button.active .label").textContent = v || " "; });
       return f.kind === "check" ? h("label", { class: "check" }, ctl, f.label) : labelled(f.label, ctl);
     })));
+  }
+  if (state.press === "Long") {
+    editor.append(h("div", { class: "fields" }, labelled("Label", fieldControl({ kind: "text", max: 4, display: true }, () => cell(r.sec, r.row, "Long_Label"),
+      (v) => { setCell(r.sec, r.row, "Long_Label", v); $(".pedal-button.active .label").textContent = v || " "; }))),
+      h("p", { class: "hint" }, "Shown in place of the button's own label while a Bank command set to Reveal is held."));
   }
   editor.append(commandList(r.sec, r.row, types));
 

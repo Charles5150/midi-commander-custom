@@ -602,9 +602,26 @@ static uint8_t cycle_current_first(uint8_t bank, uint8_t i){
 	return cycle_first(get_rom_pointer(bank, i, 0), pos);
 }
 
+/*
+ * Reveal: while a Bank command in BANK_MODE_REVEAL is held, every button shows
+ * the label of its long press in place of its own, and a dash if it has none.
+ */
+static bool reveal = false;
+
+static void set_reveal(bool on){
+	reveal = on;
+	display_request_refresh();
+}
+
 const uint8_t *sw_button_label(uint8_t bank, uint8_t sw){
 	bank = button_bank(bank, sw);	// a global button shows the stored label
 	uint16_t k = (uint16_t)(bank * MIDI_NUM_SWITCHES + sw);
+	if(reveal){
+		static const uint8_t none[BUTTON_LABEL_LEN] = {'-', ' ', ' ', ' '};
+		const uint8_t *all = flash_settings_long_labels();
+		const uint8_t *l = all ? all + k * BUTTON_LABEL_LEN : NULL;
+		return (l && l[0] != 0xFF && l[0] != ' ') ? l : none;
+	}
 	const uint8_t *own = pButtonLabels + k * BUTTON_LABEL_LEN;
 	uint8_t pos = cycle_pos[k];
 	if(pos == CYCLE_NONE) return own;
@@ -1293,6 +1310,7 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 		case BANK_MODE_NEXT_CONFIG: pending_config = CONFIG_NEXT; break;
 		case BANK_MODE_PAGE:        pending_page = pRom[1] & 0x7F; break;
 		case BANK_MODE_BACK:        pending_bank = previous_bank; break;
+		case BANK_MODE_REVEAL:      set_reveal(true); break;
 		default: pending_bank = (pRom[1] < MIDI_NUM_BANKS) ? pRom[1] : 0xFF; break;
 		}
 		break;
@@ -1395,6 +1413,9 @@ void handle_cmd_sw_up(uint8_t *pRom, uint8_t toggleState){
 		if(!midiCmd_get_cmd_toggle(pRom) && midiCmd_get_delay(pRom) == 0) {
 			send_media_usage(0); // Release
 		}
+		break;
+	case CMD_BANK_NIBBLE:
+		if(*pRom == (CMD_BANK_NIBBLE | BANK_MODE_REVEAL)) set_reveal(false);
 		break;
 	case CMD_START_NIBBLE:
 		break;

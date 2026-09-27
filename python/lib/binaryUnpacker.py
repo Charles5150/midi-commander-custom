@@ -17,7 +17,7 @@ Memory layout (see firmware/Core/Src/flash_midi_settings.c):
 import pandas as pd
 
 from lib.configPacker import (
-    EXT2_MAP_OFFSET, EXT2_MARKER, MIDI_MAP_COLUMNS, MIDI_MAP_COUNT, MIDI_MAP_OUT_TYPES,
+    EXT2_LONG_LABELS_OFFSET, EXT2_MAP_OFFSET, EXT2_MARKER, MIDI_MAP_COLUMNS, MIDI_MAP_COUNT, MIDI_MAP_OUT_TYPES,
     MIDI_MAP_RUN, MIDI_MAP_STRIDE, MIDI_MAP_TYPES,
 )
 
@@ -138,7 +138,7 @@ DOUBLE_PRESS_PAGES = 5
 IMAGE_SIZE = DOUBLE_PRESS_OFFSET + DOUBLE_PRESS_PAGES * FLASH_PAGE_SIZE
 # The second extension area follows (firmware 0.90), see configPacker
 EXT2_OFFSET = IMAGE_SIZE
-EXT2_SIZE = EXT2_MAP_OFFSET + MIDI_MAP_COUNT * MIDI_MAP_STRIDE
+EXT2_SIZE = EXT2_LONG_LABELS_OFFSET + NUM_BANKS * len(BUTTON_IDS) * LABEL_LEN
 EXP_CURVE_NAMES = {0: "Linear", 1: "Log", 2: "Exp"}
 EXP_OUTPUT_NAMES = {0: "CC", 1: "PitchBend", 2: "CC14", 3: "Speed"}
 EXP_BUTTON_IDS = ["1", "2", "3", "4", "A", "B", "C", "D"]
@@ -490,10 +490,11 @@ def unpack_command(raw: bytes, cycle_labels=None) -> dict:
     elif cmd_type == CMD_BANK_NIBBLE:
         cmd["CommandType"] = "Bank"
         mode = b0 & 0x0F
-        cmd["KeyMode_(Key)"] = {1: "Up", 2: "Down", 3: "Config", 4: "NextConfig", 5: "Page", 6: "Back"}.get(mode, "GoTo")
+        cmd["KeyMode_(Key)"] = {1: "Up", 2: "Down", 3: "Config", 4: "NextConfig", 5: "Page", 6: "Back",
+                                 7: "Reveal"}.get(mode, "GoTo")
         if mode == 3:
             cmd["OnValue_(CC/PB)"] = str(min(b1, 3) + 1)   # slots are 1-4 for people
-        elif mode == 4 or mode == 6:
+        elif mode in (4, 6, 7):
             cmd["OnValue_(CC/PB)"] = ""
         else:
             cmd["OnValue_(CC/PB)"] = str(b1)
@@ -552,7 +553,13 @@ def unpack_button_settings(data: bytes) -> pd.DataFrame:
 
 
 def unpack_long_press_settings(data: bytes) -> pd.DataFrame:
-    return _unpack_button_lists(data, LONG_PRESS_OFFSET)
+    """Long press commands, with the labels the second extension area of a
+    full image holds (firmware 0.91): empty when it has none."""
+    df = _unpack_button_lists(data, LONG_PRESS_OFFSET)
+    ext = bytes(data[EXT2_OFFSET:EXT2_OFFSET + EXT2_SIZE])
+    labels = ext[EXT2_LONG_LABELS_OFFSET:] if ext.startswith(EXT2_MARKER) else b""
+    df.insert(2, "Long_Label", [_ascii(labels[i * LABEL_LEN:(i + 1) * LABEL_LEN]) for i in range(len(df))])
+    return df
 
 
 def unpack_double_press_settings(data: bytes) -> pd.DataFrame:

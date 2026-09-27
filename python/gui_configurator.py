@@ -664,6 +664,9 @@ class SlotEditor:
             elif mode == "Back":
                 ctk.CTkLabel(self.params, text="(the bank you came from)",
                              text_color=MUTED).pack(side="left", padx=8)
+            elif mode == "Reveal":
+                ctk.CTkLabel(self.params, text="(while held: the long press labels)",
+                             text_color=MUTED).pack(side="left", padx=8)
             else:
                 self._label("Banks")
                 v = IntEntry(self.params, 1, 31, self.initial.get("OnValue_(CC/PB)") or "8", width=55)
@@ -1465,7 +1468,7 @@ class MidiCommanderGUI(ctk.CTk):
                 ).copy()
 
             self.df_buttons = self._pad_buttons(self.df_buttons, with_extras=True)
-            self.df_long = self._pad_buttons(self.df_long, with_extras=False)
+            self.df_long = self._pad_buttons(self.df_long, with_extras=False, long_label=True)
             self.df_double = self._pad_buttons(self.df_double, with_extras=False)
 
             banks = [str(b) for b in range(NUM_BANKS)]
@@ -1520,7 +1523,7 @@ class MidiCommanderGUI(ctk.CTk):
             )
         return pd.DataFrame(out)
 
-    def _pad_buttons(self, df, with_extras):
+    def _pad_buttons(self, df, with_extras, long_label=False):
         """Ensure one row per bank/button, in order, keeping existing values."""
         rows = {
             (clean(r["Bank_Number"]), clean(r["Button_Identifier"]).upper()): r
@@ -1529,6 +1532,8 @@ class MidiCommanderGUI(ctk.CTk):
         columns = ["Bank_Number", "Button_Identifier"]
         if with_extras:
             columns += ["Label"]
+        if long_label:
+            columns += ["Long_Label"]
         for slot in SLOTS:
             columns += [f"{slot}_{f}" for f in CMD_FIELDS]
         if with_extras:
@@ -1541,6 +1546,8 @@ class MidiCommanderGUI(ctk.CTk):
                 src = rows.get((str(b), btn))
                 row = {c: float("nan") for c in columns}
                 row["Bank_Number"], row["Button_Identifier"] = str(b), btn
+                if long_label:
+                    row["Long_Label"] = ""
                 if with_extras:
                     row["Label"] = ""
                     row["Light_Mode"] = "Normal"
@@ -2044,6 +2051,13 @@ class MidiCommanderGUI(ctk.CTk):
 
         if long_mode:
             current = self.df_long.loc[self._long_row_index(row_index)]
+            label_frame = ctk.CTkFrame(self.cmd_editor, fg_color="transparent")
+            label_frame.pack(anchor="w", padx=10, pady=(0, 8))
+            ctk.CTkLabel(label_frame, text="Long press label:", font=BOLD).pack(side="left")
+            self.label_entry = TextEntry(label_frame, 4, current.get("Long_Label"), width=70, display=True)
+            self.label_entry.pack(side="left", padx=(8, 12))
+            ctk.CTkLabel(label_frame, text="shown while a Bank Reveal button is held",
+                         text_color=MUTED).pack(side="left")
         elif double_mode:
             current = self.df_double.loc[self._double_row_index(row_index)]
 
@@ -2112,7 +2126,7 @@ class MidiCommanderGUI(ctk.CTk):
         if self.reset_on_bank is not None:
             self.df_buttons.at[idx, "Reset_On_Bank"] = "Y" if self.reset_on_bank.value() == "Y" else ""
         if self.label_entry is not None:
-            self.df_buttons.at[idx, "Label"] = self.label_entry.value().strip()
+            df.at[idx, "Long_Label" if df is self.df_long else "Label"] = self.label_entry.value().strip()
 
         if not silent:
             messagebox.showinfo(

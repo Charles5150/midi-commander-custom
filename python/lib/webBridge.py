@@ -128,13 +128,13 @@ def image_to_sections(data: bytes, image: bytes) -> str:
     """Sections JSON for a slot read from the pedal: its configuration, and the
     same followed by the extension areas it has (see slotIO.read_image)."""
     data, image = _bytes(data), _bytes(image)
-    (df_global, df_banks, df_buttons, df_long, df_exp,
+    (df_global, df_banks, df_buttons, _, df_exp,
      df_enter, df_sysex, df_bank_switch, df_setlist) = unpacker.unpack_config(data)
     sections = {
         "Global_Settings": df_global,
         "Bank_Naming": df_banks,
         "Button_Settings": df_buttons,
-        "LongPress_Settings": df_long,
+        "LongPress_Settings": unpacker.unpack_long_press_settings(image),
         "DoublePress_Settings": unpacker.unpack_double_press_settings(image),
         "Expression_Settings": df_exp,
         "BankEnter_Settings": df_enter,

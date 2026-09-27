@@ -77,6 +77,14 @@ Su LED sigue uno de tres modos, el **LED light mode** del configurador:
 
 **Flash at the tempo** (`Tempo_Flash`) hace que el LED de cualquier botón parpadee con el pulso; mira [LED del tap](07-tempo.md#led-del-tap).
 
+## Etiquetas de la pulsación larga
+
+Con tres listas en un botón, lo que hace al mantenerlo es lo primero que se olvida en directo. Dale a cada pulsación larga su propia etiqueta, de hasta 4 caracteres, y a un botón un comando `Bank` con **Action** `Reveal`: mientras mantienes ese botón, cada botón muestra la etiqueta de su pulsación larga en lugar de la suya, un guion si no tiene, y al soltarlo el banco queda como antes. Mientras tanto los demás botones siguen funcionando.
+
+En el configurador la etiqueta está en la pestaña **Long press** de cada botón; en el configurador web los botones de la pedalera muestran esas etiquetas mientras esa pestaña está abierta. En el CSV es la columna `Long_Label` de `LongPress_Settings`. `Reveal` encaja bien en la pulsación larga de un botón, que deja libre su pulsación corta, como en el banco 5 del demo (MEDI), donde mantener MUTE enseña qué hacen los demás al mantenerlos: el transporte MMC y los comandos de canción.
+
+*Firmware 0.91 o posterior. Las etiquetas van en la segunda área de extensión, junto al [mapa MIDI](11-devices.md#traducir-lo-que-llega); los firmwares anteriores no las tocan.*
+
 ## Enclavar o momentáneo
 
 Un toggle que se enclava con un toque y funciona como momentáneo si lo mantienes, como el boost de un pedal de Boss o Morningstar: un toque y queda encendido toda la canción, o lo mantienes para un solo y se apaga al soltar.
@@ -258,7 +266,7 @@ Las filas son opcionales aquí y en `Bank_Naming`: una configuración que solo d
 
 ### LongPress_Settings
 
-Opcional. `Bank_Number`, `Button_Identifier` y las diez casillas de comandos: las columnas de `Button_Settings` sin la etiqueta ni las de luz, grupo y mantener, que son del botón. Pueden faltar filas o venir en cualquier orden; un botón sin fila no tiene comandos de pulsación larga y reacciona al instante al pisarlo.
+Opcional. `Bank_Number`, `Button_Identifier`, `Long_Label` (la [etiqueta de la pulsación larga](#etiquetas-de-la-pulsación-larga), hasta 4 caracteres, opcional) y las diez casillas de comandos: las columnas de `Button_Settings` sin la etiqueta ni las de luz, grupo y mantener, que son del botón. Pueden faltar filas o venir en cualquier orden; un botón sin fila no tiene comandos de pulsación larga y reacciona al instante al pisarlo.
 
 ### DoublePress_Settings
 

@@ -142,6 +142,9 @@ class Demo:
         for key, value in fields.items():
             self.long.at[i, f"{slot}_{key}"] = value
 
+    def long_label(self, bank, btn, text):
+        self.long.at[self._index(self.long, bank, btn), "Long_Label"] = text
+
     def bank_expression(self, bank, **fields):
         i = self._index(self.bank_exp, bank)
         for key, value in fields.items():
@@ -383,6 +386,12 @@ def build() -> Demo:
                  **{"KeyMode_(Key)": "Select", "OnValue_(CC/PB)": "2"})
     d.long_press(5, "3", CommandType="Song",
                  **{"KeyMode_(Key)": "Position", "OnValue_(CC/PB)": "0"})
+    # With a hold on almost every button, the display can tell what they do:
+    # hold MUTE and each button shows the label of its long press
+    d.long_press(5, "C", CommandType="Bank", **{"KeyMode_(Key)": "Reveal"})
+    for btn, text in (("1", "MPLY"), ("2", "SNG2"), ("3", "TOP0"), ("4", "MSTP"),
+                      ("A", "LOC0"), ("B", "1:02"), ("C", "HELD"), ("D", "MREC")):
+        d.long_label(5, btn, text)
 
     # --- bank 6: tap tempo and clock ---------------------------------------
     d.tap(6, "1", "TAP", "Tap")

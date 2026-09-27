@@ -50,6 +50,8 @@ _Static_assert(FLASH_EXT2_ADDR(CONFIG_SLOTS) <= FLASH_BASE + 256U * 1024U,
 		"second extension areas do not fit in 256 kB");
 _Static_assert(EXT2_MAP_OFF + MIDI_MAP_COUNT * MIDI_MAP_STRIDE <= FLASH_EXT2_PAGES * FLASH_PAGE_SIZE,
 		"the MIDI map does not fit in the second extension area");
+_Static_assert(EXT2_LONG_LABELS_OFF + CFG_BUTTONS * BUTTON_LABEL_LEN <= FLASH_EXT2_PAGES * FLASH_PAGE_SIZE,
+		"the long press labels do not fit in the second extension area");
 
 static uint8_t active_slot = 0;
 static uint8_t target_slot = 0;
@@ -104,9 +106,17 @@ bool flash_settings_double_stored(void){
 	return pGlobalSettings[GLOBAL_SETTINGS_DOUBLE_STORED] == 1;
 }
 
-const uint8_t *flash_settings_midi_map(void){
+static const uint8_t *ext2_part(uint16_t offset){
 	const uint8_t *ext = (const uint8_t*)FLASH_EXT2_ADDR(active_slot);
-	return *(const uint32_t*)ext == EXT2_MARKER ? ext + EXT2_MAP_OFF : NULL;
+	return *(const uint32_t*)ext == EXT2_MARKER ? ext + offset : NULL;
+}
+
+const uint8_t *flash_settings_midi_map(void){
+	return ext2_part(EXT2_MAP_OFF);
+}
+
+const uint8_t *flash_settings_long_labels(void){
+	return ext2_part(EXT2_LONG_LABELS_OFF);
 }
 
 /*

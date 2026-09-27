@@ -79,6 +79,7 @@ Cualquier botón puede moverte entre bancos con un comando `Bank`, además de lo
 | `Back` | Vuelve al banco de donde venías, ver más abajo. |
 | `Page` | Muestra otro banco como [segunda página](#segunda-página) de este. |
 | `Config`, `NextConfig` | Cambia a otra [configuración](#cuatro-configuraciones). |
+| `Reveal` | Mientras lo mantienes, cada botón muestra la etiqueta de su pulsación larga; ver [Etiquetas de la pulsación larga](05-buttons.md#etiquetas-de-la-pulsación-larga). |
 
 El cambio se hace después de enviar el resto de comandos del botón, así que un botón puede enviar MIDI y luego llevarte a otro banco. En el CSV es `CommandType` `Bank`, con la acción en `KeyMode` y el banco o el número de bancos en `OnValue`; nada más del comando se usa.
 

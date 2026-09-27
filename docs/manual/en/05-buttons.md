@@ -77,6 +77,14 @@ Its LED follows one of three modes, the **LED light mode** in the configurator:
 
 **Flash at the tempo** (`Tempo_Flash`) makes any button's LED flash with the beat; see [Tap LED](07-tempo.md#tap-led).
 
+## Labels for the long press
+
+With three lists on a button, what the hold does is the easiest thing to forget on stage. Give each long press a label of its own, up to 4 characters, and a button with a `Bank` command whose **Action** is `Reveal`: while that button is held, every button shows the label of its long press in place of its own, a dash if it has none, and let go, the bank looks as before. The other buttons keep working meanwhile.
+
+In the configurator the label is on the **Long press** tab of each button; in the web configurator the pedal's buttons show those labels while that tab is open. In the CSV it is the `Long_Label` column of `LongPress_Settings`. The `Reveal` command fits well in a button's long press, leaving its short press free, as in the demo's bank 5 (MEDI), where holding MUTE shows what the others do when held: the MMC transport and the song commands.
+
+*Firmware 0.91 or later. The labels live in the second extension area, beside the [MIDI map](11-devices.md#translating-what-comes-in); older firmware leaves them alone.*
+
 ## Latch or momentary
 
 A toggle that latches on a tap and works as a momentary switch when held, like the boost on a Boss or Morningstar pedal: tap it on for the song, or hold it for a solo and it goes back off when you let go.
@@ -258,7 +266,7 @@ Rows are optional here and in `Bank_Naming`: a configuration that only defines t
 
 ### LongPress_Settings
 
-Optional. `Bank_Number`, `Button_Identifier` and the ten command slots: the columns of `Button_Settings` without the label and the light, group and hold ones, which belong to the button. Rows may be missing or in any order; a button without a row has no long press commands and reacts instantly on press.
+Optional. `Bank_Number`, `Button_Identifier`, `Long_Label` (the [label of the long press](#labels-for-the-long-press), up to 4 characters, optional) and the ten command slots: the columns of `Button_Settings` without the label and the light, group and hold ones, which belong to the button. Rows may be missing or in any order; a button without a row has no long press commands and reacts instantly on press.
 
 ### DoublePress_Settings
 
