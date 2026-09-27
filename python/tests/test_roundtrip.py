@@ -883,7 +883,7 @@ class LedFeedbackTest(unittest.TestCase):
     def test_round_trip(self):
         for text, byte in (("Y", 1), ("N", 0)):
             packed = self.pack_with(text)
-            self.assertEqual(packed[35], byte, text)
+            self.assertEqual(packed[35] & 0x0F, byte, text)
             back = unpacker.unpack_config(packed)[0].set_index("Label")["Value"]
             self.assertEqual(back["LED_Feedback"], text)
 
@@ -926,7 +926,7 @@ class LinkTogglesTest(unittest.TestCase):
     def test_both_bits_round_trip(self):
         for feedback, link, byte in (("N", "N", 0), ("Y", "N", 1), ("N", "Y", 2), ("Y", "Y", 3)):
             packed = self.pack_with(feedback, link)
-            self.assertEqual(packed[35], byte, (feedback, link))
+            self.assertEqual(packed[35] & 0x0F, byte, (feedback, link))
             back = unpacker.unpack_config(packed)[0].set_index("Label")["Value"]
             self.assertEqual((back["LED_Feedback"], back["Link_Toggles"]), (feedback, link))
 
@@ -934,7 +934,7 @@ class LinkTogglesTest(unittest.TestCase):
         sections = read_config_csv(DEMO_CSV)
         g = sections["Global_Settings"]
         sections["Global_Settings"] = g[g["Label"] != "Link_Toggles"]
-        self.assertEqual(packer.pack_config(sections)[35], 1)   # LED_Feedback alone
+        self.assertEqual(packer.pack_config(sections)[35] & 0x0F, 1)   # LED_Feedback alone
 
     def test_erased_byte_reads_off(self):
         image = bytearray(self.pack_with("N", "N"))
@@ -1546,7 +1546,7 @@ class SendOnBankTest(unittest.TestCase):
     def test_both_bits_round_trip_beside_the_others(self):
         for one, two, bits in (("N", "N", 0), ("Y", "N", 4), ("N", "Y", 8), ("Y", "Y", 12)):
             packed = self.pack_with(one, two)
-            self.assertEqual(packed[35], 3 | bits, (one, two))
+            self.assertEqual(packed[35] & 0x0F, 3 | bits, (one, two))
             exp = unpacker.unpack_config(packed)[4]
             self.assertEqual(list(exp["Send_On_Bank"]), [one, two])
             back = unpacker.unpack_config(packed)[0].set_index("Label")["Value"]
@@ -1563,6 +1563,56 @@ class SendOnBankTest(unittest.TestCase):
     def test_bits_match_firmware(self):
         text = open(os.path.join(FIRMWARE, "Core", "Inc", "midi_defines.h")).read()
         self.assertIn("#define EXP_SEND_ON_BANK(pedal)	(0x04U << (pedal))", text)
+
+
+class BeatCounterTest(unittest.TestCase):
+    """Beat_Counter, bits 4-7 of global byte 35: bar.beat on the display in
+    bars of that many beats, 0 = off (firmware 0.88)."""
+
+    def pack_with(self, value):
+        sections = read_config_csv(DEMO_CSV)
+        g = sections["Global_Settings"]
+        g.loc[g["Label"] == "Beat_Counter", "Value"] = value
+        return packer.pack_config(sections)
+
+    def test_demo_counts_in_four(self):
+        packed = packer.pack_config(read_config_csv(DEMO_CSV))
+        self.assertEqual(packed[35] >> 4, 4)
+        back = unpacker.unpack_config(packed)[0].set_index("Label")["Value"]
+        self.assertEqual(back["Beat_Counter"], "4")
+
+    def test_round_trip_beside_the_other_bits(self):
+        for text, beats, shown in (("Off", 0, "Off"), ("", 0, "Off"), ("0", 0, "Off"), ("N", 0, "Off"),
+                                   ("1", 1, "1"), ("3", 3, "3"), ("7", 7, "7"), ("15", 15, "15")):
+            packed = self.pack_with(text)
+            self.assertEqual(packed[35], (beats << 4) | 3, text)   # the demo's LED_Feedback and Link_Toggles
+            back = unpacker.unpack_config(packed)[0].set_index("Label")["Value"]
+            self.assertEqual((back["Beat_Counter"], back["LED_Feedback"], back["Link_Toggles"]),
+                             (shown, "Y", "Y"), text)
+
+    def test_bad_values(self):
+        for text in ("16", "-1", "four", "4.5x"):
+            with self.assertRaises(ValueError, msg=text):
+                self.pack_with(text)
+
+    def test_missing_setting_and_erased_byte_read_off(self):
+        sections = read_config_csv(DEMO_CSV)
+        g = sections["Global_Settings"]
+        sections["Global_Settings"] = g[g["Label"] != "Beat_Counter"]
+        packed = bytearray(packer.pack_config(sections))
+        self.assertEqual(packed[35] >> 4, 0)
+        packed[35] = 0xFF
+        back = unpacker.unpack_config(bytes(packed))[0].set_index("Label")["Value"]
+        self.assertEqual(back["Beat_Counter"], "Off")
+
+    def test_bits_match_firmware(self):
+        from lib import settingsBinaryPacker as sbp
+        text = open(os.path.join(FIRMWARE, "Core", "Inc", "midi_defines.h")).read()
+        self.assertIn("#define BEAT_COUNTER_MASK	(0xF0)", text)
+        self.assertIn("#define BEAT_COUNTER_SHIFT	(%d)" % sbp.BEAT_COUNTER_SHIFT, text)
+        editor = open(os.path.join(FIRMWARE, "Core", "Src", "editor.c")).read()
+        self.assertRegex(editor, r'"BARBEATS",\s*GLOBAL_SETTINGS_LED_FEEDBACK,\s*S_FLAG,\s*BEAT_COUNTER_MASK,\s*%d'
+                         % sbp.BEAT_COUNTER_MAX)
 
 
 class ExpressionOutputTest(unittest.TestCase):
@@ -2049,15 +2099,34 @@ class WaitTest(unittest.TestCase):
                               decoded["Number_(PC/CC/Note)"], decoded["Duration_(Note/PB)"]),
                              ("Wait", mode, beats, ""))
 
+    def test_count_encoding_and_round_trip(self):
+        """A count-in is a Bar with byte 2 = 1: 0.85-0.87 wait for the bar."""
+        self.assertEqual(list(self.pack("", "Count")), [0x01, 0, 1, 4])
+        self.assertEqual(list(self.pack("", "count", "3")), [0x01, 0, 1, 3])
+        for beats in ("4", "3", "1", "32"):
+            decoded = unpacker.unpack_command(self.pack("", "Count", beats))
+            self.assertEqual((decoded["CommandType"], decoded["KeyMode_(Key)"],
+                              decoded["Number_(PC/CC/Note)"]), ("Wait", "Count", beats))
+
+    def test_demo_record_after_a_count_in(self):
+        packed = packer.pack_config(read_config_csv(DEMO_CSV))
+        longs = unpacker.unpack_config(packed)[3]
+        row = longs[(longs["Bank_Number"].astype(str) == "6")
+                    & (longs["Button_Identifier"].astype(str) == "2")].iloc[0]
+        self.assertEqual((row["A_CommandType"], row["A_KeyMode_(Key)"], row["A_Number_(PC/CC/Note)"]),
+                         ("Wait", "Count", "4"))
+        self.assertEqual((row["B_CommandType"], row["B_Number_(PC/CC/Note)"]), ("CC", "21"))
+
     def test_bad_grid(self):
-        for mode, beats in (("Bar", "0"), ("Bar", "33"), ("Bars", ""), ("Beat 2", "")):
+        for mode, beats in (("Bar", "0"), ("Bar", "33"), ("Count", "0"), ("Count", "33"),
+                            ("Bars", ""), ("Beat 2", "")):
             with self.assertRaises(ValueError):
                 self.pack("", mode, beats)
 
     def test_firmware_reads_the_grid_from_byte_3(self):
         with open(os.path.join(os.path.dirname(HERE), "..", "firmware", "Core", "Src", "switch_router.c")) as f:
             src = f.read()
-        self.assertIn("if(pRom[3]) ms = tempo_grid_wait(pRom[3], &beat, &host);", src)
+        self.assertIn("if(pRom[3]) ms = tempo_grid_wait(pRom[3], &beat, &host, pRom[2] != 0);", src)
 
     def test_demo_record_on_the_next_bar(self):
         packed = packer.pack_config(read_config_csv(DEMO_CSV))

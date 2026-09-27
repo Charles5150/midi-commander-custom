@@ -6,6 +6,7 @@ The pedal keeps a tempo of its own: tapped with your foot, set by a bank as you 
 
 - the MIDI clock the pedal sends, so a delay or looper behind it follows your foot;
 - the tap LED, flashing on every beat;
+- the bar and beat on the display, and a count-in before a press goes;
 - LFOs, which swing a CC up and down in time;
 - step sequences, which play a CC or a note a step at a time.
 
@@ -58,6 +59,25 @@ When a DAW or a sequencer runs the show, the pedal can take its tempo from the h
 - Half a second without a clock counts as stopped, and the pedal's own clock, if running, carries on at the adopted tempo, so a looper behind it keeps time.
 
 See [`Clock_Follow`](12-configuration-file.md#global_settings) in the settings. A [`Wait` on the beat](06-commands.md#on-the-beat) counts its bars from the host's Start, or from its Song Position on a Continue.
+
+## Bar and beat on the display
+
+On stage with a looper or a DAW, you want to know where the one is without looking at a screen off stage. Choose how many beats a bar has in **Bar and beat on the display** in the **Global** tab (`Beat_Counter` in the CSV, 1 to 15, `Off` to leave it out), and while a clock runs the bank's info line gives way to the bar, the beat and the tempo: `12.3 120` is the third beat of bar 12, at 120 BPM.
+
+- It shows while the pedal's own clock runs, counted from its Start, and while the host's clock plays with `Clock_Follow` on, from the host's Start, or from its Song Position on a Continue, so the bar numbers are the song's. Between the host's Stop and its next Start or Continue it is gone, even if the host keeps its clock running.
+- With no clock running there is no bar to count, and the bank's own info shows.
+- A text the computer sends to the info line, or a readout such as the tempo, shows over it as usual.
+- A [count-in](06-commands.md#on-the-beat) (`Wait` `Count`) counts its beats down in large type where the bank's name was, `IN 4` to `IN 1`, whether `Beat_Counter` is on or not.
+
+In the demo it is on, in bars of 4: in bank 6, press CLK to start the clock and watch it count; hold CLK for a count-in before CC 21.
+
+*Firmware 0.88 or later.*
+
+<details><summary>Under the hood</summary>
+
+`Beat_Counter` is the top four bits of global byte 35, beside `LED_Feedback`, `Link_Toggles` and the two pedals' `Send_On_Bank` in the bottom four. Older firmware ignores them.
+
+</details>
 
 ## Tap LED
 

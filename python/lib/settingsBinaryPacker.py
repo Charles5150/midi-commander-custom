@@ -23,6 +23,8 @@ GLOBAL_SETTINGS_LED_FEEDBACK = 35
 LED_FEEDBACK_HOST = 0x01
 LED_FEEDBACK_LINK = 0x02
 EXP_SEND_ON_BANK = 0x04         # pedal 1; pedal 2 is the next bit (Expression_Settings)
+BEAT_COUNTER_SHIFT = 4          # bits 4-7: beats in a bar for bar.beat on the display, 0 = off
+BEAT_COUNTER_MAX = 15
 GLOBAL_SETTINGS_DOUBLE_PRESS = 36
 GLOBAL_SETTINGS_REMOTE_MODE = 38
 GLOBAL_SETTINGS_REMOTE_CHANNEL = 39
@@ -194,6 +196,20 @@ def pack_global_settings(df):
     # What a toggle sends sets the other toggles sending the same, in the same byte
     if "Link_Toggles" in df.index and "Y" in str(df.loc["Link_Toggles", "Value"]).upper():
         bin_list[GLOBAL_SETTINGS_LED_FEEDBACK] |= LED_FEEDBACK_LINK
+
+    # Bar and beat on the display while a clock runs, in bars of this many
+    # beats, in the top four bits of the same byte. Off = not shown.
+    bc = str(df.loc["Beat_Counter", "Value"]).strip() if "Beat_Counter" in df.index else "Off"
+    if bc.upper().startswith(("O", "N")) or bc in ("", "nan", "0"):
+        beats = 0
+    else:
+        try:
+            beats = int(float(bc))
+        except ValueError:
+            beats = -1
+        if not 1 <= beats <= BEAT_COUNTER_MAX:
+            raise ValueError(f"Beat_Counter must be Off or 1-{BEAT_COUNTER_MAX} beats in a bar, not {bc!r}")
+    bin_list[GLOBAL_SETTINGS_LED_FEEDBACK] |= beats << BEAT_COUNTER_SHIFT
 
     # Double press window in ms, stored in 10 ms units (100..1000 ms)
     double_ms = 300

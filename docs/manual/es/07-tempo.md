@@ -6,6 +6,7 @@ La pedalera lleva un tempo propio: marcado con el pie, fijado por un banco al en
 
 - el reloj MIDI que envía la pedalera, para que un delay o un looper que tengas detrás siga a tu pie;
 - el LED del tap, que parpadea en cada pulso;
+- el compás y el tiempo en la pantalla, y una cuenta atrás antes de que salga una pulsación;
 - los LFO, que mueven un CC arriba y abajo a tempo;
 - las secuencias por pasos, que tocan un CC o una nota paso a paso.
 
@@ -58,6 +59,25 @@ Cuando un DAW o un secuenciador lleva el directo, la pedalera puede tomar el tem
 - Medio segundo sin reloj cuenta como parado, y el reloj propio de la pedalera, si está en marcha, sigue al tempo adoptado, así que un looper que tengas detrás no pierde el tiempo.
 
 Ver [`Clock_Follow`](12-configuration-file.md#global_settings) en los ajustes. Un [`Wait` a tiempo](06-commands.md#a-tiempo) cuenta sus compases desde el Start del ordenador, o desde su Song Position en un Continue.
+
+## Compás y tiempo en la pantalla
+
+En directo con un looper o un DAW, quieres saber dónde cae el uno sin mirar una pantalla fuera del escenario. Elige cuántos tiempos tiene un compás en **Bar and beat on the display**, en la pestaña **Global** (`Beat_Counter` en el CSV, de 1 a 15, `Off` para no mostrarlo), y mientras corre un reloj la línea de información del banco deja sitio al compás, el tiempo y el tempo: `12.3 120` es el tercer tiempo del compás 12, a 120 BPM.
+
+- Sale mientras corre el reloj propio de la pedalera, contado desde su Start, y mientras suena el reloj del ordenador con `Clock_Follow` activado, desde el Start del ordenador, o desde su Song Position en un Continue, así que los números de compás son los de la canción. Entre el Stop del ordenador y su siguiente Start o Continue desaparece, aunque el ordenador siga enviando su reloj.
+- Sin reloj en marcha no hay compás que contar, y se ve la información del propio banco.
+- Un texto que el ordenador envía a la línea de información, o un aviso como el del tempo, sale encima como siempre.
+- Una [cuenta atrás](06-commands.md#a-tiempo) (`Wait` `Count`) cuenta sus tiempos hacia atrás en letra grande donde estaba el nombre del banco, de `IN 4` a `IN 1`, esté `Beat_Counter` activado o no.
+
+En la demo está activado, en compases de 4: en el banco 6, pisa CLK para arrancar el reloj y míralo contar; mantén CLK para una cuenta atrás antes del CC 21.
+
+*Firmware 0.88 o posterior.*
+
+<details><summary>Por dentro</summary>
+
+`Beat_Counter` son los cuatro bits altos del byte global 35, junto a `LED_Feedback`, `Link_Toggles` y los `Send_On_Bank` de los dos pedales en los cuatro bajos. El firmware anterior los ignora.
+
+</details>
 
 ## LED del tap
 

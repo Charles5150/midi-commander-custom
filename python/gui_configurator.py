@@ -186,7 +186,7 @@ SHORT_COMMAND_TYPES = COMMAND_TYPES + ["Cycle"]
 # Leave splits a bank's enter list into the commands on entering and on leaving
 ENTER_COMMAND_TYPES = COMMAND_TYPES + ["Leave"]
 TAP_MODES = ["Tap", "Clock", "Set", "Up", "Down", "Up Repeat", "Down Repeat"]
-WAIT_MODES = ["Time", "Beat", "Bar"]
+WAIT_MODES = ["Time", "Beat", "Bar", "Count"]
 # MIDI Machine Control actions, and which of the two song messages to send
 MMC_ACTIONS = list(MMC_COMMANDS.keys())
 # A scene leaves a button alone, or switches it on or off
@@ -334,6 +334,7 @@ GLOBAL_GROUPS = [
         ("USB_MIDI_Thru", "USB to DIN thru", "forward notes, CC, PC and other devices' SysEx"),
         ("RealTime_Passthrough", "Clock and transport thru", "forward Clock, Start, Continue and Stop"),
         ("Clock_Follow", "Follow the host's clock", "adopt the tempo of MIDI clock from USB"),
+        ("Beat_Counter", "Bar and beat on the display", "beats in a bar, shown while a clock runs; Off = not shown"),
         ("Remote_Mode", "Press from the computer", "CC or notes from USB press the switches"),
         ("Remote_Channel", "\u2026 listening on channel", ""),
         ("Remote_First", "\u2026 from number", "1 2 3 4 A B C D, Bank Down, Bank Up take ten in a row"),
@@ -803,11 +804,14 @@ class SlotEditor:
             if w.value() == "Time":
                 self._int("duration", "ms", "Duration_(Note/PB)", 0, 2550, width=65)
                 hint = "(pauses the commands below it, in steps of 10 ms)"
-            elif w.value() == "Bar":
+            elif w.value() in ("Bar", "Count"):
                 self._int("waitbeats", "Beats", "Number_(PC/CC/Note)", 1, WAIT_BAR_MAX, width=45)
                 if not clean(self.initial.get("Number_(PC/CC/Note)")):
                     self.widgets["waitbeats"].insert(0, "4")
-                hint = "(the commands below wait for the next bar)"
+                if w.value() == "Bar":
+                    hint = "(the commands below wait for the next bar)"
+                else:
+                    hint = "(a count-in: a whole bar at least, counted down on the display)"
             else:
                 hint = "(the commands below wait for the next beat)"
             ctk.CTkLabel(self.params, text=hint, text_color=MUTED).pack(side="left", padx=8)
@@ -1071,7 +1075,7 @@ class SlotEditor:
         if cmd_type == "Wait":
             mode = w["waitmode"].value()
             out["KeyMode_(Key)"] = "" if mode == "Time" else mode
-            if mode == "Bar":
+            if mode in ("Bar", "Count"):
                 out["Number_(PC/CC/Note)"] = w["waitbeats"].value()
         if cmd_type == "Cycle":
             out["OnValue_(CC/PB)"] = w["cyclelabel"].value().strip()
@@ -1369,6 +1373,7 @@ class MidiCommanderGUI(ctk.CTk):
                 ("Clock_Follow", "N"),
                 ("LED_Feedback", "N"),
                 ("Link_Toggles", "N"),
+                ("Beat_Counter", "Off"),
                 ("Double_Press_ms", "300"),
                 ("Remote_Mode", "Off"),
                 ("Remote_Channel", "Any"),
@@ -1673,6 +1678,8 @@ class MidiCommanderGUI(ctk.CTk):
             return IntEntry(parent, 100, 1000, value, width=70)
         if label == "Combo_ms":
             return IntEntry(parent, 20, 250, value, width=70)
+        if label == "Beat_Counter":
+            return Option(parent, ["Off"] + [str(n) for n in range(1, 16)], value, width=80)
         if label == "Boot_Banner":
             return Option(parent, ["Off", "Slow", "Normal", "Fast"], value, width=100)
         if label in ("LED_Brightness", "LED_Rest_Brightness"):

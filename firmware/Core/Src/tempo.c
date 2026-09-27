@@ -54,6 +54,7 @@ static volatile uint8_t ext_beat_count = 0;
 static volatile uint32_t int_bar_first = 0;
 static volatile uint32_t ext_bar_first = 0;
 static volatile uint32_t ext_song_clocks = 0;	// where the host's next run starts
+static volatile bool ext_playing = false;	// between the host's Start or Continue and its Stop
 
 // External clock following
 #define EXT_BEATS_MEASURED	(2)		// window the tempo is measured over
@@ -115,6 +116,7 @@ void tempo_external_transport(uint8_t b){
 	// Start or Continue: the next clock begins a fresh measurement
 	if(b == 0xFA) ext_song_clocks = 0;
 	if(b == 0xFA || b == 0xFB) ext_restart = true;
+	ext_playing = (b != 0xFC);
 }
 
 void tempo_external_position(uint16_t sixteenths){
@@ -282,7 +284,19 @@ void tempo_beat_now(uint32_t *beat, uint32_t *ms_since){
 	*ms_since = HAL_GetTick() - tick;
 }
 
-uint32_t tempo_grid_wait(uint8_t beats, uint32_t *target, bool *ext){
+bool tempo_bar_beat(uint8_t per_bar, uint32_t *bar, uint8_t *beat){
+	bool ext = tempo_external_present();
+	if(!per_bar || (ext ? !ext_playing : !clock_running)) return false;
+	__disable_irq();
+	int32_t d = (int32_t)(ext ? ext_beat_num - ext_bar_first : int_beat_num - int_bar_first);
+	__enable_irq();
+	if(d < 0) return false;	// Start sent, its first beat not yet
+	*bar = (uint32_t)d / per_bar + 1;
+	*beat = (uint8_t)((uint32_t)d % per_bar + 1);
+	return true;
+}
+
+uint32_t tempo_grid_wait(uint8_t beats, uint32_t *target, bool *ext, bool count){
 	*ext = tempo_external_present();
 	__disable_irq();
 	uint32_t num = *ext ? ext_beat_num : int_beat_num;
@@ -295,9 +309,12 @@ uint32_t tempo_grid_wait(uint8_t beats, uint32_t *target, bool *ext){
 	// Beats into the grid; just before the pedal's first beat it is -1
 	int32_t d = (int32_t)(num - first) % beats;
 	uint32_t into = (uint32_t)(d < 0 ? d + beats : d);
-	if(into == 0 && since < GRID_GRACE_MS && (int32_t)(num - first) >= 0) return 0;
+	bool on_beat = into == 0 && since < GRID_GRACE_MS && (int32_t)(num - first) >= 0;
+	if(on_beat && !count) return 0;
 
+	// A count-in counts a whole bar at least: from this beat, or the next bar
 	uint32_t left = beats - into;
+	if(count && into) left += beats;
 	*target = num + left;
 	uint32_t beat_ms = 60000UL / (bpm ? bpm : 120);
 	uint32_t ms = left * beat_ms;

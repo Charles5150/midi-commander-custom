@@ -69,6 +69,14 @@ static volatile uint8_t moment_pending = 0;
 static uint8_t moment_showing = 0;
 
 /*
+ * Following the clock (Beat_Counter): bar.beat and the tempo in place of the
+ * bank's info while a clock runs, and a count-in's beats left in place of its
+ * name. They stand in for the bank's own texts only, never for a host's.
+ */
+static char beat_text[12];
+static char count_text[6];	// "IN 3", room for the compiler's worst case
+
+/*
  * Scrolling a text too wide for its place: still for a moment at the start,
  * then moved along until its end shows, still again, and back to the start
  * for good. Every long text on the line moves by the same scroll_px, each
@@ -303,6 +311,10 @@ static void draw_top(uint8_t bank, uint8_t over_place, const char *override){
 	const char *text[DISPLAY_TEXT_PLACES];
 	for(uint8_t p=0; p<DISPLAY_TEXT_PLACES; p++){
 		text[p] = (override && p == over_place) ? override : host_text[p];
+	}
+	if(bank == current_bank && preview_bank == 0xFF){
+		if(!text[DISPLAY_TEXT_NAME][0]) text[DISPLAY_TEXT_NAME] = count_text;
+		if(!text[DISPLAY_TEXT_INFO][0]) text[DISPLAY_TEXT_INFO] = beat_text;
 	}
 	// A moment's text in the bank name or info shows even over a whole line
 	if(override && over_place <= DISPLAY_TEXT_NAME){
@@ -665,6 +677,24 @@ static void show_moment_text(void){
 	overlay_until = HAL_GetTick() + OVERLAY_MS;
 }
 
+// Work the clock's texts out again; true when they changed
+static bool beat_update(void){
+	char beat[sizeof(beat_text)] = "", count[sizeof(count_text)] = "";
+	uint8_t v = pGlobalSettings[GLOBAL_SETTINGS_LED_FEEDBACK];
+	uint8_t per_bar = (v == 0xFF) ? 0 : (uint8_t)((v & BEAT_COUNTER_MASK) >> BEAT_COUNTER_SHIFT);
+	uint32_t bar;
+	uint8_t b;
+	if(tempo_bar_beat(per_bar, &bar, &b)){
+		snprintf(beat, sizeof(beat), "%u.%u %u", (unsigned)bar, b, tempo_get_bpm());
+	}
+	uint8_t left = sw_count_in();
+	if(left) snprintf(count, sizeof(count), "IN%2u", left);
+	if(!strcmp(beat, beat_text) && !strcmp(count, count_text)) return false;
+	strcpy(beat_text, beat);
+	strcpy(count_text, count);
+	return true;
+}
+
 void display_task(void){
 	if(editor_on) return;	// the editor draws its own screen
 	// The last screen is still going out: come back rather than wait for it,
@@ -699,9 +729,10 @@ void display_task(void){
 		if(moment_showing) moment_done();
 		refresh_pending = 1;
 	}
+	bool beat_changed = beat_update();
 	if(refresh_pending){
 		draw_bank(current_bank);
-	} else if(scroll_step()){
+	} else if(beat_changed || scroll_step()){
 		draw_top(current_bank, 0, NULL);
 		ssd1306_UpdateScreen();
 	}

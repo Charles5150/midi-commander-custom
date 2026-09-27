@@ -750,7 +750,7 @@ uint16_t MIDI_DataRx(uint8_t *msg, uint16_t length)
 			// Measure the host's clock when following it (Clock_Follow)
 			if(data[0] == 0xF8){
 				tempo_external_clock();
-			} else if(data[0] == 0xFA || data[0] == 0xFB){
+			} else if(data[0] == 0xFA || data[0] == 0xFB || data[0] == 0xFC){
 				tempo_external_transport(data[0]);
 			}
 			// Realtime messages. Clock/Start/Continue/Stop pass when enabled.

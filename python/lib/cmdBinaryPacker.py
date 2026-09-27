@@ -621,8 +621,10 @@ def cmd_wait(cmd):
     Duration is the pause in milliseconds, stored in steps of 10 ms, so the
     longest pause is 2550 ms. KeyMode Beat waits for the next beat instead, and
     Bar for the first beat of the next bar, of Number beats (4 when empty),
-    counted from where the clock started. Byte 3 holds the beats; byte 2 is
-    then 0, so older firmware sends at once.
+    counted from where the clock started. Count is a count-in: like Bar, but a
+    whole bar away at least, the display counting its beats down. Byte 3
+    holds the beats; byte 2 is then 0, or 1 for Count, so older firmware
+    sends at once and 0.85-0.87 take a Count for a Bar.
     """
     mode = str(cmd.get("KeyMode_(Key)", "") or "").strip().lower()
     if mode in ("", "nan", "time"):
@@ -630,14 +632,14 @@ def cmd_wait(cmd):
         return [CMD_NO_CMD_NIBBLE | CMD_WAIT_MODE, 0, max(0, min(255, round(ms / 10))), 0]
     if mode == "beat":
         beats = 1
-    elif mode == "bar":
+    elif mode in ("bar", "count"):
         text = str(cmd.get("Number_(PC/CC/Note)", "") or "").strip()
         beats = 4 if text.lower() in ("", "nan") else safe_int(text)
         if not 1 <= beats <= WAIT_BAR_MAX:
-            raise ValueError(f"Wait Bar takes 1 to {WAIT_BAR_MAX} beats, not {text!r}")
+            raise ValueError(f"Wait {mode.title()} takes 1 to {WAIT_BAR_MAX} beats, not {text!r}")
     else:
-        raise ValueError(f"Wait mode must be Time, Beat or Bar, not {cmd.get('KeyMode_(Key)')!r}")
-    return [CMD_NO_CMD_NIBBLE | CMD_WAIT_MODE, 0, 0, beats]
+        raise ValueError(f"Wait mode must be Time, Beat, Bar or Count, not {cmd.get('KeyMode_(Key)')!r}")
+    return [CMD_NO_CMD_NIBBLE | CMD_WAIT_MODE, 0, 1 if mode == "count" else 0, beats]
 
 
 def cmd_ramp(cmd):

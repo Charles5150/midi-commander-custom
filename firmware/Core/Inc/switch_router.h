@@ -22,6 +22,7 @@ uint8_t sw_get_current_page(void);
 // The bank the song is in: the one shown, or the one whose page is shown
 uint8_t sw_get_home_bank(void);
 uint8_t sw_preview_bank(void);	// the bank previewed, 0xFF when none
+uint8_t sw_count_in(void);	// beats before a count-in (Wait Count) goes, 0 for none
 void sw_get_toggle_states(uint32_t out[8]);
 void sw_get_long_toggle_states(uint32_t out[8]);
 void sw_get_double_toggle_states(uint32_t out[8]);

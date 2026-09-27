@@ -69,6 +69,7 @@ A command of any other type is shown by name and left exactly as it is until the
 | `KEMPER` | Kemper mode (`Kemper_Mode`) |
 | `EXP1 CC`, `EXP2 CC` | the expression pedal CC numbers (`Exp1_CC`, `Exp2_CC`) |
 | `EXP1SEND`, `EXP2SEND` | each pedal sends its position on entering a bank (`Send_On_Bank`) |
+| `BARBEATS` | the beats in a bar for the bar and beat on the display, `off` or 1–15 (`Beat_Counter`) |
 
 ## When a change is written
 

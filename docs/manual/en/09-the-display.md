@@ -25,6 +25,8 @@ Some things take the screen, or part of it, for a moment and then give the bank 
 |---|---|
 | Tapping the tempo, starting or stopping the clock, or setting or stepping the tempo | the tempo, with a leading `*` while the clock is running ([Tempo](07-tempo.md)) |
 | `Clock_Follow` picks up the host's clock, or its tempo changes | `EXT` and the tempo, for 1.5 seconds |
+| A clock running, with `Beat_Counter` on | the bar, the beat and the tempo in place of the info line, `12.3 120`, for as long as it runs ([Bar and beat on the display](07-tempo.md#bar-and-beat-on-the-display)) |
+| A count-in (`Wait` `Count`) | the beats left in place of the bank's name, `IN 4` to `IN 1`, until the list goes ([On the beat](06-commands.md#on-the-beat)) |
 | A relative CC button | the CC number and the value just sent, in place of the info line for 1.5 seconds: `CC7=69`, or `C120=127` for three digit CC numbers |
 | A next or previous preset button | the new program number, as `PC 6` |
 | Switching configuration | the new configuration's number and name, full screen; a short notice when the slot asked for is empty |

@@ -60,9 +60,17 @@ void tempo_beat_now(uint32_t *beat, uint32_t *ms_since);
  * counted from the first beat of the bar (see tempo.c), and whether it is the
  * host's beat. Returns 0 when the press is on such a beat already, a moment
  * late at most, or else how long to wait before giving up on the beat, should
- * the clock stall: a beat more than it ought to take.
+ * the clock stall: a beat more than it ought to take. A count-in never goes
+ * at once: it waits for the first such beat a whole stretch away at least.
  */
-uint32_t tempo_grid_wait(uint8_t beats, uint32_t *target, bool *ext);
+uint32_t tempo_grid_wait(uint8_t beats, uint32_t *target, bool *ext, bool count);
+
+/*
+ * Where the running clock is, in bars of `per_bar` beats counted from its
+ * Start: the pedal's clock, or the host's between its Start or Continue and
+ * its Stop. False with no clock running, or before its first beat.
+ */
+bool tempo_bar_beat(uint8_t per_bar, uint32_t *bar, uint8_t *beat);
 
 /*
  * Following an external clock (Clock_Follow). The USB receive path reports
@@ -72,7 +80,7 @@ uint32_t tempo_grid_wait(uint8_t beats, uint32_t *target, bool *ext);
  * running, carries on at the adopted tempo.
  */
 void tempo_external_clock(void);			// interrupt context, 0xF8
-void tempo_external_transport(uint8_t b);	// interrupt context, 0xFA / 0xFB
+void tempo_external_transport(uint8_t b);	// interrupt context, 0xFA / 0xFB / 0xFC
 void tempo_external_position(uint16_t sixteenths);	// interrupt context, 0xF2
 bool tempo_external_present(void);
 

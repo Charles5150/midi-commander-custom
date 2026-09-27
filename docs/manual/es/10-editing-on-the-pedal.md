@@ -69,6 +69,7 @@ Un comando de cualquier otro tipo se muestra por su nombre y se deja exactamente
 | `KEMPER` | modo Kemper (`Kemper_Mode`) |
 | `EXP1 CC`, `EXP2 CC` | los números de CC de los pedales de expresión (`Exp1_CC`, `Exp2_CC`) |
 | `EXP1SEND`, `EXP2SEND` | cada pedal envía su posición al entrar en un banco (`Send_On_Bank`) |
+| `BARBEATS` | los tiempos de un compás para el compás y el tiempo en la pantalla, `off` o 1–15 (`Beat_Counter`) |
 
 ## Cuándo se guarda un cambio
 

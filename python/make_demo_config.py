@@ -407,6 +407,12 @@ def build() -> Demo:
     d.long_press(6, "A", slot="B", CommandType="CC",
                  **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": "21",
                     "OnValue_(CC/PB)": "127", "OffValue_(CC)": ""})
+    # Hold CLK for the same with a count-in: a whole bar at least, counted
+    # down on the display (IN 4, IN 3...) before CC 21 goes out
+    d.long_press(6, "2", CommandType="Wait", **{"KeyMode_(Key)": "Count", "Number_(PC/CC/Note)": "4"})
+    d.long_press(6, "2", slot="B", CommandType="CC",
+                 **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": "21",
+                    "OnValue_(CC/PB)": "127", "OffValue_(CC)": ""})
 
     # --- bank 7: relative CC and ramps ---------------------------------------
     # Held down, the volume keeps moving, faster and faster
@@ -696,6 +702,7 @@ def global_settings() -> pd.DataFrame:
                 ("Clock_Follow", "Y"),
                 ("LED_Feedback", "Y"),
                 ("Link_Toggles", "Y"),
+                ("Beat_Counter", "4"),
                 ("Double_Press_ms", "300"),
                 ("Remote_Mode", "CC"),
                 ("Remote_Channel", "16"),

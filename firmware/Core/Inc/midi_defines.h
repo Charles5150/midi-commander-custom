@@ -327,10 +327,12 @@
 #define GLOBAL_SETTINGS_SLEEP_AFTER_MIN (32)	// Idle minutes before the display and LEDs go out (0 = never)
 #define GLOBAL_SETTINGS_SETLIST_MODE (33)	// 1 = Bank Up/Down follow the setlist order instead of bank numbers
 #define GLOBAL_SETTINGS_CLOCK_FOLLOW (34)	// 1 = adopt the tempo of MIDI clock arriving over USB
-#define GLOBAL_SETTINGS_LED_FEEDBACK (35)	// bits: LED_FEEDBACK_HOST, LED_FEEDBACK_LINK, EXP_SEND_ON_BANK; 0xFF = none
+#define GLOBAL_SETTINGS_LED_FEEDBACK (35)	// bits: LED_FEEDBACK_HOST, LED_FEEDBACK_LINK, EXP_SEND_ON_BANK, BEAT_COUNTER; 0xFF = none
 #define LED_FEEDBACK_HOST	(0x01)	// incoming CC/Note over USB set matching toggle buttons
 #define LED_FEEDBACK_LINK	(0x02)	// what a toggle sends sets the others sending the same (Link_Toggles)
 #define EXP_SEND_ON_BANK(pedal)	(0x04U << (pedal))	// the pedal sends its position on entering a bank (Send_On_Bank)
+#define BEAT_COUNTER_MASK	(0xF0)	// beats in a bar for the bar and beat on the display, 0 = off (Beat_Counter)
+#define BEAT_COUNTER_SHIFT	(4)
 #define GLOBAL_SETTINGS_DOUBLE_PRESS (36)	// Double press window in 10 ms units (0/0xFF = 300 ms)
 #define GLOBAL_SETTINGS_DOUBLE_STORED (37)	// 1 = the tools wrote this slot's double press area
 #define GLOBAL_SETTINGS_REMOTE_MODE (38)	// Remote press: 0 off, 1 Control Change, 2 Note

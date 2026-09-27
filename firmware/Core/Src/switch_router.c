@@ -1501,7 +1501,8 @@ static void apply_pending_bank(void){
  * A Wait on the grid waits for a beat instead, the next one or the first of
  * the next bar (tempo_grid_wait): the list runs on the main loop pass that
  * sees the beat counter reach it, or when its clock goes, or a beat late at
- * most should the clock stall.
+ * most should the clock stall. A count-in (Wait Count) waits a whole bar at
+ * least, and the display counts its beats down (sw_count_in).
  */
 #define PENDING_LISTS		(4)
 
@@ -1521,6 +1522,7 @@ typedef struct {
 #define GRID_NONE	(0)
 #define GRID_OWN	(1)		// the pedal's beat
 #define GRID_HOST	(2)		// the host's
+#define GRID_COUNT	(4)		// a count-in: the display counts the beats down
 
 static pending_list_t pending_lists[PENDING_LISTS];
 
@@ -1558,11 +1560,24 @@ static pending_list_t *pending_schedule(const frame_t *st, uint8_t depth, uint8_
 
 // Whether the beat a list waits for has come, or its clock has gone
 static bool pending_on_beat(const pending_list_t *p){
-	if(p->grid == GRID_NONE) return false;
-	if(tempo_external_present() != (p->grid == GRID_HOST)) return true;
+	uint8_t grid = p->grid & (GRID_OWN | GRID_HOST);
+	if(grid == GRID_NONE) return false;
+	if(tempo_external_present() != (grid == GRID_HOST)) return true;
 	uint32_t beat, ms;
 	tempo_beat_now(&beat, &ms);
 	return (int32_t)(beat - p->beat) >= 0;
+}
+
+uint8_t sw_count_in(void){
+	uint32_t beat, ms, left = 0;
+	tempo_beat_now(&beat, &ms);
+	for(uint8_t i=0; i<PENDING_LISTS; i++){
+		const pending_list_t *p = &pending_lists[i];
+		if(!p->active || !(p->grid & GRID_COUNT)) continue;
+		int32_t l = (int32_t)(p->beat - beat);
+		if(l > 0 && (!left || (uint32_t)l < left)) left = (uint32_t)l;
+	}
+	return (uint8_t)(left > 99 ? 99 : left);
 }
 
 static bool pending_defer_release(uint8_t owner){
@@ -2451,12 +2466,12 @@ static bool run_list_stack(frame_t *st, uint8_t depth, uint8_t toggle,
 			uint32_t ms = (uint32_t)pRom[2] * 10;
 			uint32_t beat = 0;
 			bool host = false;
-			if(pRom[3]) ms = tempo_grid_wait(pRom[3], &beat, &host);
+			if(pRom[3]) ms = tempo_grid_wait(pRom[3], &beat, &host, pRom[2] != 0);
 			pending_list_t *p;
 			if(allow_wait && ms &&
 					(p = pending_schedule(st, depth, (uint8_t)(j + 1), toggle, owner, flags, ms))){
 				if(pRom[3]){
-					p->grid = host ? GRID_HOST : GRID_OWN;
+					p->grid = (host ? GRID_HOST : GRID_OWN) | (pRom[2] ? GRID_COUNT : 0);
 					p->beat = beat;
 				}
 				return false;

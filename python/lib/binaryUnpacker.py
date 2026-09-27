@@ -225,6 +225,7 @@ def unpack_global_settings(data: bytes) -> pd.DataFrame:
         ("Clock_Follow", "Y" if g[34] == 1 else "N"),
         ("LED_Feedback", "Y" if g[35] != 0xFF and g[35] & 0x01 else "N"),
         ("Link_Toggles", "Y" if g[35] != 0xFF and g[35] & 0x02 else "N"),
+        ("Beat_Counter", str(g[35] >> 4) if g[35] != 0xFF and g[35] >> 4 else "Off"),
         ("Double_Press_ms", str((g[36] if 0 < g[36] < 0xFF else 30) * 10)),
         ("Remote_Mode", {1: "CC", 2: "Note"}.get(g[38], "Off")),
         ("Remote_Channel", str(g[39]) if 1 <= g[39] <= 16 else "Any"),
@@ -280,7 +281,10 @@ def unpack_command(raw: bytes, cycle_labels=None) -> dict:
 
     if cmd_type == CMD_NO_CMD_NIBBLE and (b0 & 0x0F) == CMD_WAIT_MODE:
         cmd["CommandType"] = "Wait"
-        if b3 == 1:
+        if b3 and b2:
+            cmd["KeyMode_(Key)"] = "Count"
+            cmd["Number_(PC/CC/Note)"] = str(b3)
+        elif b3 == 1:
             cmd["KeyMode_(Key)"] = "Beat"
         elif b3:
             cmd["KeyMode_(Key)"] = "Bar"
