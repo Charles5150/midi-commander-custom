@@ -77,8 +77,17 @@ static void upload_touch(void){
 
 bool flash_settings_uploading(void){ return upload_on; }
 
+/*
+ * upload_at is written by the USB interrupt, so it is read before the tick: a
+ * write landing in between then only makes it older than it is. Read the
+ * other way round, a write between the two made the difference negative,
+ * which as unsigned is some 50 days, and the pedal took the tool for gone
+ * and restarted halfway through the upload (#147).
+ */
 bool flash_settings_upload_idle(uint32_t ms){
-	return upload_on && HAL_GetTick() - upload_at > ms;
+	if(!upload_on) return false;
+	uint32_t at = upload_at;
+	return (int32_t)(HAL_GetTick() - at) > (int32_t)ms;
 }
 
 void flash_settings_upload_end(void){ upload_on = false; }
