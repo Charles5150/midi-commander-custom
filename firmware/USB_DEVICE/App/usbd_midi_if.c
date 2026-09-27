@@ -783,8 +783,13 @@ uint16_t MIDI_DataRx(uint8_t *msg, uint16_t length)
 			thru_push(data, len);
 			break;
 
-		case CIN_TWO_BYTE_SYSTEM_COMMON:
 		case CIN_THREE_BYTE_SYSTEM_COMMON:
+			// Song Position: where the host's Continue picks up, for its bars
+			if(data[0] == 0xF2) tempo_external_position((uint16_t)(data[1] | (data[2] << 7)));
+			thru_push(data, len);
+			break;
+
+		case CIN_TWO_BYTE_SYSTEM_COMMON:
 		case CIN_POLY_KEYPRESS:
 		case CIN_CHANNEL_PRESSURE:
 		case CIN_PITCHBEND_CHANGE:

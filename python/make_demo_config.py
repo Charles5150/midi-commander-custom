@@ -400,6 +400,13 @@ def build() -> Demo:
     d.bank_expression(6, Exp1_CC="Speed", Exp1_Min="37", Exp1_Max="118")
     # Hold STOP for panic: every sound and note off, on every channel
     d.long_press(6, "4", CommandType="Panic")
+    # Hold TREM to start a looper recording on the first beat of the next bar
+    # of 4/4, counted from where the clock started: the Wait holds CC 21 back
+    # until then
+    d.long_press(6, "A", CommandType="Wait", **{"KeyMode_(Key)": "Bar", "Number_(PC/CC/Note)": "4"})
+    d.long_press(6, "A", slot="B", CommandType="CC",
+                 **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": "21",
+                    "OnValue_(CC/PB)": "127", "OffValue_(CC)": ""})
 
     # --- bank 7: relative CC and ramps ---------------------------------------
     # Held down, the volume keeps moving, faster and faster

@@ -26,7 +26,7 @@ In the configurator a list is ten slots, A to J. Choose a slot's command type an
 | `Key` | A key of a computer keyboard | [Keyboard keys](#keyboard-keys) |
 | `Media` | A media key: play, next, volume… | [Media keys](#media-keys) |
 | `Chan` | Sends the command below on several channels, or on USB or DIN alone | [One channel, or several](#one-channel-or-several), [USB, DIN or both](#usb-din-or-both) |
-| `Wait` | A pause in the list | [Pauses](#pauses) |
+| `Wait` | A pause in the list, or until the next beat or bar | [Pauses](#pauses), [On the beat](#on-the-beat) |
 | `Ramp` | Turns the CC below into a slow walk to its value | [CC ramps](#cc-ramps) |
 | `Exp` | Changes what an expression pedal sends | [Changing an expression pedal's target](#changing-an-expression-pedals-target) |
 | `Value` | Sets or counts one of the pedal's eight values | [Values and conditions](#values-and-conditions) |
@@ -309,6 +309,26 @@ Older firmware sends the rest of the list without pausing.
 
 *Firmware 0.30 or later.*
 
+### On the beat
+
+For the looper, the delay freeze or the backing track that has to start exactly on the downbeat, and has no quantize of its own. `CommandType` `Wait` with `KeyMode` `Beat` holds the commands below it back until the next beat; with `KeyMode` `Bar`, until the first beat of the next bar, `Number` being how many beats a bar has: empty for 4, 3 for 3/4, 8 for two bars of 4/4. Press any time in the bar before, and the looper starts on the one.
+
+- The beat is the one the tap LED shows: the host's clock while the pedal [follows it](07-tempo.md#following-the-hosts-clock), the pedal's own clock while it runs, and otherwise the tempo running on from the last tap.
+- Bars are counted from the first beat after a Start, the host's or the pedal's own. With the host's clock, a Continue picks up from the last Song Position the host sent, so bars stay in step with the song. With no clock running, the first tap of a new tempo is the first beat of a bar.
+- A press up to 40 ms after a beat that begins a bar (or any beat, for `Beat`) counts as on it, and the list goes at once, rather than a whole bar later.
+- Everything else is as with a pause: the pedal keeps going while it waits, a release is held back until the list has gone, and pressing the same button again sends what was left at once.
+- Should the clock stop while a list waits, the list goes: at once when the host's clock goes away, or a beat late at most should it stall.
+
+In the demo, holding TREM in bank 6 sends CC 21, a looper's record, on the first beat of the next bar.
+
+<details><summary>Under the hood</summary>
+
+A `Wait` on the beat keeps the beats in byte 3, 1 for `Beat`, and 0 in byte 2, its time. Older firmware reads it as a pause of no time and sends the list at once. The on-pedal editor shows it by name and leaves it alone.
+
+</details>
+
+*Firmware 0.85 or later.*
+
 ### CC ramps
 
 A volume swell or a slow filter sweep from a single press. `CommandType` `Ramp` turns the `CC` command right below it into a ramp: instead of jumping to its value, the CC walks there over `Duration` milliseconds, in steps of 10, up to 655350, almost 11 minutes.
@@ -550,7 +570,7 @@ The reference: every column of a command slot in the CSV, and what each command 
 |---|---|---|---|---|---|---|
 | `CommandType` | | | | | | `PC`, `PCInc`, `CC`, `CCInc`, `Note`, `PB`, `Key`, `Media`, `Bank`, `SysEx`, `Tap`, `Start`, `Stop`, `MMC`, `Song`, `Panic`, `Scene`, `Wait`, `Ramp`, `LFO`, `Seq`, `Exp`, `Chan`, `Value`, `If`, `Macro`, `Button`, `Listen`, `Cycle` (short press only), `Leave` (a bank's enter list only), or empty for none |
 | `Channel_(PC/CC/Note/PB)` | ✓ | ✓ | ✓ | ✓ | | MIDI channel 1–16. Exp: empty for the pedal's own. Chan: the list of channels, `1 2 3` or `1-3` |
-| `Number_(PC/CC/Note)` | ✓ | ✓ | ✓ | | ✓ | PC: program 0–127. CC: controller number. Note: note number. Key: modifier mask. Exp: the CC the pedal sends. Value: which of the eight, 1–8. If: the button it looks at, `1`–`4` or `A`–`D`, or the value, 1–8. Macro and Button: the button, `1`–`4` or `A`–`D`. Listen: the CC it listens on |
+| `Number_(PC/CC/Note)` | ✓ | ✓ | ✓ | | ✓ | PC: program 0–127. CC: controller number. Note: note number. Key: modifier mask. Exp: the CC the pedal sends. Value: which of the eight, 1–8. If: the button it looks at, `1`–`4` or `A`–`D`, or the value, 1–8. Macro and Button: the button, `1`–`4` or `A`–`D`. Listen: the CC it listens on. Wait `Bar`: the beats in a bar, 1–32, empty for 4 |
 | `OnValue_(CC/PB)` | | ✓ | | ✓ | ✓ | CC: value on press (0–127). PB: −8192..8191. Key: key name. Media: media key name. Cycle: the state's label, up to 4 characters. Exp: the pedal, 1 or 2. MMC `Locate`: where to go, in seconds. Song: the song number 0–127, or the position in sixteenth notes. LFO: the length of a cycle, `1/16T` `1/16` `1/8T` `1/8` `1/4T` `1/8.` `1/4` `1/2T` `1/4.` `1/2` `1/2.` `1/1` `2/1` `4/1` (empty for `1/4`). Seq: its two steps, a value 0–127 or `-` for a silent one, `100 -`. Value: the amount. If: what the value is compared with, or the bank. Bank: the bank, or how many to move. Macro: the bank the button is in. Button: the same, or empty for the bank showing. Listen: the value meaning on, 127 when empty |
 | `OffValue_(CC)` | | ✓ | | | | CC: value on release / toggle off (0–127), empty for none. Value: the highest it goes, 127 when empty. Listen: the value meaning off, 0 when empty |
 | `BankSelect_(PC)` | ✓ | | | | | 0–16383, sent as CC#32 (LSB) before the PC |
@@ -558,7 +578,7 @@ The reference: every column of a command slot in the CSV, and what each command 
 | `Toggle_(CC/PB/Note)` | | ✓ | ✓ | ✓ | ✓ | Y: alternate on / off on successive presses. Key / Media: hold until the next press |
 | `Velocity_(Note)` | | | ✓ | | | 0–127 |
 | `Duration_(Note/PB)` | | | ✓ | ✓ | ✓ | In 10 ms steps, 0–127 (max 1.27 s). Media: same as Key. Wait: the pause in milliseconds, up to 2550. Ramp: its time in milliseconds, up to 655350 |
-| `KeyMode_(Key)` | | | | | ✓ | Normal / Down / Up. CCInc and PCInc: Up / Down / Up Repeat / Down Repeat. Tap: Tap / Clock / Set / Up / Down / Up Repeat / Down Repeat. Listen: Steady / Slow / Fast / Dim. Exp: CC / Off / Own / Speed / Add. LFO: Sine / Triangle / SawUp / SawDown / Square / Random (empty for Sine). Seq: how long a step lasts, the same note divisions as the LFO (empty for `1/8`), read from the first command of the run. MMC: Play / Stop / Record / RecordExit / Pause / FastForward / Rewind / Locate / DeferredPlay / Chase / Eject / Reset (empty for Play). Song: Select / Position. Value: Set / Add / Sub (empty for Set). If: Button on / Button off / Value = / Value <> / Value < / Value >= / Bank is / Bank is not. Bank: GoTo / Up / Down / Back / Page / Config / NextConfig. Macro: Short / Long / Double. Button: Press / On / Off / Set On / Set Off, then Long or Double for those lists |
+| `KeyMode_(Key)` | | | | | ✓ | Normal / Down / Up. CCInc and PCInc: Up / Down / Up Repeat / Down Repeat. Tap: Tap / Clock / Set / Up / Down / Up Repeat / Down Repeat. Listen: Steady / Slow / Fast / Dim. Exp: CC / Off / Own / Speed / Add. LFO: Sine / Triangle / SawUp / SawDown / Square / Random (empty for Sine). Seq: how long a step lasts, the same note divisions as the LFO (empty for `1/8`), read from the first command of the run. MMC: Play / Stop / Record / RecordExit / Pause / FastForward / Rewind / Locate / DeferredPlay / Chase / Eject / Reset (empty for Play). Song: Select / Position. Value: Set / Add / Sub (empty for Set). If: Button on / Button off / Value = / Value <> / Value < / Value >= / Bank is / Bank is not. Bank: GoTo / Up / Down / Back / Page / Config / NextConfig. Macro: Short / Long / Double. Button: Press / On / Off / Set On / Set Off, then Long or Double for those lists. Wait: Time / Beat / Bar (empty for Time) |
 
 ---
 

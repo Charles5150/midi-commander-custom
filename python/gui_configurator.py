@@ -27,7 +27,7 @@ from lib.cmdBinaryPacker import (  # noqa: E402
     EXP_TARGETS, HID_SPECIAL_KEYS, LFO_DIVISIONS, LFO_SHAPES, MEDIA_KEYS, RAMP_MAX_MS,
     MMC_COMMANDS, MMC_LOCATE_MAX, SONG_MODES, SONG_POSITION_MAX,
     VAR_MODES, VAR_COUNT, VAR_DEFAULT_TOP, IF_TESTS, IF_BUTTON_TESTS, IF_VALUE_TESTS,
-    SCENE_BUTTONS, MACRO_LISTS, LISTEN_LOOKS, BUTTON_ACTIONS, CHAN_OUTPUTS, button_mode, command_type,
+    SCENE_BUTTONS, MACRO_LISTS, LISTEN_LOOKS, BUTTON_ACTIONS, CHAN_OUTPUTS, WAIT_BAR_MAX, button_mode, command_type,
 )
 from lib.configCsv import read_config_csv, write_config_csv  # noqa: E402
 from lib.displayText import display_text  # noqa: E402
@@ -186,6 +186,7 @@ SHORT_COMMAND_TYPES = COMMAND_TYPES + ["Cycle"]
 # Leave splits a bank's enter list into the commands on entering and on leaving
 ENTER_COMMAND_TYPES = COMMAND_TYPES + ["Leave"]
 TAP_MODES = ["Tap", "Clock", "Set", "Up", "Down", "Up Repeat", "Down Repeat"]
+WAIT_MODES = ["Time", "Beat", "Bar"]
 # MIDI Machine Control actions, and which of the two song messages to send
 MMC_ACTIONS = list(MMC_COMMANDS.keys())
 # A scene leaves a button alone, or switches it on or off
@@ -777,12 +778,22 @@ class SlotEditor:
                 w.pack(side="left")
                 self.widgets[f"scene_{i}"] = w
         elif cmd_type == "Wait":
-            self._int("duration", "ms", "Duration_(Note/PB)", 0, 2550, width=65)
-            ctk.CTkLabel(
-                self.params,
-                text="(pauses the commands below it, in steps of 10 ms)",
-                text_color=MUTED,
-            ).pack(side="left", padx=8)
+            mode = clean(self.initial.get("KeyMode_(Key)")) or "Time"
+            w = Option(self.params, WAIT_MODES, mode, width=75,
+                       command=lambda m: self._remode("Wait", m))
+            w.pack(side="left")
+            self.widgets["waitmode"] = w
+            if w.value() == "Time":
+                self._int("duration", "ms", "Duration_(Note/PB)", 0, 2550, width=65)
+                hint = "(pauses the commands below it, in steps of 10 ms)"
+            elif w.value() == "Bar":
+                self._int("waitbeats", "Beats", "Number_(PC/CC/Note)", 1, WAIT_BAR_MAX, width=45)
+                if not clean(self.initial.get("Number_(PC/CC/Note)")):
+                    self.widgets["waitbeats"].insert(0, "4")
+                hint = "(the commands below wait for the next bar)"
+            else:
+                hint = "(the commands below wait for the next beat)"
+            ctk.CTkLabel(self.params, text=hint, text_color=MUTED).pack(side="left", padx=8)
         elif cmd_type == "Cycle":
             self._label("Label")
             w = TextEntry(self.params, 4, self.initial.get("OnValue_(CC/PB)"), width=70, display=True)
@@ -1040,6 +1051,11 @@ class SlotEditor:
         if cmd_type == "Chan":
             out["Channel_(PC/CC/Note/PB)"] = w["chanlist"].value().strip()
             out["KeyMode_(Key)"] = "" if w["chanout"].value() == "Both" else w["chanout"].value()
+        if cmd_type == "Wait":
+            mode = w["waitmode"].value()
+            out["KeyMode_(Key)"] = "" if mode == "Time" else mode
+            if mode == "Bar":
+                out["Number_(PC/CC/Note)"] = w["waitbeats"].value()
         if cmd_type == "Cycle":
             out["OnValue_(CC/PB)"] = w["cyclelabel"].value().strip()
         if cmd_type == "LFO":

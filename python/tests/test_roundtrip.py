@@ -1984,12 +1984,48 @@ class WaitTest(unittest.TestCase):
     """Wait command: a pause before the rest of the button's commands."""
 
     @staticmethod
-    def pack(ms):
+    def pack(ms, mode="", beats=""):
         row = {f"A_{f}": "" for f in unpacker.CMD_FIELDS}
         row["A_CommandType"] = "Wait"
         row["A_Duration_(Note/PB)"] = ms
-        row["A_KeyMode_(Key)"] = ""
+        row["A_KeyMode_(Key)"] = mode
+        row["A_Number_(PC/CC/Note)"] = beats
         return bytes(cbp.pack_row(pd.Series(row)))[:4]
+
+    def test_beat_and_bar_encoding(self):
+        """Byte 3 holds the beats of the grid, byte 2 stays 0 so older firmware
+        sends at once; the time is not looked at."""
+        self.assertEqual(list(self.pack("500", "Beat")), [0x01, 0, 0, 1])
+        self.assertEqual(list(self.pack("", "bar")), [0x01, 0, 0, 4])
+        self.assertEqual(list(self.pack("", "Bar", "3")), [0x01, 0, 0, 3])
+        self.assertEqual(list(self.pack("", "Bar", "32")), [0x01, 0, 0, 32])
+        self.assertEqual(list(self.pack("200", "Time")), [0x01, 0, 20, 0])
+
+    def test_beat_and_bar_round_trip(self):
+        for mode, beats in (("Beat", ""), ("Bar", "4"), ("Bar", "3"), ("Bar", "8")):
+            decoded = unpacker.unpack_command(self.pack("", mode, beats))
+            self.assertEqual((decoded["CommandType"], decoded["KeyMode_(Key)"],
+                              decoded["Number_(PC/CC/Note)"], decoded["Duration_(Note/PB)"]),
+                             ("Wait", mode, beats, ""))
+
+    def test_bad_grid(self):
+        for mode, beats in (("Bar", "0"), ("Bar", "33"), ("Bars", ""), ("Beat 2", "")):
+            with self.assertRaises(ValueError):
+                self.pack("", mode, beats)
+
+    def test_firmware_reads_the_grid_from_byte_3(self):
+        with open(os.path.join(os.path.dirname(HERE), "..", "firmware", "Core", "Src", "switch_router.c")) as f:
+            src = f.read()
+        self.assertIn("if(pRom[3]) ms = tempo_grid_wait(pRom[3], &beat, &host);", src)
+
+    def test_demo_record_on_the_next_bar(self):
+        packed = packer.pack_config(read_config_csv(DEMO_CSV))
+        longs = unpacker.unpack_config(packed)[3]
+        row = longs[(longs["Bank_Number"].astype(str) == "6")
+                    & (longs["Button_Identifier"].astype(str) == "A")].iloc[0]
+        self.assertEqual((row["A_CommandType"], row["A_KeyMode_(Key)"], row["A_Number_(PC/CC/Note)"]),
+                         ("Wait", "Bar", "4"))
+        self.assertEqual((row["B_CommandType"], row["B_Number_(PC/CC/Note)"]), ("CC", "21"))
 
     def test_encoding(self):
         """Byte 0 marks the pause, byte 2 holds it in steps of 10 ms."""

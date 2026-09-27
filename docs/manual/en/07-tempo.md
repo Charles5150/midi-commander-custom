@@ -57,7 +57,7 @@ When a DAW or a sequencer runs the show, the pedal can take its tempo from the h
 - While that clock keeps arriving the pedal sends no clock of its own. With `RealTime_Passthrough` on, the host's clock already reaches the DIN output; with it off, the pedal re-clocks the DIN output at the host's tempo.
 - Half a second without a clock counts as stopped, and the pedal's own clock, if running, carries on at the adopted tempo, so a looper behind it keeps time.
 
-See [`Clock_Follow`](12-configuration-file.md#global_settings) in the settings.
+See [`Clock_Follow`](12-configuration-file.md#global_settings) in the settings. A [`Wait` on the beat](06-commands.md#on-the-beat) counts its bars from the host's Start, or from its Song Position on a Continue.
 
 ## Tap LED
 

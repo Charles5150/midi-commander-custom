@@ -33,7 +33,7 @@ Un archivo escrito a mano se empaqueta tal como está escrito o dice qué está 
 | 3 | Program Change, con y sin Bank Select, un patch seleccionado al entrar, y PC solo por DIN con CC solo por USB (mantener P 0) |
 | 4 | Teclas del teclado: sencillas, con modificadores, mantenidas y una combinación Down/Up |
 | 5 | Teclas multimedia; si las mantienes, los mismos botones controlan una grabadora, con MMC, Song Select y Song Position |
-| 6 | Tap tempo, arranque y parada del reloj, transporte, BPM arriba y abajo (mantén SYNC para 120 BPM), TREM, un trémolo en el CC 14 que sigue el tempo, y un arpegio de cuatro notas manteniendo STRT |
+| 6 | Tap tempo, arranque y parada del reloj, transporte, BPM arriba y abajo (mantén SYNC para 120 BPM), TREM, un trémolo en el CC 14 que sigue el tempo (mantenlo para el CC 21 en el siguiente compás), y un arpegio de cuatro notas manteniendo STRT |
 | 7 | CC relativo, arriba y abajo, con y sin vuelta, VOL+ y VOL- que se repiten mientras se mantienen, y dos rampas de CC: un swell en toggle y una subida momentánea |
 | 8 | Mensajes SysEx guardados, incluida una entrada vacía que no envía nada; un WAH en D que el pedal 1 enciende y apaga solo; VOL en C, que convierte el pedal 1 en pedal de volumen (CC 7) mientras está encendido; y P2 X en B, que silencia el pedal 2 mientras está encendido |
 | 9 | Notas y pitch bend, con duraciones y toggles |

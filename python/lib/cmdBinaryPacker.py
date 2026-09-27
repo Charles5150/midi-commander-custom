@@ -600,14 +600,32 @@ def cmd_scene(cmd):
     return [CMD_SCENE_NIBBLE, mask, states, 0]
 
 
+WAIT_BAR_MAX = 32
+
+
 def cmd_wait(cmd):
     """Pause before the rest of the button's commands.
 
     Duration is the pause in milliseconds, stored in steps of 10 ms, so the
-    longest pause is 2550 ms.
+    longest pause is 2550 ms. KeyMode Beat waits for the next beat instead, and
+    Bar for the first beat of the next bar, of Number beats (4 when empty),
+    counted from where the clock started. Byte 3 holds the beats; byte 2 is
+    then 0, so older firmware sends at once.
     """
-    ms = safe_int(cmd.get("Duration_(Note/PB)", 0))
-    return [CMD_NO_CMD_NIBBLE | CMD_WAIT_MODE, 0, max(0, min(255, round(ms / 10))), 0]
+    mode = str(cmd.get("KeyMode_(Key)", "") or "").strip().lower()
+    if mode in ("", "nan", "time"):
+        ms = safe_int(cmd.get("Duration_(Note/PB)", 0))
+        return [CMD_NO_CMD_NIBBLE | CMD_WAIT_MODE, 0, max(0, min(255, round(ms / 10))), 0]
+    if mode == "beat":
+        beats = 1
+    elif mode == "bar":
+        text = str(cmd.get("Number_(PC/CC/Note)", "") or "").strip()
+        beats = 4 if text.lower() in ("", "nan") else safe_int(text)
+        if not 1 <= beats <= WAIT_BAR_MAX:
+            raise ValueError(f"Wait Bar takes 1 to {WAIT_BAR_MAX} beats, not {text!r}")
+    else:
+        raise ValueError(f"Wait mode must be Time, Beat or Bar, not {cmd.get('KeyMode_(Key)')!r}")
+    return [CMD_NO_CMD_NIBBLE | CMD_WAIT_MODE, 0, 0, beats]
 
 
 def cmd_ramp(cmd):

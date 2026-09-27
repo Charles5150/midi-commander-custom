@@ -132,7 +132,7 @@ static uint8_t cmd_type(const uint8_t *c){
 	switch(c[0] & 0xF0){
 	case CMD_NO_CMD_NIBBLE:
 		if((c[0] & 0x0F) == 0) return T_NONE;
-		if((c[0] & 0x0F) == CMD_WAIT_MODE) return T_WAIT;
+		if((c[0] & 0x0F) == CMD_WAIT_MODE && !c[3]) return T_WAIT;	// a pause, not a beat
 		return T_OTHER;
 	case CMD_PC_NIBBLE:		return PC_IS_RELATIVE(c[2]) ? T_OTHER : T_PC;
 	case CMD_CC_NIBBLE:		return T_CC;

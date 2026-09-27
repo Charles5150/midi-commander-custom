@@ -57,7 +57,7 @@ Cuando un DAW o un secuenciador lleva el directo, la pedalera puede tomar el tem
 - Mientras ese reloj sigue llegando, la pedalera no envía reloj propio. Con `RealTime_Passthrough` activado, el reloj del ordenador ya llega a la salida DIN; con él desactivado, la pedalera vuelve a generar el reloj en la salida DIN al tempo del ordenador.
 - Medio segundo sin reloj cuenta como parado, y el reloj propio de la pedalera, si está en marcha, sigue al tempo adoptado, así que un looper que tengas detrás no pierde el tiempo.
 
-Ver [`Clock_Follow`](12-configuration-file.md#global_settings) en los ajustes.
+Ver [`Clock_Follow`](12-configuration-file.md#global_settings) en los ajustes. Un [`Wait` a tiempo](06-commands.md#a-tiempo) cuenta sus compases desde el Start del ordenador, o desde su Song Position en un Continue.
 
 ## LED del tap
 

@@ -33,7 +33,7 @@ A file written by hand packs as written or says what is wrong and where. `Comman
 | 3 | Program Changes, with and without Bank Select, a patch selected on entry, and PC on DIN alone with CC on USB alone (hold P 0) |
 | 4 | Keyboard keys: plain, with modifiers, held, and a Down/Up combination |
 | 5 | Media keys; held, the same buttons drive a recorder instead, as MMC, Song Select and Song Position |
-| 6 | Tap tempo, clock start/stop, transport, BPM up/down (hold SYNC for 120 BPM), TREM, a tremolo on CC 14 that follows the tempo, and a four note arpeggio held on STRT |
+| 6 | Tap tempo, clock start/stop, transport, BPM up/down (hold SYNC for 120 BPM), TREM, a tremolo on CC 14 that follows the tempo (hold it for CC 21 on the next bar), and a four note arpeggio held on STRT |
 | 7 | Relative CC, up and down, with and without wrapping, VOL+ and VOL- repeating while held, and two CC ramps: a toggle swell and a momentary rise |
 | 8 | Stored SysEx messages, including an empty entry that sends nothing, a WAH on D that pedal 1 switches on and off by itself, VOL on C, which turns pedal 1 into a volume pedal (CC 7) while it is on, and P2 X on B, which silences pedal 2 while it is on |
 | 9 | Notes and pitch bend, with durations and toggles |

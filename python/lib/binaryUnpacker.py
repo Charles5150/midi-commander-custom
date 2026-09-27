@@ -277,7 +277,13 @@ def unpack_command(raw: bytes, cycle_labels=None) -> dict:
 
     if cmd_type == CMD_NO_CMD_NIBBLE and (b0 & 0x0F) == CMD_WAIT_MODE:
         cmd["CommandType"] = "Wait"
-        cmd["Duration_(Note/PB)"] = str(b2 * 10)
+        if b3 == 1:
+            cmd["KeyMode_(Key)"] = "Beat"
+        elif b3:
+            cmd["KeyMode_(Key)"] = "Bar"
+            cmd["Number_(PC/CC/Note)"] = str(b3)
+        else:
+            cmd["Duration_(Note/PB)"] = str(b2 * 10)
     elif cmd_type == CMD_NO_CMD_NIBBLE and (b0 & 0x0F) == CMD_RAMP_MODE:
         cmd["CommandType"] = "Ramp"
         cmd["Duration_(Note/PB)"] = str((b2 | (b3 << 8)) * 10)

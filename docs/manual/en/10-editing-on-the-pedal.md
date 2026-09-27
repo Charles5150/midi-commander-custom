@@ -40,7 +40,7 @@ Then come the command's type and the fields that type has — channel, CC or not
 
 The editor writes these types:
 
-`---` (no command), `PC`, `CC`, `Note`, `Bank`, `Tap`, `Start`, `Stop`, `Panic` and `Wait`.
+`---` (no command), `PC`, `CC`, `Note`, `Bank`, `Tap`, `Start`, `Stop`, `Panic` and `Wait` (a pause; one [on the beat](06-commands.md#on-the-beat) is left alone).
 
 A command of any other type is shown by name and left exactly as it is until the type field is changed, which replaces it. The double press lists are not offered: they live in an area the tools write as a block.
 

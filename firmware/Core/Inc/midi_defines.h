@@ -76,6 +76,10 @@
 // Wait: shares the empty command type, low nibble 1. Byte 2 holds the pause in
 // 10ms units, so an all zero (empty) command stays an empty command. Byte 1 is
 // left at 0 because its top bit is what marks a command as toggling.
+// With byte 3 set it waits for the beat instead: for the first beat of the next
+// stretch of that many beats, counted from the first beat of the bar (1 the
+// next beat, 4 the next bar of 4/4). Byte 2 is then 0, so older firmware
+// sends at once.
 #define CMD_WAIT_MODE		(1)
 // Ramp: same empty command type, low nibble 2. Turns the CC command right
 // below it into a ramp: bytes 2 (low) and 3 (high) hold its time in 10ms units.

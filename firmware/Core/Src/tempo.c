@@ -45,6 +45,16 @@ static volatile uint32_t ext_beat_tick = 0;
 static volatile uint32_t ext_beat_num = 0;
 static volatile uint8_t ext_beat_count = 0;
 
+// Bars, for a Wait on the grid: the beat each count starts its bars on. The
+// pedal's clock starts one on its first beat after Start, the free beat on
+// the first tap of a new tempo, and the host's clock on the beat its Start
+// begins, or the one its Continue picks up from the last Song Position.
+#define GRID_GRACE_MS	(40)	// a press this late is still on the beat
+
+static volatile uint32_t int_bar_first = 0;
+static volatile uint32_t ext_bar_first = 0;
+static volatile uint32_t ext_song_clocks = 0;	// where the host's next run starts
+
 // External clock following
 #define EXT_BEATS_MEASURED	(2)		// window the tempo is measured over
 #define EXT_TIMEOUT_MS		(500)	// longer silence means the clock stopped
@@ -73,9 +83,18 @@ void tempo_external_clock(void){
 		ext_clock_count = 0;
 		ext_last_clock_tick = now;
 		ext_seen = true;
-		ext_beat_tick = now;
-		ext_beat_num++;
-		ext_beat_count = 1;
+		// The song may pick up half way through a beat
+		uint32_t pos = ext_song_clocks;
+		ext_song_clocks = 0;
+		if(pos % CLOCKS_PER_BEAT == 0){
+			ext_beat_tick = now;
+			ext_beat_num++;
+		} else {
+			// When that beat began, at the tempo known so far
+			ext_beat_tick = now - (pos % CLOCKS_PER_BEAT) * clock_interval_us / 1000;
+		}
+		ext_beat_count = (uint8_t)((pos + 1) % CLOCKS_PER_BEAT);
+		ext_bar_first = ext_beat_num - pos / CLOCKS_PER_BEAT;
 		return;
 	}
 	ext_last_clock_tick = now;
@@ -94,7 +113,12 @@ void tempo_external_clock(void){
 
 void tempo_external_transport(uint8_t b){
 	// Start or Continue: the next clock begins a fresh measurement
+	if(b == 0xFA) ext_song_clocks = 0;
 	if(b == 0xFA || b == 0xFB) ext_restart = true;
+}
+
+void tempo_external_position(uint16_t sixteenths){
+	ext_song_clocks = (uint32_t)sixteenths * (CLOCKS_PER_BEAT / 4);
 }
 
 bool tempo_external_present(void){
@@ -151,7 +175,8 @@ uint16_t tempo_tap(void){
 		__enable_irq();
 	}
 
-	// First tap, or too long since the last one: start over
+	// First tap, or too long since the last one: start over, and on a bar
+	if(since > TAP_TIMEOUT_MS && !clock_running) int_bar_first = int_beat_num;
 	if(interval_count == 0 && since > TAP_TIMEOUT_MS){
 		return 0;
 	}
@@ -179,10 +204,13 @@ uint16_t tempo_tap(void){
 
 void tempo_clock_start(void){
 	if(clock_running) return;
+	__disable_irq();
 	clock_acc_us = 0;
 	clocks_due = 0;
 	clock_beat_count = 0;
+	int_bar_first = int_beat_num + 1;	// the first clock is its first beat
 	clock_running = true;
+	__enable_irq();
 	midiCmd_send_start_command();
 }
 
@@ -252,6 +280,29 @@ void tempo_beat_now(uint32_t *beat, uint32_t *ms_since){
 	*beat = ext ? ext_beat_num : int_beat_num;
 	__enable_irq();
 	*ms_since = HAL_GetTick() - tick;
+}
+
+uint32_t tempo_grid_wait(uint8_t beats, uint32_t *target, bool *ext){
+	*ext = tempo_external_present();
+	__disable_irq();
+	uint32_t num = *ext ? ext_beat_num : int_beat_num;
+	uint32_t tick = *ext ? ext_beat_tick : int_beat_tick;
+	uint32_t first = *ext ? ext_bar_first : int_bar_first;
+	__enable_irq();
+	uint32_t since = HAL_GetTick() - tick;
+	if(!beats) beats = 1;
+
+	// Beats into the grid; just before the pedal's first beat it is -1
+	int32_t d = (int32_t)(num - first) % beats;
+	uint32_t into = (uint32_t)(d < 0 ? d + beats : d);
+	if(into == 0 && since < GRID_GRACE_MS && (int32_t)(num - first) >= 0) return 0;
+
+	uint32_t left = beats - into;
+	*target = num + left;
+	uint32_t beat_ms = 60000UL / (bpm ? bpm : 120);
+	uint32_t ms = left * beat_ms;
+	ms = (ms > since) ? ms - since : 0;
+	return ms + beat_ms;	// a beat late at most, should the clock stall
 }
 
 void tempo_task(void){

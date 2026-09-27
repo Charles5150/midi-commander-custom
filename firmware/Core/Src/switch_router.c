@@ -1458,6 +1458,11 @@ static void apply_pending_bank(void){
  * back until the list finishes, so nothing is switched off before it has been
  * sent. Pressing the same button again runs whatever is left at once: a new
  * press always starts from a finished list.
+ *
+ * A Wait on the grid waits for a beat instead, the next one or the first of
+ * the next bar (tempo_grid_wait): the list runs on the main loop pass that
+ * sees the beat counter reach it, or when its clock goes, or a beat late at
+ * most should the clock stall.
  */
 #define PENDING_LISTS		(4)
 
@@ -1468,9 +1473,15 @@ typedef struct {
 	uint8_t toggle;		// toggle state the list was fired with
 	uint8_t owner;		// button waiting to be released, or PENDING_OWNER_NONE
 	uint8_t flags;
+	uint8_t grid;		// waiting for a beat: GRID_OWN or GRID_HOST, else GRID_NONE
+	uint32_t beat;		// the beat it waits for
 	bool release_pending;	// the button was let go while the list was waiting
 	bool active;
 } pending_list_t;
+
+#define GRID_NONE	(0)
+#define GRID_OWN	(1)		// the pedal's beat
+#define GRID_HOST	(2)		// the host's
 
 static pending_list_t pending_lists[PENDING_LISTS];
 
@@ -1486,7 +1497,7 @@ static uint32_t key_wait_ms(uint8_t *pRom){
 	return (mode == 1 || mode == 2) ? midiCmd_get_delay(pRom) : 0;
 }
 
-static bool pending_schedule(const frame_t *st, uint8_t depth, uint8_t next, uint8_t toggle,
+static pending_list_t *pending_schedule(const frame_t *st, uint8_t depth, uint8_t next, uint8_t toggle,
 		uint8_t owner, uint8_t flags, uint32_t ms){
 	for(uint8_t i=0; i<PENDING_LISTS; i++){
 		pending_list_t *p = &pending_lists[i];
@@ -1498,11 +1509,21 @@ static bool pending_schedule(const frame_t *st, uint8_t depth, uint8_t next, uin
 		p->toggle = toggle;
 		p->owner = owner;
 		p->flags = flags;
+		p->grid = GRID_NONE;
 		p->release_pending = false;
 		p->active = true;
-		return true;
+		return p;
 	}
-	return false;	// every slot busy: the rest of the list runs without pausing
+	return NULL;	// every slot busy: the rest of the list runs without pausing
+}
+
+// Whether the beat a list waits for has come, or its clock has gone
+static bool pending_on_beat(const pending_list_t *p){
+	if(p->grid == GRID_NONE) return false;
+	if(tempo_external_present() != (p->grid == GRID_HOST)) return true;
+	uint32_t beat, ms;
+	tempo_beat_now(&beat, &ms);
+	return (int32_t)(beat - p->beat) >= 0;
 }
 
 static bool pending_defer_release(uint8_t owner){
@@ -1545,7 +1566,7 @@ static void pending_task(void){
 	uint32_t now = HAL_GetTick();
 	for(uint8_t i=0; i<PENDING_LISTS; i++){
 		pending_list_t *p = &pending_lists[i];
-		if(!p->active || (int32_t)(now - p->due) < 0) continue;
+		if(!p->active || ((int32_t)(now - p->due) < 0 && !pending_on_beat(p))) continue;
 		pending_list_t run = *p;
 		p->active = false;	// free the slot: the rest of the list may need it
 		if(run_list_stack(run.frames, run.depth, run.toggle, run.owner, run.flags, true)){
@@ -2381,8 +2402,16 @@ static bool run_list_stack(frame_t *st, uint8_t depth, uint8_t toggle,
 		}
 		if(cmd_is_wait(pRom)){
 			uint32_t ms = (uint32_t)pRom[2] * 10;
+			uint32_t beat = 0;
+			bool host = false;
+			if(pRom[3]) ms = tempo_grid_wait(pRom[3], &beat, &host);
+			pending_list_t *p;
 			if(allow_wait && ms &&
-					pending_schedule(st, depth, (uint8_t)(j + 1), toggle, owner, flags, ms)){
+					(p = pending_schedule(st, depth, (uint8_t)(j + 1), toggle, owner, flags, ms))){
+				if(pRom[3]){
+					p->grid = host ? GRID_HOST : GRID_OWN;
+					p->beat = beat;
+				}
 				return false;
 			}
 			continue;

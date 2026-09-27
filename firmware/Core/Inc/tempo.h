@@ -56,6 +56,15 @@ bool tempo_beat_flash(void);
 void tempo_beat_now(uint32_t *beat, uint32_t *ms_since);
 
 /*
+ * A Wait on the grid: the beat that begins the next stretch of `beats` beats,
+ * counted from the first beat of the bar (see tempo.c), and whether it is the
+ * host's beat. Returns 0 when the press is on such a beat already, a moment
+ * late at most, or else how long to wait before giving up on the beat, should
+ * the clock stall: a beat more than it ought to take.
+ */
+uint32_t tempo_grid_wait(uint8_t beats, uint32_t *target, bool *ext);
+
+/*
  * Following an external clock (Clock_Follow). The USB receive path reports
  * every clock byte and Start/Continue; the tempo is measured over two beats.
  * While that clock keeps arriving the pedal adopts its tempo and does not
@@ -64,6 +73,7 @@ void tempo_beat_now(uint32_t *beat, uint32_t *ms_since);
  */
 void tempo_external_clock(void);			// interrupt context, 0xF8
 void tempo_external_transport(uint8_t b);	// interrupt context, 0xFA / 0xFB
+void tempo_external_position(uint16_t sixteenths);	// interrupt context, 0xF2
 bool tempo_external_present(void);
 
 // True once each time the display should show a changed external tempo.
