@@ -26,6 +26,7 @@
 void update_leds_on_bank_change(void);
 static void fire_bank_enter_cmds(uint8_t bank);
 static void fire_bank_leave_cmds(uint8_t bank);
+static inline bool cmd_is_leave(const uint8_t *pRom);
 static void apply_scene(uint8_t mask, uint8_t states);
 static void release_group(uint8_t i);
 uint8_t sw_button_is_toggle(uint8_t bank, uint8_t sw);
@@ -677,23 +678,49 @@ static void send_exp(const uint8_t *pRom, uint8_t toggleState){
 	}
 }
 
+static inline bool cmd_is_exp_add(const uint8_t *pRom){
+	return cmd_is_exp(pRom) && pRom[2] == EXP_TARGET_ADD;
+}
+
+/*
+ * Exp in Add mode, with the CC command right below it: the pedal sends that
+ * CC too, its Off value at the heel and its On value at the toe, an Off left
+ * empty counting as 0. A toggling one stops when switched off.
+ */
+static void exp_add(const uint8_t *add, const uint8_t *cc, uint8_t toggleState){
+	uint8_t heel = (cc[3] <= 127) ? cc[3] : 0;
+	bool on = !(add[1] & 0x80) || toggleState;
+	expression_add_cc(add[1] & 0x7F, cc[0] & 0x0F, cc[1] & 0x7F, heel, cc[2] & 0x7F, on);
+}
+
 /*
  * What Exp commands have done lasts until the bank changes, and then the
  * pedals start from the new bank's own targets, overridden by the toggling
  * Exp commands of its buttons that are on, in any of their three lists. So
  * the pedals always match the LEDs, however the bank was left.
  */
+// The Exp commands of a list, as if it ran switched on; only the toggling
+// ones when toggling_only
+static void exp_cmds_of_list(const uint8_t *list, bool toggling_only){
+	for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
+		const uint8_t *pRom = list + j * MIDI_ROM_CMD_SIZE;
+		if(cmd_is_cycle(pRom) || cmd_is_leave(pRom)) break;
+		if(!cmd_is_exp(pRom) || (toggling_only && !(pRom[1] & 0x80))) continue;
+		if(!cmd_is_exp_add(pRom)){
+			send_exp(pRom, MIDI_CONTROL_ON);
+		} else if(j + 1 < MIDI_NUM_COMMANDS_PER_SWITCH
+				&& (pRom[MIDI_ROM_CMD_SIZE] & 0xF0) == CMD_CC_NIBBLE){
+			exp_add(pRom, pRom + MIDI_ROM_CMD_SIZE, MIDI_CONTROL_ON);
+		}
+	}
+}
+
 static void exp_targets_for_bank(void){
 	expression_clear_targets();
 	for(uint8_t i=0; i<MIDI_NUM_SWITCHES; i++){
 		for(uint8_t set=0; set<LIST_SETS; set++){
 			uint8_t *list = toggled_list(switch_current_page, i, set);
-			if(list == NULL) continue;
-			for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
-				uint8_t *pRom = list + j * MIDI_ROM_CMD_SIZE;
-				if(cmd_is_cycle(pRom)) break;
-				if(cmd_is_exp(pRom) && (pRom[1] & 0x80)) send_exp(pRom, MIDI_CONTROL_ON);
-			}
+			if(list != NULL) exp_cmds_of_list(list, true);
 		}
 	}
 }
@@ -2258,6 +2285,7 @@ static bool run_list_stack(frame_t *st, uint8_t depth, uint8_t toggle,
 	uint32_t ramp = 0;	// time of a Ramp just above the command, 0 for none
 	const uint8_t *lfo = NULL;	// an LFO just above the command
 	const uint8_t *chan = NULL;	// a Chan just above the command
+	const uint8_t *add = NULL;	// an Exp in Add mode just above the command
 	const uint8_t *seq = NULL;	// the first of a run of Seq commands above it
 	uint8_t seq_cmds = 0;
 	bool skip = false;		// an If above said no to the command coming
@@ -2274,11 +2302,13 @@ static bool run_list_stack(frame_t *st, uint8_t depth, uint8_t toggle,
 		uint32_t ramp_ms = ramp;
 		const uint8_t *lfo_cmd = lfo;
 		const uint8_t *chan_cmd = chan;
+		const uint8_t *add_cmd = add;
 		const uint8_t *seq_run = seq;
 		uint8_t seq_run_cmds = seq_cmds;
-		ramp = 0;	// a Ramp, LFO or Chan only reaches the command right below it
+		ramp = 0;	// a Ramp, LFO, Chan or Add only reaches the command right below it
 		lfo = NULL;
 		chan = NULL;
+		add = NULL;
 		if(cmd_is_ramp(pRom)){
 			ramp = ramp_time_ms(pRom);
 			continue;
@@ -2289,6 +2319,10 @@ static bool run_list_stack(frame_t *st, uint8_t depth, uint8_t toggle,
 		}
 		if(cmd_is_chan(pRom)){
 			chan = pRom;
+			continue;
+		}
+		if(cmd_is_exp_add(pRom)){
+			add = pRom;
 			continue;
 		}
 		if(cmd_is_seq(pRom)){
@@ -2303,6 +2337,7 @@ static bool run_list_stack(frame_t *st, uint8_t depth, uint8_t toggle,
 			ramp = ramp_ms;	// an If passes on what was above it, either way round
 			lfo = lfo_cmd;
 			chan = chan_cmd;
+			add = add_cmd;
 			seq = seq_run;
 			seq_cmds = seq_run_cmds;
 			continue;
@@ -2347,6 +2382,10 @@ static bool run_list_stack(frame_t *st, uint8_t depth, uint8_t toggle,
 			return false;
 		}
 		if(key_ms) key_waited = false;
+		if(add_cmd && (*pRom & 0xF0) == CMD_CC_NIBBLE){
+			exp_add(add_cmd, pRom, toggle);	// the pedal sends it, not the press
+			continue;
+		}
 		if(ramp_ms && (*pRom & 0xF0) == CMD_CC_NIBBLE){
 			ramp_cc(pRom, midiCmd_get_cmd_toggle(pRom) ? toggle : MIDI_CONTROL_ON, ramp_ms);
 			continue;
@@ -2395,6 +2434,7 @@ static void run_list_up(uint8_t *base, uint8_t first, uint8_t toggle, uint8_t fl
 	uint32_t ramp = 0;
 	bool lfo = false;
 	bool seq = false;
+	bool add = false;
 	bool skip = false;
 	bool called = false;
 	const uint8_t *chan = NULL;
@@ -2421,19 +2461,22 @@ static void run_list_up(uint8_t *base, uint8_t first, uint8_t toggle, uint8_t fl
 			continue;
 		}
 		if(skip && !cmd_is_ramp(pRom) && !cmd_is_lfo(pRom)
-				&& !cmd_is_chan(pRom) && !cmd_is_seq(pRom)){
+				&& !cmd_is_chan(pRom) && !cmd_is_seq(pRom) && !cmd_is_exp_add(pRom)){
 			skip = false;		// the command it held back, and no Off for it
-			ramp = 0; lfo = false; seq = false; chan = NULL;
+			ramp = 0; lfo = false; seq = false; add = false; chan = NULL;
 			continue;
 		}
 		uint32_t ramp_ms = ramp;
 		bool lfo_above = lfo;
 		bool seq_above = seq;
+		bool add_above = add;
 		const uint8_t *chan_cmd = chan;
 		ramp = cmd_is_ramp(pRom) ? ramp_time_ms(pRom) : 0;
 		lfo = cmd_is_lfo(pRom);
 		seq = cmd_is_seq(pRom);
+		add = cmd_is_exp_add(pRom);
 		chan = cmd_is_chan(pRom) ? pRom : NULL;
+		if(add_above && (*pRom & 0xF0) == CMD_CC_NIBBLE) continue;	// the pedal's, no Off
 		if(lfo_above && (*pRom & 0xF0) == CMD_CC_NIBBLE && !midiCmd_get_cmd_toggle(pRom)){
 			lfo_stop(pRom[0] & 0x0F, pRom[1] & 0x7F);	// released: then its Off value
 		}
@@ -3842,6 +3885,8 @@ void sw_restore_state(uint8_t page, const uint32_t toggles[8], const uint32_t lo
 		a_sw_obj[i].listen_look_hi = 0;
 	}
 	exp_targets_for_bank();
+	// The bank's enter list is not sent again, but where it points the pedals is
+	exp_cmds_of_list(get_bank_enter_pointer(switch_current_page, 0), false);
 	lfo_restart_all();
 	seq_restart_all();
 	update_leds_on_bank_change();

@@ -24,6 +24,12 @@ uint8_t expression_get_midi(uint8_t pedal);
 // Exp commands: send pedal to cc (EXP_TARGET_OFF silences it, EXP_TARGET_RESET
 // gives it back its own target) on channel 1-16, or 0 for its own channel.
 void expression_set_target(uint8_t pedal, uint8_t cc, uint8_t channel);
+// Exp commands in Add mode: pedal also sends cc on channel (0-15), heel at
+// the heel and toe at the toe, or no longer does when on is false. Up to
+// EXP_EXTRA_CCS per pedal; cleared with the targets.
+#define EXP_EXTRA_CCS (3U)
+void expression_add_cc(uint8_t pedal, uint8_t channel, uint8_t cc,
+                       uint8_t heel, uint8_t toe, bool on);
 void expression_clear_targets(void);
 
 // A pedal moved from the computer (SysEx SET_PEDAL): held at position 0

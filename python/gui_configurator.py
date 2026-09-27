@@ -970,9 +970,11 @@ class SlotEditor:
                 c.pack(side="left")
                 self.widgets["channel"] = c
             self._check("toggle", "Toggle", "Toggle_(CC/PB/Note)")
+            hint = ("(also sends the CC below: Off at the heel, On at the toe)" if w.get() == "Add"
+                    else "(until the bank changes; a toggle gives it back when off)")
             ctk.CTkLabel(
                 self.params,
-                text="(until the bank changes; a toggle gives it back when off)",
+                text=hint,
                 text_color=MUTED,
             ).pack(side="left", padx=8)
         # Start, Stop, Panic and (none) have no parameters

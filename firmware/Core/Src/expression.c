@@ -30,6 +30,11 @@
  * direction re-arms only once the pedal has moved back out of the threshold by
  * a margin, so resting on the edge does not retrigger.
  *
+ * And it can send up to three more CCs at the same time, each with its own
+ * range, which can run the other way: delay mix up while the reverb goes down
+ * (see expression_add_cc). They follow the pedal's curve with 7 bits, whatever
+ * its Output, and keep going when the pedal's own target is silenced.
+ *
  * Or no MIDI at all: a pedal on Speed sets how fast every LFO and sequence
  * goes, heel slowest and toe fastest through the note divisions, the output
  * range narrowing them (see speed_index). Its own Output, a bank or an Exp
@@ -156,6 +161,18 @@ typedef struct {
 } exp_override_t;
 
 static exp_override_t overrides[EXP_PEDAL_COUNT];
+
+// The CCs Exp commands in Add mode give a pedal on top of its own
+typedef struct {
+  bool used;
+  uint8_t cc;
+  uint8_t channel;      // 0-15
+  uint8_t heel;         // value at the heel
+  uint8_t toe;          // and at the toe
+  uint8_t last;         // last value sent, 0xFF: not yet, take the next as sent
+} exp_extra_t;
+
+static exp_extra_t extras[EXP_PEDAL_COUNT][EXP_EXTRA_CCS];
 // Pedals held by SET_PEDAL, at a position 0-16383 through their travel
 static volatile bool virtual_held[EXP_PEDAL_COUNT];
 static volatile uint16_t virtual_pos[EXP_PEDAL_COUNT];
@@ -453,7 +470,51 @@ void expression_set_virtual(uint8_t pedal, bool hold, uint16_t position)
 
 void expression_clear_targets(void)
 {
-  for (uint32_t i = 0; i < EXP_PEDAL_COUNT; i++) overrides[i].active = false;
+  for (uint32_t i = 0; i < EXP_PEDAL_COUNT; i++) {
+      overrides[i].active = false;
+      for (uint32_t k = 0; k < EXP_EXTRA_CCS; k++) extras[i][k].used = false;
+  }
+}
+
+/*
+ * Exp commands in Add mode. Like a bank change, a CC added is not sent the
+ * position the pedal is at: it follows from the next movement. The same CC
+ * and channel added again takes the new range; a fourth is not added.
+ */
+void expression_add_cc(uint8_t pedal, uint8_t channel, uint8_t cc,
+                       uint8_t heel, uint8_t toe, bool on)
+{
+  if (pedal >= EXP_PEDAL_COUNT) return;
+  exp_extra_t *free_slot = NULL;
+  for (uint32_t k = 0; k < EXP_EXTRA_CCS; k++) {
+      exp_extra_t *e = &extras[pedal][k];
+      if (e->used && e->cc == cc && e->channel == channel) {
+          if (!on) e->used = false;
+          e->heel = heel;
+          e->toe = toe;
+          return;
+      }
+      if (!e->used && free_slot == NULL) free_slot = e;
+  }
+  if (!on || free_slot == NULL) return;
+  free_slot->used = true;
+  free_slot->cc = cc;
+  free_slot->channel = channel;
+  free_slot->heel = heel;
+  free_slot->toe = toe;
+  free_slot->last = 0xFFU;
+}
+
+static void send_extras(uint32_t i, uint8_t midi_value)
+{
+  for (uint32_t k = 0; k < EXP_EXTRA_CCS; k++) {
+      exp_extra_t *e = &extras[i][k];
+      if (!e->used) continue;
+      uint8_t v = scale_output(midi_value, e->heel, e->toe);
+      if (e->last == 0xFFU) e->last = v;
+      if (v == e->last) continue;
+      if (midiCmd_send_cc(e->channel, e->cc, v) != ERROR_BUFFERS_FULL) e->last = v;
+  }
 }
 
 // --- Public API --------------------------------------------------------------
@@ -664,6 +725,7 @@ static void process_pedal(uint32_t i)
           p->last_sent_midi = out_midi;
       }
   }
+  send_extras(i, midi_value);
 
   /*
    * Arm the toe and heel switches from where the pedal actually is, and never

@@ -163,6 +163,7 @@ En la pestaña **Banks** del configurador, cada banco tiene por pedal un CC y un
 - Un pedal silenciado sigue funcionando como pulsador: sus botones de punta y talón siguen funcionando.
 - Tras un cambio de banco, el pedal no se envía a su nuevo CC, canal o rango en la posición en la que esté parado; sigue al siguiente movimiento.
 - Un [comando `Exp`](06-commands.md) en un botón puede volver a cambiar el destino hasta el siguiente cambio de banco.
+- Un `Exp` en modo `Add` hace que un pedal envíe [varios CC a la vez](06-commands.md#un-pedal-a-varios-cc), cada uno con su rango y su sentido.
 
 En la demo, el banco 2 convierte el pedal 1 en una rueda de modulación entre 20 y 100, y el banco 7 lo silencia y hace del pedal 2 un volumen por el canal 2 que nunca baja de 40, CC 7 y 39.
 

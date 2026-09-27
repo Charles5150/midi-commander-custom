@@ -163,6 +163,7 @@ In the configurator's **Banks** tab each bank has, per pedal, a CC and a channel
 - A silenced pedal still acts as a switch: its toe and heel buttons keep working.
 - After a bank change the pedal is not sent to its new CC, channel or range at the position it happens to rest in; it follows the next movement.
 - An [`Exp` command](06-commands.md#changing-an-expression-pedals-target) on a button can change the target again until the next bank change.
+- An `Exp` in `Add` mode makes a pedal send [several CCs at once](06-commands.md#one-pedal-to-several-ccs), each with its own range and direction.
 
 In the demo, bank 2 turns pedal 1 into a modulation wheel held between 20 and 100, and bank 7 silences it and makes pedal 2 a volume on channel 2 that never drops below 40, CC 7 and 39.
 

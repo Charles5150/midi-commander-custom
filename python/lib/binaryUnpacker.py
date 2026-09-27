@@ -54,6 +54,7 @@ from lib.cmdBinaryPacker import (
     LFO_SHAPES,
     EXP_TARGET_OFF,
     EXP_TARGET_SPEED,
+    EXP_TARGET_ADD,
     CYCLE_LABEL_COUNT,
     CYCLE_LABEL_LEN,
     PC_REL_MARKERS,
@@ -292,6 +293,8 @@ def unpack_command(raw: bytes, cycle_labels=None) -> dict:
             cmd["KeyMode_(Key)"] = "Off"
         elif b2 == EXP_TARGET_SPEED:
             cmd["KeyMode_(Key)"] = "Speed"
+        elif b2 == EXP_TARGET_ADD:
+            cmd["KeyMode_(Key)"] = "Add"
         elif b2 < 0x80:
             cmd["KeyMode_(Key)"] = "CC"
             cmd["Number_(PC/CC/Note)"] = str(b2)

@@ -2289,6 +2289,9 @@ class ExpCommandTest(unittest.TestCase):
         self.assertEqual(self.pack(**{"OnValue_(CC/PB)": "2", "KeyMode_(Key)": "speed",
                                       "Channel_(PC/CC/Note/PB)": "5", "Toggle_(CC/PB/Note)": "Y"}),
                          [0x05, 0x81, cbp.EXP_TARGET_SPEED, 0])
+        self.assertEqual(self.pack(**{"OnValue_(CC/PB)": "2", "KeyMode_(Key)": "add",
+                                      "Number_(PC/CC/Note)": "7", "Channel_(PC/CC/Note/PB)": "5"}),
+                         [0x05, 1, cbp.EXP_TARGET_ADD, 0])
 
     def test_bad_values(self):
         for fields in ({"OnValue_(CC/PB)": "3", "Number_(PC/CC/Note)": "7"},
@@ -2301,7 +2304,7 @@ class ExpCommandTest(unittest.TestCase):
 
     def test_round_trip(self):
         for raw in ([0x05, 0, 7, 0], [0x05, 0x81, 74, 16], [0x05, 1, 0x80, 0], [0x05, 0x80, 0x81, 0],
-                    [0x05, 0x81, 0x82, 0]):
+                    [0x05, 0x81, 0x82, 0], [0x05, 0x80, 0x83, 0]):
             cmd = unpacker.unpack_command(bytes(raw))
             row = pd.Series({f"A_{k}": v for k, v in cmd.items()})
             self.assertEqual(cbp.pack_row(row)[:4], raw, cmd)
@@ -2321,7 +2324,8 @@ class ExpCommandTest(unittest.TestCase):
             header = handle.read()
         for name, value in (("CMD_EXP_MODE", cbp.CMD_EXP_MODE), ("EXP_TARGET_OFF", cbp.EXP_TARGET_OFF),
                             ("EXP_TARGET_RESET", cbp.EXP_TARGET_OWN),
-                            ("EXP_TARGET_SPEED", cbp.EXP_TARGET_SPEED)):
+                            ("EXP_TARGET_SPEED", cbp.EXP_TARGET_SPEED),
+                            ("EXP_TARGET_ADD", cbp.EXP_TARGET_ADD)):
             m = re.search(rf"#define\s+{name}\s+\((0x[0-9A-Fa-f]+|\d+)\)", header)
             self.assertEqual(int(m.group(1), 0), value, name)
 

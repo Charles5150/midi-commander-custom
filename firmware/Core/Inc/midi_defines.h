@@ -98,10 +98,14 @@
 // silence the pedal, EXP_TARGET_RESET to give it back its own target or
 // EXP_TARGET_SPEED to set the speed of the LFOs and sequences. Byte 3 is the
 // channel 1-16, or 0 to keep the pedal's own.
+// With byte 2 EXP_TARGET_ADD it adds a CC instead: the pedal also sends the CC
+// command right below, whose OffValue it sends at the heel and OnValue at the
+// toe, besides whatever it sends already. Byte 3 is 0.
 #define CMD_EXP_MODE		(5)
 #define EXP_TARGET_OFF		(0x80)
 #define EXP_TARGET_RESET	(0x81)
 #define EXP_TARGET_SPEED	(0x82)
+#define EXP_TARGET_ADD		(0x83)
 // LFO: same empty command type, low nibble 6. Like a Ramp, turns the CC
 // command right below it into an LFO that swings between its Off and On
 // values, locked to the tempo. Byte 2 is the length of one cycle, an index

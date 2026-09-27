@@ -48,7 +48,10 @@ CMD_EXP_MODE = 5
 EXP_TARGET_OFF = 0x80
 EXP_TARGET_OWN = 0x81
 EXP_TARGET_SPEED = 0x82
-EXP_TARGETS = ["CC", "Off", "Own", "Speed"]
+# Add: the pedal also sends the CC command right below, OffValue at the heel and
+# OnValue at the toe (firmware 0.83); byte 3 is 0
+EXP_TARGET_ADD = 0x83
+EXP_TARGETS = ["CC", "Off", "Own", "Speed", "Add"]
 # And an LFO: turns the CC command right below it into an LFO locked to the
 # tempo, swinging between its Off and On values. Byte 2 is the cycle length,
 # an index into LFO_DIVISIONS, byte 3 the shape, an index into LFO_SHAPES.
@@ -641,7 +644,8 @@ def cmd_exp(cmd):
     OnValue is the pedal, 1 or 2. KeyMode says where to: CC (the default) sends
     it to CC Number, on Channel if one is given or else on the pedal's own;
     Off silences it; Own gives it back its own target; Speed makes it set how
-    fast the LFOs and sequences go.
+    fast the LFOs and sequences go; Add makes it also send the CC command right
+    below, from its OffValue at the heel to its OnValue at the toe.
     """
     pedal = safe_int(cmd.get("OnValue_(CC/PB)"), 1)
     if pedal not in (1, 2):
@@ -657,8 +661,10 @@ def cmd_exp(cmd):
         cc = EXP_TARGET_OWN
     elif target == "SPEED":
         cc = EXP_TARGET_SPEED
+    elif target == "ADD":
+        cc = EXP_TARGET_ADD
     else:
-        raise ValueError(f"Exp target must be CC, Off, Own or Speed, not {cmd.get('KeyMode_(Key)')!r}")
+        raise ValueError(f"Exp target must be CC, Off, Own, Speed or Add, not {cmd.get('KeyMode_(Key)')!r}")
     channel = 0
     ch = str(cmd.get("Channel_(PC/CC/Note/PB)", "")).strip().upper()
     if cc < 0x80 and ch not in ("", "NAN", "OWN"):

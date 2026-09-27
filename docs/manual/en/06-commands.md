@@ -309,7 +309,7 @@ One pedal as the wah, then the volume, then a parameter. `CommandType` `Exp` cha
 | Field | Meaning |
 |---|---|
 | `OnValue` | The pedal, 1 or 2 |
-| `KeyMode` | `CC` sends it to the CC in `Number`, on `Channel` or, left empty, on the pedal's own channel. `Off` silences it. `Own` gives it back what it sends in this bank. `Speed` makes it set the [speed of the LFOs and sequences](08-expression.md#speed-of-the-lfos-and-sequences) (firmware 0.70) |
+| `KeyMode` | `CC` sends it to the CC in `Number`, on `Channel` or, left empty, on the pedal's own channel. `Off` silences it. `Own` gives it back what it sends in this bank. `Speed` makes it set the [speed of the LFOs and sequences](08-expression.md#speed-of-the-lfos-and-sequences) (firmware 0.70). `Add` makes it send [one more CC](#one-pedal-to-several-ccs) as well (firmware 0.83) |
 | `Toggle` | `Y`: only while the button is on |
 
 - It lasts until another `Exp` for the same pedal, or a bank change.
@@ -321,11 +321,44 @@ One pedal as the wah, then the volume, then a parameter. `CommandType` `Exp` cha
 
 <details><summary>Under the hood</summary>
 
-Like `Wait`, an `Exp` is marked by the low nibble of the empty command type, 5; byte 1 is the pedal with the toggle bit, byte 2 the CC, 0x80 for Off, 0x81 for Own or 0x82 for Speed, and byte 3 the channel, 0 for the pedal's own. Older firmware ignores it.
+Like `Wait`, an `Exp` is marked by the low nibble of the empty command type, 5; byte 1 is the pedal with the toggle bit, byte 2 the CC, 0x80 for Off, 0x81 for Own, 0x82 for Speed or 0x83 for Add, and byte 3 the channel, 0 for the pedal's own. Older firmware ignores it.
 
 </details>
 
 *Firmware 0.42 or later.*
+
+#### One pedal to several CCs
+
+One sweep of the foot moving several things: the delay mix up while the reverb mix comes down, volume and wah together, a morph from one sound to another. An `Exp` with `KeyMode` `Add` goes right above a `CC`, like a [`Ramp`](#cc-ramps) or an `LFO`, and turns that `CC` into one more thing the pedal sends:
+
+| Field | Meaning |
+|---|---|
+| `OnValue` of the `Exp` | The pedal, 1 or 2 |
+| `Toggle` of the `Exp` | `Y`: only while the button is on |
+| `Channel` and `Number` of the `CC` | Where it goes |
+| `OffValue` of the `CC` | What it sends with the pedal at the heel; empty is 0 |
+| `OnValue` of the `CC` | And at the toe |
+
+- The `CC` is not sent by the press: the pedal sends it from then on, besides whatever it sent already.
+- An `OffValue` above the `OnValue` runs it the other way, down as the pedal goes up.
+- Up to three per pedal. The same CC and channel added again takes the new range.
+- They keep going when the pedal's own target is `Off`, so an `Exp` `Off` above them leaves the pedal sending only these.
+- They follow the pedal's curve with 7 bits, whatever its `Output`.
+- Like any `Exp`, they last until the bank changes, start with the next movement of the pedal so nothing jumps, and a toggling one stops when its button goes off.
+- Put them in a bank's [enter list](04-banks.md) and they belong to that bank; they are set again after switching the pedal off and on in it, although the rest of the enter list is not sent again.
+
+A crossfade on pedal 1, in bank 2's enter list:
+
+| | CommandType | OnValue | Channel | Number | OnValue | OffValue |
+|---|---|---|---|---|---|---|
+| A | `Exp` `Add` | 1 | | | | |
+| B | `CC` | | 1 | 30 | 127 | 0 |
+| C | `Exp` `Add` | 1 | | | | |
+| D | `CC` | | 1 | 31 | 0 | 127 |
+
+CC 30 goes up from 0 to 127 as CC 31 comes down from 127 to 0, and the pedal still sends its own CC too.
+
+*Firmware 0.83 or later.*
 
 ### Values and conditions
 
@@ -496,7 +529,7 @@ The reference: every column of a command slot in the CSV, and what each command 
 | `Toggle_(CC/PB/Note)` | | ✓ | ✓ | ✓ | ✓ | Y: alternate on / off on successive presses. Key / Media: hold until the next press |
 | `Velocity_(Note)` | | | ✓ | | | 0–127 |
 | `Duration_(Note/PB)` | | | ✓ | ✓ | ✓ | In 10 ms steps, 0–127 (max 1.27 s). Media: same as Key. Wait: the pause in milliseconds, up to 2550. Ramp: its time in milliseconds, up to 655350 |
-| `KeyMode_(Key)` | | | | | ✓ | Normal / Down / Up. CCInc and PCInc: Up / Down / Up Repeat / Down Repeat. Tap: Tap / Clock / Set / Up / Down / Up Repeat / Down Repeat. Listen: Steady / Slow / Fast / Dim. Exp: CC / Off / Own / Speed. LFO: Sine / Triangle / SawUp / SawDown / Square / Random (empty for Sine). Seq: how long a step lasts, the same note divisions as the LFO (empty for `1/8`), read from the first command of the run. MMC: Play / Stop / Record / RecordExit / Pause / FastForward / Rewind / Locate / DeferredPlay / Chase / Eject / Reset (empty for Play). Song: Select / Position. Value: Set / Add / Sub (empty for Set). If: Button on / Button off / Value = / Value <> / Value < / Value >= / Bank is / Bank is not. Bank: GoTo / Up / Down / Back / Page / Config / NextConfig. Macro: Short / Long / Double. Button: Press / On / Off / Set On / Set Off, then Long or Double for those lists |
+| `KeyMode_(Key)` | | | | | ✓ | Normal / Down / Up. CCInc and PCInc: Up / Down / Up Repeat / Down Repeat. Tap: Tap / Clock / Set / Up / Down / Up Repeat / Down Repeat. Listen: Steady / Slow / Fast / Dim. Exp: CC / Off / Own / Speed / Add. LFO: Sine / Triangle / SawUp / SawDown / Square / Random (empty for Sine). Seq: how long a step lasts, the same note divisions as the LFO (empty for `1/8`), read from the first command of the run. MMC: Play / Stop / Record / RecordExit / Pause / FastForward / Rewind / Locate / DeferredPlay / Chase / Eject / Reset (empty for Play). Song: Select / Position. Value: Set / Add / Sub (empty for Set). If: Button on / Button off / Value = / Value <> / Value < / Value >= / Bank is / Bank is not. Bank: GoTo / Up / Down / Back / Page / Config / NextConfig. Macro: Short / Long / Double. Button: Press / On / Off / Set On / Set Off, then Long or Double for those lists |
 
 ---
 
