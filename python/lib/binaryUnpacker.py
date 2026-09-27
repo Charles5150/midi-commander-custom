@@ -83,6 +83,8 @@ from lib.cmdBinaryPacker import (
     CMD_PANIC_NIBBLE,
     CMD_SCENE_NIBBLE,
     SCENE_BUTTONS,
+    SCENE_MODES,
+    SCENE_SAVE,
     HID_SPECIAL_KEYS,
     MEDIA_KEYS,
     MIDI_NUM_COMMANDS_PER_SWITCH,
@@ -504,6 +506,11 @@ def unpack_command(raw: bytes, cycle_labels=None) -> dict:
         cmd["CommandType"] = "Stop"
     elif cmd_type == CMD_PANIC_NIBBLE:
         cmd["CommandType"] = "Panic"
+    elif cmd_type == CMD_SCENE_NIBBLE and b0 & SCENE_SAVE:
+        cmd["CommandType"] = "Scene"
+        which = (b2 >> 4) & 0x03
+        cmd["KeyMode_(Key)"] = SCENE_MODES[1 + which] if which < len(MACRO_LISTS) else SCENE_MODES[1]
+        cmd["Number_(PC/CC/Note)"] = button_name(b2 & 0x07)
     elif cmd_type == CMD_SCENE_NIBBLE:
         cmd["CommandType"] = "Scene"
         cmd["OnValue_(CC/PB)"] = "".join(

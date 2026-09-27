@@ -27,7 +27,7 @@ from lib.cmdBinaryPacker import (  # noqa: E402
     EXP_TARGETS, HID_SPECIAL_KEYS, LFO_DIVISIONS, LFO_SHAPES, MEDIA_KEYS, RAMP_MAX_MS,
     MMC_COMMANDS, MMC_LOCATE_MAX, SONG_MODES, SONG_POSITION_MAX,
     VAR_MODES, VAR_COUNT, VAR_DEFAULT_TOP, IF_TESTS, IF_BUTTON_TESTS, IF_VALUE_TESTS,
-    SCENE_BUTTONS, MACRO_LISTS, LISTEN_LOOKS, BUTTON_ACTIONS, CHAN_OUTPUTS, WAIT_BAR_MAX, NRPN_KINDS, NRPN_MAX, button_mode, command_type,
+    SCENE_BUTTONS, SCENE_MODES, MACRO_LISTS, LISTEN_LOOKS, BUTTON_ACTIONS, CHAN_OUTPUTS, WAIT_BAR_MAX, NRPN_KINDS, NRPN_MAX, button_mode, command_type,
 )
 from lib.configCsv import read_config_csv, write_config_csv  # noqa: E402
 from lib.displayText import display_text  # noqa: E402
@@ -715,6 +715,23 @@ class SlotEditor:
             self._int("duration", "Dur", "Duration_(Note/PB)", 0, 127, width=50)
             self._check("toggle", "Hold", "Toggle_(CC/PB/Note)")
         elif cmd_type == "Scene":
+            mode = clean(self.initial.get("KeyMode_(Key)")) or SCENE_MODES[0]
+            w = Option(self.params, SCENE_MODES, mode, width=100,
+                       command=lambda m: self._remode("Scene", m))
+            w.pack(side="left")
+            self.widgets["scenemode"] = w
+            if w.value() != SCENE_MODES[0]:
+                self._label("Button")
+                w = Option(self.params, list(SCENE_BUTTONS),
+                           clean(self.initial.get("Number_(PC/CC/Note)")) or "1", width=50)
+                w.pack(side="left")
+                self.widgets["scenebutton"] = w
+                ctk.CTkLabel(
+                    self.params,
+                    text="(the toggles now go into its first scene)",
+                    text_color=MUTED,
+                ).pack(side="left", padx=8)
+                return
             text = clean(self.initial.get("OnValue_(CC/PB)"))
             names = {"+": "On", "-": "Off"}
             for i, button in enumerate("1234ABCD"):
@@ -1048,7 +1065,10 @@ class SlotEditor:
             which = w["buttonlist"].value()
             mode = w["buttonaction"].value() + ("" if which == MACRO_LISTS[0] else f" {which}")
             out["KeyMode_(Key)"] = "" if mode == BUTTON_ACTIONS[0] else mode
-        if cmd_type == "Scene":
+        if cmd_type == "Scene" and w["scenemode"].value() != SCENE_MODES[0]:
+            out["KeyMode_(Key)"] = w["scenemode"].value()
+            out["Number_(PC/CC/Note)"] = w["scenebutton"].value()
+        elif cmd_type == "Scene":
             code = {"On": "+", "Off": "-"}
             out["OnValue_(CC/PB)"] = "".join(code.get(w[f"scene_{i}"].value(), ".") for i in range(8))
         return out

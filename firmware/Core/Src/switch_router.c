@@ -28,6 +28,7 @@ static void fire_bank_enter_cmds(uint8_t bank);
 static void fire_bank_leave_cmds(uint8_t bank);
 static inline bool cmd_is_leave(const uint8_t *pRom);
 static void apply_scene(uint8_t mask, uint8_t states);
+static void save_scene(uint8_t target);
 static void release_group(uint8_t i);
 uint8_t sw_button_is_toggle(uint8_t bank, uint8_t sw);
 static bool switch_down(GPIO_TypeDef *port, uint16_t pin);
@@ -1361,7 +1362,8 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 		status = midiCmd_send_panic();
 		break;
 	case CMD_SCENE_NIBBLE:
-		apply_scene(pRom[1], pRom[2]);
+		if(*pRom & SCENE_SAVE) save_scene(pRom[2]);
+		else apply_scene(pRom[1], pRom[2]);
 		break;
 	case CMD_NO_CMD_NIBBLE:
 		switch(*pRom & 0x0F){
@@ -3144,6 +3146,28 @@ static void apply_scene(uint8_t mask, uint8_t states){
 	pending_bank = saved_bank;
 	pending_page = saved_page;
 	applying = false;
+}
+
+/*
+ * Scene Save: set up a scene with the feet. The first scene in the chosen list
+ * of a button of this bank takes the states its buttons are in now, written
+ * to flash as the on-pedal editor does, and the display says so.
+ */
+static void save_scene(uint8_t target){
+	const uint8_t names[3] = {0, switch_current_page, target};	// as a Macro names a list
+	uint8_t *p = macro_list(names);
+	if(p == NULL) return;
+
+	for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++, p += MIDI_ROM_CMD_SIZE){
+		if(*p != CMD_SCENE_NIBBLE) continue;
+		uint8_t states = 0;
+		for(uint8_t k=0; k<MIDI_NUM_SWITCHES; k++){
+			if(get_sw_toggle_state(&a_sw_obj[k])) states |= (uint8_t)(1U << k);
+		}
+		states &= p[1];
+		if(flash_settings_patch(p + 2, &states, 1)) display_show_saved();
+		return;
+	}
 }
 
 /*

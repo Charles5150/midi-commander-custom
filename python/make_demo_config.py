@@ -315,6 +315,10 @@ def build() -> Demo:
     d.long_press(2, "1", CommandType="Scene", **{"OnValue_(CC/PB)": "+++.++.."})   # all on
     d.long_press(2, "4", CommandType="Scene", **{"OnValue_(CC/PB)": "---.--.."})   # all off
     d.long_press(2, "A", CommandType="Scene", **{"OnValue_(CC/PB)": "+-+..-.."})   # a mix
+    # A double press of A stores the toggles as they are now into that mix,
+    # so it can be set up with the feet
+    d.double_press(2, "A", CommandType="Scene",
+                   **{"KeyMode_(Key)": "Save Long", "Number_(PC/CC/Note)": "A"})
     # MOMT does all three: a tap sends CC 13, holding it is the all-off scene
     # above, and a double press latches CC 18 on and off
     # Expression per bank: here pedal 1 is a modulation wheel instead of CC 11,

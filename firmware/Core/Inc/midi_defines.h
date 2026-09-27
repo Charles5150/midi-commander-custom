@@ -308,6 +308,7 @@
 #define BANK_MODE_DIRECT	(8)	// Bank command low nibble: choose a bank with two presses, group then bank
 #define CONFIG_NEXT		(0x80)
 #define CMD_SCENE_NIBBLE	(0xA0)	// Scene: byte1 = buttons affected (bit 0 = button 1 .. bit 7 = D), byte2 = wanted states
+#define SCENE_SAVE		(1)	// Scene low nibble: store the toggles now into the first scene of byte 2's button (bits 0-2) and list (bits 4-5)
 
 #define GLOBAL_SETTINGS_CHANNEL (0)
 #define GLOBAL_SETTINGS_REALTIME_PASS (1)	// Forward Clock/Start/Continue/Stop from USB to DIN

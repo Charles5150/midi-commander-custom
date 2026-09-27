@@ -266,3 +266,46 @@ test("A-D, or ten seconds without a press, drop the Bank Direct chooser", async 
   assert.equal(state.bank, 0);
   assert.deepEqual(state.labels, home);
 });
+
+test("a Scene Save stores the bank's toggles into a scene, kept after a restart", async () => {
+  const sim = simWithDemo();
+  let pedal = await Pedal.open(sim.access);
+  const hold = (id) => { sim.footswitch(id, true); sim.run(1200); sim.footswitch(id, false); sim.run(600); };
+  hold(2);                                  // Bank Direct on HOME: group 0+, then bank 2
+  tap(sim, 0);
+  tap(sim, 2);
+  let state = await pedal.getState();
+  assert.equal(state.bank, 2);
+  assert.deepEqual(state.toggles.slice(0, 3), [false, false, false]);
+  tap(sim, 1);                              // REVS and BLNK on: not the demo's mix (1 and 3)
+  tap(sim, 5);
+  for (let i = 0; i < 2; i++) {             // a double press of A saves into A's held scene
+    sim.footswitch(4, true); sim.run(60); sim.footswitch(4, false); sim.run(60);
+  }
+  sim.run(800);
+  state = await pedal.getState();
+  assert.deepEqual(state.toggles.slice(0, 6), [false, true, false, false, false, true], "saving presses nothing");
+  tap(sim, 1);                              // both off again, then held A brings them back
+  tap(sim, 5);
+  hold(4);
+  state = await pedal.getState();
+  assert.deepEqual(state.toggles.slice(0, 6), [false, true, false, false, false, true]);
+  // In flash: a pedal started from it recalls the saved scene
+  tap(sim, 1);
+  tap(sim, 5);
+  const again = new Simulator(module, { persist: false });
+  again.flash = sim.flashNow();
+  again.start();
+  clearInterval(again.timer);
+  clearInterval(again.saveTimer);
+  again.run(1300);
+  pedal = await Pedal.open(again.access);
+  const holdAgain = (id) => { again.footswitch(id, true); again.run(1200); again.footswitch(id, false); again.run(600); };
+  holdAgain(2);
+  tap(again, 0);
+  tap(again, 2);
+  assert.equal((await pedal.getState()).bank, 2);
+  holdAgain(4);
+  state = await pedal.getState();
+  assert.deepEqual(state.toggles.slice(0, 6), [false, true, false, false, false, true]);
+});

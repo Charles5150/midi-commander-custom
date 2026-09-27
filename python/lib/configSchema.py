@@ -18,7 +18,7 @@ A field is a dict:
 from lib.cmdBinaryPacker import (
     BUTTON_ACTIONS, CHAN_OUTPUTS, EXP_TARGETS, HID_SPECIAL_KEYS, IF_BANK_TESTS, IF_BUTTON_TESTS,
     IF_TESTS, IF_VALUE_TESTS, LFO_DIVISIONS, LFO_SHAPES, LISTEN_LOOKS, MACRO_LISTS, MEDIA_KEYS,
-    MMC_COMMANDS, MMC_LOCATE_MAX, NRPN_KINDS, NRPN_MAX, RAMP_MAX_MS, SCENE_BUTTONS, SONG_MODES,
+    MMC_COMMANDS, MMC_LOCATE_MAX, NRPN_KINDS, NRPN_MAX, RAMP_MAX_MS, SCENE_BUTTONS, SCENE_MODES, SONG_MODES,
     SONG_POSITION_MAX, VAR_COUNT, VAR_DEFAULT_TOP, VAR_MODES, WAIT_BAR_MAX,
 )
 from lib.configPacker import (
@@ -260,7 +260,14 @@ COMMAND_SPECS = {
              "hints": {"Select": "song number", "Position": "sixteenth notes from the start"}},
     "Media": {"fields": [_f(ON, "Key", _choice(MEDIA_KEYS)), _f(DUR, "Dur", _int(0, 127)),
                          _toggle("Hold")]},
-    "Scene": {"fields": [_f(ON, "Buttons", {"kind": "scene", "options": list(SCENE_BUTTONS)})]},
+    "Scene": {"fields": [_f(MODE, "Do", _choice(SCENE_MODES, blank=SCENE_MODES[0])),
+                         _f(ON, "Buttons", {"kind": "scene", "options": list(SCENE_BUTTONS)},
+                            **_when(MODE, SCENE_MODES[0])),
+                         _f(NUM, "Button", _choice(SCENE_BUTTONS), default="1",
+                            **_when(MODE, *SCENE_MODES[1:]))],
+              "hint_by": MODE,
+              "hints": {m: "the toggles now go into its first scene"
+                        for m in SCENE_MODES[1:]}},
     "Wait": {"fields": [_f(MODE, "Wait", _choice(WAIT_MODES, blank="Time")),
                         _f(DUR, "ms", _int(0, 2550), **_when(MODE, "Time")),
                         _f(NUM, "Beats", _int(1, WAIT_BAR_MAX), default="4", **_when(MODE, "Bar", "Count"))],

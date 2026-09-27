@@ -10,7 +10,7 @@ The pedal's 128×64 screen tells you where you are and what is on, at a glance f
 
 What the display shows most of the time:
 
-- **Top line, left:** the bank's name, 4 characters in large letters.
+- **Top line, left:** the bank's name, 4 characters in large letters. The large letters are capitals only: lowercase shows as capitals there, and `` ` ``, `{`, `|`, `}` and `~` as `?`; the small ones have both.
 - **Top line, right:** its info line, 8 characters in small letters.
 - **Below:** a 2×4 grid laid out like the pedal, buttons **1 2 3 4** on the top row and **A B C D** on the bottom. Each cell shows the button's label, or its identifier when it has none.
 - **Toggles:** the cell of a toggle button is drawn inverted while the toggle is on, so the state of the whole bank shows at a glance.

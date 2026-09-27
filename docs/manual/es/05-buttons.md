@@ -170,6 +170,14 @@ Una escena solo llega al banco que se ve y a las listas de pulsación corta. Par
 
 La demo pone tres en las pulsaciones largas del banco de modos de LED.
 
+### Guardar una escena con los pies
+
+En la prueba de sonido, deja el sonido a punto con los toggles y guárdalo como escena, sin ordenador. Una `Scene` con `KeyMode` `Save` no mueve los botones: guarda su estado tal como está en una escena de este banco, la primera `Scene` de la lista del botón que diga `Number`, su pulsación corta, o con `Save Long` o `Save Double` su pulsación larga o doble. Solo se guardan los botones que esa escena abarca, cada uno encendido o apagado según esté; los que deja como están siguen igual. No se pulsa ni se envía nada, y la pantalla pone **SAVED SCENE** tres segundos.
+
+La escena se escribe en la configuración de la flash de la pedalera, como escribe el [editor de la pedalera](10-editing-on-the-pedal.md), así que sigue ahí tras apagarla, y al leer el slot se ve la escena guardada. Escribir tarda unas decenas de milisegundos, en los que un reloj o un LFO en marcha se quedan quietos, así que guarda entre canciones y no en medio de una. Un botón sin `Scene` en esa lista no guarda nada.
+
+Lo normal es usar el mismo botón: su pulsación larga recupera la escena y la doble la guarda, o al revés. En el banco de modos de LED de la demo, mantener A recupera una mezcla y una doble pulsación de A guarda en ella los toggles.
+
 ## Botones de ciclo
 
 Un botón que pasa por varios estados, cada uno con sus comandos y su etiqueta en la pantalla: los cuatro canales de un ampli en un solo pulsador, una pulsación cada uno, y vuelta a empezar.

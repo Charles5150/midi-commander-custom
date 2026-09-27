@@ -11,7 +11,7 @@ The pedal holds 32 banks of eight buttons, numbered 0 to 31. A bank is usually a
 
 ## Bank names
 
-Each bank has a name the display shows in large letters, 4 characters, and an info line beside it in small ones, 8 characters: `S01` and `song 1`, `FX` and `led mode`. Set them in the configurator's **Banks** tab.
+Each bank has a name the display shows in large capitals, 4 characters (a lowercase letter shows as its capital), and an info line beside it in small ones, 8 characters: `S01` and `song 1`, `FX` and `led mode`. Set them in the configurator's **Banks** tab.
 
 ### `Bank_Naming`
 

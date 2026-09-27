@@ -170,6 +170,14 @@ A scene reaches only the bank showing and the buttons' short press lists. To wor
 
 The demo puts three on the long presses of the LED modes bank.
 
+### Saving a scene with your feet
+
+At soundcheck, set the sound with the toggles and keep it as a scene, with no computer. A `Scene` with `KeyMode` `Save` does not set the buttons: it stores their states as they are now into a scene of this bank, the first `Scene` in the list of the button `Number` names, its short press list, or with `Save Long` or `Save Double` its long or double press list. Only the buttons that scene covers are stored, each one on or off as it stands; the ones it leaves alone stay left alone. Nothing is pressed or sent, and the display says **SAVED SCENE** for three seconds.
+
+The scene is written into the configuration in the pedal's flash, as the [on-pedal editor](10-editing-on-the-pedal.md) writes, so it is still there after a power cycle, and reading the slot back gives the scene as saved. Writing takes a few tens of milliseconds, during which a running clock or LFO holds still, so save between songs rather than in the middle of one. A button with no `Scene` in that list saves nothing.
+
+The usual place is the same button: its long press recalls the scene and its double press saves it, or the other way round. In the demo's LED modes bank, holding A recalls a mix and a double press of A saves the toggles into it.
+
 ## Cycle buttons
 
 One button steps through several states, each with its own commands and its own label on the display: the four channels of an amp on a single switch, one press each, round and round.

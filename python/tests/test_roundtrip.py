@@ -1113,9 +1113,9 @@ class DoublePressTest(unittest.TestCase):
         # slot's pages, so the extension follows it with no gap
         self.assertEqual(image[: len(config)], config)
         self.assertEqual(len(config), U.DOUBLE_PRESS_OFFSET)
-        # One command in the demo, everything else erased
+        # Two commands in the demo, everything else erased
         extension = image[U.DOUBLE_PRESS_OFFSET :]
-        self.assertEqual(sum(1 for b in extension if b != 0xFF), 4)
+        self.assertEqual(sum(1 for b in extension if b != 0xFF), 8)
         button = 2 * 8 + 3                     # bank 2, button 4
         off = U.DOUBLE_PRESS_OFFSET + button * U.BUTTON_STRIDE
         self.assertEqual(list(image[off : off + 4]), [0xB0, 18 | 0x80, 127, 0])
@@ -1128,7 +1128,7 @@ class DoublePressTest(unittest.TestCase):
         self.assertEqual(row["A_Number_(PC/CC/Note)"], "18")
         self.assertEqual(row["A_Toggle_(CC/PB/Note)"], "Y")
         self.assertEqual(row["B_CommandType"], "")
-        self.assertEqual((df["A_CommandType"] != "").sum(), 1)
+        self.assertEqual((df["A_CommandType"] != "").sum(), 2)   # and the Scene Save on A
 
     def test_commands_of_the_empty_type_are_kept(self):
         """Wait, If, Macro, Button and the rest share the empty command type's
@@ -1199,7 +1199,7 @@ class DoublePressTest(unittest.TestCase):
         df = unpacker.unpack_double_press_settings(image)
         row = df[(df["Bank_Number"] == "9") & (df["Button_Identifier"] == "4")].iloc[0]
         self.assertEqual(row["A_Number_(PC/CC/Note)"], "18")
-        self.assertEqual((df["A_CommandType"] != "").sum(), 2)
+        self.assertEqual((df["A_CommandType"] != "").sum(), 4)
 
 
 class VirtualPedalTest(unittest.TestCase):
@@ -4545,6 +4545,57 @@ class BankDirectTest(unittest.TestCase):
         router = self.source("Src", "switch_router.c")
         self.assertIn("case BANK_MODE_DIRECT:      direct_show(PREVIEW_DIRECT); break;", router)
         self.assertIn("target = (uint8_t)((group - 1) * DIRECT_GROUP + i);", router)
+
+
+class SceneSaveTest(unittest.TestCase):
+    """Storing the toggles into a scene from the pedal, Scene Save (0.93)."""
+
+    source = MidiMapTest.source
+    FIRMWARE = MidiMapTest.FIRMWARE
+
+    def test_command(self):
+        for mode, button, raw in (("Save", "1", [0xA1, 0, 0x00, 0]), ("save long", "A", [0xA1, 0, 0x14, 0]),
+                                  ("Save Double", "D", [0xA1, 0, 0x27, 0])):
+            cmd = {"KeyMode_(Key)": mode, "Number_(PC/CC/Note)": button, "OnValue_(CC/PB)": "+++"}
+            self.assertEqual(cbp.cmd_scene(cmd), raw)
+            back = unpacker.unpack_command(bytes(raw))
+            self.assertEqual((back["CommandType"], back["KeyMode_(Key)"].upper(), back["Number_(PC/CC/Note)"]),
+                             ("Scene", mode.upper(), button))
+        # Recall, named or left empty, is the scene as before
+        for mode in ("", "Recall", "nan"):
+            self.assertEqual(cbp.cmd_scene({"KeyMode_(Key)": mode, "OnValue_(CC/PB)": "+-."}), [0xA0, 3, 1, 0])
+        with self.assertRaises(ValueError):
+            cbp.cmd_scene({"KeyMode_(Key)": "Store"})
+
+    def test_demo(self):
+        """Double press of A on bank 2 stores into the mix scene held A recalls."""
+        packed = packer.pack_flash_image(read_config_csv(DEMO_CSV))
+        double = unpacker.unpack_double_press_settings(packed)
+        a = double[(double["Bank_Number"] == "2") & (double["Button_Identifier"] == "A")].iloc[0]
+        self.assertEqual((a["A_CommandType"], a["A_KeyMode_(Key)"], a["A_Number_(PC/CC/Note)"]),
+                         ("Scene", "Save Long", "A"))
+        long_press = unpacker.unpack_long_press_settings(packed)
+        a = long_press[(long_press["Bank_Number"] == "2") & (long_press["Button_Identifier"] == "A")].iloc[0]
+        self.assertEqual(a["A_CommandType"], "Scene")
+
+    def test_firmware(self):
+        defines = self.source("Inc", "midi_defines.h")
+        self.assertRegex(defines, r"#define SCENE_SAVE\s+\(1\)")
+        self.assertEqual(cbp.SCENE_SAVE, 1)
+        router = self.source("Src", "switch_router.c")
+        self.assertIn("if(*pRom & SCENE_SAVE) save_scene(pRom[2]);", router)
+        self.assertIn("if(flash_settings_patch(p + 2, &states, 1)) display_show_saved();", router)
+
+    def test_large_font_has_capitals_only(self):
+        """The 11x18 font stops at _ to make room in flash; lowercase draws as capitals."""
+        fonts = os.path.join(self.FIRMWARE, "..", "Middlewares", "stm32-ssd1306-master", "ssd1306")
+        with open(os.path.join(fonts, "ssd1306_fonts.c")) as handle:
+            text = handle.read()
+        self.assertIn("FontDef Font_11x18 = {11,18,'_',Font11x18};", text)
+        table = text.split("static const uint16_t Font11x18 [] = {")[1].split("};")[0]
+        self.assertEqual(table.count("\n") - 1, ord("_") - 32 + 1)
+        with open(os.path.join(fonts, "ssd1306.c")) as handle:
+            self.assertIn("ch = (ch >= 'a' && ch <= 'z') ? ch - 32 : '?';", handle.read())
 
 
 class BootBannerTest(unittest.TestCase):

@@ -220,7 +220,7 @@ void display_banner_task(void){
 		if(px < 0 || px >= width) continue;
 		char ch = banner_text[px / Font_11x18.FontWidth];
 		uint8_t j = px % Font_11x18.FontWidth;
-		const uint16_t *rows = Font_11x18.data + (ch - 32) * Font_11x18.FontHeight;
+		const uint16_t *rows = ssd1306_Glyph(ch, Font_11x18);
 		for(uint8_t i=0; i<Font_11x18.FontHeight; i++){
 			if((uint16_t)(rows[i] << j) & 0x8000) ssd1306_DrawPixel(col, BANNER_Y + i, White);
 		}
@@ -302,7 +302,7 @@ static void draw_text(uint8_t x, uint8_t y, uint8_t w, const char *text, FontDef
 		char ch = text[px / font.FontWidth];
 		if(ch < 32 || ch > 126) continue;
 		uint8_t j = px % font.FontWidth;
-		const uint16_t *rows = font.data + (ch - 32) * font.FontHeight;
+		const uint16_t *rows = ssd1306_Glyph(ch, font);
 		for(uint8_t i=0; i<font.FontHeight; i++){
 			if((uint16_t)(rows[i] << j) & 0x8000) ssd1306_DrawPixel(x + col, y + i, White);
 		}
@@ -666,6 +666,10 @@ void display_show_safe_mode(void){
 
 void display_show_restarted(void){
 	show_notice("RESTARTED", "AFTER A LOCK-UP");
+}
+
+void display_show_saved(void){
+	show_notice("SAVED", "SCENE");
 }
 
 // Stays up: the pedal pauses until the tool restarts it

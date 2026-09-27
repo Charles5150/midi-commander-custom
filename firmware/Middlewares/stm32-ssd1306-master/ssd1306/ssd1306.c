@@ -346,6 +346,13 @@ void ssd1306_DrawPixel(uint8_t x, uint8_t y, SSD1306_COLOR color) {
 // ch       => char om weg te schrijven
 // Font     => Font waarmee we gaan schrijven
 // color    => Black or White
+// The rows of a character; a font without lowercase draws it as capitals,
+// and anything else it lacks as ?
+const uint16_t *ssd1306_Glyph(char ch, FontDef Font) {
+    if (ch > Font.Last) ch = (ch >= 'a' && ch <= 'z') ? ch - 32 : '?';
+    return Font.data + (ch - 32) * Font.FontHeight;
+}
+
 char ssd1306_WriteChar(char ch, FontDef Font, SSD1306_COLOR color) {
     // Check if character is valid
     if (ch < 32 || ch > 126)
@@ -363,7 +370,7 @@ char ssd1306_WriteChar(char ch, FontDef Font, SSD1306_COLOR color) {
     // whole bank screen took 11 ms that way, holding up the MIDI of a bank
     // change behind it
     uint8_t white = (color == White) ^ (SSD1306.Inverted ? 1 : 0);
-    const uint16_t *rows = Font.data + (ch - 32) * Font.FontHeight;
+    const uint16_t *rows = ssd1306_Glyph(ch, Font);
     for(uint32_t i = 0; i < Font.FontHeight; i++) {
         uint8_t y = SSD1306.CurrentY + i;
         uint8_t *p = &SSD1306_Buffer[(y / 8) * SSD1306_WIDTH + SSD1306.CurrentX];

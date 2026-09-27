@@ -11,7 +11,7 @@ La pedalera tiene 32 bancos de ocho botones, numerados del 0 al 31. Un banco sue
 
 ## Nombres de banco
 
-Cada banco tiene un nombre que la pantalla muestra en letras grandes, de 4 caracteres, y al lado una línea de información en letra pequeña, de 8 caracteres: `S01` y `song 1`, `FX` y `led mode`. Se ponen en la pestaña **Banks** del configurador.
+Cada banco tiene un nombre que la pantalla muestra en mayúsculas grandes, de 4 caracteres (una minúscula sale como su mayúscula), y al lado una línea de información en letra pequeña, de 8 caracteres: `S01` y `song 1`, `FX` y `led mode`. Se ponen en la pestaña **Banks** del configurador.
 
 ### `Bank_Naming`
 

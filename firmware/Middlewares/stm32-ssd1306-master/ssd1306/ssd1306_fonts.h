@@ -8,6 +8,7 @@
 typedef struct {
 	const uint8_t FontWidth;    /*!< Font width in pixels */
 	uint8_t FontHeight;   /*!< Font height in pixels */
+	uint8_t Last;         /*!< Last character in data, from 32 */
 	const uint16_t *data; /*!< Pointer to data font data array */
 } FontDef;
 

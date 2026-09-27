@@ -166,6 +166,10 @@ PC_REL_MARKERS = (PC_REL_UP, PC_REL_DOWN, PC_REL_UP_REPEAT, PC_REL_DOWN_REPEAT)
 CCINC_REPEAT_BIT = 0x80
 # Button order of a scene string, one character each: + on, - off, . leave
 SCENE_BUTTONS = "1234ABCD"
+# What a Scene does: Recall sets its buttons; Save stores the toggles of the
+# bank as they are now into the first scene of a button's list
+SCENE_MODES = ["Recall", "Save", "Save Long", "Save Double"]
+SCENE_SAVE = 1
 
 # Bank command modes, packed in the low nibble of byte 0
 BANK_MODES = {"GOTO": 0, "UP": 1, "DOWN": 2}
@@ -604,7 +608,21 @@ def cmd_panic(cmd):
 def cmd_scene(cmd):
     """A scene string such as "+-+..-.." in OnValue: one character per button
     in SCENE_BUTTONS order, + to switch it on, - off, anything else to leave
-    it. Byte 1 holds the buttons affected, byte 2 the states wanted."""
+    it. Byte 1 holds the buttons affected, byte 2 the states wanted.
+
+    KeyMode Save (or Save Long, Save Double) stores instead: the first scene in
+    that list of button Number, of the bank showing, takes the states its
+    buttons are in at the press, so scenes can be set up with the feet.
+    Byte 2 holds the list and the button as a Macro's does."""
+    mode = " ".join(str(cmd.get("KeyMode_(Key)", "")).split())
+    if mode.lower() in ("", "nan"):
+        mode = SCENE_MODES[0]
+    modes = {m.upper(): i for i, m in enumerate(SCENE_MODES)}
+    if mode.upper() not in modes:
+        raise ValueError(f"Scene must be one of {', '.join(SCENE_MODES)}, not {mode!r}")
+    if modes[mode.upper()]:
+        button = button_index(cmd.get("Number_(PC/CC/Note)", "1"))
+        return [CMD_SCENE_NIBBLE | SCENE_SAVE, 0, ((modes[mode.upper()] - 1) << 4) | button, 0]
     text = str(cmd.get("OnValue_(CC/PB)", "")).strip()
     if text.lower() == "nan":
         text = ""
