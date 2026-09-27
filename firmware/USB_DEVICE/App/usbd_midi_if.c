@@ -21,6 +21,8 @@
 #include "state_store.h"
 #include "latency.h"
 #include "midi_map.h"
+#include "restart_state.h"
+#include "health.h"
 #include <string.h>
 
 extern I2C_HandleTypeDef hi2c1;
@@ -294,7 +296,8 @@ void sysex_press_button(uint8_t* data_packet_start){
  * slot, which toggle buttons are on, the bank's large name, the eight button
  * labels and the level of all ten LEDs (0-16), so blinking and dimmed LEDs show
  * as they really are, the eight stored values and last whether the pedal
- * started in safe mode. 63 bytes in all.
+ * started in safe mode, then how it is holding up (see health.c). 71 bytes
+ * in all.
  */
 void sysex_get_state(void){
 	uint8_t bank = sw_get_current_page();
@@ -334,6 +337,16 @@ void sysex_get_state(void){
 	}
 	*(p++) = sw_safe_mode() ? 1 : 0;
 	*(p++) = sw_preview_bank() & 0x7F;	// 0x7F when no bank is previewed
+	// Since 1.05, for long runs: started by the watchdog, seconds since
+	// start (four 7-bit bytes, low first) and the least stack left (three)
+	*(p++) = restart_state_by_watchdog() ? 1 : 0;
+	uint32_t up = health_uptime_s(), stack = health_stack_free();
+	for(uint8_t k=0; k<4; k++){
+		*(p++) = (up >> (7 * k)) & 0x7F;
+	}
+	for(uint8_t k=0; k<3; k++){
+		*(p++) = (stack >> (7 * k)) & 0x7F;
+	}
 	*(p++) = SYSEX_END;
 	sysex_answer(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
 }

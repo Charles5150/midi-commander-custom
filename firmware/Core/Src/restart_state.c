@@ -44,8 +44,11 @@ static uint32_t checksum(const live_state_t *s){
 	return sum;
 }
 
+static bool by_watchdog = false;
+
 bool restart_state_load(live_state_t *out){
 	bool watchdog = __HAL_RCC_GET_FLAG(RCC_FLAG_IWDGRST);
+	by_watchdog = watchdog;
 	__HAL_RCC_CLEAR_RESET_FLAGS();	// so the next start reads its own reason
 
 	bool sound = watchdog && copy.magic == RESTART_MAGIC
@@ -54,6 +57,11 @@ bool restart_state_load(live_state_t *out){
 	copy.magic = 0;		// used once: a later lock-up needs a fresh copy
 	if(sound) *out = copy.state;
 	return sound;
+}
+
+// This start was the watchdog's, whether or not the state came back
+bool restart_state_by_watchdog(void){
+	return by_watchdog;
 }
 
 void restart_state_task(void){

@@ -94,14 +94,15 @@ Mira [Kemper en las dos direcciones](11-devices.md#kemper-en-las-dos-direcciones
 
 Comprueba el archivo `.dfu`, pregunta antes de flashear (`--yes` se salta la pregunta), pone la pedalera en modo DFU, la flashea y la vuelve a arrancar, sin mantener nada pisado con el firmware 0.58 o posterior. Mira [Actualizar el firmware más adelante](02-getting-started.md#actualizar-el-firmware-más-adelante).
 
-## Stress_Test y Latency_Test: poner a prueba la pedalera
+## Stress_Test, Latency_Test y Endurance_Test: poner a prueba la pedalera
 
 ```bash
 .venv/bin/python python/Stress_Test.py      # work the pedal hard for a minute and check it is still sound
 .venv/bin/python python/Latency_Test.py     # how long a press takes to leave as MIDI, quiet and under load
+.venv/bin/python python/Endurance_Test.py   # an hour at a gig's pace, checking nothing drifts
 ```
 
-`Stress_Test.py` le da caña a la pedalera durante un minuto y comprueba que sigue en forma; `Latency_Test.py` mide cuánto tarda una pisada en salir como MIDI, en reposo y con carga. Las dos necesitan la configuración de demostración, `python/demo-all-features.csv`, en la pedalera, y ningún pie. Se describen en [CONTRIBUTING](../../../CONTRIBUTING.md#tests) (en inglés).
+`Stress_Test.py` le da caña a la pedalera durante un minuto y comprueba que sigue en forma; `Latency_Test.py` mide cuánto tarda una pisada en salir como MIDI, en reposo y con carga; `Endurance_Test.py` la deja tocando sola una hora al ritmo de un concierto (`--minutes` para más), con una línea cada dos minutos más o menos, y al final dice si alguna ronda falló y cuánta pila no ha llegado a usar nunca la pedalera. Conviene pasarla la víspera de un concierto, después de actualizar el firmware. Las tres necesitan la configuración de demostración, `python/demo-all-features.csv`, en la pedalera, y ningún pie. Se describen en [CONTRIBUTING](../../../CONTRIBUTING.md#tests) (en inglés).
 
 ## Ver lo que envía la pedalera
 

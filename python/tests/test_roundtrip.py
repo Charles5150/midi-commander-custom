@@ -1321,6 +1321,20 @@ class VirtualPedalTest(unittest.TestCase):
         self.assertFalse(parse_state([0] * 62)["safe_mode"])
         self.assertTrue(parse_state([0] * 61 + [1])["safe_mode"])
 
+    def test_state_health(self):
+        from lib.midiDevice import parse_state
+
+        old = parse_state([0] * 63)                               # before firmware 1.05
+        self.assertIsNone(old["uptime"])
+        self.assertIsNone(old["stack_free"])
+        self.assertIsNone(old["watchdog"])
+        up, stack = 3 * 86400 + 5, 40676
+        data = [0] * 63 + [1] + [up >> (7 * k) & 0x7F for k in range(4)] + [stack >> (7 * k) & 0x7F for k in range(3)]
+        state = parse_state(data)
+        self.assertTrue(state["watchdog"])
+        self.assertEqual(state["uptime"], up)
+        self.assertEqual(state["stack_free"], stack)
+
     def test_state_frame_and_sleep(self):
         from lib.midiDevice import parse_state
 

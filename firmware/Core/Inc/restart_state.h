@@ -23,6 +23,7 @@ typedef struct {
 // Call once at boot, first thing: true when this start is the watchdog's and
 // the copy is sound, with the state it held. Clears the reset flags.
 bool restart_state_load(live_state_t *out);
+bool restart_state_by_watchdog(void);
 
 // Call from the main loop: keeps the copy up to date.
 void restart_state_task(void);

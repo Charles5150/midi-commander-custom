@@ -112,7 +112,7 @@ Todo lo demás funciona: los botones envían sus comandos, los pulsadores de ban
 
 <details><summary>Por dentro</summary>
 
-`GET_STATE` indica el modo seguro en su último byte (firmware 0.60).
+`GET_STATE` indica también el modo seguro, en el byte que sigue a los ocho valores guardados (firmware 0.60).
 
 </details>
 

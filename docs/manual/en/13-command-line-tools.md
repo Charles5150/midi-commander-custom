@@ -94,14 +94,15 @@ See [Two way with a Kemper](11-devices.md#two-way-with-a-kemper).
 
 Checks the `.dfu` file, asks before flashing (`--yes` skips the question), puts the pedal in DFU mode, flashes it and starts it again, with nothing held on firmware 0.58 or later. See [Updating the firmware later](02-getting-started.md#updating-the-firmware-later).
 
-## Stress_Test and Latency_Test: check the pedal
+## Stress_Test, Latency_Test and Endurance_Test: check the pedal
 
 ```bash
 .venv/bin/python python/Stress_Test.py      # work the pedal hard for a minute and check it is still sound
 .venv/bin/python python/Latency_Test.py     # how long a press takes to leave as MIDI, quiet and under load
+.venv/bin/python python/Endurance_Test.py   # an hour at a gig's pace, checking nothing drifts
 ```
 
-Both need the demo configuration, `python/demo-all-features.csv`, on the pedal, and no foot. They are described in [CONTRIBUTING](../../../CONTRIBUTING.md#tests).
+All three need the demo configuration, `python/demo-all-features.csv`, on the pedal, and no foot. Run `Endurance_Test.py` the day before a gig, after updating the firmware: it plays for an hour (`--minutes` for longer), a line every two minutes or so, and says at the end whether any round went wrong and how much of its stack the pedal has never had to use. They are described in [CONTRIBUTING](../../../CONTRIBUTING.md#tests).
 
 ## Watching what the pedal sends
 

@@ -132,6 +132,7 @@ class Link:
         self.states = []          # GET_STATE answers, parsed
         self.screen = {}          # GET_SCREEN part -> bytes
         self.latency = None       # the last GET_LATENCY answer, parsed
+        self.clocks = 0           # MIDI clock messages the pedal sent
 
     def out(self, msg):
         self.dev.outport.send(msg)
@@ -158,6 +159,9 @@ class Link:
             msg = self.dev.inport.poll()
             if msg is None:
                 return
+            if msg.type == "clock":
+                self.clocks += 1
+                continue
             k = key(msg)
             if k is not None:
                 self.midi.append(k)

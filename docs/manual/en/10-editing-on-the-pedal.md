@@ -112,7 +112,7 @@ Everything else works: the buttons send their commands, the bank switches change
 
 <details><summary>Under the hood</summary>
 
-`GET_STATE` reports safe mode in its last byte (firmware 0.60).
+`GET_STATE` reports safe mode too, in the byte after the eight stored values (firmware 0.60).
 
 </details>
 

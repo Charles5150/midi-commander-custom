@@ -171,6 +171,11 @@ def parse_state(data) -> dict:
         "safe_mode": bool(data[61]) if len(data) >= 62 else False,
         # The bank Bank Up / Down are showing, not yet confirmed (Bank_Preview, firmware 0.66)
         "preview": data[62] if len(data) >= 63 and data[62] < 0x7F else None,
+        # For long runs (firmware 1.05): started by the watchdog, seconds
+        # since start and the least stack it has had left, in bytes
+        "watchdog": bool(data[63]) if len(data) >= 71 else None,
+        "uptime": sum(data[64 + k] << (7 * k) for k in range(4)) if len(data) >= 71 else None,
+        "stack_free": sum(data[68 + k] << (7 * k) for k in range(3)) if len(data) >= 71 else None,
     }
 
 

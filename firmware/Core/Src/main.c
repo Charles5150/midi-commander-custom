@@ -37,6 +37,7 @@
 #include "flash_midi_settings.h"
 #include "state_store.h"
 #include "restart_state.h"
+#include "health.h"
 #include "leds.h"
 #include "tempo.h"
 #include "sleep.h"
@@ -150,6 +151,7 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
+  health_paint_stack();	// before the stack grows: see health.c
 
   /* USER CODE END SysInit */
 
