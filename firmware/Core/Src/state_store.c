@@ -183,10 +183,9 @@ static HAL_StatusTypeDef write_masks(uint32_t addr, const uint32_t *masks){
 
 static void write_entry(uint8_t bank, uint8_t slot, const uint32_t *toggles,
 		const uint32_t *long_toggles, const uint32_t *double_toggles, bool quiet){
-	// Flash programming stalls the CPU anyway; disabling interrupts keeps a
-	// SysEx flash write arriving over USB from re-entering the HAL flash lock.
-	__disable_irq();
-	HAL_FLASH_Unlock();
+	// Interrupts off, and the time the erase stalls the processor given back
+	// to the tick after: see flash_hold()
+	uint32_t start = flash_hold();
 
 	if(next_free >= STATE_ENTRIES || (quiet && next_free >= STATE_ENTRIES / 2)){
 		erase_region();
@@ -211,8 +210,7 @@ static void write_entry(uint8_t bank, uint8_t slot, const uint32_t *toggles,
 				(uint16_t)(STATE_MARKER | 0xFF00U));
 	}
 
-	HAL_FLASH_Lock();
-	__enable_irq();
+	flash_release(start);
 
 	next_free++;
 	if(status == HAL_OK){

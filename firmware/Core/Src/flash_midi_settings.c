@@ -15,6 +15,7 @@
 #include "main.h"
 #include "flash_midi_settings.h"
 #include "midi_defines.h"
+#include "tempo.h"
 
 uint8_t *pGlobalSettings = (uint8_t*)(FLASH_SLOT0_ADDR);
 uint8_t *pBankStrings    = (uint8_t*)(FLASH_SLOT0_ADDR + CFG_BANK_STRINGS_OFF);
@@ -52,6 +53,9 @@ _Static_assert(EXT2_MAP_OFF + MIDI_MAP_COUNT * MIDI_MAP_STRIDE <= FLASH_EXT2_PAG
 		"the MIDI map does not fit in the second extension area");
 _Static_assert(EXT2_LONG_LABELS_OFF + CFG_BUTTONS * BUTTON_LABEL_LEN <= FLASH_EXT2_PAGES * FLASH_PAGE_SIZE,
 		"the long press labels do not fit in the second extension area");
+
+_Static_assert(PATCH_LOG_ADDR + FLASH_PAGE_SIZE <= FLASH_BASE + 256U * 1024U,
+		"the page patch copy and log do not fit in 256 kB");
 
 static uint8_t active_slot = 0;
 static uint8_t target_slot = 0;
@@ -193,6 +197,37 @@ bool flash_settings_select(uint8_t slot){
  * main loop (sysex_flash_task), which stops using the configuration first
  * when the slot erased is the one running.
  */
+/*
+ * The processor runs from flash, and stops while a page is erased or a half
+ * word written, interrupts or not: up to 40 ms a page. The 1 ms tick misses
+ * that time, and with it the pedal's MIDI clock, the LFOs and every timer
+ * (#109). The cycle counter keeps counting, so flash_hold() notes it, with
+ * interrupts off, and flash_release() gives the milliseconds missed back
+ * before turning them on again: the clocks owed go out at once and the
+ * tempo stays in its place. With interrupts off, a SysEx flash write arriving
+ * over USB cannot walk into the middle either.
+ */
+static uint32_t held_primask;
+
+uint32_t flash_hold(void){
+	uint32_t primask = __get_PRIMASK();
+	__disable_irq();
+	held_primask = primask;
+	HAL_FLASH_Unlock();
+	return DWT->CYCCNT;
+}
+
+void flash_release(uint32_t start){
+	HAL_FLASH_Lock();
+	uint32_t ms = (DWT->CYCCNT - start) / (SystemCoreClock / 1000U);
+	if(ms && (SCB->ICSR & SCB_ICSR_PENDSTSET_Msk)) ms--;	// that one still comes
+	while(ms--){
+		HAL_IncTick();
+		tempo_tick_1ms();
+	}
+	if(!held_primask) __enable_irq();
+}
+
 bool flash_settings_erase(void){
 	uint32_t pageError;
 	upload_touch();
@@ -204,7 +239,7 @@ bool flash_settings_erase(void){
 			.NbPages = FLASH_SETTINGS_NO_PAGES
 	};
 
-	HAL_FLASH_Unlock();
+	uint32_t start = flash_hold();
 	HAL_StatusTypeDef status = HAL_FLASHEx_Erase(&eraseInit, &pageError);
 	// The extension areas belong to the slot too: a tool that writes no double
 	// press commands or MIDI map must not leave the previous ones behind
@@ -218,18 +253,94 @@ bool flash_settings_erase(void){
 		eraseInit.NbPages = FLASH_EXT2_PAGES;
 		status = HAL_FLASHEx_Erase(&eraseInit, &pageError);
 	}
-	HAL_FLASH_Lock();
+	flash_release(start);
 
 	return status == HAL_OK;
 }
 
 /*
- * Change a few bytes of the running configuration, for the on-pedal editor.
- * Flash can only be cleared a whole page at a time, so the page those bytes
- * live in is copied to RAM, changed there, erased and written back. Interrupts
- * are off for the write, as in state_store.c, so a SysEx flash write arriving
- * over USB cannot walk into the middle of it.
+ * Change a few bytes of the running configuration, for the on-pedal editor
+ * and a scene saved from the pedal. Flash can only be cleared a whole page at
+ * a time, so the page those bytes live in is copied to RAM, changed there,
+ * erased and written back. A power cut between the erase and the end of the
+ * write would lose the whole page, 2 kB of configuration, so the new page is
+ * written to a copy page first, and a note of where it goes to a log page;
+ * the note is marked done once the page is in place. A note not marked done
+ * at power on means the page was cut halfway, and flash_settings_recover()
+ * writes it again from the copy.
+ *
+ *   log entry: [0..3] page address   [4..5] sum of the copy   [6..7] 0 when done
+ *
+ * The sum is written first and the address last, so a note cut halfway has
+ * no address and is ignored: the page itself was not touched yet.
  */
+#define PATCH_ENTRY_SIZE	(8U)
+#define PATCH_ENTRIES		(FLASH_PAGE_SIZE / PATCH_ENTRY_SIZE)
+
+static const volatile uint16_t *patch_entry(uint32_t i){
+	return (const volatile uint16_t*)(PATCH_LOG_ADDR + i * PATCH_ENTRY_SIZE);
+}
+
+// The last note written, or -1 when the log is empty
+static int32_t patch_last(void){
+	for(int32_t i = PATCH_ENTRIES - 1; i >= 0; i--){
+		const volatile uint16_t *e = patch_entry(i);
+		if((e[0] & e[1] & e[2] & e[3]) != 0xFFFF) return i;
+	}
+	return -1;
+}
+
+static uint16_t page_sum(const uint8_t *p){
+	uint16_t sum = 0x5A5A;
+	for(uint32_t i = 0; i < FLASH_PAGE_SIZE; i += 2){
+		sum = (uint16_t)(((sum << 1) | (sum >> 15)) + (p[i] | (p[i+1] << 8)));
+	}
+	return sum;
+}
+
+// A page of some slot the editor may patch: its main pages or double press area
+static bool patch_page_ok(uint32_t page){
+	if(page & (FLASH_PAGE_SIZE - 1)) return false;
+	for(uint8_t s = 0; s < CONFIG_SLOTS; s++){
+		if(page >= slot_base(s) && page < slot_base(s) + FLASH_SETTINGS_SIZE) return true;
+		if(page >= FLASH_EXT_ADDR(s) && page < FLASH_EXT_ADDR(s) + FLASH_DOUBLE_PAGES * FLASH_PAGE_SIZE) return true;
+	}
+	return false;
+}
+
+static HAL_StatusTypeDef erase_page(uint32_t page){
+	uint32_t pageError;
+	FLASH_EraseInitTypeDef eraseInit = {
+			.TypeErase = FLASH_TYPEERASE_PAGES,
+			.Banks = FLASH_BANK_1,
+			.PageAddress = page,
+			.NbPages = 1
+	};
+	return HAL_FLASHEx_Erase(&eraseInit, &pageError);
+}
+
+// Write an erased page, skipping the half words erased flash already holds
+static HAL_StatusTypeDef program_page(uint32_t page, const uint8_t *data){
+	HAL_StatusTypeDef status = HAL_OK;
+	for(uint32_t i = 0; status == HAL_OK && i < FLASH_PAGE_SIZE; i += 2){
+		uint16_t half = (uint16_t)(data[i] | (data[i+1] << 8));
+		if(half != 0xFFFF) status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_HALFWORD, page + i, half);
+	}
+	return status;
+}
+
+static bool page_blank(uint32_t page){
+	const uint32_t *p = (const uint32_t*)page;
+	for(uint32_t i = 0; i < FLASH_PAGE_SIZE / 4; i++){
+		if(p[i] != 0xFFFFFFFFU) return false;
+	}
+	return true;
+}
+
+static HAL_StatusTypeDef patch_done(uint32_t i){
+	return HAL_FLASH_Program(FLASH_TYPEPROGRAM_HALFWORD, (uint32_t)&patch_entry(i)[3], 0);
+}
+
 bool flash_settings_patch(uint8_t *dst, const uint8_t *data, uint8_t len){
 	static uint8_t page_buf[CFG_PAGE_SIZE];
 	uint32_t address = (uint32_t)dst;
@@ -249,25 +360,67 @@ bool flash_settings_patch(uint8_t *dst, const uint8_t *data, uint8_t len){
 	memcpy(page_buf, (const uint8_t*)page, CFG_PAGE_SIZE);
 	memcpy(page_buf + at, data, len);
 
-	uint32_t pageError;
-	FLASH_EraseInitTypeDef eraseInit = {
-			.TypeErase = FLASH_TYPEERASE_PAGES,
-			.Banks = FLASH_BANK_1,
-			.PageAddress = page,
-			.NbPages = 1
-	};
+	// In steps, each short enough for the clock: the processor stands still
+	// through each (see flash_hold), and the clocks owed go out in between.
+	// The copy page is left erased after each patch, so the stall of writing
+	// it is no longer than that of the page itself was before.
+	uint32_t start = flash_hold();
+	HAL_StatusTypeDef status = page_blank(PATCH_COPY_ADDR) ? HAL_OK : erase_page(PATCH_COPY_ADDR);
+	if(status == HAL_OK) status = program_page(PATCH_COPY_ADDR, page_buf);
+	flash_release(start);
+	tempo_task();
+	if(status != HAL_OK) return false;
 
-	__disable_irq();
-	HAL_FLASH_Unlock();
-	HAL_StatusTypeDef status = HAL_FLASHEx_Erase(&eraseInit, &pageError);
-	for(uint32_t i=0; status == HAL_OK && i < CFG_PAGE_SIZE; i += 2){
-		uint16_t half = (uint16_t)(page_buf[i] | (page_buf[i+1] << 8));
-		status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_HALFWORD, page + i, half);
+	uint32_t i = (uint32_t)(patch_last() + 1);
+	start = flash_hold();
+	if(i >= PATCH_ENTRIES){
+		// Every note before is done: a pending one was finished at power on
+		status = erase_page(PATCH_LOG_ADDR);
+		i = 0;
 	}
-	HAL_FLASH_Lock();
-	__enable_irq();
+	uint32_t e = (uint32_t)patch_entry(i);
+	if(status == HAL_OK) status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_HALFWORD, e + 4, page_sum(page_buf));
+	if(status == HAL_OK) status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_HALFWORD, e, page & 0xFFFF);
+	if(status == HAL_OK) status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_HALFWORD, e + 2, page >> 16);
+	if(status == HAL_OK) status = erase_page(page);
+	if(status == HAL_OK) status = program_page(page, page_buf);
+	if(status == HAL_OK) status = patch_done(i);
+	flash_release(start);
+	tempo_task();
+
+	// Ready for the next one; a note left pending keeps its copy
+	if(status == HAL_OK){
+		start = flash_hold();
+		erase_page(PATCH_COPY_ADDR);
+		flash_release(start);
+	}
 
 	return status == HAL_OK;
+}
+
+/*
+ * At power on, before the configuration is read: finish a page patch a power
+ * cut left halfway, from its copy. A note whose copy does not add up, or that
+ * points outside the configuration, is only marked done: that is not a page
+ * this firmware wrote.
+ */
+void flash_settings_recover(void){
+	int32_t i = patch_last();
+	if(i < 0) return;
+	const volatile uint16_t *e = patch_entry((uint32_t)i);
+	if(e[3] != 0xFFFF) return;
+
+	uint32_t page = e[0] | ((uint32_t)e[1] << 16);
+	const uint8_t *copy = (const uint8_t*)PATCH_COPY_ADDR;
+	uint32_t start = flash_hold();
+	if(patch_page_ok(page) && e[2] == page_sum(copy)
+			&& memcmp((const uint8_t*)page, copy, FLASH_PAGE_SIZE) != 0
+			&& erase_page(page) == HAL_OK){
+		program_page(page, copy);
+	}
+	patch_done((uint32_t)i);
+	erase_page(PATCH_COPY_ADDR);
+	flash_release(start);
 }
 
 /*

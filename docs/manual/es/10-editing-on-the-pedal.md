@@ -84,7 +84,7 @@ Lo que cambias se escribe en la flash en cuanto el cursor sale del comando, la e
 
 <details><summary>Por dentro</summary>
 
-Un cambio se escribe reescribiendo la página de flash de 2 kB en la que está, y después se vuelve a construir todo lo que se deriva de la configuración.
+Un cambio se escribe reescribiendo la página de flash de 2 kB en la que está, y después se vuelve a construir todo lo que se deriva de la configuración. La página nueva va antes a una página de reserva, con una nota de dónde va, así que un corte de luz a medias se termina desde allí al arrancar la próxima vez (firmware 1.06 o posterior).
 
 </details>
 

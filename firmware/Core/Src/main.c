@@ -180,6 +180,9 @@ int main(void)
 	  Error(msg);
   }
 
+  // A page the on-pedal editor was rewriting when the power went: finish it
+  flash_settings_recover();
+
   // Come back on the configuration slot the pedal was left on, if it still
   // holds one. Every configuration pointer follows from here. After the
   // watchdog restarted it, the state it had that moment wins over the saved

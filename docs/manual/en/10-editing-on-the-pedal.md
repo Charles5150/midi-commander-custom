@@ -84,7 +84,7 @@ What you change is written to flash as soon as the cursor leaves the command, th
 
 <details><summary>Under the hood</summary>
 
-A change is written by rewriting the 2 kB flash page it lives in, after which everything derived from the configuration is built again.
+A change is written by rewriting the 2 kB flash page it lives in, after which everything derived from the configuration is built again. The new page goes to a spare page first, with a note of where it belongs, so a power cut halfway is finished from there at the next start (firmware 1.06 or later).
 
 </details>
 

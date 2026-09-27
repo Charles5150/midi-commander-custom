@@ -46,6 +46,7 @@ volatile uint32_t sim_ipsr = 0;
 uint32_t sim_reset_flags = 0;
 DWT_Type sim_dwt;
 CoreDebug_Type sim_coredebug;
+SCB_Type sim_scb;
 GPIO_TypeDef sim_gpio[3];
 TIM_TypeDef sim_tim2;
 
@@ -65,6 +66,7 @@ static uint16_t adc_value[2];		// what each expression jack reads, 0..4095
 #define IRQ_DMA			(16U + 16U)
 
 uint32_t HAL_GetTick(void){ return tick; }
+void HAL_IncTick(void){ tick++; }
 
 // The waits in the boot and in the display driver: time just goes on
 void HAL_Delay(uint32_t ms){ tick += ms; }
@@ -238,6 +240,7 @@ EXPORT(sim_boot) void sim_boot(uint32_t reset_flags){
 
 	latency_init();
 	display_init();
+	flash_settings_recover();
 
 	uint8_t saved_slot = 0;
 	bool have_state = state_store_load(&boot_bank, boot_toggles, boot_long, boot_double, &saved_slot);

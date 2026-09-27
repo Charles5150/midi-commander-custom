@@ -119,7 +119,9 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
  *   0x08034000  slot 3     12 pages
  *   0x0803A000  banner      1 page
  *   0x0803A800  second extension areas, 2 pages per slot (FLASH_EXT2_ADDR)
- *   0x0803E800  free        3 pages
+ *   0x0803E800  page patch copy 1 page (PATCH_COPY_ADDR)
+ *   0x0803F000  page patch log  1 page (PATCH_LOG_ADDR)
+ *   0x0803F800  free        1 page
  *   0x08040000  end
  *
  * The slots are full to the last byte and so are the global bytes, so newer
@@ -285,6 +287,9 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
 #define FLASH_EXT2_PAGES		(2)
 #define FLASH_EXT2_ADDR(n)		(FLASH_BANNER_ADDR + FLASH_PAGE_SIZE + (n) * FLASH_EXT2_PAGES * FLASH_PAGE_SIZE)
 #define CFG_EXT2_OFF			(FLASH_IMAGE_SIZE)
+// Where flash_settings_patch() stages a page first, and notes where it goes
+#define PATCH_COPY_ADDR			(FLASH_EXT2_ADDR(CONFIG_SLOTS))
+#define PATCH_LOG_ADDR			(PATCH_COPY_ADDR + FLASH_PAGE_SIZE)
 #define FLASH_IMAGE2_SIZE		(CFG_EXT2_OFF + FLASH_EXT2_PAGES * CFG_PAGE_SIZE)
 #define EXT2_MARKER				(0x32545845U)	// "EXT2", little endian
 #define EXT2_MAP_OFF			(16)
@@ -330,6 +335,12 @@ bool flash_settings_write(uint8_t* data, uint32_t offset);
 // editor: the page they live in is rewritten around them. False if the
 // address is outside the active configuration or the write failed.
 bool flash_settings_patch(uint8_t *dst, const uint8_t *data, uint8_t len);
+// At power on: finish a page patch a power cut left halfway
+void flash_settings_recover(void);
+// Around an erase or a write: interrupts off, and the time the processor
+// stood still given back to the tick and the clock after
+uint32_t flash_hold(void);
+void flash_release(uint32_t start);
 
 // True from the first erase or write of the tools until the pedal restarts or
 // flash_settings_upload_end(); idle when none came for ms

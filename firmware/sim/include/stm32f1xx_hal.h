@@ -50,12 +50,17 @@ extern CoreDebug_Type sim_coredebug;
 #define CoreDebug			(&sim_coredebug)
 #define DWT_CTRL_CYCCNTENA_Msk		(1U)
 #define CoreDebug_DEMCR_TRCENA_Msk	(1U << 24)
+typedef struct { volatile uint32_t ICSR; } SCB_Type;
+extern SCB_Type sim_scb;
+#define SCB					(&sim_scb)
+#define SCB_ICSR_PENDSTSET_Msk		(1U << 26)
 
 typedef enum { TIM2_IRQn = 28, USART2_IRQn = 38 } IRQn_Type;
 static inline void HAL_NVIC_SetPriority(IRQn_Type irq, uint32_t pre, uint32_t sub){ (void)irq; (void)pre; (void)sub; }
 static inline void HAL_NVIC_EnableIRQ(IRQn_Type irq){ (void)irq; }
 
 uint32_t HAL_GetTick(void);
+void HAL_IncTick(void);
 void HAL_Delay(uint32_t ms);
 
 // --- Reset flags --------------------------------------------------------------

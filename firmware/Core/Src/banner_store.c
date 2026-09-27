@@ -59,8 +59,7 @@ bool banner_store_set(const uint8_t *text, uint8_t len){
 
 	// Called from the USB interrupt, like the other flash writes; with
 	// interrupts off nothing else can reach the HAL flash lock meanwhile
-	__disable_irq();
-	HAL_FLASH_Unlock();
+	uint32_t start = flash_hold();
 	HAL_StatusTypeDef status = HAL_FLASHEx_Erase(&eraseInit, &pageError);
 	for(uint8_t i=0; i<len && status == HAL_OK; i+=2){
 		uint16_t half = text[i] | ((i+1 < len ? text[i+1] : 0xFF) << 8);
@@ -73,7 +72,6 @@ bool banner_store_set(const uint8_t *text, uint8_t len){
 	if(len && status == HAL_OK){
 		status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_HALFWORD, FLASH_BANNER_ADDR + 2, BANNER_MARKER);
 	}
-	HAL_FLASH_Lock();
-	__enable_irq();
+	flash_release(start);
 	return status == HAL_OK;
 }

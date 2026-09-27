@@ -349,6 +349,64 @@ test("a Scene Save stores the bank's toggles into a scene, kept after a restart"
   assert.deepEqual(state.toggles.slice(0, 6), [false, true, false, false, false, true]);
 });
 
+test("a page the pedal was rewriting when the power went is finished from its copy at the next start", async () => {
+  const sim = simWithDemo();
+  let pedal = await Pedal.open(sim.access);
+  const hold = (s, id) => { s.footswitch(id, true); s.run(1200); s.footswitch(id, false); s.run(600); };
+  const toBank2 = (s) => { hold(s, 2); tap(s, 0); tap(s, 2); };
+  toBank2(sim);
+  tap(sim, 1);
+  tap(sim, 5);
+  for (let i = 0; i < 2; i++) {             // Scene Save: a page patch
+    sim.footswitch(4, true); sim.run(60); sim.footswitch(4, false); sim.run(60);
+  }
+  sim.run(800);
+  tap(sim, 1);
+  tap(sim, 5);
+  // The copy page, then the log with its last note: [page address][sum][0 when done]
+  const COPY = 0x3E800, LOG = 0x3F000, BASE = 0x10000;
+  const flash = sim.flashNow();
+  const view = new DataView(flash.buffer, flash.byteOffset);
+  let last = -1;
+  for (let i = 0; i < 256; i++) if (view.getUint32(LOG + 8 * i, true) !== 0xFFFFFFFF) last = i;
+  assert.ok(last >= 0, "the patch left a note");
+  const note = LOG + 8 * last;
+  assert.equal(view.getUint16(note + 6, true), 0, "marked done");
+  const page = view.getUint32(note, true) - BASE;
+  assert.ok(flash.slice(COPY, COPY + 2048).every((b) => b === 0xFF), "the copy erased for the next one");
+  // Cut after the erase: the copy written, the page blank, the note not done
+  const cut = flash.slice();
+  cut.set(flash.slice(page, page + 2048), COPY);
+  cut.fill(0xFF, page, page + 2048);
+  cut[note + 6] = 0xFF; cut[note + 7] = 0xFF;
+  const again = new Simulator(module, { persist: false });
+  again.flash = cut;
+  again.start();
+  clearInterval(again.timer);
+  clearInterval(again.saveTimer);
+  again.run(1300);
+  const after = again.flashNow();
+  assert.deepEqual(after.slice(page, page + 2048), flash.slice(page, page + 2048), "the page is back");
+  assert.equal(after[note + 6] | after[note + 7], 0, "and the note done");
+  assert.ok(after.slice(COPY, COPY + 2048).every((b) => b === 0xFF), "and the copy erased");
+  pedal = await Pedal.open(again.access);
+  toBank2(again);
+  hold(again, 4);                           // the scene saved before the cut
+  const state = await pedal.getState();
+  assert.deepEqual(state.toggles.slice(0, 6), [false, true, false, false, false, true]);
+  // A note cut before its address was written is left alone: the page was not touched yet
+  const early = flash.slice();
+  early.fill(0x00, page, page + 16);
+  early[note + 2] = 0xFF; early[note + 3] = 0xFF; early[note + 6] = 0xFF; early[note + 7] = 0xFF;
+  const third = new Simulator(module, { persist: false });
+  third.flash = early;
+  third.start();
+  clearInterval(third.timer);
+  clearInterval(third.saveTimer);
+  third.run(1300);
+  assert.deepEqual(third.flashNow().slice(page, page + 16), new Uint8Array(16));
+});
+
 // The 7x10 font of the firmware as its picture draws it, rows of 16 bits
 // from ' ' on, the leftmost pixel in bit 15
 const font7x10 = (() => {
