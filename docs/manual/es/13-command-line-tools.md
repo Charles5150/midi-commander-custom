@@ -137,4 +137,4 @@ Los comandos de lectura necesitan el firmware 0.2 o posterior; las herramientas 
 
 ---
 
-[← El archivo de configuración](12-configuration-file.md) · [Índice](README.md)
+[← El archivo de configuración](12-configuration-file.md) · [Índice](README.md) · [En el navegador →](14-in-the-browser.md)

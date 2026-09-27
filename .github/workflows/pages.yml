@@ -1,0 +1,52 @@
+name: Web configurator
+
+# Publishes web/ on GitHub Pages, with the Python files it runs in the
+# browser (python/lib), the demo and the templates beside it. Skipped until
+# Pages is switched on for the repository, with GitHub Actions as its source.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - "python/lib/**"
+      - "python/demo-all-features.csv"
+      - "python/templates/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: github.event.repository.has_pages
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Put the site together
+        run: |
+          mkdir -p site/lib site/templates
+          cp web/*.html web/*.js web/*.css site/
+          cp python/lib/*.py site/lib/
+          cp python/demo-all-features.csv site/
+          cp python/templates/*.csv site/templates/
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -112,6 +112,7 @@ Todo lo que pueden hacer el firmware y sus herramientas, agrupado igual que el m
 
 *En detalle: [El configurador](03-the-configurator.md).*
 
+- **En el navegador.** El configurador web hace lo mismo desde una página en Chrome, Edge u Opera, sin instalar nada: editar, leer, escribir y copiar las configuraciones, ver y tocar la pedalera en directo, y actualizar su firmware, incluida la primera grabación; ver [En el navegador](14-in-the-browser.md).
 - **Pedalera virtual.** El configurador dibuja la pedalera tal como es, y te deja pisar sus pulsadores con el ratón —un toque, mantener o doble clic— mientras su pantalla, píxel a píxel, y sus LEDs se leen de la pedalera, así que puedes probar una configuración sin ponerte encima.
 - **Configuración por USB.** Carga una configuración en la pedalera y léela de vuelta, desde la interfaz gráfica o desde la línea de comandos, por SysEx MIDI USB normal y corriente. Sin drivers especiales.
 - **Ordenar un repertorio.** Sube y baja bancos en la lista, o llévalos a cualquier sitio de una vez, y todos los cambios de banco, el setlist, las macros y las combinaciones los siguen; copia un banco o un solo botón sobre otro.

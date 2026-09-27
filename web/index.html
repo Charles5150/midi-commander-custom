@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Midi Commander Configurator</title>
+  <meta name="description" content="Configure and update the MeloAudio Midi Commander with the custom firmware, from the browser: nothing to install.">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <h1>Midi Commander</h1>
+      <span class="sub">configurator</span>
+    </div>
+    <div class="file">
+      <span id="config-name">No configuration open</span>
+      <span id="py-status" class="hint"></span>
+    </div>
+    <div id="connection"></div>
+  </header>
+
+  <div class="toolbar">
+    <button id="btn-open" disabled>Open CSV</button>
+    <button id="btn-demo" disabled>Demo</button>
+    <button id="btn-read" disabled>Read from pedal</button>
+    <button id="btn-backup" disabled>Back up all slots</button>
+    <span class="spacer"></span>
+    <button id="btn-save" disabled>Save CSV</button>
+    <button id="btn-write" class="primary" disabled>Write to pedal</button>
+  </div>
+
+  <div id="busy" hidden>
+    <span id="busy-text"></span>
+    <progress id="busy-progress" hidden></progress>
+  </div>
+  <p id="problem" class="problem" hidden></p>
+
+  <nav id="tabs"></nav>
+  <main id="main"></main>
+  <div id="toasts"></div>
+
+  <footer>
+    <a href="https://github.com/Charles5150/midi-commander-custom">midi-commander-custom</a>
+    &middot; the same configuration files as the desktop configurator and the command line tools
+  </footer>
+</body>
+</html>

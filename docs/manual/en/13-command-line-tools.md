@@ -137,4 +137,4 @@ The read-back commands need firmware 0.2 or later; the tools tell you if the ped
 
 ---
 
-[← The configuration file](12-configuration-file.md) · [Contents](README.md)
+[← The configuration file](12-configuration-file.md) · [Contents](README.md) · [In the browser →](14-in-the-browser.md)

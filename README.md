@@ -1,6 +1,6 @@
 # Midi Commander Custom Firmware
 
-Custom firmware and configuration tools for the **MeloAudio Midi Commander** foot controller, sold in Europe as the **Harley Benton MP-100**. It turns a budget pedal into a controller that stands up to the big names: 32 banks of eight buttons, three command lists per button, a setlist, tap tempo and MIDI clock, two expression pedals, labels on the display, and a desktop configurator that talks to the pedal over USB.
+Custom firmware and configuration tools for the **MeloAudio Midi Commander** foot controller, sold in Europe as the **Harley Benton MP-100**. It turns a budget pedal into a controller that stands up to the big names: 32 banks of eight buttons, three command lists per button, a setlist, tap tempo and MIDI clock, two expression pedals, labels on the display, and a configurator, on the desktop or in the browser, that talks to the pedal over USB.
 
 **[Read the user manual](docs/manual/en/README.md)** · **[Manual de usuario en español](docs/manual/es/README.md)**
 
@@ -28,6 +28,10 @@ The [full list](docs/manual/en/01-what-it-does.md) has sixty entries; in brief:
 ---
 
 ## Quick start
+
+**In the browser, nothing to install:** open the [web configurator](https://charles5150.github.io/midi-commander-custom/) in Chrome, Edge or Opera. It edits, reads and writes configurations, shows the pedal live and updates the firmware, the first flash included. → [In the browser](docs/manual/en/14-in-the-browser.md)
+
+**With the desktop tools:**
 
 1. **Flash the firmware.** Download the `.dfu` from the [latest release](https://github.com/Charles5150/midi-commander-custom/releases/latest). Switch the pedal on holding **Bank Down** and **D**, then flash it with `dfu-util -d 0483:df11 --alt 0 --download midi-commander-custom-<version>.dfu` and switch it off and on. From then on, updates need nothing held.
 2. **Install the tools.**

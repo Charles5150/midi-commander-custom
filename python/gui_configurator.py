@@ -175,54 +175,21 @@ def is_reference_csv(path):
             or os.path.dirname(real) == os.path.realpath(TEMPLATES_DIR))
 
 # --- Value sets -------------------------------------------------------------
-LED_MODES = ["Normal", "Reverse", "AlwaysOn"]
-BUTTON_GROUPS = ["None", "1", "2", "3", "4"]
-CHANNELS = [str(i) for i in range(1, 17)]
-NO_COMMAND = "(none)"
-THIS_BANK = "This bank"
-COMMAND_TYPES = [NO_COMMAND, "PC", "PCInc", "CC", "Note", "PB", "CCInc", "Key", "Media", "Bank", "SysEx", "Tap", "Start", "Stop", "MMC", "Song", "Panic", "Scene", "Wait", "Ramp", "LFO", "Seq", "Exp", "Chan", "Value", "If", "Macro", "Button", "Listen", "NRPN", "Pressure"]
-# Cycle splits a button's short press list into states, so only that list offers it
-SHORT_COMMAND_TYPES = COMMAND_TYPES + ["Cycle"]
-# Leave splits a bank's enter list into the commands on entering and on leaving
-ENTER_COMMAND_TYPES = COMMAND_TYPES + ["Leave"]
-TAP_MODES = ["Tap", "Clock", "Set", "Up", "Down", "Up Repeat", "Down Repeat"]
-WAIT_MODES = ["Time", "Beat", "Bar", "Count"]
+# Shared with the web configurator: see lib/configSchema.py
+from lib.configSchema import (  # noqa: E402
+    BANK_MODES, BANK_SWITCH_MODES, BANKS, BUTTON_GROUPS, CCINC_DIRECTIONS, CHANNELS, CMD_FIELDS,
+    COMMAND_TYPES, CONFIG_SLOT_NAMES, ENTER_COMMAND_TYPES, GLOBAL_FIELDS, GLOBAL_GROUPS, KEY_MODES,
+    KEY_NAMES, LED_MODES, MODIFIERS, NO_COMMAND, SHORT_COMMAND_TYPES, SLOTS, TAP_MODES, THIS_BANK,
+    WAIT_MODES,
+)
 # MIDI Machine Control actions, and which of the two song messages to send
 MMC_ACTIONS = list(MMC_COMMANDS.keys())
 # A scene leaves a button alone, or switches it on or off
 SCENE_STATES = ["-", "On", "Off"]
-BANK_SWITCH_MODES = ["Bank", "Bank+MIDI", "MIDI only"]
 BANK_SWITCH_CHOICES = [f"{sw} / {pr}" for sw, pr in BANK_SWITCH_LISTS]
-CCINC_DIRECTIONS = ["Up", "Down", "Up Repeat", "Down Repeat"]
-BANK_MODES = ["GoTo", "Up", "Down", "Config", "NextConfig", "Page", "Back"]
-CONFIG_SLOT_NAMES = ["1", "2", "3", "4"]
 # Which configuration slot Read and Flash use; "Active" lets the pedal decide
 SLOT_TARGETS = ["Active"] + CONFIG_SLOT_NAMES
-BANKS = [str(i) for i in range(32)]
 MEDIA_NAMES = list(MEDIA_KEYS.keys())
-KEY_MODES = ["Normal", "Down", "Up"]
-KEY_NAMES = (
-    [chr(c) for c in range(ord("a"), ord("z") + 1)]
-    + [str(d) for d in range(10)]
-    + [k for k in HID_SPECIAL_KEYS if k != "escape"]
-)
-MODIFIERS = [("Ctrl", 1), ("Shift", 2), ("Alt", 4), ("Cmd", 8)]
-SLOTS = [chr(ord("A") + i) for i in range(10)]
-
-# Per-slot CSV columns (without the "A_" prefix)
-CMD_FIELDS = [
-    "CommandType",
-    "Channel_(PC/CC/Note/PB)",
-    "Number_(PC/CC/Note)",
-    "OnValue_(CC/PB)",
-    "OffValue_(CC)",
-    "BankSelect_(PC)",
-    "BankSelectHighByte_(PC)",
-    "Toggle_(CC/PB/Note)",
-    "Velocity_(Note)",
-    "Duration_(Note/PB)",
-    "KeyMode_(Key)",
-]
 
 BOLD = ("", 13, "bold")
 MONO = ("Menlo", 12) if sys.platform == "darwin" else ("Consolas", 11) if sys.platform == "win32" else ("DejaVu Sans Mono", 11)
@@ -293,57 +260,6 @@ def to_int(val, default=0) -> int:
 
 def is_yes(val) -> bool:
     return clean(val).upper().startswith("Y")
-
-
-# Global settings, grouped by what they are about: (CSV label, name, hint)
-GLOBAL_GROUPS = [
-    ("Configuration", [
-        ("ConfigName", "Configuration name", "shown on the display at boot, 16 characters"),
-        ("Boot_Banner", "Banner at power on", "the pedal's Banner Text or this name, then the version, cross the display; any switch skips it"),
-        ("MIDI_Channel", "MIDI channel", "used by the expression pedals"),
-        ("Global_Channel", "Global channel", "every command goes out on it, whatever channel it carries"),
-        ("Exp1_CC", "Expression pedal 1 CC", "0-127"),
-        ("Exp2_CC", "Expression pedal 2 CC", "0-127"),
-    ]),
-    ("Presses", [
-        ("Long_Press_ms", "Long press after", "ms held, 100-2500"),
-        ("Double_Press_ms", "Double press within", "ms between presses, 100-1000"),
-        ("Combo_ms", "Two switches together within", "ms between them, 20-250, see the Combos tab"),
-        ("Remember_State", "Remember state", "come back in the last bank with every toggle as it was"),
-        ("Edit_Lock", "Lock on-pedal editing", "the two bank switches held together no longer open the editor"),
-    ]),
-    ("LEDs", [
-        ("LED_Brightness", "Brightness", "% for a lit LED, 1-100"),
-        ("LED_Rest_Brightness", "Brightness at rest", "% for LEDs lit at rest by Reverse and AlwaysOn"),
-        ("Bank_Up_LED_Mode", "Bank Up LED", ""),
-        ("Bank_Down_LED_Mode", "Bank Down LED", ""),
-        ("LED_Feedback", "Follow the computer", "CC and notes from USB light the toggles that send them"),
-        ("Link_Toggles", "Link toggles", "toggles sending the same CC or note share their state, in every bank"),
-    ]),
-    ("Banks", [
-        ("Bank_Switch_Mode", "Bank switches", "what Bank Up / Down do, see the Bank Switch tab"),
-        ("Bank_Jump_Step", "Long press jumps", "banks, 1-31"),
-        ("Bank_Preview", "Preview banks", "seconds a bank shown by Bank Up / Down waits for a button to confirm it, 0 = off"),
-        ("Setlist_Mode", "Follow the setlist", "Bank Up / Down use the order in the Setlist tab"),
-        ("Bank_Change_Mode", "Change bank from MIDI", "an incoming PC or CC selects the bank"),
-        ("Bank_Change_Channel", "\u2026 listening on channel", ""),
-        ("Bank_Change_CC", "\u2026 with CC number", "when the mode is CC"),
-        ("Global_Bank", "Global buttons bank", "the bank the buttons marked Global take everything from"),
-    ]),
-    ("USB MIDI", [
-        ("USB_MIDI_Thru", "USB to DIN thru", "forward notes, CC, PC and other devices' SysEx"),
-        ("RealTime_Passthrough", "Clock and transport thru", "forward Clock, Start, Continue and Stop"),
-        ("Clock_Follow", "Follow the host's clock", "adopt the tempo of MIDI clock from USB"),
-        ("Beat_Counter", "Bar and beat on the display", "beats in a bar, shown while a clock runs; Off = not shown"),
-        ("Remote_Mode", "Press from the computer", "CC or notes from USB press the switches"),
-        ("Remote_Channel", "\u2026 listening on channel", ""),
-        ("Remote_First", "\u2026 from number", "1 2 3 4 A B C D, Bank Down, Bank Up take ten in a row"),
-        ("Kemper_Mode", "Talk to a Kemper", "the rig name on the display and the modules on the LEDs"),
-    ]),
-    ("Power", [
-        ("Sleep_After_Min", "Sleep after", "idle minutes before the display and LEDs go out, 0 = never"),
-    ]),
-]
 
 
 # --- Validated widgets ------------------------------------------------------
@@ -1663,50 +1579,16 @@ class MidiCommanderGUI(ctk.CTk):
             ctk.CTkFrame(card, height=8, fg_color="transparent").grid(row=len(present) + 1, column=0)
 
     def _global_widget(self, parent, label, value):
-        if label == "MIDI_Channel":
-            return Option(parent, CHANNELS, value, width=80)
-        if label in ("RealTime_Passthrough", "USB_MIDI_Thru", "Remember_State", "Setlist_Mode",
-                     "Clock_Follow", "LED_Feedback", "Link_Toggles", "Edit_Lock", "Kemper_Mode"):
+        spec = GLOBAL_FIELDS.get(label, {"kind": "text", "max": 64})
+        kind = spec["kind"]
+        if kind == "choice":
+            width = max(80, 10 * max(len(o) for o in spec["options"]) + 30)
+            return Option(parent, spec["options"], value, width=width)
+        if kind == "check":
             return Check(parent, text="", checked=is_yes(value))
-        if label in ("Bank_Up_LED_Mode", "Bank_Down_LED_Mode"):
-            return Option(parent, LED_MODES, value, width=110)
-        if label in ("Exp1_CC", "Exp2_CC", "Bank_Change_CC"):
-            return IntEntry(parent, 0, 127, value, width=70)
-        if label == "Long_Press_ms":
-            return IntEntry(parent, 100, 2500, value, width=70)
-        if label == "Double_Press_ms":
-            return IntEntry(parent, 100, 1000, value, width=70)
-        if label == "Combo_ms":
-            return IntEntry(parent, 20, 250, value, width=70)
-        if label == "Beat_Counter":
-            return Option(parent, ["Off"] + [str(n) for n in range(1, 16)], value, width=80)
-        if label == "Boot_Banner":
-            return Option(parent, ["Off", "Slow", "Normal", "Fast"], value, width=100)
-        if label in ("LED_Brightness", "LED_Rest_Brightness"):
-            return IntEntry(parent, 1, 100, value, width=70)
-        if label == "Bank_Preview":
-            return IntEntry(parent, 0, 60, value, width=70)
-        if label == "Bank_Jump_Step":
-            return IntEntry(parent, 1, 31, value, width=70)
-        if label == "Bank_Change_Mode":
-            return Option(parent, ["Off", "PC", "CC"], value, width=80)
-        if label == "Bank_Switch_Mode":
-            return Option(parent, BANK_SWITCH_MODES, value, width=110)
-        if label == "Sleep_After_Min":
-            return IntEntry(parent, 0, 60, value, width=70)
-        if label == "Remote_Mode":
-            return Option(parent, ["Off", "CC", "Note"], value, width=80)
-        if label == "Remote_First":
-            return IntEntry(parent, 0, 118, value, width=70)
-        if label == "Global_Channel":
-            return Option(parent, ["Off"] + CHANNELS, value, width=80)
-        if label == "Global_Bank":
-            return Option(parent, ["Off"] + [str(b) for b in range(NUM_BANKS)], value, width=80)
-        if label in ("Bank_Change_Channel", "Remote_Channel"):
-            return Option(parent, ["Any"] + CHANNELS, value, width=80)
-        if label == "ConfigName":
-            return TextEntry(parent, 16, value, width=180, display=True)
-        return TextEntry(parent, 64, value, width=180)
+        if kind == "int":
+            return IntEntry(parent, spec["lo"], spec["hi"], value, width=70)
+        return TextEntry(parent, spec["max"], value, width=180, display=spec.get("display", False))
 
     # --- Bank tab -------------------------------------------------------------------
     def populate_banks(self):

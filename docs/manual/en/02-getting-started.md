@@ -4,6 +4,8 @@
 
 This chapter takes a pedal from the factory firmware to your first configuration: flash the firmware once by hand, install the tools, and load a configuration. After that, updates need nothing held.
 
+**With nothing installed.** In Chrome, Edge or Opera, the [web configurator](14-in-the-browser.md) does all of this chapter from a browser page, the first flash included: put the pedal in update mode by hand as in step 1, open the page's **Firmware** tab and choose the `.dfu` file. The rest of this chapter is the route with the desktop tools.
+
 **What you need**
 
 - the pedal, a MeloAudio Midi Commander or a Harley Benton MP-100;

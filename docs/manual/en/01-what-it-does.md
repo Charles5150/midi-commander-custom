@@ -112,6 +112,7 @@ Everything the firmware and its tools can do, grouped the way the manual is. Eac
 
 *In detail: [The configurator](03-the-configurator.md).*
 
+- **In the browser.** The web configurator does the same from a page in Chrome, Edge or Opera, with nothing to install: edit, read, write and back up the configurations, see and play the pedal live, and update its firmware, the very first flash included; see [In the browser](14-in-the-browser.md).
 - **Virtual pedal.** The configurator draws the pedal as it is built, and lets you press its switches with the mouse, tap, hold or double click, while its screen, pixel for pixel, and its LEDs are read back from the pedal, so a configuration can be tried without standing on it.
 - **Configuration over USB.** Flash a configuration to the pedal and read it back, from the GUI or the command line, over ordinary USB MIDI SysEx. No special driver.
 - **Arranging a set.** Move banks up and down the list, or anywhere in one go, and every bank change, setlist entry, macro and combination follows them; copy a bank or a single button onto another.

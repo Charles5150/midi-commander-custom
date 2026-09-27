@@ -4,6 +4,8 @@
 
 Este capítulo lleva una pedalera del firmware de fábrica a tu primera configuración: flasheas el firmware una vez a mano, instalas las herramientas y cargas una configuración. A partir de ahí, las actualizaciones no necesitan mantener nada pisado.
 
+**Sin instalar nada.** En Chrome, Edge u Opera, el [configurador web](14-in-the-browser.md) hace todo este capítulo desde una página del navegador, incluida la primera grabación: pon la pedalera en modo de actualización a mano como en el paso 1, abre la pestaña **Firmware** de la página y elige el fichero `.dfu`. El resto del capítulo es el camino con las herramientas de escritorio.
+
 **Qué necesitas**
 
 - la pedalera, una MeloAudio Midi Commander o una Harley Benton MP-100;
