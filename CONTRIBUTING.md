@@ -144,4 +144,7 @@ It goes in rounds of about two minutes under the traffic a computer sends on a g
   a test checks the two agree.
 - Describe user-visible changes in `CHANGELOG.md`, and in the user manual,
   `docs/manual/en/` and `docs/manual/es/`, both languages at once.
+- After a visible change to the configurator, retake its screenshots in
+  `docs/images` on a Mac with `.venv/bin/python tools/gui_screenshots.py`;
+  the Virtual Pedal and Monitor ones need the pedal on USB with the demo.
 - If you can, say in the pull request what you verified on hardware.
