@@ -2,7 +2,7 @@
 
 [English](../en/03-the-configurator.md) · **Español**
 
-El configurador, `python/gui_configurator.py`, es donde se monta una configuración: edita un CSV de configuración y lo intercambia con la pedalera por MIDI USB, sin drivers especiales. Arráncalo desde la raíz del repositorio:
+El configurador, `python/gui_configurator.py`, es donde se monta una configuración: edita un CSV de configuración y lo intercambia con la pedalera por MIDI USB, sin drivers especiales. Ábrelo con el lanzador de la carpeta del repositorio, **Start Configurator.command** en macOS, **Start Configurator.bat** en Windows o `start-configurator.sh` en Linux, que además prepara las herramientas de Python la primera vez (mira [Primeros pasos](02-getting-started.md#2-instala-las-herramientas-de-python)), o desde la raíz del repositorio:
 
 ```bash
 .venv/bin/python python/gui_configurator.py

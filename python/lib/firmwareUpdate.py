@@ -96,13 +96,17 @@ def load_image(path) -> bytes:
 
 
 def find_dfu_util():
-    """dfu-util on the PATH, or the copy PlatformIO keeps; None if neither."""
+    """dfu-util on the PATH, in the repository's folder (where a Windows user
+    can drop dfu-util.exe) or the copy PlatformIO keeps; None if none."""
     found = shutil.which("dfu-util")
     if found:
         return found
     exe = "dfu-util.exe" if os.name == "nt" else "dfu-util"
-    bundled = Path.home() / ".platformio" / "packages" / "tool-dfuutil" / "bin" / exe
-    return str(bundled) if bundled.exists() else None
+    for place in (Path(__file__).resolve().parents[2] / exe,
+                  Path.home() / ".platformio" / "packages" / "tool-dfuutil" / "bin" / exe):
+        if place.exists():
+            return str(place)
+    return None
 
 
 def in_dfu(dfu_util) -> bool:

@@ -2,7 +2,7 @@
 
 [English](../en/13-command-line-tools.md) · **Español**
 
-Todo lo que hace el configurador se puede hacer también desde un terminal, que viene bien para scripts, copias de seguridad y un flasheo rápido antes de un bolo. Ejecuta las herramientas desde la raíz del repositorio, con la pedalera conectada por USB en modo normal, no en modo DFU.
+Todo lo que hace el configurador se puede hacer también desde un terminal, que viene bien para scripts, copias de seguridad y un flasheo rápido antes de un bolo. Ejecuta las herramientas desde la raíz del repositorio, con la pedalera conectada por USB en modo normal, no en modo DFU. Los ejemplos usan el entorno que crea el [lanzador](02-getting-started.md#2-instala-las-herramientas-de-python), `.venv/bin/python`; en Windows escribe `.venv\Scripts\python` y `python\CSV_to_Flash.py`.
 
 Las herramientas encuentran la pedalera por su nombre MIDI USB, `MIDI Commander Custom`, y comprueban la versión de su firmware antes de hacer nada. Con [tres puertos USB](11-devices.md#tres-puertos-usb) usan el tercero, `Config`, y nunca el del DIN.
 

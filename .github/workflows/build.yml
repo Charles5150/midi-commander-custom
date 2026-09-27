@@ -80,3 +80,33 @@ jobs:
           python -c "import lib.configPacker, lib.binaryUnpacker, lib.midiDevice, lib.configCsv"
           python CSV_to_Flash.py --help
           python Flash_to_CSV.py --help
+
+  install:
+    # What a user does on each system: the launcher sets up .venv, then the tests run in it
+    name: Install (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Launcher (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: call "Start Configurator.bat" --check
+
+      - name: Launcher (macOS and Linux)
+        if: runner.os != 'Windows'
+        run: ./start-configurator.sh --check
+
+      - name: Run tests in the environment it made
+        shell: bash
+        run: |
+          if [ -x .venv/Scripts/python.exe ]; then PY=.venv/Scripts/python.exe; else PY=.venv/bin/python; fi
+          "$PY" -m unittest discover -s python/tests

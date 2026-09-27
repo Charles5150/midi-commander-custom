@@ -10,7 +10,7 @@ Este capítulo lleva una pedalera del firmware de fábrica a tu primera configur
 
 - la pedalera, una MeloAudio Midi Commander o una Harley Benton MP-100;
 - un cable USB;
-- un ordenador con Python 3;
+- un ordenador con macOS, Windows o Linux, y Python 3.12 para las herramientas de escritorio;
 - `dfu-util`, para la primera actualización del firmware.
 
 Flashear el firmware no borra tu configuración, y el bootloader de la pedalera nunca se escribe, así que siempre puedes volver a poner el firmware de fábrica.
@@ -21,8 +21,16 @@ La primera vez hay que poner la pedalera en su modo de actualización a mano. El
 
 1. Instala `dfu-util`:
    - macOS: `brew install dfu-util`;
-   - Linux: el gestor de paquetes de tu distribución;
-   - Windows: [dfu-util.sourceforge.net](https://dfu-util.sourceforge.net/).
+   - Linux: el gestor de paquetes de tu distribución, por ejemplo `sudo apt install dfu-util`;
+   - Windows: descárgalo de [dfu-util.sourceforge.net](https://dfu-util.sourceforge.net/releases/) y pon `dfu-util.exe` en una carpeta del `PATH`, o en la carpeta del repositorio del paso 2, donde también lo buscan las herramientas.
+
+   En Windows, la pedalera en modo DFU necesita además el controlador WinUSB, una sola vez: con la pedalera en modo DFU como en el paso 2, abre [Zadig](https://zadig.akeo.ie), elige **STM32 BOOTLOADER** (en **Options → List All Devices** si no aparece), **WinUSB** como controlador e **Install Driver**. En Linux, o ejecutas `dfu-util` con `sudo`, o dejas que tu usuario llegue a la pedalera con una regla de udev, una sola vez:
+
+   ```bash
+   echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="0483", ATTR{idProduct}=="df11", TAG+="uaccess"' | sudo tee /etc/udev/rules.d/70-midi-commander.rules
+   sudo udevadm control --reload-rules
+   ```
+
 2. Con la pedalera apagada, mantén pisados **Bank Down** y **D**, los dos pulsadores de abajo a la derecha, y enciéndela. La pantalla se queda a oscuras y se enciende el LED 3: la pedalera está en modo DFU.
 3. Conéctala por USB y comprueba que se ve:
 
@@ -45,22 +53,44 @@ Cuando tengas instaladas las herramientas del paso 2, `Update_Firmware.py` puede
 
 El configurador y las herramientas de línea de comandos son programas en Python de este repositorio.
 
+1. **Consigue los archivos.** Descarga [el repositorio en un ZIP](https://github.com/Charles5150/midi-commander-custom/archive/refs/heads/main.zip) y descomprímelo donde quieras, o, con git, `git clone https://github.com/Charles5150/midi-commander-custom.git`.
+2. **Instala Python 3.12.**
+   - macOS y Windows: desde [python.org](https://www.python.org/downloads/). Su instalador trae Tk, que necesita la ventana del configurador.
+   - Linux: el Python 3 de tu distribución y, en Debian o Ubuntu, `sudo apt install python3-venv python3-tk`.
+
+   También valen Python 3.10 y 3.11. Con un Python más nuevo, python-rtmidi, la librería que habla MIDI, no viene ya compilada y hay que compilarla, y para eso hace falta un compilador: en Windows las C++ Build Tools de Microsoft, en macOS `xcode-select --install`, en Linux `build-essential libasound2-dev libjack-jackd2-dev`. Puedes tener varias versiones de Python a la vez, y el lanzador elige la 3.12 si está.
+3. **Abre el lanzador** que hay en la carpeta del repositorio:
+   - macOS: doble clic en **Start Configurator.command**. La primera vez, macOS puede negarse a abrir un archivo descargado de internet: clic derecho, **Abrir**, y **Abrir** otra vez.
+   - Windows: doble clic en **Start Configurator.bat**. Si lo para Windows SmartScreen, **Más información** y **Ejecutar de todas formas**.
+   - Linux: `./start-configurator.sh` en un terminal.
+
+   La primera vez crea un entorno de Python en la carpeta `.venv` e instala lo que necesitan las herramientas, un minuto o dos; después abre el configurador directamente. Si falta algo, te dice qué instalar en tu sistema. `--check` lo prepara y lo comprueba sin abrir el configurador.
+
+<details><summary>Lo mismo a mano, en un terminal</summary>
+
+Desde la carpeta del repositorio, en macOS y Linux:
+
 ```bash
-git clone https://github.com/Charles5150/midi-commander-custom.git
-cd midi-commander-custom
 python3 -m venv .venv
 .venv/bin/pip install -r python/requirements.txt
+.venv/bin/python python/gui_configurator.py
 ```
 
-En macOS con el Python de Homebrew, el configurador necesita además Tk: `brew install python-tk`.
+En Windows:
+
+```bat
+py -3.12 -m venv .venv
+.venv\Scripts\pip install -r python\requirements.txt
+.venv\Scripts\python python\gui_configurator.py
+```
+
+Este manual escribe los comandos a la manera de macOS y Linux, `.venv/bin/python python/...`; en Windows son `.venv\Scripts\python python\...`.
+
+</details>
 
 ## 3. Configura la pedalera
 
-En el configurador es donde se monta una configuración y se envía a la pedalera.
-
-```bash
-.venv/bin/python python/gui_configurator.py
-```
+En el configurador es donde se monta una configuración y se envía a la pedalera. Lo abre el lanzador del paso 2; desde un terminal es `.venv/bin/python python/gui_configurator.py`.
 
 1. Conecta la pedalera en modo normal, no en modo DFU.
 2. Carga un punto de partida:

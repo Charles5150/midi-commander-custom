@@ -63,7 +63,7 @@ Elige un fichero `.dfu` de las [releases](https://github.com/Charles5150/midi-co
 
 El bootloader y las configuraciones no se tocan nunca. Una pedalera con firmware más antiguo, o con el de fábrica, se pone en modo de actualización a mano: mantén **Bank Down** y **D** mientras la enchufas, pulsa **Update** y elígela. Así tampoco la primera grabación necesita tener nada instalado.
 
-En Windows el bootloader necesita el controlador WinUSB, igual que para `dfu-util`: instálalo una vez con [Zadig](https://zadig.akeo.ie) para el dispositivo `STM32 BOOTLOADER`.
+En Windows el bootloader necesita el controlador WinUSB, igual que para `dfu-util`: instálalo una vez con [Zadig](https://zadig.akeo.ie) para el dispositivo `STM32 BOOTLOADER`. En Linux el navegador necesita la regla de udev de [Primeros pasos](02-getting-started.md#1-flashea-el-firmware) para llegar a él.
 
 ## Ejecutarlo desde el repositorio
 

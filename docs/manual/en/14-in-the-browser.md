@@ -63,7 +63,7 @@ Choose a `.dfu` file from the [releases](https://github.com/Charles5150/midi-com
 
 The bootloader and the configurations are never touched. A pedal with older firmware, or with the stock firmware, is put in update mode by hand: hold **Bank Down** and **D** while plugging it in, then click **Update** and choose it. This way the very first flash needs nothing installed either.
 
-On Windows the bootloader needs the WinUSB driver, as it does for `dfu-util`: install it once with [Zadig](https://zadig.akeo.ie) for the device `STM32 BOOTLOADER`.
+On Windows the bootloader needs the WinUSB driver, as it does for `dfu-util`: install it once with [Zadig](https://zadig.akeo.ie) for the device `STM32 BOOTLOADER`. On Linux the browser needs the udev rule of [Getting started](02-getting-started.md#1-flash-the-firmware) to reach it.
 
 ## Running it from the repository
 

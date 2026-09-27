@@ -34,16 +34,8 @@ The [full list](docs/manual/en/01-what-it-does.md) has every feature; in brief:
 **With the desktop tools:**
 
 1. **Flash the firmware.** Download the `.dfu` from the [latest release](https://github.com/Charles5150/midi-commander-custom/releases/latest). Switch the pedal on holding **Bank Down** and **D**, then flash it with `dfu-util -d 0483:df11 --alt 0 --download midi-commander-custom-<version>.dfu` and switch it off and on. From then on, updates need nothing held.
-2. **Install the tools.**
-
-   ```bash
-   git clone https://github.com/Charles5150/midi-commander-custom.git
-   cd midi-commander-custom
-   python3 -m venv .venv
-   .venv/bin/pip install -r python/requirements.txt
-   ```
-
-3. **Configure it.** Run `.venv/bin/python python/gui_configurator.py`, click **Read from Device**, edit and **Flash to Device**. The configurator opens on a demo configuration that uses every feature, worth a look first.
+2. **Install the tools.** Download [the repository as a ZIP](https://github.com/Charles5150/midi-commander-custom/archive/refs/heads/main.zip) and unzip it, and install [Python 3.12](https://www.python.org/downloads/).
+3. **Configure it.** Double click **Start Configurator.command** on macOS or **Start Configurator.bat** on Windows, or run `./start-configurator.sh` on Linux: the first time it sets up the tools, then opens the configurator. Click **Read from Device**, edit and **Flash to Device**. The configurator opens on a demo configuration that uses every feature, worth a look first.
 
 The whole story, step by step, is in [Getting started](docs/manual/en/02-getting-started.md).
 

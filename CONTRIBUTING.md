@@ -76,6 +76,9 @@ re-flash the configuration with the updated tools in that case.
 
 ## Python tools
 
+`./start-configurator.sh --check` (or a launcher) sets up `.venv` as a user's
+machine does; by hand:
+
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r python/requirements.txt
@@ -86,7 +89,9 @@ python3 -m venv .venv
 .venv/bin/python -m unittest discover -s python/tests  # tests
 ```
 
-On macOS with Homebrew Python you also need `brew install python-tk`.
+On macOS with Homebrew Python you also need `brew install python-tk@3.12` (the
+same version as the Python). On Windows the environment's Python is
+`.venv\Scripts\python`. CI checks the launchers on Windows, macOS and Ubuntu.
 
 ## Tests
 

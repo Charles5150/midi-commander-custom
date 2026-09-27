@@ -2,7 +2,7 @@
 
 **English** · [Español](../es/03-the-configurator.md)
 
-The configurator, `python/gui_configurator.py`, is where a configuration is built: it edits a configuration CSV and exchanges it with the pedal over USB MIDI, with no special driver. Start it from the repository root:
+The configurator, `python/gui_configurator.py`, is where a configuration is built: it edits a configuration CSV and exchanges it with the pedal over USB MIDI, with no special driver. Open it with the launcher in the repository's folder, **Start Configurator.command** on macOS, **Start Configurator.bat** on Windows or `start-configurator.sh` on Linux, which also sets up the Python tools the first time (see [Getting started](02-getting-started.md#2-install-the-python-tools)), or from the repository root:
 
 ```bash
 .venv/bin/python python/gui_configurator.py
