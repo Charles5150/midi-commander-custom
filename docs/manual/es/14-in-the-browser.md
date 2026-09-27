@@ -2,7 +2,7 @@
 
 [English](../en/14-in-the-browser.md) · **Español**
 
-El configurador web hace en una página del navegador lo mismo que el configurador de escritorio y las herramientas de línea de comandos: editar una configuración, leer y escribir los slots de la pedalera, hacer copias de seguridad, tocar la pedalera desde la pantalla y actualizar su firmware. Sin instalar nada: ni Python ni `dfu-util`.
+El configurador web hace en una página del navegador lo mismo que el configurador de escritorio y las herramientas de línea de comandos: editar una configuración, leer y escribir los slots de la pedalera, hacer copias de seguridad, tocar la pedalera desde la pantalla y actualizar su firmware. Sin instalar nada: ni Python ni `dfu-util`. Y sin pedalera, ejecuta en la página el propio firmware de la pedalera: mira [Sin pedalera](#sin-pedalera).
 
 **https://charles5150.github.io/midi-commander-custom/**
 
@@ -13,6 +13,17 @@ Hace falta un navegador con Web MIDI y WebUSB: **Chrome**, **Edge** u **Opera**,
 Pulsa **Connect the pedal**. El navegador pregunta una vez si la página puede usar dispositivos MIDI, con SysEx: acéptalo. La cabecera muestra entonces el firmware y el slot que tiene en marcha la pedalera. Cuando la pedalera se reinicia, la página vuelve a encontrarla sola.
 
 Cierra antes el configurador de escritorio y cualquier otro programa que use la pedalera: en Windows un puerto MIDI solo puede estar abierto en un programa a la vez.
+
+## Sin pedalera
+
+**Try without a pedal**, junto a **Connect the pedal**, pone en marcha una pedalera simulada: el propio firmware, el mismo código que ejecuta la pedalera, compilado para el navegador. Todo lo de la página funciona con ella igual que con la de verdad: leer y escribir sus cuatro slots, hacer copias, la vista en directo, pulsar sus interruptores. Sirve para probar una configuración antes de escribirla en la pedalera, o para probar el firmware antes de comprarla.
+
+- La primera vez no tiene nada, así que la página escribe la demo en su slot 1. Lo que escribas en ella después se guarda en el navegador y sigue ahí en la siguiente visita.
+- La cabecera dice **Simulated pedal**, con el firmware que ejecuta. **Stop** la apaga; lo escrito en ella se queda.
+- Bajo la vista en directo, **What the pedal sends** muestra cada mensaje que manda y por dónde: por USB, por la salida DIN o como tecla del teclado del ordenador (**Keys**). **Expression pedals** mueve sus dos pedales de talón a punta; si no, sus jacks están vacíos.
+- La pestaña **Firmware** no tiene nada que actualizar: la pedalera simulada ejecuta el firmware con el que vino la página, que es el más nuevo, a veces más nuevo que la última release.
+
+Lleva el tiempo como la pedalera, milisegundo a milisegundo, pero la ejecuta el navegador: una pestaña en segundo plano la hace ir más lenta. No le llega nada de fuera de la página y nada le contesta: ni un Kemper, ni reloj o respuesta para sus LEDs desde el ordenador, ni otro programa MIDI. Tampoco hay bootloader que actualizar.
 
 ## Abrir una configuración
 
@@ -56,7 +67,7 @@ En Windows el bootloader necesita el controlador WinUSB, igual que para `dfu-uti
 
 ## Ejecutarlo desde el repositorio
 
-La página es `web/index.html`, y carga los ficheros Python de `python/lib`. Para probar un cambio, sirve la raíz del repositorio y abre la página allí:
+La página es `web/index.html`, y carga los ficheros Python de `python/lib`. La pedalera simulada es `web/pedal-sim.wasm`, compilada a partir de las fuentes del firmware con `firmware/sim/build.sh` (mira [su README](../../../firmware/sim/README.md)). Para probar un cambio, sirve la raíz del repositorio y abre la página allí:
 
 ```bash
 python3 -m http.server 8000

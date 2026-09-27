@@ -58,3 +58,6 @@ artifacts/dfu/platformio-????????-??????.dfu
 
 # The tests import tools/bin_to_dfuse.py
 __pycache__/
+
+# Built by firmware/sim/build.sh, and by the workflows for the site
+web/pedal-sim.wasm

@@ -1,7 +1,8 @@
 name: Web configurator
 
 # Publishes web/ on GitHub Pages, with the Python files it runs in the
-# browser (python/lib), the demo and the templates beside it. Skipped until
+# browser (python/lib), the demo and the templates beside it, and the
+# simulated pedal: the firmware built for WebAssembly (firmware/sim). Skipped until
 # Pages is switched on for the repository, with GitHub Actions as its source.
 
 on:
@@ -12,6 +13,10 @@ on:
       - "python/lib/**"
       - "python/demo-all-features.csv"
       - "python/templates/**"
+      - "firmware/Core/**"
+      - "firmware/USB_DEVICE/App/**"
+      - "firmware/Middlewares/stm32-ssd1306-master/**"
+      - "firmware/sim/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -41,6 +46,11 @@ jobs:
           cp python/lib/*.py site/lib/
           cp python/demo-all-features.csv site/
           cp python/templates/*.csv site/templates/
+
+      - name: Build the simulated pedal
+        run: |
+          sudo apt-get install -y clang lld
+          sh firmware/sim/build.sh site/pedal-sim.wasm
 
       - uses: actions/configure-pages@v5
 

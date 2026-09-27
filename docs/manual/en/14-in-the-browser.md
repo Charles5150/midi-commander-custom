@@ -2,7 +2,7 @@
 
 **English** · [Español](../es/14-in-the-browser.md)
 
-The web configurator does in a browser page what the desktop configurator and the command line tools do: edit a configuration, read and write the pedal's slots, back them up, play the pedal from the screen and update its firmware. Nothing to install, no Python, no `dfu-util`.
+The web configurator does in a browser page what the desktop configurator and the command line tools do: edit a configuration, read and write the pedal's slots, back them up, play the pedal from the screen and update its firmware. Nothing to install, no Python, no `dfu-util`. And with no pedal at all, it runs the pedal's own firmware in the page: see [Without a pedal](#without-a-pedal).
 
 **https://charles5150.github.io/midi-commander-custom/**
 
@@ -13,6 +13,17 @@ It needs a browser with Web MIDI and WebUSB: **Chrome**, **Edge** or **Opera**, 
 Click **Connect the pedal**. The browser asks once whether the page may use MIDI devices, with SysEx: allow it. The header then shows the firmware and the slot the pedal is running. The page finds the pedal again by itself after it restarts.
 
 Close the desktop configurator and any other program using the pedal first: on Windows a MIDI port can only be open in one program at a time.
+
+## Without a pedal
+
+**Try without a pedal**, beside **Connect the pedal**, starts a simulated pedal: the firmware itself, the same code the pedal runs, built for the browser. Everything on the page works on it as on the real one: reading and writing its four slots, backing them up, the live view, pressing its switches. It is the way to try a configuration before writing it to the pedal, or to try the firmware before buying one.
+
+- The first time it holds nothing, so the page writes the demo to its slot 1. What you write to it afterwards is kept in the browser, and is there on the next visit.
+- The header says **Simulated pedal**, with the firmware it runs. **Stop** turns it off; what was written to it stays.
+- Under the live view, **What the pedal sends** lists every message it sends, and says where: over USB, on the DIN output, or as a key of the computer keyboard (**Keys**). **Expression pedals** move its two pedals from heel to toe; its jacks have nothing in them otherwise.
+- The **Firmware** tab has nothing to update: the simulated pedal runs the firmware the page came with, which is the newest, sometimes newer than the latest release.
+
+It keeps time as the pedal does, a millisecond at a time, but the browser runs it: a tab in the background slows it down. Nothing outside the page reaches it and nothing answers it: no Kemper, no clock or LED feedback from a computer, no other MIDI program. There is no bootloader to update either.
 
 ## Opening a configuration
 
@@ -56,7 +67,7 @@ On Windows the bootloader needs the WinUSB driver, as it does for `dfu-util`: in
 
 ## Running it from the repository
 
-The page is `web/index.html`, and it loads the Python files from `python/lib`. To try a change, serve the repository root and open the page there:
+The page is `web/index.html`, and it loads the Python files from `python/lib`. The simulated pedal is `web/pedal-sim.wasm`, built from the firmware's sources with `firmware/sim/build.sh` (see [its README](../../../firmware/sim/README.md)). To try a change, serve the repository root and open the page there:
 
 ```bash
 python3 -m http.server 8000

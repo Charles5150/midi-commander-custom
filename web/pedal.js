@@ -14,6 +14,7 @@ export const CMD = {
   GET_SCREEN: 70, RSP_GET_SCREEN: 71,
   ENTER_DFU: 74, RSP_ENTER_DFU: 75,
   BANNER: 76, RSP_BANNER: 77,
+  SET_PEDAL: 80, RSP_SET_PEDAL: 81,
 };
 const ENTER_DFU_CHECK = [0x44, 0x46];
 export const SWITCHES = ["1", "2", "3", "4", "A", "B", "C", "D", "DOWN", "UP"];
@@ -71,6 +72,7 @@ export class Pedal {
     this.waiters = [];
     this.onMessage = null;    // everything else the pedal sends, for a monitor
     this.onGone = null;
+    this.pause = 5;           // ms between written blocks; the simulated pedal needs none
     this._listen = (e) => this._receive(Array.from(e.data));
     input.addEventListener("midimessage", this._listen);
     this._state = (e) => {
@@ -240,7 +242,7 @@ export class Pedal {
       chunk.set(image.slice(x * 16, x * 16 + 16));
       if (chunk.every((b) => b === 0xff)) continue;
       await this._writeChunk(x, chunk, log);
-      await sleep(5);
+      if (this.pause) await sleep(this.pause);
     }
   }
 
@@ -266,6 +268,12 @@ export class Pedal {
 
   async press(sw, down) {
     await this.ask([CMD.PRESS_BUTTON, SWITCHES.indexOf(sw), down ? 1 : 0], CMD.RSP_PRESS_BUTTON, 1000);
+  }
+
+  // Hold expression pedal 0-1 at position 0 (heel) to 16383 (toe), or with
+  // hold false give it back its jack (firmware 0.70)
+  async setPedal(pedal, hold, position = 0) {
+    await this.ask([CMD.SET_PEDAL, pedal, hold ? 1 : 0, (position >> 7) & 0x7f, position & 0x7f], CMD.RSP_SET_PEDAL, 1000);
   }
 
   // Restart in the stock bootloader's DFU mode (firmware 0.58): true when on its way

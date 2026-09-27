@@ -8,6 +8,7 @@
   --accent: #d63b2f;
   --accent-text: #ffffff;
   --ok: #2f8f4e;
+  --sim: #6a4fd8;
   --warn-bg: #fff1ef;
   --warn: #b3261e;
   --pedal: #1c1c1e;
@@ -28,6 +29,7 @@
     --accent: #ff5a4c;
     --accent-text: #1c0c0a;
     --ok: #5cc27d;
+    --sim: #a592ff;
     --warn-bg: #3a1d1b;
     --warn: #ff8a80;
     --pedal: #0e0e10;
@@ -37,6 +39,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }   /* over the display rules below */
 
 body {
   margin: 0;
@@ -94,6 +97,9 @@ header.top {
 .file { flex: 1; display: flex; gap: 12px; align-items: baseline; min-width: 0; }
 #config-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pill { padding: 5px 10px; border-radius: 999px; background: var(--field); border: 1px solid var(--line); font-size: 13px; }
+.pill.sim { border-color: var(--sim); }
+.pill.ok.sim::before, .pill.sim::before { background: var(--sim); }
+#connection { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .pill.ok::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); margin-right: 7px; }
 
 .toolbar {
@@ -236,6 +242,21 @@ table.grid td:nth-child(2) input { min-width: 300px; }
 }
 .footswitch.down { background: var(--cap-down); transform: scale(.96); }
 .led { width: 14px; height: 14px; border-radius: 50%; background: #2c2c2e; box-shadow: 0 0 6px rgba(0,0,0,.4) inset; }
+/* Expression pedals and the monitor, under the live pedal */
+.exp-controls, .monitor-card { width: min(640px, 100%); margin: 0; }
+.exp-controls h3, .monitor-card h3 { margin: 0 0 6px; font-size: 15px; }
+.exp { display: grid; grid-template-columns: 96px auto 1fr auto auto; align-items: center; gap: 8px; margin: 8px 0 0; }
+.exp input[type="range"] { width: 100%; accent-color: var(--accent); }
+.monitor-head { display: flex; align-items: center; gap: 12px; }
+.monitor-head h3 { margin-right: auto; }
+ol.monitor {
+  list-style: none; margin: 8px 0 0; padding: 6px 8px; height: 220px; overflow-y: auto;
+  background: var(--field); border: 1px solid var(--line); border-radius: 8px;
+  font: 12.5px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+ol.monitor .port { display: inline-block; width: 44px; color: var(--muted); }
+ol.monitor .port.din { color: var(--accent); }
+ol.monitor .port.keys { color: var(--sim); }
 canvas.screen { width: 384px; max-width: 100%; image-rendering: pixelated; border: 6px solid #0a0a0c; border-radius: 4px; background: #040506; }
 
 #toasts { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 10; max-width: min(460px, calc(100vw - 32px)); }
@@ -256,6 +277,8 @@ footer a { color: inherit; }
   main { margin: 0 8px 8px; padding: 12px; }
   .global { grid-template-columns: 1fr; }
   .setting { grid-template-columns: 1fr; }
-  .footswitch { width: 48px; height: 48px; font-size: 11px; }
+  .footswitch { width: 48px; height: 48px; font-size: 10px; padding: 0; line-height: 1.1; }
   .pedal-body .row { gap: 10px; }
+  .exp { grid-template-columns: auto 1fr auto; }
+  .exp .hint { display: none; }
 }

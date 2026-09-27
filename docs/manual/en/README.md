@@ -19,6 +19,6 @@ The manual for the custom firmware of the **MeloAudio Midi Commander**, sold in 
 | 11 | [Templates and devices](11-devices.md) | Ready-made configurations for the FM3, HX Stomp and Kemper Player, and two way with a Kemper |
 | 12 | [The configuration file](12-configuration-file.md) | The CSV, the demo configuration and every global setting |
 | 13 | [Command line tools](13-command-line-tools.md) | Flashing, reading back, backups, texts and tests from a terminal |
-| 14 | [In the browser](14-in-the-browser.md) | The web configurator: edit, read, write and back up, the live pedal and firmware updates, with nothing to install |
+| 14 | [In the browser](14-in-the-browser.md) | The web configurator: edit, read, write and back up, the live pedal and firmware updates, with nothing to install, and a simulated pedal |
 
 What changed from one version to the next is in the [changelog](../../../CHANGELOG.md), and building the firmware yourself in [CONTRIBUTING](../../../CONTRIBUTING.md).

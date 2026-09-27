@@ -63,6 +63,17 @@ jobs:
       - name: Run tests
         run: python -m unittest discover -s python/tests -v
 
+      - name: Build the simulated pedal
+        # The firmware's own sources for WebAssembly: clang and wasm-ld
+        run: |
+          sudo apt-get install -y clang lld
+          sh firmware/sim/build.sh
+
+      - name: Run the simulated pedal's tests
+        run: node --test web/tests/*.test.mjs
+        env:
+          PYTHON: python
+
       - name: Import check for the GUI and tools
         run: |
           cd python

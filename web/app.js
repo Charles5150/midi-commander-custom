@@ -5,6 +5,7 @@
 import { Tools } from "./py.js";
 import { Pedal, SWITCHES, LED_LEVELS, SCREEN_WIDTH, SCREEN_HEIGHT, versionAtLeast } from "./pedal.js";
 import { loadImage, flash, Dfu, DFU_FILTER, UpdateError } from "./dfu.js";
+import { Simulator } from "./sim.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 
@@ -36,6 +37,10 @@ const state = {
   version: "",
   slots: null,         // {target, active, valid}
   midiAccess: null,
+  sim: null,           // the simulated pedal (sim.js), once started
+  simulated: false,    // state.pedal is the simulated one
+  monitor: [],         // what the pedal sent, newest last: {port, msg}
+  showClock: false,
   dfuPayload: null,
   dfuName: "",
   busy: false,
@@ -393,9 +398,14 @@ function renderToolbar() {
   conn.replaceChildren();
   if (state.pedal) {
     const slot = state.slots ? ` · running slot ${state.slots.active + 1}` : "";
-    conn.append(h("span", { class: "pill ok" }, `Midi Commander ${state.version}${slot}`));
+    conn.append(h("span", { class: state.simulated ? "pill ok sim" : "pill ok" },
+      `${state.simulated ? "Simulated pedal" : "Midi Commander"} ${state.version}${slot}`));
+    if (state.simulated) conn.append(h("button", { disabled: state.busy, onclick: stopSimulation, title: "Stop the simulated pedal; what was written to it stays for next time" }, "Stop"));
+  } else if (state.simulated) {
+    conn.append(h("span", { class: "pill sim" }, "Simulated pedal restarting…"));
   } else {
     conn.append(h("button", { class: "primary", disabled: state.busy, onclick: connect }, "Connect the pedal"));
+    conn.append(h("button", { disabled: state.busy, onclick: simulate, title: "The pedal's own firmware, running in this page" }, "Try without a pedal"));
   }
   const name = $("#config-name");
   name.textContent = state.config ? configName() + (state.dirty ? " • changed" : "") : "No configuration open";
@@ -437,6 +447,7 @@ function welcome() {
       h("button", { class: "primary", disabled: !state.pedal || !state.tools, onclick: readFromPedal }, "Read from the pedal"),
       h("button", { disabled: !state.tools, onclick: openFile }, "Open a CSV file"),
       h("button", { disabled: !state.tools, onclick: openDemo }, "Open the demo")),
+    h("p", { class: "hint" }, "No pedal at hand? Try without a pedal: the pedal’s own firmware runs in the page, with the demo in it, and everything here works on it as on the real one."),
     h("p", { class: "hint" }, "Chrome, Edge or Opera on a computer: they have Web MIDI and WebUSB. The page asks to use MIDI devices with SysEx when you connect."));
 }
 
@@ -632,7 +643,7 @@ async function connect() {
     if (!navigator.requestMIDIAccess) throw new Error("this browser has no Web MIDI: use Chrome, Edge or Opera");
     if (!state.midiAccess) {
       state.midiAccess = await navigator.requestMIDIAccess({ sysex: true });
-      state.midiAccess.addEventListener("statechange", () => { if (!state.pedal && !state.busy) setTimeout(() => attach(true), 800); });
+      state.midiAccess.addEventListener("statechange", () => { if (!state.pedal && !state.busy && !state.simulated) setTimeout(() => attach(true), 800); });
     }
     await attach(false);
   } catch (e) {
@@ -643,16 +654,71 @@ async function connect() {
 async function attach(quiet) {
   if (state.pedal) return;
   try {
-    const pedal = await Pedal.open(state.midiAccess);
+    const simulated = state.simulated;
+    const pedal = await Pedal.open(simulated ? state.sim.access : state.midiAccess);
+    if (simulated) pedal.pause = 0;
+    else pedal.onMessage = (msg) => logMessage("USB", msg);
     state.version = await pedal.version();
     try { state.slots = await pedal.selectSlot(null); } catch (e) { state.slots = null; }
     pedal.onGone = () => { pedal.close(); if (state.pedal === pedal) { state.pedal = null; state.slots = null; render(); } };
+    if (simulated !== state.simulated) { pedal.close(); return; }
     state.pedal = pedal;
-    if (!quiet) toast(`Connected: firmware ${state.version}`);
+    if (!quiet) toast(simulated ? `Simulated pedal on: firmware ${state.version}` : `Connected: firmware ${state.version}`);
     render();
   } catch (e) {
     if (!quiet) toast(e.message || String(e), "error");
   }
+}
+
+// --- The simulated pedal ----------------------------------------------------------
+async function simulate() {
+  try {
+    setBusy("Starting the simulated pedal");
+    if (!state.sim) {
+      const sim = await Simulator.load();
+      sim.access.addEventListener("statechange", (e) => {
+        if (e.port.state === "connected" && state.simulated && !state.pedal) setTimeout(() => attach(true), 50);
+      });
+      sim.onOutput = (port, msg) => logMessage(port, msg);
+      state.sim = sim;
+    }
+    state.simulated = true;
+    state.sim.start();
+    await attach(false);
+    if (state.pedal && state.slots && !state.slots.valid.length) await demoIntoSimulation();
+  } catch (e) {
+    toast(`The simulated pedal could not start: ${e.message}`, "error");
+    stopSimulation();
+  } finally {
+    setBusy(null);
+    render();
+  }
+}
+
+// A simulated pedal starts empty: the demo goes in slot 1, as a first look
+async function demoIntoSimulation() {
+  if (!state.tools) {
+    setBusy("Loading the configurator’s Python");
+    await waitFor(() => state.tools, 120000, 300);
+    if (!state.tools) return;
+  }
+  const packed = state.tools.pack(state.tools.csvToSections(await state.tools.fetchFile("demo-all-features.csv")));
+  setBusy("Writing the demo to the simulated pedal");
+  const pedal = state.pedal;
+  await pedal.selectSlot(0);
+  await pedal.writeImage(state.version, packed.config, packed.image, () => {}, (d, t) => setBusy("Writing the demo to the simulated pedal", d, t));
+  pedal.reset();
+  toast("The simulated pedal holds the demo in slot 1. Write any configuration to it as to the pedal.");
+}
+
+function stopSimulation() {
+  state.simulated = false;
+  const pedal = state.pedal;
+  state.pedal = null;
+  state.slots = null;
+  if (pedal) pedal.close();
+  if (state.sim) state.sim.stop();
+  render();
 }
 
 async function slotName(pedal, slot) {
@@ -759,7 +825,7 @@ function ledColor(level) {
 
 function renderLive(main) {
   if (!state.pedal) {
-    main.append(h("p", {}, "Connect the pedal to see its display and LEDs, and press its switches from here."));
+    main.append(h("p", {}, "Connect the pedal, or try without one, to see its display and LEDs, press its switches from here and see what it sends."));
     return;
   }
   const canvas = h("canvas", { width: 128, height: 64, class: "screen" });
@@ -779,7 +845,9 @@ function renderLive(main) {
       h("div", { class: "row top" }, ["1", "2", "3", "4", "UP"].map(switchEl)),
       canvas,
       h("div", { class: "row bottom" }, ["A", "B", "C", "D", "DOWN"].map(switchEl))),
-    info));
+    info,
+    expressionControls(),
+    monitorView()));
   stopLive();
   const me = (live = { stop: false });
   const ctx = canvas.getContext("2d");
@@ -809,6 +877,103 @@ function renderLive(main) {
   })();
 }
 
+// The expression pedals moved from here, through the pedal's SET_PEDAL (0.70)
+function expressionControls() {
+  if (!versionAtLeast(state.version, 0, 70)) return null;
+  const pedalEl = (i) => {
+    const slider = h("input", { type: "range", min: 0, max: 16383, value: 0, "aria-label": `Expression pedal ${i + 1}` });
+    const letGo = h("button", { disabled: true }, "Let go");
+    let sending = false, want = null;
+    const send = async () => {
+      if (sending) return;
+      sending = true;
+      while (want !== null && state.pedal) {
+        const v = want;
+        want = null;
+        try { await state.pedal.setPedal(i, true, v); } catch (e) { /* gone */ }
+      }
+      sending = false;
+    };
+    slider.addEventListener("input", () => { want = Number(slider.value); letGo.disabled = false; send(); });
+    letGo.addEventListener("click", async () => {
+      want = null;
+      letGo.disabled = true;
+      try { await state.pedal.setPedal(i, false); } catch (e) { /* gone */ }
+    });
+    return h("label", { class: "exp" }, h("span", {}, `Expression ${i + 1}`), h("span", { class: "hint" }, "heel"), slider, h("span", { class: "hint" }, "toe"), letGo);
+  };
+  return h("section", { class: "card exp-controls" },
+    h("h3", {}, "Expression pedals"),
+    h("p", { class: "hint" }, state.simulated
+      ? "The simulated pedal has nothing in its jacks: move a pedal here."
+      : "Moving one here holds it there, over what is in its jack, until you let go."),
+    pedalEl(0), pedalEl(1));
+}
+
+// --- What the pedal sends ---------------------------------------------------------
+const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const hex = (b) => b.toString(16).toUpperCase().padStart(2, "0");
+
+function describeMidi(port, m) {
+  if (port === "keys") {
+    if (m[0] === 1) {
+      const keys = m.slice(3).filter(Boolean);
+      if (!keys.length && !m[1]) return "all keys up";
+      return [m[1] ? `modifiers ${hex(m[1])}` : "", keys.length ? `key${keys.length > 1 ? "s" : ""} ${keys.map(hex).join(" ")}` : ""].filter(Boolean).join(", ");
+    }
+    const usage = m[1] | (m[2] << 8);
+    return usage ? `media key ${hex(usage >> 8)}${hex(usage & 0xff)}` : "media key up";
+  }
+  const s = m[0], ch = `ch ${(s & 15) + 1}`;
+  const note = (n) => `${NOTE_NAMES[n % 12]}${Math.floor(n / 12) - 1} (${n})`;
+  switch (s >> 4) {
+    case 0x8: return `Note off ${note(m[1])} · ${ch}`;
+    case 0x9: return m[2] ? `Note on ${note(m[1])} vel ${m[2]} · ${ch}` : `Note off ${note(m[1])} · ${ch}`;
+    case 0xa: return `Poly pressure ${note(m[1])} = ${m[2]} · ${ch}`;
+    case 0xb: return `CC ${m[1]} = ${m[2]} · ${ch}`;
+    case 0xc: return `PC ${m[1]} · ${ch}`;
+    case 0xd: return `Channel pressure ${m[1]} · ${ch}`;
+    case 0xe: return `Pitch bend ${((m[2] << 7) | m[1]) - 8192} · ${ch}`;
+  }
+  const names = { 0xf8: "Clock", 0xfa: "Start", 0xfb: "Continue", 0xfc: "Stop", 0xfe: "Active sensing", 0xff: "Reset" };
+  if (names[s]) return names[s];
+  if (s === 0xf2) return `Song position ${(m[2] << 7) | m[1]}`;
+  if (s === 0xf0) return `SysEx ${m.length} bytes: ${m.slice(0, 12).map(hex).join(" ")}${m.length > 12 ? " …" : ""}`;
+  return m.map(hex).join(" ");
+}
+
+function logMessage(port, msg) {
+  if (msg[0] === 0xf8 && !state.showClock) return;
+  state.monitor.push({ port, text: describeMidi(port, Array.from(msg)) });
+  if (state.monitor.length > 200) state.monitor.splice(0, state.monitor.length - 200);
+  const list = $("#monitor-list");
+  if (list) {
+    list.append(monitorLine(state.monitor[state.monitor.length - 1]));
+    while (list.childElementCount > 200) list.firstChild.remove();
+    list.scrollTop = list.scrollHeight;
+  }
+}
+
+function monitorLine(e) {
+  return h("li", {}, h("span", { class: `port ${e.port.toLowerCase()}` }, e.port === "keys" ? "Keys" : e.port), e.text);
+}
+
+function monitorView() {
+  const list = h("ol", { id: "monitor-list", class: "monitor" }, state.monitor.map(monitorLine));
+  const clock = h("input", { type: "checkbox", checked: state.showClock });
+  clock.addEventListener("change", () => { state.showClock = clock.checked; });
+  setTimeout(() => { list.scrollTop = list.scrollHeight; });
+  return h("section", { class: "card monitor-card" },
+    h("div", { class: "monitor-head" },
+      h("h3", {}, "What the pedal sends"),
+      h("label", { class: "hint" }, clock, " clock"),
+      h("button", { onclick: () => { state.monitor = []; list.replaceChildren(); } }, "Clear")),
+    h("p", { class: "hint" }, state.simulated
+      ? "Over USB, on the DIN output and as computer keys: the simulated pedal sends nowhere else."
+      : "What comes in over USB. The DIN output and the computer keys are not seen from here: try the simulated pedal for those."),
+    list);
+}
+
 // --- Firmware ----------------------------------------------------------------------
 function renderFirmware(main) {
   const file = h("input", { type: "file", accept: ".dfu" });
@@ -825,6 +990,12 @@ function renderFirmware(main) {
     }
     render();
   });
+  if (state.simulated) {
+    main.append(h("section", { class: "card firmware" },
+      h("h3", {}, "Update the firmware"),
+      h("p", {}, `The simulated pedal runs the firmware this page came with, ${state.version}, and has nothing to update. Connect the pedal to update it.`)));
+    return;
+  }
   const usb = Boolean(navigator.usb);
   main.append(h("section", { class: "card firmware" },
     h("h3", {}, "Update the firmware"),
@@ -934,4 +1105,4 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 // For the tests (web/tests): the page's state and its steps
-window.mc = { state, setConfig, connect, checkConfig, render };
+window.mc = { state, setConfig, connect, simulate, stopSimulation, checkConfig, render };

@@ -29,7 +29,7 @@ The [full list](docs/manual/en/01-what-it-does.md) has sixty entries; in brief:
 
 ## Quick start
 
-**In the browser, nothing to install:** open the [web configurator](https://charles5150.github.io/midi-commander-custom/) in Chrome, Edge or Opera. It edits, reads and writes configurations, shows the pedal live and updates the firmware, the first flash included. → [In the browser](docs/manual/en/14-in-the-browser.md)
+**In the browser, nothing to install:** open the [web configurator](https://charles5150.github.io/midi-commander-custom/) in Chrome, Edge or Opera. It edits, reads and writes configurations, shows the pedal live and updates the firmware, the first flash included. No pedal yet? **Try without a pedal** runs its firmware in the page. → [In the browser](docs/manual/en/14-in-the-browser.md)
 
 **With the desktop tools:**
 
