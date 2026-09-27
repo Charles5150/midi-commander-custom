@@ -11,7 +11,7 @@ for questions.
 |---|---|
 | `firmware/` | STM32F103 firmware (HAL, USB MIDI + HID composite device) |
 | `python/` | Configuration tools: GUI, `CSV_to_Flash.py`, `Flash_to_CSV.py`, `Backup_Slots.py`, packers and `slotIO.py` (reading and writing a slot) under `lib/` |
-| `python/tests/` | Round-trip tests for the CSV packers |
+| `python/tests/` | Tests for the Python tools and the manual |
 | `docs/manual/` | The user manual, `en/` and `es/` with the same chapters, and the pictures both share |
 | `artifacts/` | Built firmware images. Current ones are attached to GitHub releases |
 | `tools/`, `scripts/` | DFU packaging helpers used by the PlatformIO build |
@@ -82,10 +82,17 @@ On macOS with Homebrew Python you also need `brew install python-tk`.
 
 ## Tests
 
-The Python tools have tests: round trips through the configuration packers, and checks that the numbers the tools and the firmware share still agree:
+The Python tools have tests: round trips through the configuration packers, the errors a hand-written CSV gets, the display text, MIDI learn, the monitor and the web configurator's bridge, checks that the numbers the tools and the firmware share still agree, and that the manual's links resolve and its English and Spanish pages match:
 
 ```bash
 .venv/bin/python -m unittest discover -s python/tests
+```
+
+The simulated pedal of the web configurator has tests of its own, which run the firmware built to WebAssembly (see [firmware/sim/README.md](firmware/sim/README.md) for what the build needs):
+
+```bash
+sh firmware/sim/build.sh
+PYTHON=$PWD/.venv/bin/python node --test web/tests/*.test.mjs
 ```
 
 GitHub Actions builds both firmware images and runs these tests on every push and pull request.

@@ -112,7 +112,7 @@ In the demo's bank 6, pedal 1 sets the speed of TREM and of the arpeggio held on
 
 <details><summary>Under the hood</summary>
 
-Stored in byte 15 of each pedal's record, 0 for CC, 1 for Pitch Bend and 2 for 14-bit CC, where older tools wrote a zero.
+Stored in byte 15 of each pedal's record, 0 for CC, 1 for Pitch Bend, 2 for 14-bit CC, 3 for Speed, 4 for Wheel and 5 for Arrows, where older tools wrote a zero.
 
 </details>
 

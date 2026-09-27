@@ -112,7 +112,7 @@ En el banco 6 de la demo, el pedal 1 marca la velocidad de TREM y del arpegio qu
 
 <details><summary>Por dentro</summary>
 
-Se guarda en el byte 15 del registro de cada pedal: 0 para CC, 1 para Pitch Bend y 2 para CC de 14 bits, donde las herramientas antiguas escribían un cero.
+Se guarda en el byte 15 del registro de cada pedal: 0 para CC, 1 para Pitch Bend, 2 para CC de 14 bits, 3 para Speed, 4 para Wheel y 5 para Arrows, donde las herramientas antiguas escribían un cero.
 
 </details>
 
