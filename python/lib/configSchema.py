@@ -115,7 +115,7 @@ GLOBAL_GROUPS = [
         ("Remote_Mode", "Press from the computer", "CC or notes from USB press the switches"),
         ("Remote_Channel", "… listening on channel", ""),
         ("Remote_First", "… from number", "1 2 3 4 A B C D, Bank Down, Bank Up take ten in a row"),
-        ("Kemper_Mode", "Talk to a Kemper", "the rig name on the display and the modules on the LEDs"),
+        ("Kemper_Mode", "Talk to a Kemper", "the rig name on the display, the modules on the LEDs and its tuner on the screen"),
     ]),
     ("Power", [
         ("Sleep_After_Min", "Sleep after", "idle minutes before the display and LEDs go out, 0 = never"),
