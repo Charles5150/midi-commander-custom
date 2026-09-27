@@ -52,7 +52,8 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
  *   [9]    toe threshold, as a 7-bit value    [10] heel threshold
  *   [11]   lowest value sent (0-127)          [12] highest value sent
  *   [13]   auto-engage button + 1 (0 none)    [14] auto-engage rest, 10 ms units
- *   [15]   what it sends: EXP_OUT_CC, EXP_OUT_PITCHBEND, EXP_OUT_CC14 or EXP_OUT_SPEED
+ *   [15]   what it sends: EXP_OUT_CC, EXP_OUT_PITCHBEND, EXP_OUT_CC14, EXP_OUT_SPEED,
+ *          EXP_OUT_WHEEL or EXP_OUT_ARROWS
  *   Blank flash (0xFF) means "not set" everywhere. Blank flash (0xFF) means "not set" everywhere. The tools
  *   used to write zeros after byte 10, so a range of 0 to 0 means the full
  *   range too.
@@ -65,6 +66,8 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
 #define EXP_OUT_PITCHBEND		(1)	// 14-bit Pitch Bend
 #define EXP_OUT_CC14			(2)	// 14-bit CC pair: MSB on the CC, LSB on CC + 32
 #define EXP_OUT_SPEED			(3)	// no MIDI: the speed of the LFOs and sequences
+#define EXP_OUT_WHEEL			(4)	// no MIDI: a mouse wheel turning as fast as the pedal says
+#define EXP_OUT_ARROWS			(5)	// no MIDI: the Down (or Up) arrow key, repeated as fast
 
 #define MIDI_NUM_BANKS			(32)
 #define MIDI_NUM_SWITCHES		(8)
@@ -208,8 +211,9 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
 /*
  * Expression pedals per bank: [pedal 1 CC, pedal 1 channel, pedal 2 CC, pedal 2
  * channel]. CC 0-127 replaces the pedal's CC in that bank, BANK_EXP_CC_OFF
- * silences it there and BANK_EXP_CC_SPEED makes it set the speed of the LFOs
- * and sequences; channel 1-16 replaces its channel. Erased flash (0xFF),
+ * silences it there, BANK_EXP_CC_SPEED makes it set the speed of the LFOs
+ * and sequences, and BANK_EXP_CC_WHEEL and BANK_EXP_CC_ARROWS make it scroll;
+ * channel 1-16 replaces its channel. Erased flash (0xFF),
  * which is all a configuration written before 0.28 holds here, keeps the
  * pedal's own settings.
  */
@@ -218,6 +222,8 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
 #define CFG_BANK_EXP_OFF	(CFG_SETLIST_OFF + CFG_SETLIST_SIZE)
 #define BANK_EXP_CC_OFF		(128)	// 0x80, above any CC number
 #define BANK_EXP_CC_SPEED	(130)	// 0x82, EXP_TARGET_SPEED
+#define BANK_EXP_CC_WHEEL	(132)	// 0x84, EXP_TARGET_WHEEL
+#define BANK_EXP_CC_ARROWS	(133)	// 0x85, EXP_TARGET_ARROWS
 /*
  * Expression pedal output range per bank: [pedal 1 lowest, pedal 1 highest,
  * pedal 2 lowest, pedal 2 highest], 0-127 each. Erased flash (0xFF), which is

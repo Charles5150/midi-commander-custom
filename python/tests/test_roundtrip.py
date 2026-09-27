@@ -620,6 +620,8 @@ class FirmwareLayoutTest(unittest.TestCase):
             ("CFG_BANK_EXP_STRIDE", "BANK_EXP_STRIDE"),
             ("BANK_EXP_CC_OFF", "BANK_EXP_CC_OFF"),
             ("BANK_EXP_CC_SPEED", "BANK_EXP_CC_SPEED"),
+            ("BANK_EXP_CC_WHEEL", "BANK_EXP_CC_WHEEL"),
+            ("BANK_EXP_CC_ARROWS", "BANK_EXP_CC_ARROWS"),
             ("SETLIST_MAX", "SETLIST_MAX"),
             ("CFG_CYCLE_LABELS_OFF", "CYCLE_LABELS_OFFSET"),
             ("CYCLE_LABEL_COUNT", "CYCLE_LABEL_COUNT"),
@@ -1138,9 +1140,9 @@ class DoublePressTest(unittest.TestCase):
         # slot's pages, so the extension follows it with no gap
         self.assertEqual(image[: len(config)], config)
         self.assertEqual(len(config), U.DOUBLE_PRESS_OFFSET)
-        # Two commands in the demo, everything else erased
+        # Three commands in the demo, everything else erased
         extension = image[U.DOUBLE_PRESS_OFFSET :]
-        self.assertEqual(sum(1 for b in extension if b != 0xFF), 8)
+        self.assertEqual(sum(1 for b in extension if b != 0xFF), 12)
         button = 2 * 8 + 3                     # bank 2, button 4
         off = U.DOUBLE_PRESS_OFFSET + button * U.BUTTON_STRIDE
         self.assertEqual(list(image[off : off + 4]), [0xB0, 18 | 0x80, 127, 0])
@@ -1153,7 +1155,8 @@ class DoublePressTest(unittest.TestCase):
         self.assertEqual(row["A_Number_(PC/CC/Note)"], "18")
         self.assertEqual(row["A_Toggle_(CC/PB/Note)"], "Y")
         self.assertEqual(row["B_CommandType"], "")
-        self.assertEqual((df["A_CommandType"] != "").sum(), 2)   # and the Scene Save on A
+        # and the Scene Save on A, and Arrows on 1 in bank 5
+        self.assertEqual((df["A_CommandType"] != "").sum(), 3)
 
     def test_commands_of_the_empty_type_are_kept(self):
         """Wait, If, Macro, Button and the rest share the empty command type's
@@ -1224,7 +1227,7 @@ class DoublePressTest(unittest.TestCase):
         df = unpacker.unpack_double_press_settings(image)
         row = df[(df["Bank_Number"] == "9") & (df["Button_Identifier"] == "4")].iloc[0]
         self.assertEqual(row["A_Number_(PC/CC/Note)"], "18")
-        self.assertEqual((df["A_CommandType"] != "").sum(), 4)
+        self.assertEqual((df["A_CommandType"] != "").sum(), 5)
 
 
 class VirtualPedalTest(unittest.TestCase):
@@ -1393,6 +1396,15 @@ class BankExpressionTest(unittest.TestCase):
         self.assertEqual(self.region(packed, 3)[0::2], [0x82, 0x82])
         back = unpacker.unpack_bank_expression_settings(packed)
         self.assertEqual(list(back.loc[3, ["Exp1_CC", "Exp2_CC"]]), ["Speed", "Speed"])
+
+    def test_scroll(self):
+        df = unpacker.unpack_bank_expression_settings(packer.pack_config(self.sections))
+        df.loc[3, "Exp1_CC"] = "wheel"
+        df.loc[3, "Exp2_CC"] = "Arrows"
+        packed = packer.pack_config({**self.sections, packer.BANK_EXPRESSION_SECTION: df})
+        self.assertEqual(self.region(packed, 3)[0::2], [0x84, 0x85])
+        back = unpacker.unpack_bank_expression_settings(packed)
+        self.assertEqual(list(back.loc[3, ["Exp1_CC", "Exp2_CC"]]), ["Wheel", "Arrows"])
 
     def test_missing_section_keeps_pedals_as_they_are(self):
         sections = {k: v for k, v in self.sections.items() if k != packer.BANK_EXPRESSION_SECTION}
@@ -1671,7 +1683,8 @@ class ExpressionOutputTest(unittest.TestCase):
         self.assertEqual(list(exp["Output"]), ["CC", "CC14"])
 
     def test_every_kind_round_trips(self):
-        for name, code in (("CC", 0), ("PitchBend", 1), ("CC14", 2), ("Speed", 3)):
+        for name, code in (("CC", 0), ("PitchBend", 1), ("CC14", 2), ("Speed", 3), ("Wheel", 4),
+                           ("Arrows", 5)):
             packed = self.with_outputs(name, "CC")
             self.assertEqual(self.output_bytes(packed), [code, 0])
             exp = unpacker.unpack_config(packed)[4]
@@ -1705,7 +1718,8 @@ class ExpressionOutputTest(unittest.TestCase):
                             "flash_midi_settings.h")
         with open(path) as handle:
             header = handle.read()
-        for name, code in (("CC", 0), ("PITCHBEND", 1), ("CC14", 2), ("SPEED", 3)):
+        for name, code in (("CC", 0), ("PITCHBEND", 1), ("CC14", 2), ("SPEED", 3), ("WHEEL", 4),
+                           ("ARROWS", 5)):
             m = re.search(rf"#define\s+EXP_OUT_{name}\s+\((\d+)\)", header)
             self.assertEqual(int(m.group(1)), code, name)
             self.assertEqual(packer.EXP_OUTPUTS[name], code)
@@ -2472,6 +2486,12 @@ class ExpCommandTest(unittest.TestCase):
         self.assertEqual(self.pack(**{"OnValue_(CC/PB)": "2", "KeyMode_(Key)": "add",
                                       "Number_(PC/CC/Note)": "7", "Channel_(PC/CC/Note/PB)": "5"}),
                          [0x05, 1, cbp.EXP_TARGET_ADD, 0])
+        self.assertEqual(self.pack(**{"OnValue_(CC/PB)": "1", "KeyMode_(Key)": "Wheel",
+                                      "Channel_(PC/CC/Note/PB)": "5"}),
+                         [0x05, 0, cbp.EXP_TARGET_WHEEL, 0])
+        self.assertEqual(self.pack(**{"OnValue_(CC/PB)": "1", "KeyMode_(Key)": "arrows",
+                                      "Toggle_(CC/PB/Note)": "Y"}),
+                         [0x05, 0x80, cbp.EXP_TARGET_ARROWS, 0])
 
     def test_bad_values(self):
         for fields in ({"OnValue_(CC/PB)": "3", "Number_(PC/CC/Note)": "7"},
@@ -2484,7 +2504,8 @@ class ExpCommandTest(unittest.TestCase):
 
     def test_round_trip(self):
         for raw in ([0x05, 0, 7, 0], [0x05, 0x81, 74, 16], [0x05, 1, 0x80, 0], [0x05, 0x80, 0x81, 0],
-                    [0x05, 0x81, 0x82, 0], [0x05, 0x80, 0x83, 0]):
+                    [0x05, 0x81, 0x82, 0], [0x05, 0x80, 0x83, 0], [0x05, 0, 0x84, 0],
+                    [0x05, 0x81, 0x85, 0]):
             cmd = unpacker.unpack_command(bytes(raw))
             row = pd.Series({f"A_{k}": v for k, v in cmd.items()})
             self.assertEqual(cbp.pack_row(row)[:4], raw, cmd)
@@ -2505,7 +2526,9 @@ class ExpCommandTest(unittest.TestCase):
         for name, value in (("CMD_EXP_MODE", cbp.CMD_EXP_MODE), ("EXP_TARGET_OFF", cbp.EXP_TARGET_OFF),
                             ("EXP_TARGET_RESET", cbp.EXP_TARGET_OWN),
                             ("EXP_TARGET_SPEED", cbp.EXP_TARGET_SPEED),
-                            ("EXP_TARGET_ADD", cbp.EXP_TARGET_ADD)):
+                            ("EXP_TARGET_ADD", cbp.EXP_TARGET_ADD),
+                            ("EXP_TARGET_WHEEL", cbp.EXP_TARGET_WHEEL),
+                            ("EXP_TARGET_ARROWS", cbp.EXP_TARGET_ARROWS)):
             m = re.search(rf"#define\s+{name}\s+\((0x[0-9A-Fa-f]+|\d+)\)", header)
             self.assertEqual(int(m.group(1), 0), value, name)
 

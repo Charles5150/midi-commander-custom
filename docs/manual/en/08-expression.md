@@ -116,6 +116,40 @@ Stored in byte 15 of each pedal's record, 0 for CC, 1 for Pitch Bend and 2 for 1
 
 </details>
 
+## Scrolling on the computer
+
+A pedal can scroll lyrics, a score or a teleprompter on the computer, hands free: the further you press it, the faster the page goes, and back at the heel it stops. No MIDI is sent; the pedal types on the computer as the [keyboard commands](06-commands.md) do.
+
+It scrolls in one of two ways:
+
+- `Arrows` taps the Down arrow key. It goes to the window in front, as a keyboard would. **The one to use on a Mac.**
+- `Wheel` turns a mouse wheel. It goes to the window under the mouse pointer, even if another one is in front. Good on Windows. macOS speeds a wheel up by how often it turns, so there it crawls below half way and races past it.
+
+Put it there as Speed is put:
+
+- **Output** `Wheel` or `Arrows` in the Expression tab, for good;
+- `Wheel` or `Arrows` as the pedal's CC in a bank, in the Banks tab, for that bank: a bank for each song's lyrics;
+- an [`Exp` command](06-commands.md#changing-an-expression-pedals-target) with `KeyMode` `Wheel` or `Arrows`, from a button: a toggle turns scrolling on and off.
+
+How it behaves:
+
+- At the heel nothing moves. From there it speeds up gently, so the first part of the travel crawls: a quarter of the way is about one step a second, half way five, and the toe twenty.
+- It keeps going while the pedal stands still: leave it where the song needs it.
+- A range whose toe value is below its heel value scrolls up, with the Up arrow or the wheel the other way. `Out_Min` 127 and `Out_Max` 0 scroll up at full speed.
+- A smaller range caps the speed: `Out_Min` 0 and `Out_Max` 64 go up to five steps a second at the toe.
+- On a Mac with natural scrolling (the default), `Wheel` goes up where it would go down elsewhere; turn the range round.
+- Curve, Invert, the toe and heel switches and auto-engage work as before, and scrolling keeps the pedal from falling asleep.
+
+In the demo's bank 5, a double press on PLAY turns pedal 1 to `Arrows`, and another gives it back its CC.
+
+*Firmware 0.95 or later; older firmware sends the pedal's own CC instead.*
+
+<details><summary>Under the hood</summary>
+
+Output 4 is Wheel and 5 Arrows; in a bank or an `Exp` command, 0x84 and 0x85. The wheel is a third report on the pedal's USB keyboard, a mouse with only a wheel (report 3). A step comes every 806450 / d² ms, d being how far the pedal is from its heel value, 0–127, with nothing below 3.
+
+</details>
+
 ## Toe and heel switches
 
 A pedal can give you two more footswitches while it keeps sending its CC: reaching the toe taps one button, returning to the heel taps another.
@@ -215,7 +249,7 @@ Optional; two rows, `Pedal` 1 and 2.
 | `Out_Min`, `Out_Max` | 0–127 | Values sent at the heel and at the toe. Defaults 0 and 127. |
 | `Auto_Button` | None or 1–4, A–D | Button switched on as the pedal leaves the heel and off after resting there (auto-engage). |
 | `Auto_Off_ms` | 10–2540 | How long the pedal must rest at the heel before that button goes off. Default 500. |
-| `Output` | CC, PitchBend, CC14 or Speed | What the pedal sends: its CC with 7 bits, Pitch Bend, a 14-bit CC pair, or nothing but the [speed of the LFOs and sequences](#speed-of-the-lfos-and-sequences). Default CC. |
+| `Output` | CC, PitchBend, CC14, Speed, Wheel or Arrows | What the pedal sends: its CC with 7 bits, Pitch Bend, a 14-bit CC pair, nothing but the [speed of the LFOs and sequences](#speed-of-the-lfos-and-sequences), or [scrolling on the computer](#scrolling-on-the-computer). Default CC. |
 | `Send_On_Bank` | Y / N | Send the pedal's position as a bank is entered, after its enter commands. Default N. Firmware 0.87. |
 
 ### BankExpression_Settings
@@ -224,7 +258,7 @@ Optional; one row per `Bank_Number` (0–31), rows may be missing or in any orde
 
 | Column | Values | Meaning |
 |---|---|---|
-| `Exp1_CC`, `Exp2_CC` | empty, 0–127, Off or Speed | CC the pedal sends while this bank is selected. Empty keeps `Exp1_CC` / `Exp2_CC` from `Global_Settings`; Off silences the pedal in this bank; Speed makes it set the [speed of the LFOs and sequences](#speed-of-the-lfos-and-sequences), stored as 0x82 (firmware 0.70). |
+| `Exp1_CC`, `Exp2_CC` | empty, 0–127, Off, Speed, Wheel or Arrows | CC the pedal sends while this bank is selected. Empty keeps `Exp1_CC` / `Exp2_CC` from `Global_Settings`; Off silences the pedal in this bank; Speed makes it set the [speed of the LFOs and sequences](#speed-of-the-lfos-and-sequences), stored as 0x82 (firmware 0.70); Wheel and Arrows make it [scroll on the computer](#scrolling-on-the-computer), 0x84 and 0x85 (firmware 0.95). |
 | `Exp1_Channel`, `Exp2_Channel` | empty or 1–16 | Channel for that pedal in this bank. Empty keeps the pedal's `Channel` from `Expression_Settings`. |
 | `Exp1_Min`, `Exp1_Max`, `Exp2_Min`, `Exp2_Max` | empty or 0–127 | Values the pedal sends at the heel and at the toe in this bank. Empty keeps its `Out_Min` / `Out_Max` from `Expression_Settings`; each end is taken on its own. Firmware 0.33 or later. |
 

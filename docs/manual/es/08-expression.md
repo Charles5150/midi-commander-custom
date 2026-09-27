@@ -116,6 +116,40 @@ Se guarda en el byte 15 del registro de cada pedal: 0 para CC, 1 para Pitch Bend
 
 </details>
 
+## Hacer scroll en el ordenador
+
+Un pedal puede ir pasando la letra, una partitura o un teleprompter en el ordenador sin usar las manos: cuanto más lo pisas, más rápido va la página, y al volver al talón se para. No envía MIDI; el pedal teclea en el ordenador como los [comandos de teclado](06-commands.md).
+
+Hace scroll de una de dos maneras:
+
+- `Arrows` pulsa la flecha abajo. Va a la ventana que está delante, como un teclado. **La que hay que usar en un Mac.**
+- `Wheel` gira una rueda de ratón. Va a la ventana que hay bajo el puntero, aunque haya otra delante. Bien en Windows. macOS acelera la rueda según lo seguido que gira, así que allí apenas se mueve por debajo de la mitad y se dispara pasada la mitad.
+
+Se pone igual que Speed:
+
+- **Output** `Wheel` o `Arrows` en la pestaña Expression, para siempre;
+- `Wheel` o `Arrows` como CC del pedal en un banco, en la pestaña Banks, para ese banco: un banco para la letra de cada canción;
+- un [comando `Exp`](06-commands.md#cambiar-el-destino-de-un-pedal-de-expresión) con `KeyMode` `Wheel` o `Arrows`, desde un botón: con toggle, enciende y apaga el scroll.
+
+Cómo se comporta:
+
+- En el talón no se mueve nada. A partir de ahí acelera poco a poco, así que el primer tramo va despacio: a un cuarto del recorrido da un paso por segundo, a la mitad cinco y en la punta veinte.
+- Sigue mientras el pedal está quieto: déjalo donde lo pida la canción.
+- Un rango con el valor de punta por debajo del de talón hace scroll hacia arriba, con la flecha arriba o la rueda al revés. `Out_Min` 127 y `Out_Max` 0 suben a toda velocidad.
+- Un rango más corto limita la velocidad: `Out_Min` 0 y `Out_Max` 64 llegan a cinco pasos por segundo en la punta.
+- En un Mac con desplazamiento natural (lo normal), `Wheel` sube donde en otros baja; dale la vuelta al rango.
+- La curva, Invert, los pulsadores de punta y talón y el auto-engage funcionan igual que antes, y el scroll no deja que la pedalera se duerma.
+
+En el banco 5 de la demo, una doble pulsación en PLAY pone el pedal 1 en `Arrows`, y otra le devuelve su CC.
+
+*Firmware 0.95 o posterior; un firmware anterior envía en su lugar el CC propio del pedal.*
+
+<details><summary>Por dentro</summary>
+
+Output 4 es Wheel y 5 Arrows; en un banco o un comando `Exp`, 0x84 y 0x85. La rueda es un tercer informe del teclado USB de la pedalera, un ratón que solo tiene rueda (informe 3). Sale un paso cada 806450 / d² ms, siendo d lo lejos que está el pedal de su valor de talón, 0–127, y nada por debajo de 3.
+
+</details>
+
 ## Pulsadores de punta y talón
 
 Un pedal puede darte dos pulsadores más sin dejar de enviar su CC: llegar a la punta pulsa un botón y volver al talón pulsa otro.
@@ -215,7 +249,7 @@ Opcional; dos filas, `Pedal` 1 y 2.
 | `Out_Min`, `Out_Max` | 0–127 | Valores que se envían en el talón y en la punta. Por defecto 0 y 127. |
 | `Auto_Button` | None o 1–4, A–D | Botón que se enciende cuando el pedal sale del talón y se apaga tras quedarse ahí (auto-engage). |
 | `Auto_Off_ms` | 10–2540 | Cuánto tiempo tiene que quedarse el pedal en el talón antes de que se apague ese botón. Por defecto 500. |
-| `Output` | CC, PitchBend, CC14 o Speed | Qué envía el pedal: su CC con 7 bits, Pitch Bend, una pareja de CC de 14 bits, o nada más que la [velocidad de los LFO y las secuencias](#velocidad-de-los-lfo-y-las-secuencias). Por defecto CC. |
+| `Output` | CC, PitchBend, CC14, Speed, Wheel o Arrows | Qué envía el pedal: su CC con 7 bits, Pitch Bend, una pareja de CC de 14 bits, nada más que la [velocidad de los LFO y las secuencias](#velocidad-de-los-lfo-y-las-secuencias), o [scroll en el ordenador](#hacer-scroll-en-el-ordenador). Por defecto CC. |
 | `Send_On_Bank` | Y / N | Enviar la posición del pedal al entrar en un banco, después de sus comandos de entrada. Por defecto N. Firmware 0.87. |
 
 ### BankExpression_Settings
@@ -224,7 +258,7 @@ Opcional; una fila por `Bank_Number` (0–31); pueden faltar filas o venir en cu
 
 | Columna | Valores | Significado |
 |---|---|---|
-| `Exp1_CC`, `Exp2_CC` | vacío, 0–127, Off o Speed | El CC que envía el pedal mientras este banco está seleccionado. Vacío mantiene `Exp1_CC` / `Exp2_CC` de `Global_Settings`; Off silencia el pedal en este banco; Speed hace que marque la [velocidad de los LFO y las secuencias](#velocidad-de-los-lfo-y-las-secuencias), guardado como 0x82 (firmware 0.70). |
+| `Exp1_CC`, `Exp2_CC` | vacío, 0–127, Off, Speed, Wheel o Arrows | El CC que envía el pedal mientras este banco está seleccionado. Vacío mantiene `Exp1_CC` / `Exp2_CC` de `Global_Settings`; Off silencia el pedal en este banco; Speed hace que marque la [velocidad de los LFO y las secuencias](#velocidad-de-los-lfo-y-las-secuencias), guardado como 0x82 (firmware 0.70); Wheel y Arrows hacen que haga [scroll en el ordenador](#hacer-scroll-en-el-ordenador), 0x84 y 0x85 (firmware 0.95). |
 | `Exp1_Channel`, `Exp2_Channel` | vacío o 1–16 | Canal de ese pedal en este banco. Vacío mantiene el `Channel` del pedal de `Expression_Settings`. |
 | `Exp1_Min`, `Exp1_Max`, `Exp2_Min`, `Exp2_Max` | vacío o 0–127 | Valores que envía el pedal en el talón y en la punta en este banco. Vacío mantiene su `Out_Min` / `Out_Max` de `Expression_Settings`; cada extremo se toma por separado. Firmware 0.33 o posterior. |
 

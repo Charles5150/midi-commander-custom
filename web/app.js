@@ -516,7 +516,7 @@ function renderBanks(main) {
   const expCard = h("details", { class: "card" }, h("summary", {}, "Expression pedals in this bank"));
   const exp = rowOf("BankExpression_Settings", { Bank_Number: state.bank }, false);
   if (exp) {
-    expCard.append(h("p", { class: "hint" }, "Empty: as set in the Expression tab. CC: a number, Off, or Speed."),
+    expCard.append(h("p", { class: "hint" }, "Empty: as set in the Expression tab. CC: a number, Off, Speed, Wheel or Arrows."),
       h("div", { class: "fields" }, state.schema.sectionColumns.BankExpression_Settings.map((f) =>
         labelled(f.label, fieldControl(f, () => cell(exp.sec, exp.row, f.col), (v) => setCell(exp.sec, exp.row, f.col, v))))));
   }

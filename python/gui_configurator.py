@@ -952,6 +952,7 @@ class SlotEditor:
                 self.widgets["channel"] = c
             self._check("toggle", "Toggle", "Toggle_(CC/PB/Note)")
             hint = ("(also sends the CC below: Off at the heel, On at the toe)" if w.get() == "Add"
+                    else "(scrolls on the computer, faster towards the toe)" if w.get() in ("Wheel", "Arrows")
                     else "(until the bank changes; a toggle gives it back when off)")
             ctk.CTkLabel(
                 self.params,
@@ -1196,7 +1197,8 @@ class MidiCommanderGUI(ctk.CTk):
             "Each bank's name, and where the expression pedals send while it is selected.",
             "Pedal CC and channel: Default keeps the pedal's own (Expression and Global tabs), "
             "a number replaces it in this bank, Off silences the pedal here while its toe and "
-            "heel switches keep working, and Speed makes it set how fast the LFOs and Seqs go. Min "
+            "heel switches keep working, Speed makes it set how fast the LFOs and Seqs go, and Wheel and "
+            "Arrows make it scroll on the computer. Min "
             "and Max, the values sent at the heel and at the toe, are left empty to keep the "
             "pedal's own range. After a bank change the pedal sends to the new target as soon as "
             "it moves.",
@@ -1674,7 +1676,7 @@ class MidiCommanderGUI(ctk.CTk):
                 for col, field in enumerate(BANK_EXP_COLUMNS[1:], start=4):
                     kind = field.split("_")[1]
                     if kind == "CC":
-                        w = Combo(self.bank_scroll, ["Default", "Off", "Speed"], clean(e.get(field)) or "Default", width=100)
+                        w = Combo(self.bank_scroll, ["Default", "Off", "Speed", "Wheel", "Arrows"], clean(e.get(field)) or "Default", width=100)
                     elif kind == "Channel":
                         w = Option(self.bank_scroll, ["Default"] + CHANNELS, clean(e.get(field)) or "Default", width=100)
                     else:  # output range, empty keeps the pedal's own
@@ -2242,7 +2244,7 @@ class MidiCommanderGUI(ctk.CTk):
             w["out_max"] = IntEntry(out, 0, 127, clean(r.get("Out_Max")) or "127", width=55)
             w["out_max"].pack(side="left", padx=(6, 2))
             ctk.CTkLabel(out, text="at the toe, as").pack(side="left", padx=(6, 2))
-            w["output"] = Option(out, ["CC", "PitchBend", "CC14", "Speed"], clean(r.get("Output")) or "CC", width=100)
+            w["output"] = Option(out, ["CC", "PitchBend", "CC14", "Speed", "Wheel", "Arrows"], clean(r.get("Output")) or "CC", width=100)
             w["output"].pack(side="left", padx=(6, 2))
             w["send_on_bank"] = Check(out, text="Send on entering a bank", checked=is_yes(r.get("Send_On_Bank")), width=20)
             w["send_on_bank"].pack(side="left", padx=(14, 2))
@@ -2274,6 +2276,11 @@ class MidiCommanderGUI(ctk.CTk):
             "Speed sends nothing: the pedal sets how fast every LFO and Seq goes, the heel slowest "
             "(4/1) and the toe fastest (1/16T), each note division taking an equal share of 0-127, "
             "so 37 to 127 sweeps from 1/2 up. Moving it off Speed gives each its own speed back.\n"
+            "Wheel and Arrows send no MIDI either: the pedal scrolls on the computer, for lyrics, a "
+            "score or a teleprompter, as a mouse wheel or by tapping the Down arrow key. At the heel "
+            "it stands still, and it goes faster the further the pedal goes, up to 20 steps a second "
+            "at the toe. A range whose toe value is below its heel value scrolls up, and a smaller "
+            "range caps the speed. On a Mac use Arrows: macOS speeds a wheel up by itself.\n"
             "As a switch, reaching the toe or returning to the heel taps a button of the current "
             "bank, sending whatever that button is configured to send. Each direction re-arms only "
             "after the pedal moves back past the level, so resting on the edge does not retrigger.\n"
@@ -3139,8 +3146,9 @@ class MidiCommanderGUI(ctk.CTk):
             text = text.strip()
             if text.lower() in ("", "default"):
                 return ""
-            if text.lower() == "off":
-                return "Off"
+            for word in ("Off", "Speed", "Wheel", "Arrows"):
+                if text.lower() == word.lower():
+                    return word
             try:
                 return str(max(0, min(127, int(float(text)))))
             except ValueError:

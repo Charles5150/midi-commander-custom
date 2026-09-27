@@ -62,7 +62,7 @@ Each bank's 4 character name and 8 character info line, and where the expression
 
 For each pedal:
 
-- a CC and a channel, each `Default` to keep the pedal's own, `Off` for the CC to silence the pedal in that bank, or `Speed` for it to set the [speed of the LFOs and sequences](08-expression.md#speed-of-the-lfos-and-sequences);
+- a CC and a channel, each `Default` to keep the pedal's own, `Off` for the CC to silence the pedal in that bank, `Speed` for it to set the [speed of the LFOs and sequences](08-expression.md#speed-of-the-lfos-and-sequences), or `Wheel` or `Arrows` for it to [scroll on the computer](08-expression.md#scrolling-on-the-computer);
 - the lowest and highest value it sends there, left empty to keep the pedal's own range.
 
 ### Moving a bank

@@ -399,6 +399,10 @@ def build() -> Demo:
     for btn, text in (("1", "MPLY"), ("2", "SNG2"), ("3", "TOP0"), ("4", "MSTP"),
                       ("A", "LOC0"), ("B", "1:02"), ("C", "HELD"), ("D", "MREC")):
         d.long_label(5, btn, text)
+    # A double press on PLAY makes expression pedal 1 scroll on the computer,
+    # with the arrow keys, for lyrics or a score, until it is pressed twice again
+    d.double_press(5, "1", CommandType="Exp",
+                   **{"OnValue_(CC/PB)": "1", "KeyMode_(Key)": "Arrows", "Toggle_(CC/PB/Note)": "Y"})
 
     # --- bank 6: tap tempo and clock ---------------------------------------
     d.tap(6, "1", "TAP", "Tap")

@@ -65,6 +65,8 @@ from lib.cmdBinaryPacker import (
     EXP_TARGET_OFF,
     EXP_TARGET_SPEED,
     EXP_TARGET_ADD,
+    EXP_TARGET_WHEEL,
+    EXP_TARGET_ARROWS,
     CYCLE_LABEL_COUNT,
     CYCLE_LABEL_LEN,
     PC_REL_MARKERS,
@@ -118,6 +120,8 @@ BANK_EXP_OFFSET = SETLIST_OFFSET + SETLIST_MAX
 BANK_EXP_STRIDE = 4
 BANK_EXP_CC_OFF = 0x80
 BANK_EXP_CC_SPEED = 0x82
+BANK_EXP_CC_WHEEL = 0x84
+BANK_EXP_CC_ARROWS = 0x85
 # Expression pedal output range per bank (firmware 0.33), 4 bytes per bank
 BANK_EXP_RANGE_OFFSET = BANK_EXP_OFFSET + NUM_BANKS * BANK_EXP_STRIDE
 BANK_EXP_RANGE_STRIDE = 4
@@ -142,7 +146,7 @@ IMAGE_SIZE = DOUBLE_PRESS_OFFSET + DOUBLE_PRESS_PAGES * FLASH_PAGE_SIZE
 EXT2_OFFSET = IMAGE_SIZE
 EXT2_SIZE = EXT2_LONG_LABELS_OFFSET + NUM_BANKS * len(BUTTON_IDS) * LABEL_LEN
 EXP_CURVE_NAMES = {0: "Linear", 1: "Log", 2: "Exp"}
-EXP_OUTPUT_NAMES = {0: "CC", 1: "PitchBend", 2: "CC14", 3: "Speed"}
+EXP_OUTPUT_NAMES = {0: "CC", 1: "PitchBend", 2: "CC14", 3: "Speed", 4: "Wheel", 5: "Arrows"}
 EXP_BUTTON_IDS = ["1", "2", "3", "4", "A", "B", "C", "D"]
 
 SLOT_NAMES = [chr(ord("A") + i) for i in range(MIDI_NUM_COMMANDS_PER_SWITCH)]
@@ -321,6 +325,10 @@ def unpack_command(raw: bytes, cycle_labels=None) -> dict:
             cmd["KeyMode_(Key)"] = "Speed"
         elif b2 == EXP_TARGET_ADD:
             cmd["KeyMode_(Key)"] = "Add"
+        elif b2 == EXP_TARGET_WHEEL:
+            cmd["KeyMode_(Key)"] = "Wheel"
+        elif b2 == EXP_TARGET_ARROWS:
+            cmd["KeyMode_(Key)"] = "Arrows"
         elif b2 < 0x80:
             cmd["KeyMode_(Key)"] = "CC"
             cmd["Number_(PC/CC/Note)"] = str(b2)
@@ -610,6 +618,10 @@ def unpack_bank_expression_settings(data: bytes) -> pd.DataFrame:
             return "Off"
         if b == BANK_EXP_CC_SPEED:
             return "Speed"
+        if b == BANK_EXP_CC_WHEEL:
+            return "Wheel"
+        if b == BANK_EXP_CC_ARROWS:
+            return "Arrows"
         return str(b) if b <= 127 else ""
 
     def channel_text(b):

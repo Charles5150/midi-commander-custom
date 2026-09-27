@@ -51,7 +51,11 @@ EXP_TARGET_SPEED = 0x82
 # Add: the pedal also sends the CC command right below, OffValue at the heel and
 # OnValue at the toe (firmware 0.83); byte 3 is 0
 EXP_TARGET_ADD = 0x83
-EXP_TARGETS = ["CC", "Off", "Own", "Speed", "Add"]
+# Wheel and Arrows: the pedal scrolls on the computer, as a mouse wheel or with
+# the Down arrow key (firmware 0.95)
+EXP_TARGET_WHEEL = 0x84
+EXP_TARGET_ARROWS = 0x85
+EXP_TARGETS = ["CC", "Off", "Own", "Speed", "Add", "Wheel", "Arrows"]
 # And an LFO: turns the CC command right below it into an LFO locked to the
 # tempo, swinging between its Off and On values. Byte 2 is the cycle length,
 # an index into LFO_DIVISIONS, byte 3 the shape, an index into LFO_SHAPES.
@@ -706,7 +710,8 @@ def cmd_exp(cmd):
     it to CC Number, on Channel if one is given or else on the pedal's own;
     Off silences it; Own gives it back its own target; Speed makes it set how
     fast the LFOs and sequences go; Add makes it also send the CC command right
-    below, from its OffValue at the heel to its OnValue at the toe.
+    below, from its OffValue at the heel to its OnValue at the toe; Wheel and
+    Arrows make it scroll, as a mouse wheel or with the arrow keys.
     """
     pedal = safe_int(cmd.get("OnValue_(CC/PB)"), 1)
     if pedal not in (1, 2):
@@ -724,8 +729,12 @@ def cmd_exp(cmd):
         cc = EXP_TARGET_SPEED
     elif target == "ADD":
         cc = EXP_TARGET_ADD
+    elif target == "WHEEL":
+        cc = EXP_TARGET_WHEEL
+    elif target == "ARROWS":
+        cc = EXP_TARGET_ARROWS
     else:
-        raise ValueError(f"Exp target must be CC, Off, Own, Speed or Add, not {cmd.get('KeyMode_(Key)')!r}")
+        raise ValueError(f"Exp target must be CC, Off, Own, Speed, Add, Wheel or Arrows, not {cmd.get('KeyMode_(Key)')!r}")
     channel = 0
     ch = str(cmd.get("Channel_(PC/CC/Note/PB)", "")).strip().upper()
     if cc < 0x80 and ch not in ("", "NAN", "OWN"):

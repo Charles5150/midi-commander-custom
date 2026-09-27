@@ -14,6 +14,7 @@
 void handle_switches(void);
 void sw_led_init(void);
 void sw_release_all(void);
+void sw_tap_key(uint8_t key_code);
 void update_leds_on_bank_change(void);
 void set_all_leds(uint8_t state);
 

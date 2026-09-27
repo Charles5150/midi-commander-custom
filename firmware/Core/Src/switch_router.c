@@ -320,6 +320,12 @@ static void update_keyboard_state(uint8_t mod_byte, uint8_t key_code, uint8_t is
     HID_SendReport_FS(report, sizeof(report));
 }
 
+// Press and let go of a key, for an expression pedal scrolling with the arrows
+void sw_tap_key(uint8_t key_code){
+    update_keyboard_state(0, key_code, 1);
+    update_keyboard_state(0, key_code, 0);
+}
+
 // Consumer control (media keys): one usage at a time, 0 releases it
 static void send_media_usage(uint16_t usage){
     uint8_t report[3] = {HID_REPORT_ID_CONSUMER, usage & 0xFF, (usage >> 8) & 0x03};

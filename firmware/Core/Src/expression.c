@@ -48,6 +48,9 @@
  * And a pedal can switch a wah on and off by itself (auto-engage): leaving the
  * heel switches its button on, resting at the heel for a moment switches it
  * off. See auto_engage.
+ *
+ * Or scroll, for lyrics, a score or a teleprompter: a mouse wheel, or the
+ * arrow keys, going as fast as the pedal is pressed. See scroll.
  */
 
 #include "expression.h"
@@ -59,6 +62,7 @@
 #include "main.h"
 #include "switch_router.h"
 #include "sleep.h"
+#include "usbd_hid_custom.h"
 
 // --- Configuration ---
 #define ENABLE_EXP_PEDAL_1     (1U)
@@ -122,11 +126,11 @@ typedef struct {
   uint8_t out_max;      // value sent at the toe
   uint8_t auto_button;  // auto-engage button, NO_BUTTON when unused
   uint16_t auto_off_ms; // rest at the heel before switching it off
-  uint8_t out_mode;     // EXP_OUT_CC, EXP_OUT_PITCHBEND, EXP_OUT_CC14 or EXP_OUT_SPEED
+  uint8_t out_mode;     // EXP_OUT_CC, EXP_OUT_PITCHBEND, EXP_OUT_CC14, EXP_OUT_SPEED, EXP_OUT_WHEEL or EXP_OUT_ARROWS
 } exp_cal_t;
 
 // What a pedal sends at the moment
-typedef enum { SEND_CC7, SEND_CC14, SEND_PB, SEND_SPEED } send_kind_t;
+typedef enum { SEND_CC7, SEND_CC14, SEND_PB, SEND_SPEED, SEND_SCROLL } send_kind_t;
 
 typedef struct {
   exp_cal_t cal;
@@ -150,6 +154,8 @@ typedef struct {
   bool auto_off_done;    // this rest at the heel has been dealt with
   uint32_t auto_heel_tick; // when the pedal came to rest at the heel
   uint8_t bank;          // home bank at the last reading, 0xFF before the first
+  uint32_t scroll_acc;   // way scrolled since the last step, see scroll
+  uint32_t scroll_tick;
 } exp_pedal_t;
 
 static exp_pedal_t pedals[EXP_PEDAL_COUNT];
@@ -288,7 +294,7 @@ static void load_calibration(uint32_t i)
   c->auto_off_ms = (p[14] != 0 && p[14] != 0xFF) ? p[14] * AUTO_OFF_UNIT_MS : AUTO_OFF_DEFAULT_MS;
 
   c->out_mode = (p[15] == EXP_OUT_PITCHBEND || p[15] == EXP_OUT_CC14
-                 || p[15] == EXP_OUT_SPEED) ? p[15] : EXP_OUT_CC;
+                 || (p[15] >= EXP_OUT_SPEED && p[15] <= EXP_OUT_ARROWS)) ? p[15] : EXP_OUT_CC;
 }
 
 static uint8_t adc_to_midi(const exp_cal_t *c, uint32_t sample)
@@ -395,13 +401,15 @@ static bool pedal_target(uint32_t i, uint8_t *cc, uint8_t *channel,
   uint8_t page = sw_get_home_bank();	// a page keeps its bank's pedals
   const uint8_t *b = pBankExpSettings + page * CFG_BANK_EXP_STRIDE + i * 2U;
   const uint8_t *r = pBankExpRange + page * CFG_BANK_EXP_RANGE_STRIDE + i * 2U;
-  *cc = (c->out_mode == EXP_OUT_SPEED) ? EXP_TARGET_SPEED : c->cc_number;
+  *cc = (c->out_mode == EXP_OUT_SPEED) ? EXP_TARGET_SPEED
+      : (c->out_mode >= EXP_OUT_WHEEL) ? EXP_TARGET_WHEEL + c->out_mode - EXP_OUT_WHEEL : c->cc_number;
   *channel = midi_channel(c);
   *lo = (r[0] <= 127U) ? r[0] : c->out_min;
   *hi = (r[1] <= 127U) ? r[1] : c->out_max;
   bool enabled = (b[0] != BANK_EXP_CC_OFF);
   *own = true;
-  if ((b[0] <= 127U || b[0] == BANK_EXP_CC_SPEED) && b[0] != *cc) {
+  if ((b[0] <= 127U || b[0] == BANK_EXP_CC_SPEED
+       || b[0] == BANK_EXP_CC_WHEEL || b[0] == BANK_EXP_CC_ARROWS) && b[0] != *cc) {
       *cc = b[0];
       *own = false;
   }
@@ -427,6 +435,7 @@ static bool pedal_target(uint32_t i, uint8_t *cc, uint8_t *channel,
 static send_kind_t send_kind(const exp_cal_t *c, uint8_t cc, bool own)
 {
   if (cc == EXP_TARGET_SPEED) return SEND_SPEED;
+  if (cc == EXP_TARGET_WHEEL || cc == EXP_TARGET_ARROWS) return SEND_SCROLL;
   if (c->out_mode == EXP_OUT_PITCHBEND && own) return SEND_PB;
   if (c->out_mode == EXP_OUT_CC14 && cc < 32U) return SEND_CC14;
   return SEND_CC7;
@@ -441,7 +450,8 @@ void expression_set_target(uint8_t pedal, uint8_t cc, uint8_t channel)
 {
   if (pedal >= EXP_PEDAL_COUNT) return;
   exp_override_t *o = &overrides[pedal];
-  if (cc == EXP_TARGET_RESET || (cc > EXP_TARGET_OFF && cc != EXP_TARGET_SPEED)) {
+  if (cc == EXP_TARGET_RESET || (cc > EXP_TARGET_OFF && cc != EXP_TARGET_SPEED
+                                 && cc != EXP_TARGET_WHEEL && cc != EXP_TARGET_ARROWS)) {
       o->active = false;
       return;
   }
@@ -465,6 +475,48 @@ static void speed_release(uint32_t i)
   if (speed_pedal != i) return;
   speed_pedal = EXP_PEDAL_COUNT;
   sw_set_mod_speed(MOD_SPEED_OWN);
+}
+
+/*
+ * Scroll: the pedal's distance from its heel value is how fast it goes,
+ * squared, so the first part of the travel crawls through a page of lyrics (a
+ * step every few seconds) and the toe runs at SCROLL_TOP_RATE steps a second.
+ * A step is a notch of the mouse wheel, or a tap of the Down arrow key. A
+ * range whose toe value is below its heel value goes up instead. Nothing moves
+ * within SCROLL_DEAD of the heel. It goes on while the pedal stands still, so
+ * it counts as activity.
+ *
+ * macOS speeds a wheel up by how often it turns: below 8 notches a second it
+ * barely moves, above it races, so on a Mac the arrow keys are the ones that
+ * follow the pedal.
+ */
+#define SCROLL_DEAD      (3U)
+#define SCROLL_TOP_RATE  (20U)
+#define SCROLL_STEP      (127U * 127U * 1000U / SCROLL_TOP_RATE)
+#define KEY_DOWN_ARROW   (0x51U)
+#define KEY_UP_ARROW     (0x52U)
+
+static void scroll(exp_pedal_t *p, uint8_t cc, uint8_t v, uint8_t lo, uint8_t hi)
+{
+  uint32_t now = HAL_GetTick();
+  uint32_t dt = now - p->scroll_tick;
+  p->scroll_tick = now;
+  uint32_t speed = (v > lo) ? v - lo : lo - v;
+  if (speed < SCROLL_DEAD || dt > 200U) {
+      p->scroll_acc = 0;
+      return;
+  }
+  p->scroll_acc += speed * speed * dt;
+  uint32_t steps = p->scroll_acc / SCROLL_STEP;
+  if (steps == 0U) return;
+  p->scroll_acc -= steps * SCROLL_STEP;
+  if (cc == EXP_TARGET_ARROWS) {
+      sw_tap_key(hi < lo ? KEY_UP_ARROW : KEY_DOWN_ARROW);
+  } else {
+      uint8_t report[2] = {HID_REPORT_ID_WHEEL, (uint8_t)(hi < lo ? steps : -steps)};
+      HID_SendReport_FS(report, sizeof(report));
+  }
+  sleep_note_activity();
 }
 
 void expression_set_virtual(uint8_t pedal, bool hold, uint16_t position)
@@ -657,7 +709,7 @@ static void process_pedal(uint32_t i)
   uint32_t diff = (filtered > p->last_stable_adc) ? filtered - p->last_stable_adc
                                                   : p->last_stable_adc - filtered;
   bool at_end = (filtered <= p->cal.min_adc) || (filtered >= p->cal.max_adc);
-  bool coarse = (p->cal.out_mode == EXP_OUT_CC || p->cal.out_mode == EXP_OUT_SPEED);
+  bool coarse = (p->cal.out_mode == EXP_OUT_CC || p->cal.out_mode >= EXP_OUT_SPEED);
   uint32_t hysteresis = coarse ? EXP_HYSTERESIS : EXP_HYSTERESIS_FINE;
   if (diff >= hysteresis || at_end) {
       p->last_stable_adc = filtered;
@@ -696,7 +748,7 @@ static void process_pedal(uint32_t i)
   bool own;
   bool enabled = pedal_target(i, &cc, &channel, &lo, &hi, &own);
   send_kind_t kind = send_kind(&p->cal, cc, own);
-  bool seven = (kind == SEND_CC7 || kind == SEND_SPEED);
+  bool seven = (kind == SEND_CC7 || kind == SEND_SPEED || kind == SEND_SCROLL);
   uint16_t out_value = seven ? scale_output(midi_value, lo, hi)
                              : scale_fine(fine_value, lo, hi);
   uint8_t out_midi = seven ? (uint8_t)out_value : (uint8_t)(out_value >> 7);
@@ -717,6 +769,8 @@ static void process_pedal(uint32_t i)
 
   quiet_start[i] = false;
 
+  if (enabled && kind == SEND_SCROLL) scroll(p, cc, (uint8_t)out_value, lo, hi);
+
   // Send on entering a bank: whatever the target, and to the added CCs too,
   // so a preset the enter commands called up takes the pedal's position. A
   // page keeps its bank, so turning one sends nothing. The flag is among the
@@ -734,7 +788,7 @@ static void process_pedal(uint32_t i)
 
   if (p->last_sent_value != out_value) {
       int8_t sent = 0;
-      if (enabled) {                        // else silent in this bank
+      if (enabled && kind != SEND_SCROLL) { // else silent in this bank, or a wheel
           if (kind == SEND_SPEED) {
               speed_pedal = i;
               sw_set_mod_speed(speed_index((uint8_t)out_value));

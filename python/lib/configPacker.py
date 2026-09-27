@@ -38,6 +38,8 @@ BANK_EXP_COLUMNS = ["Bank_Number", "Exp1_CC", "Exp1_Channel", "Exp1_Min", "Exp1_
                     "Exp2_CC", "Exp2_Channel", "Exp2_Min", "Exp2_Max"]
 BANK_EXP_CC_OFF = 0x80
 BANK_EXP_CC_SPEED = 0x82
+BANK_EXP_CC_WHEEL = 0x84
+BANK_EXP_CC_ARROWS = 0x85
 SETLIST_MAX = 32
 COMBO_SECTION = "Combo_Settings"
 COMBO_COUNT = 12
@@ -71,7 +73,7 @@ EXP_STRIDE = 16
 EXP_CURVES = {"LINEAR": 0, "LOG": 1, "EXP": 2}
 # What a pedal sends: a 7-bit CC, Pitch Bend, or a 14-bit CC pair (MSB on the
 # CC, LSB on CC + 32)
-EXP_OUTPUTS = {"CC": 0, "PITCHBEND": 1, "CC14": 2, "SPEED": 3}
+EXP_OUTPUTS = {"CC": 0, "PITCHBEND": 1, "CC14": 2, "SPEED": 3, "WHEEL": 4, "ARROWS": 5}
 EXP_DEFAULTS = {
     "Min_ADC": "80", "Max_ADC": "3900", "Curve": "Linear", "Invert": "N",
     "Channel": "Global", "Toe_Button": "None", "Heel_Button": "None",
@@ -482,7 +484,7 @@ def pack_expression_settings(df) -> bytes:
         if out_text in ("CC14BIT", "14BIT", "14BITCC"):
             out_text = "CC14"
         if out_text not in EXP_OUTPUTS:
-            raise ValueError(f"Expression pedal {i + 1}: Output must be CC, PitchBend, CC14 or Speed, not {get('Output')!r}")
+            raise ValueError(f"Expression pedal {i + 1}: Output must be CC, PitchBend, CC14, Speed, Wheel or Arrows, not {get('Output')!r}")
         output = EXP_OUTPUTS[out_text]
 
         out += bytes([lo & 0xFF, lo >> 8, hi & 0xFF, hi >> 8, curve, invert, channel,
@@ -523,7 +525,8 @@ def _cell(value) -> str:
 
 
 def bank_exp_cc_byte(value) -> int:
-    """CSV cell -> stored byte: empty/Default 0xFF, Off 0x80, Speed 0x82, otherwise a CC 0-127."""
+    """CSV cell -> stored byte: empty/Default 0xFF, Off 0x80, Speed 0x82, Wheel 0x84,
+    Arrows 0x85, otherwise a CC 0-127."""
     text = _cell(value)
     if text == "":
         return 0xFF
@@ -531,6 +534,10 @@ def bank_exp_cc_byte(value) -> int:
         return BANK_EXP_CC_OFF
     if text.lower() == "speed":
         return BANK_EXP_CC_SPEED
+    if text.lower() == "wheel":
+        return BANK_EXP_CC_WHEEL
+    if text.lower() == "arrows":
+        return BANK_EXP_CC_ARROWS
     try:
         return max(0, min(127, int(float(text))))
     except ValueError:

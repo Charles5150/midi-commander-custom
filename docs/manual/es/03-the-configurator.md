@@ -64,7 +64,7 @@ El nombre de 4 caracteres y la línea de información de 8 de cada banco, y adó
 
 Para cada pedal:
 
-- un CC y un canal, cada uno en `Default` para mantener los del propio pedal, `Off` en el CC para silenciar el pedal en ese banco, o `Speed` para que marque la [velocidad de los LFO y las secuencias](08-expression.md#velocidad-de-los-lfo-y-las-secuencias);
+- un CC y un canal, cada uno en `Default` para mantener los del propio pedal, `Off` en el CC para silenciar el pedal en ese banco, `Speed` para que marque la [velocidad de los LFO y las secuencias](08-expression.md#velocidad-de-los-lfo-y-las-secuencias), o `Wheel` o `Arrows` para que haga [scroll en el ordenador](08-expression.md#hacer-scroll-en-el-ordenador);
 - el valor más bajo y el más alto que envía ahí, vacíos para mantener el rango del propio pedal.
 
 ### Mover un banco

@@ -321,7 +321,9 @@ COMMAND_SPECS = {
                        _f(CH, "Ch", _choice(["Own"] + CHANNELS, blank="Own"), **_when(MODE, "CC")),
                        _toggle()],
             "hint_by": MODE,
-            "hints": {"Add": "also sends the CC below: Off at the heel, On at the toe"},
+            "hints": {"Add": "also sends the CC below: Off at the heel, On at the toe",
+                      "Wheel": "scrolls as a mouse wheel, faster towards the toe",
+                      "Arrows": "scrolls with the arrow keys, faster towards the toe"},
             "hint": "until the bank changes; a toggle gives it back when off"},
 }
 
@@ -332,7 +334,7 @@ EXPRESSION_FIELDS = [
     {"col": "Curve", "label": "Curve", **_choice(["Linear", "Log", "Exp"])},
     {"col": "Invert", "label": "Invert", **CHECK},
     {"col": "Channel", "label": "Channel", **_choice(["Global"] + CHANNELS)},
-    {"col": "Output", "label": "Sends", **_choice(["CC", "PitchBend", "CC14", "Speed"])},
+    {"col": "Output", "label": "Sends", **_choice(["CC", "PitchBend", "CC14", "Speed", "Wheel", "Arrows"])},
     {"col": "Out_Min", "label": "Out min", **_int(0, 127)},
     {"col": "Out_Max", "label": "Out max", **_int(0, 127), "default": "127"},
     {"col": "Toe_Button", "label": "Toe taps", **_choice(["None"] + BUTTON_IDS, blank="None")},
