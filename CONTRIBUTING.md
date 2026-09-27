@@ -125,6 +125,10 @@ It plays the same sequence of presses and bank changes twice, over SysEx and thr
 - Bump `FIRMWARE_VERSION` in `firmware/Core/Inc/main.h` when the SysEx
   protocol or the configuration format changes, and publish the image as a
   GitHub release rather than committing another `artifacts/release-x.y.dfu`.
+- The display's fonts are pictures,
+  `firmware/Middlewares/stm32-ssd1306-master/ssd1306/fonts/*.txt`. After a
+  change run `tools/pack_fonts.py`, which packs them into `ssd1306_fonts.c`;
+  a test checks the two agree.
 - Describe user-visible changes in `CHANGELOG.md`, and in the user manual,
   `docs/manual/en/` and `docs/manual/es/`, both languages at once.
 - If you can, say in the pull request what you verified on hardware.

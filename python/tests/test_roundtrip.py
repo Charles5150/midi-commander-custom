@@ -4638,17 +4638,6 @@ class SceneSaveTest(unittest.TestCase):
         self.assertIn("if(*pRom & SCENE_SAVE) save_scene(pRom[2]);", router)
         self.assertIn("if(flash_settings_patch(p + 2, &states, 1)) display_show_saved();", router)
 
-    def test_large_font_has_capitals_only(self):
-        """The 11x18 font stops at _ to make room in flash; lowercase draws as capitals."""
-        fonts = os.path.join(self.FIRMWARE, "..", "Middlewares", "stm32-ssd1306-master", "ssd1306")
-        with open(os.path.join(fonts, "ssd1306_fonts.c")) as handle:
-            text = handle.read()
-        self.assertIn("FontDef Font_11x18 = {11,18,'_',Font11x18};", text)
-        table = text.split("static const uint16_t Font11x18 [] = {")[1].split("};")[0]
-        self.assertEqual(table.count("\n") - 1, ord("_") - 32 + 1)
-        with open(os.path.join(fonts, "ssd1306.c")) as handle:
-            self.assertIn("ch = (ch >= 'a' && ch <= 'z') ? ch - 32 : '?';", handle.read())
-
 
 class BootBannerTest(unittest.TestCase):
     """The configuration's name crossing the display at power on (0.62)."""

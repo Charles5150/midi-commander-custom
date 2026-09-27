@@ -310,11 +310,12 @@ test("a Scene Save stores the bank's toggles into a scene, kept after a restart"
   assert.deepEqual(state.toggles.slice(0, 6), [false, true, false, false, false, true]);
 });
 
-// The 7x10 font of the firmware, rows of 16 bits from ' ' on
+// The 7x10 font of the firmware as its picture draws it, rows of 16 bits
+// from ' ' on, the leftmost pixel in bit 15
 const font7x10 = (() => {
-  const src = fs.readFileSync(path.join(root, "firmware/Middlewares/stm32-ssd1306-master/ssd1306/ssd1306_fonts.c"), "utf8");
-  const body = /Font7x10\s*\[\]\s*=\s*\{([\s\S]*?)\};/.exec(src)[1].replace(/\/\/.*$/gm, "");
-  return body.match(/0x[0-9a-fA-F]+/g).map(Number);
+  const src = fs.readFileSync(path.join(root, "firmware/Middlewares/stm32-ssd1306-master/ssd1306/fonts/7x10.txt"), "utf8");
+  return src.split("\n").filter((line) => /^[#.]{7}$/.test(line))
+    .map((line) => parseInt(line.replace(/#/g, "1").replace(/\./g, "0").padEnd(16, "0"), 2));
 })();
 
 // Whether the info line (x 50-127, y 6-15) holds just this text

@@ -346,11 +346,24 @@ void ssd1306_DrawPixel(uint8_t x, uint8_t y, SSD1306_COLOR color) {
 // ch       => char om weg te schrijven
 // Font     => Font waarmee we gaan schrijven
 // color    => Black or White
-// The rows of a character; a font without lowercase draws it as capitals,
-// and anything else it lacks as ?
+// The rows of a character, the leftmost pixel in bit 15, unpacked from the
+// font's bytes into a buffer the next call takes back; a font without
+// lowercase draws it as capitals, and anything else it lacks as ?
 const uint16_t *ssd1306_Glyph(char ch, FontDef Font) {
+    static uint16_t rows[SSD1306_FONT_MAX_HEIGHT];
     if (ch > Font.Last) ch = (ch >= 'a' && ch <= 'z') ? ch - 32 : '?';
-    return Font.data + (ch - 32) * Font.FontHeight;
+    const uint8_t *p = Font.data + (ch - 32) * ((Font.FontWidth * Font.FontHeight + 7) / 8);
+    uint32_t acc = 0;
+    uint8_t have = 0;
+    for (uint32_t i = 0; i < Font.FontHeight; i++) {
+        while (have < Font.FontWidth) {
+            acc = (acc << 8) | *p++;
+            have += 8;
+        }
+        have -= Font.FontWidth;
+        rows[i] = (uint16_t)((acc >> have) << (16 - Font.FontWidth));
+    }
+    return rows;
 }
 
 char ssd1306_WriteChar(char ch, FontDef Font, SSD1306_COLOR color) {

@@ -25,7 +25,6 @@
 /* USER CODE BEGIN Includes */
 #include "latency.h"
 #include "ssd1306.h"
-#include "ssd1306_tests.h"
 #include <stdbool.h>
 #include <string.h>
 #include "usbd_midi_if.h"

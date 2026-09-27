@@ -223,13 +223,20 @@ void display_banner_task(void){
 		return;
 	}
 	fill_rect(0, BANNER_Y, SSD1306_WIDTH, Font_11x18.FontHeight, Black);
-	// The text's first column is at SCREEN_SHOWN_W - banner_pos
+	// The text's first column is at SCREEN_SHOWN_W - banner_pos; a character
+	// is unpacked once, as its columns come one after the other
+	const uint16_t *rows = NULL;
+	int32_t unpacked = -1;
 	for(uint16_t col=0; col<SCREEN_SHOWN_W; col++){
 		int32_t px = (int32_t)col + banner_pos - SCREEN_SHOWN_W;
 		if(px < 0 || px >= width) continue;
-		char ch = banner_text[px / Font_11x18.FontWidth];
+		int32_t at = px / Font_11x18.FontWidth;
 		uint8_t j = px % Font_11x18.FontWidth;
-		const uint16_t *rows = (ch == BANNER_V) ? banner_v : ssd1306_Glyph(ch, Font_11x18);
+		if(at != unpacked){
+			char ch = banner_text[at];
+			rows = (ch == BANNER_V) ? banner_v : ssd1306_Glyph(ch, Font_11x18);
+			unpacked = at;
+		}
 		for(uint8_t i=0; i<Font_11x18.FontHeight; i++){
 			if((uint16_t)(rows[i] << j) & 0x8000) ssd1306_DrawPixel(col, BANNER_Y + i, White);
 		}
