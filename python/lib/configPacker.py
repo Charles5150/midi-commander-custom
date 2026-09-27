@@ -55,7 +55,7 @@ EXP_DEFAULTS = {
     "Min_ADC": "80", "Max_ADC": "3900", "Curve": "Linear", "Invert": "N",
     "Channel": "Global", "Toe_Button": "None", "Heel_Button": "None",
     "Toe_Level": "120", "Heel_Level": "7", "Out_Min": "0", "Out_Max": "127",
-    "Auto_Button": "None", "Auto_Off_ms": "500", "Output": "CC",
+    "Auto_Button": "None", "Auto_Off_ms": "500", "Output": "CC", "Send_On_Bank": "N",
 }
 EXP_BUTTON_IDS = ["1", "2", "3", "4", "A", "B", "C", "D"]
 
@@ -292,6 +292,18 @@ def _to_int(value, default):
         return default
 
 
+def expression_send_on_bank(df) -> int:
+    """The Send_On_Bank flags of both pedals, as bits 2 and 3 of global byte 35
+    (firmware 0.87), where older firmware leaves them alone."""
+    bits = 0
+    if df is not None:
+        for _, row in df.iterrows():
+            pedal = str(row.get("Pedal", "")).strip().rstrip(".0")
+            if pedal in ("1", "2") and str(row.get("Send_On_Bank", "")).strip().upper().startswith("Y"):
+                bits |= sbp.EXP_SEND_ON_BANK << (int(pedal) - 1)
+    return bits
+
+
 def pack_expression_settings(df) -> bytes:
     """Two 16 byte records: min/max ADC (LE), curve, invert, channel, toe and
     heel buttons and levels, output range, auto-engage button and off delay,
@@ -506,6 +518,7 @@ def pack_config(sections: dict) -> bytes:
     out = []
     with _at("Global_Settings"):
         out += sbp.pack_global_settings(df_global)
+    out[sbp.GLOBAL_SETTINGS_LED_FEEDBACK] |= expression_send_on_bank(sections.get(EXPRESSION_SECTION))
     # Tells the firmware this slot's double press area was written, so it never
     # reads what older firmware or tools may have left there
     if pack_double_press(sections) is not None:

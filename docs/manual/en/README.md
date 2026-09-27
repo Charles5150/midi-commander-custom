@@ -13,7 +13,7 @@ The manual for the custom firmware of the **MeloAudio Midi Commander**, sold in 
 | 5 | [Buttons](05-buttons.md) | Short, long and double press, two switches together, LEDs, toggles, groups, scenes, cycle and global buttons, linked toggles |
 | 6 | [Commands](06-commands.md) | What a button can send: every command type and its fields |
 | 7 | [Tempo, clock, LFO and sequencer](07-tempo.md) | Tap tempo, MIDI clock, the tap LED, LFOs and step sequences in time |
-| 8 | [Expression pedals](08-expression.md) | Calibration, curves, ranges, per bank targets, auto-engage, toe and heel switches |
+| 8 | [Expression pedals](08-expression.md) | Calibration, curves, ranges, per bank targets, sending on entering a bank, auto-engage, toe and heel switches |
 | 9 | [The display](09-the-display.md) | What the screen shows, text sent by the computer, the banner at power on |
 | 10 | [Editing on the pedal](10-editing-on-the-pedal.md) | The editor on the pedal's own screen, and safe mode |
 | 11 | [Templates and devices](11-devices.md) | Ready-made configurations for the FM3, HX Stomp and Kemper Player, and two way with a Kemper |

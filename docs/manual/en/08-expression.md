@@ -161,7 +161,7 @@ In the configurator's **Banks** tab each bank has, per pedal, a CC and a channel
 
 - An empty cell keeps the pedal's own setting; each end of the range is taken on its own.
 - A silenced pedal still acts as a switch: its toe and heel buttons keep working.
-- After a bank change the pedal is not sent to its new CC, channel or range at the position it happens to rest in; it follows the next movement.
+- After a bank change the pedal is not sent to its new CC, channel or range at the position it happens to rest in; it follows the next movement, unless it [sends on entering a bank](#sending-the-position-on-entering-a-bank).
 - An [`Exp` command](06-commands.md#changing-an-expression-pedals-target) on a button can change the target again until the next bank change.
 - An `Exp` in `Add` mode makes a pedal send [several CCs at once](06-commands.md#one-pedal-to-several-ccs), each with its own range and direction.
 
@@ -172,6 +172,27 @@ In the demo, bank 2 turns pedal 1 into a modulation wheel held between 20 and 10
 <details><summary>Under the hood</summary>
 
 Configurations written before 0.28 have nothing stored here and behave as if every cell were empty, and those written before 0.33 have no range here. The CC and channel are four bytes per bank after the setlist, erased flash (`0xFF`) keeping the pedal's own and `0x80` silencing it; the range is a table of its own after them, four bytes per bank, so their layout is unchanged.
+
+</details>
+
+## Sending the position on entering a bank
+
+Change preset on the amp and its volume jumps to what the preset saved, while your volume pedal sits somewhere else; the two only agree again once you move the pedal. With **Send on entering a bank** ticked for a pedal in the Expression tab (`Send_On_Bank` `Y`), the pedal sends where it is as soon as a bank is entered, as on Morningstar and Fractal controllers, so the new preset takes the volume from your foot.
+
+- It goes out after the bank's [enter commands](04-banks.md#commands-on-entering-and-leaving-a-bank), so a Program Change sent there reaches the device first.
+- It goes to whatever the pedal sends in the new bank: its own CC, the bank's, an `Exp` command's from the enter list, and the CCs an `Exp` in `Add` mode gives it. On `Speed`, the LFOs and sequences take its speed at once.
+- It is sent even when the new bank has the same target as the old one.
+- Nothing goes out in a bank that silences the pedal, and turning a page sends nothing, as a page keeps its bank's pedals.
+- Leave it off for a jack with no pedal in it: the empty jack reads as the heel, and its heel value would go out on every bank change.
+- Without it, as before, the pedal follows its next movement.
+
+On the pedal the settings are `EXP1SEND` and `EXP2SEND` in the [editor](10-editing-on-the-pedal.md). The demo leaves both off, as its jacks may be empty.
+
+*Firmware 0.87 or later.*
+
+<details><summary>Under the hood</summary>
+
+The global bytes and the pedals' records being all taken, it is kept in bits 2 and 3 of global byte 35, beside `LED_Feedback` and `Link_Toggles`, for pedals 1 and 2. Older firmware leaves those bits alone and waits for the pedal to move.
 
 </details>
 
@@ -195,6 +216,7 @@ Optional; two rows, `Pedal` 1 and 2.
 | `Auto_Button` | None or 1–4, A–D | Button switched on as the pedal leaves the heel and off after resting there (auto-engage). |
 | `Auto_Off_ms` | 10–2540 | How long the pedal must rest at the heel before that button goes off. Default 500. |
 | `Output` | CC, PitchBend, CC14 or Speed | What the pedal sends: its CC with 7 bits, Pitch Bend, a 14-bit CC pair, or nothing but the [speed of the LFOs and sequences](#speed-of-the-lfos-and-sequences). Default CC. |
+| `Send_On_Bank` | Y / N | Send the pedal's position as a bank is entered, after its enter commands. Default N. Firmware 0.87. |
 
 ### BankExpression_Settings
 

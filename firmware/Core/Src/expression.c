@@ -35,6 +35,11 @@
  * (see expression_add_cc). They follow the pedal's curve with 7 bits, whatever
  * its Output, and keep going when the pedal's own target is silenced.
  *
+ * Optionally it sends where it is as a bank is entered, after the bank's enter
+ * commands, instead of waiting for the next movement: a preset change on the
+ * amp then takes the volume from the pedal, not from the preset. See
+ * process_pedal.
+ *
  * Or no MIDI at all: a pedal on Speed sets how fast every LFO and sequence
  * goes, heel slowest and toe fastest through the note divisions, the output
  * range narrowing them (see speed_index). Its own Output, a bank or an Exp
@@ -144,6 +149,7 @@ typedef struct {
   bool auto_at_heel;     // at or below the heel level
   bool auto_off_done;    // this rest at the heel has been dealt with
   uint32_t auto_heel_tick; // when the pedal came to rest at the heel
+  uint8_t bank;          // home bank at the last reading, 0xFF before the first
 } exp_pedal_t;
 
 static exp_pedal_t pedals[EXP_PEDAL_COUNT];
@@ -541,6 +547,7 @@ void expression_init(void)
     pedals[i].target_min = 0xFFU;
     pedals[i].target_max = 0xFFU;
     pedals[i].auto_primed = false;
+    pedals[i].bank = 0xFFU;
     set_pin_pulldown(kExpChannels[i]);   // never leave the pin floating
   }
   settling = EXP_PEDAL_COUNT;
@@ -682,7 +689,8 @@ static void process_pedal(uint32_t i)
 
   // A bank change can move the pedal to another CC, channel or range, or
   // silence it, or put it on Speed. The new target is not sent the old
-  // position: it follows the next movement. Leaving Speed gives the LFOs and
+  // position: it follows the next movement, unless the pedal sends on
+  // entering a bank (below). Leaving Speed gives the LFOs and
   // sequences their own speed back.
   uint8_t cc, channel, lo, hi;
   bool own;
@@ -708,6 +716,21 @@ static void process_pedal(uint32_t i)
   }
 
   quiet_start[i] = false;
+
+  // Send on entering a bank: whatever the target, and to the added CCs too,
+  // so a preset the enter commands called up takes the pedal's position. A
+  // page keeps its bank, so turning one sends nothing. The flag is among the
+  // global ones, which older firmware leaves alone, and is read here so the
+  // on-pedal editor changes it at once.
+  uint8_t bank = sw_get_home_bank();
+  if (bank != p->bank) {
+      uint8_t flags = pGlobalSettings[GLOBAL_SETTINGS_LED_FEEDBACK];
+      if (p->bank != 0xFFU && flags != 0xFFU && (flags & EXP_SEND_ON_BANK(i))) {
+          p->last_sent_value = 0xFFFFU;
+          for (uint32_t k = 0; k < EXP_EXTRA_CCS; k++) extras[i][k].last = 0x80U;
+      }
+      p->bank = bank;
+  }
 
   if (p->last_sent_value != out_value) {
       int8_t sent = 0;

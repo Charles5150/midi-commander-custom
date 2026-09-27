@@ -161,7 +161,7 @@ En la pestaña **Banks** del configurador, cada banco tiene por pedal un CC y un
 
 - Una casilla vacía mantiene el ajuste del propio pedal; cada extremo del rango se toma por separado.
 - Un pedal silenciado sigue funcionando como pulsador: sus botones de punta y talón siguen funcionando.
-- Tras un cambio de banco, el pedal no se envía a su nuevo CC, canal o rango en la posición en la que esté parado; sigue al siguiente movimiento.
+- Tras un cambio de banco, el pedal no se envía a su nuevo CC, canal o rango en la posición en la que esté parado; sigue al siguiente movimiento, salvo que [envíe al entrar en un banco](#enviar-la-posición-al-entrar-en-un-banco).
 - Un [comando `Exp`](06-commands.md) en un botón puede volver a cambiar el destino hasta el siguiente cambio de banco.
 - Un `Exp` en modo `Add` hace que un pedal envíe [varios CC a la vez](06-commands.md#un-pedal-a-varios-cc), cada uno con su rango y su sentido.
 
@@ -172,6 +172,27 @@ En la demo, el banco 2 convierte el pedal 1 en una rueda de modulación entre 20
 <details><summary>Por dentro</summary>
 
 Las configuraciones escritas antes de la 0.28 no tienen nada guardado aquí y se comportan como si todas las casillas estuvieran vacías, y las escritas antes de la 0.33 no tienen rango aquí. El CC y el canal son cuatro bytes por banco después del setlist; la flash borrada (`0xFF`) mantiene los del propio pedal y `0x80` lo silencia. El rango es una tabla propia a continuación, de cuatro bytes por banco, así que su formato no cambia.
+
+</details>
+
+## Enviar la posición al entrar en un banco
+
+Cambias de preset en el ampli y su volumen salta a lo que guardaba el preset, mientras tu pedal de volumen está en otra posición; los dos no vuelven a coincidir hasta que mueves el pedal. Marcando **Send on entering a bank** para un pedal en la pestaña Expression (`Send_On_Bank` `Y`), el pedal envía dónde está en cuanto se entra en un banco, como en las controladoras de Morningstar y Fractal, así que el preset nuevo toma el volumen de tu pie.
+
+- Sale después de los [comandos de entrada](04-banks.md#comandos-al-entrar-y-al-salir-de-un-banco) del banco, así que un Program Change enviado ahí llega antes al aparato.
+- Va a lo que el pedal envíe en el banco nuevo: su propio CC, el del banco, el de un `Exp` de la lista de entrada, y los CC que le dé un `Exp` en modo `Add`. En `Speed`, los LFO y las secuencias toman su velocidad al momento.
+- Se envía aunque el banco nuevo tenga el mismo destino que el anterior.
+- No sale nada en un banco que silencia el pedal, y pasar de página no envía nada, porque una página se queda con los pedales de su banco.
+- Déjalo apagado en un jack sin pedal: el jack vacío se lee como el talón, y su valor de talón saldría en cada cambio de banco.
+- Sin él, como siempre, el pedal sigue a su siguiente movimiento.
+
+En la pedalera los ajustes son `EXP1SEND` y `EXP2SEND` en el [editor](10-editing-on-the-pedal.md). La demo los deja apagados, porque sus jacks pueden estar vacíos.
+
+*Firmware 0.87 o posterior.*
+
+<details><summary>Por dentro</summary>
+
+Como los bytes globales y los registros de los pedales están todos ocupados, se guarda en los bits 2 y 3 del byte global 35, junto a `LED_Feedback` y `Link_Toggles`, para los pedales 1 y 2. El firmware anterior deja esos bits en paz y espera a que se mueva el pedal.
 
 </details>
 
@@ -195,6 +216,7 @@ Opcional; dos filas, `Pedal` 1 y 2.
 | `Auto_Button` | None o 1–4, A–D | Botón que se enciende cuando el pedal sale del talón y se apaga tras quedarse ahí (auto-engage). |
 | `Auto_Off_ms` | 10–2540 | Cuánto tiempo tiene que quedarse el pedal en el talón antes de que se apague ese botón. Por defecto 500. |
 | `Output` | CC, PitchBend, CC14 o Speed | Qué envía el pedal: su CC con 7 bits, Pitch Bend, una pareja de CC de 14 bits, o nada más que la [velocidad de los LFO y las secuencias](#velocidad-de-los-lfo-y-las-secuencias). Por defecto CC. |
+| `Send_On_Bank` | Y / N | Enviar la posición del pedal al entrar en un banco, después de sus comandos de entrada. Por defecto N. Firmware 0.87. |
 
 ### BankExpression_Settings
 

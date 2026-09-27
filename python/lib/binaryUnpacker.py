@@ -644,6 +644,7 @@ def unpack_expression_settings(data: bytes) -> pd.DataFrame:
                 "Auto_Button": EXP_BUTTON_IDS[p[13] - 1] if 1 <= p[13] <= 8 else "None",
                 "Auto_Off_ms": str(p[14] * 10 if p[14] not in (0, 0xFF) else 500),
                 "Output": EXP_OUTPUT_NAMES.get(p[15], "CC"),
+                "Send_On_Bank": "Y" if data[35] != 0xFF and data[35] & (0x04 << i) else "N",
             }
         )
     return pd.DataFrame(rows)

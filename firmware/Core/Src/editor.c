@@ -400,6 +400,8 @@ static const setting_t settings[] = {
 	{"KEMPER",   GLOBAL_SETTINGS_KEMPER_MODE,         S_ONOFF,  0,     1, 0,   false, NULL},
 	{"EXP1 CC",  GLOBAL_SETTINGS_EXP1_CC,             S_NUM,    0,   127, 0,   false, NULL},
 	{"EXP2 CC",  GLOBAL_SETTINGS_EXP2_CC,             S_NUM,    0,   127, 0,   false, NULL},
+	{"EXP1SEND", GLOBAL_SETTINGS_LED_FEEDBACK,        S_FLAG,   EXP_SEND_ON_BANK(0), 1, 0, false, NULL},
+	{"EXP2SEND", GLOBAL_SETTINGS_LED_FEEDBACK,        S_FLAG,   EXP_SEND_ON_BANK(1), 1, 0, false, NULL},
 };
 #define SETTING_COUNT	((uint8_t)(sizeof(settings)/sizeof(settings[0])))
 

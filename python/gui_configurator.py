@@ -1481,7 +1481,7 @@ class MidiCommanderGUI(ctk.CTk):
                 else empty_expression_settings()
             )
             for col, default in (("Out_Min", "0"), ("Out_Max", "127"), ("Auto_Button", "None"), ("Auto_Off_ms", "500"),
-                                 ("Output", "CC")):
+                                 ("Output", "CC"), ("Send_On_Bank", "N")):
                 if col not in self.df_exp.columns:
                     self.df_exp[col] = default
             self.populate_expression()
@@ -2300,6 +2300,8 @@ class MidiCommanderGUI(ctk.CTk):
             ctk.CTkLabel(out, text="at the toe, as").pack(side="left", padx=(6, 2))
             w["output"] = Option(out, ["CC", "PitchBend", "CC14", "Speed"], clean(r.get("Output")) or "CC", width=100)
             w["output"].pack(side="left", padx=(6, 2))
+            w["send_on_bank"] = Check(out, text="Send on entering a bank", checked=is_yes(r.get("Send_On_Bank")), width=20)
+            w["send_on_bank"].pack(side="left", padx=(14, 2))
 
             auto = ctk.CTkFrame(box, fg_color="transparent")
             auto.pack(fill="x", padx=8, pady=(0, 8))
@@ -2333,7 +2335,10 @@ class MidiCommanderGUI(ctk.CTk):
             "after the pedal moves back past the level, so resting on the edge does not retrigger.\n"
             "Auto-engage, for a wah: moving the pedal up past the heel level switches a toggle "
             "button of the current bank on, and resting at or below it for the time given switches "
-            "it off again. The button can still be pressed by hand.",
+            "it off again. The button can still be pressed by hand.\n"
+            "Send on entering a bank: as a bank is entered, after its enter commands, the pedal sends "
+            "where it is, so a preset called up takes the volume from the pedal, not from the "
+            "preset. Leave it off for a jack with no pedal in it, which would send its heel value.",
         ).pack(anchor="w", pady=(6, 0))
 
     def _live_toggle(self):
@@ -3064,6 +3069,7 @@ class MidiCommanderGUI(ctk.CTk):
             self.df_exp.at[i, "Auto_Button"] = w["auto_button"].value()
             self.df_exp.at[i, "Auto_Off_ms"] = w["auto_off"].value() or "500"
             self.df_exp.at[i, "Output"] = w["output"].value()
+            self.df_exp.at[i, "Send_On_Bank"] = w["send_on_bank"].value()
 
     def apply_bank_changes(self):
         """Bank names and per bank expression settings back into their frames."""

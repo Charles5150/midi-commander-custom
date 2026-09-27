@@ -1524,6 +1524,47 @@ class AutoEngageTest(unittest.TestCase):
         self.assertEqual(self.auto_bytes(packed, 0), [0, 50])
 
 
+class SendOnBankTest(unittest.TestCase):
+    """Send_On_Bank of each pedal, bits 2 and 3 of global byte 35 beside
+    LED_Feedback and Link_Toggles (firmware 0.87)."""
+
+    def setUp(self):
+        self.sections = read_config_csv(DEMO_CSV)
+
+    def pack_with(self, one, two):
+        df = self.sections[packer.EXPRESSION_SECTION].copy()
+        df.loc[0, "Send_On_Bank"] = one
+        df.loc[1, "Send_On_Bank"] = two
+        return packer.pack_config({**self.sections, packer.EXPRESSION_SECTION: df})
+
+    def test_demo_has_it_off(self):
+        packed = packer.pack_config(self.sections)
+        self.assertEqual(packed[35] & 0x0C, 0)
+        exp = unpacker.unpack_config(packed)[4]
+        self.assertEqual(list(exp["Send_On_Bank"]), ["N", "N"])
+
+    def test_both_bits_round_trip_beside_the_others(self):
+        for one, two, bits in (("N", "N", 0), ("Y", "N", 4), ("N", "Y", 8), ("Y", "Y", 12)):
+            packed = self.pack_with(one, two)
+            self.assertEqual(packed[35], 3 | bits, (one, two))
+            exp = unpacker.unpack_config(packed)[4]
+            self.assertEqual(list(exp["Send_On_Bank"]), [one, two])
+            back = unpacker.unpack_config(packed)[0].set_index("Label")["Value"]
+            self.assertEqual((back["LED_Feedback"], back["Link_Toggles"]), ("Y", "Y"))
+
+    def test_erased_byte_and_missing_column_read_off(self):
+        image = bytearray(self.pack_with("Y", "Y"))
+        image[35] = 0xFF
+        self.assertEqual(list(unpacker.unpack_config(bytes(image))[4]["Send_On_Bank"]), ["N", "N"])
+        df = self.sections[packer.EXPRESSION_SECTION].drop(columns=["Send_On_Bank"], errors="ignore")
+        packed = packer.pack_config({**self.sections, packer.EXPRESSION_SECTION: df})
+        self.assertEqual(packed[35] & 0x0C, 0)
+
+    def test_bits_match_firmware(self):
+        text = open(os.path.join(FIRMWARE, "Core", "Inc", "midi_defines.h")).read()
+        self.assertIn("#define EXP_SEND_ON_BANK(pedal)	(0x04U << (pedal))", text)
+
+
 class ExpressionOutputTest(unittest.TestCase):
     """Pitch Bend and 14-bit CC from an expression pedal, byte 15 of its record (firmware 0.44)."""
 

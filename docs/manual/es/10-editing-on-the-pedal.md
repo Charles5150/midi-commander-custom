@@ -68,6 +68,7 @@ Un comando de cualquier otro tipo se muestra por su nombre y se deja exactamente
 | `USB THRU`, `RT THRU` | los dos thru (`USB_MIDI_Thru`, `RealTime_Passthrough`) |
 | `KEMPER` | modo Kemper (`Kemper_Mode`) |
 | `EXP1 CC`, `EXP2 CC` | los números de CC de los pedales de expresión (`Exp1_CC`, `Exp2_CC`) |
+| `EXP1SEND`, `EXP2SEND` | cada pedal envía su posición al entrar en un banco (`Send_On_Bank`) |
 
 ## Cuándo se guarda un cambio
 
