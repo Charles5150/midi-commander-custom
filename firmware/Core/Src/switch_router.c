@@ -3982,12 +3982,13 @@ void handle_switches(void){
 	handle_delayed_cmds();
 	
 	// Continuous Blink Update Loop for AlwaysOn Buttons, and for the looks a
-	// Listen gave a toggle button that is on
-	for(int i=0; i<8; i++){
+	// Listen gave a toggle button that is on. Asleep, everything stays dark.
+	bool awake = !sleep_is_asleep();
+	for(int i=0; awake && i<8; i++){
 		if((a_sw_obj[i].led_cmd_toggle & (1UL<<switch_current_page))
 				&& listen_look(&a_sw_obj[i], sw_bank(i)) != LISTEN_STEADY
 				&& get_sw_toggle_state(&a_sw_obj[i])){
-			if(!sleep_is_asleep()) set_led(i, toggle_led_level(i, 1));
+			set_led(i, toggle_led_level(i, 1));
 			continue;
 		}
 		uint8_t mode = get_button_led_mode(i);
@@ -4022,14 +4023,14 @@ void handle_switches(void){
 	uint8_t sw_e_down = switch_down(SW_E_GPIO_Port, SW_E_Pin);
 	// Only update loop if blink is needed or change happened?
 	// To support Blink, we should update if mode is 2 and sw is down
-	if(bank_down_mode == 2 && sw_e_down) {
+	if(bank_down_mode == 2 && sw_e_down && awake) {
 		uint8_t state = calculate_led_state(1, bank_down_mode);
 		leds_set(LED_ID_BANK_DOWN, state);
 	}
 
 	// Bank Up Switch State
 	uint8_t sw_5_down = switch_down(SW_5_GPIO_Port, SW_5_Pin);
-	if(bank_up_mode == 2 && sw_5_down) {
+	if(bank_up_mode == 2 && sw_5_down && awake) {
 		uint8_t state = calculate_led_state(1, bank_up_mode);
 		leds_set(LED_ID_BANK_UP, state);
 	}

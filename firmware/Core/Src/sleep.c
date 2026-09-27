@@ -48,11 +48,14 @@ static void wake_up(void){
 }
 
 void sleep_task(void){
+	// last_activity first: SysTick or USB may move it on after now is read,
+	// and now - last_activity would wrap to a huge idle time
+	uint32_t last = last_activity;
 	uint32_t now = HAL_GetTick();
 
 	if(asleep){
 		// Something happened while we were out
-		if((now - last_activity) < SLEEP_WAKE_WINDOW_MS){
+		if((now - last) < SLEEP_WAKE_WINDOW_MS){
 			wake_up();
 		}
 		return;
@@ -61,7 +64,7 @@ void sleep_task(void){
 	uint32_t timeout = timeout_ms();
 	if(timeout == 0) return;
 
-	if((now - last_activity) >= timeout){
+	if((now - last) >= timeout){
 		go_to_sleep();
 	}
 }
