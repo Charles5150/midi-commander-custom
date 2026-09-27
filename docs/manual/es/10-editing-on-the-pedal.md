@@ -33,7 +33,7 @@ En la pantalla de comandos, los primeros campos dicen qué estás editando:
 
 1. el banco;
 2. el botón;
-3. pulsación corta o larga;
+3. pulsación corta, larga o doble, esta solo si la configuración tiene comandos de doble pulsación;
 4. cuál de los diez comandos.
 
 Después vienen el tipo del comando y los campos que tiene ese tipo —canal, número de CC o de nota, valores de encendido y apagado, si hace toggle, etc.— y debajo los cuatro caracteres de la etiqueta del botón, un campo cada uno.
@@ -42,7 +42,7 @@ El editor escribe estos tipos:
 
 `---` (sin comando), `PC`, `CC`, `Note`, `Bank`, `Tap`, `Start`, `Stop`, `Panic` y `Wait` (una pausa; uno [a tiempo](06-commands.md#a-tiempo) no se toca).
 
-Un comando de cualquier otro tipo se muestra por su nombre y se deja exactamente como está hasta que cambias el campo del tipo, que lo sustituye. Las listas de doble pulsación no aparecen: viven en una zona que las herramientas escriben de una vez.
+Un comando de cualquier otro tipo se muestra por su nombre y se deja exactamente como está hasta que cambias el campo del tipo, que lo sustituye. Las listas de doble pulsación viven en una zona que las herramientas escriben de una vez: una configuración sin ningún comando de doble pulsación, o escrita para un firmware anterior al 0.26, no la tiene, y ahí el editor solo ofrece las listas corta y larga.
 
 ## Editar los ajustes
 
@@ -50,10 +50,10 @@ Un comando de cualquier otro tipo se muestra por su nombre y se deja exactamente
 
 | En la pedalera | En el configurador (CSV) |
 |---|---|
-| `LONGPRES` | el tiempo de la pulsación larga (`Long_Press_ms`) |
-| `DBLPRESS` | el tiempo de la doble pulsación (`Double_Press_ms`) |
+| `LONGPRES` | el tiempo de la pulsación larga (`Long_Press_ms`), 100–2500 ms |
+| `DBLPRESS` | el tiempo de la doble pulsación (`Double_Press_ms`), 100–1000 ms |
 | `COMBO` | el tiempo de la combinación (`Combo_ms`) |
-| `BRIGHT`, `RESTBRIG` | los dos brillos de los LED (`LED_Brightness`, `LED_Rest_Brightness`) |
+| `BRIGHT`, `RESTBRIG` | los dos brillos de los LED (`LED_Brightness`, `LED_Rest_Brightness`), 1–100 % |
 | `BANKJUMP` | cuánto salta una pulsación larga en Bank Up / Down (`Bank_Jump_Step`) |
 | `SLEEP` | el tiempo hasta dormirse (`Sleep_After_Min`) |
 | `GLOBCHAN` | el canal global (`Global_Channel`) |
@@ -67,7 +67,7 @@ Un comando de cualquier otro tipo se muestra por su nombre y se deja exactamente
 | `LINKTOGL` | toggles enlazados (`Link_Toggles`) |
 | `USB THRU`, `RT THRU` | los dos thru (`USB_MIDI_Thru`, `RealTime_Passthrough`) |
 | `KEMPER` | modo Kemper (`Kemper_Mode`) |
-| `EXP1 CC`, `EXP2 CC` | los números de CC de los pedales de expresión (`Exp1_CC`, `Exp2_CC`) |
+| `EXP1 CC`, `EXP2 CC` | los números de CC de los pedales de expresión (`Exp1_CC`, `Exp2_CC`), 1–127 |
 | `EXP1SEND`, `EXP2SEND` | cada pedal envía su posición al entrar en un banco (`Send_On_Bank`) |
 | `BARBEATS` | los tiempos de un compás para el compás y el tiempo en la pantalla, `off` o 1–15 (`Beat_Counter`) |
 

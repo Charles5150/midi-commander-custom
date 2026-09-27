@@ -193,6 +193,10 @@ class GlobalSettingsTest(unittest.TestCase):
     def test_exp_cc(self):
         with self.assertRaises(ValueError):
             packer.pack_config(set_global(demo(), Exp1_CC="200"))
+        # 0 is what the firmware reads as "not set", the pedal's default CC
+        with self.assertRaises(ValueError) as e:
+            packer.pack_config(set_global(demo(), Exp2_CC="0"))
+        self.assertIn("Exp2_CC must be 1-127", str(e.exception))
 
 
 if __name__ == "__main__":

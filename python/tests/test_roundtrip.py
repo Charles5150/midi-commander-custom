@@ -271,6 +271,10 @@ class RoundTripTest(unittest.TestCase):
         self.assertEqual(packed[8], 75)
         df_global, *_ = unpacker.unpack_config(packed)
         self.assertEqual(df_global.set_index("Label")["Value"]["Long_Press_ms"], "750")
+        # Kept within 100-2500, the range of the configurators and the pedal's editor
+        for text, byte in (("50", 10), ("5000", 250)):
+            g.loc[g["Label"] == "Long_Press_ms", "Value"] = text
+            self.assertEqual(pack_config({**sections, "Global_Settings": g})[8], byte, text)
 
     def test_expression_settings_round_trip(self):
         from lib.configPacker import empty_expression_settings

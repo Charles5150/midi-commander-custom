@@ -115,6 +115,12 @@ static uint8_t banner_speed = 0;
 static uint16_t banner_pos = 0;
 static uint32_t banner_next = 0;
 
+// The large font has capitals only; the banner's "v" of the version is its
+// own lowercase one, marked in the text by BANNER_V
+#define BANNER_V	('\x01')
+static const uint16_t banner_v[18] = {
+	0, 0, 0, 0, 0, 0x60C0, 0x3180, 0x3180, 0x3180, 0x1B00, 0x1B00, 0x1B00, 0x0E00, 0x0E00, 0x0600, 0, 0, 0};
+
 void display_init(void){
     ssd1306_Init();
 
@@ -159,7 +165,7 @@ static uint8_t banner_start(void){
 		memcpy(banner_text + len, "   ", 3);
 		len += 3;
 	}
-	banner_text[len++] = 'v';
+	banner_text[len++] = BANNER_V;
 	strcpy(banner_text + len, FIRMWARE_VERSION);
 
 	banner_speed = speed;
@@ -223,7 +229,7 @@ void display_banner_task(void){
 		if(px < 0 || px >= width) continue;
 		char ch = banner_text[px / Font_11x18.FontWidth];
 		uint8_t j = px % Font_11x18.FontWidth;
-		const uint16_t *rows = ssd1306_Glyph(ch, Font_11x18);
+		const uint16_t *rows = (ch == BANNER_V) ? banner_v : ssd1306_Glyph(ch, Font_11x18);
 		for(uint8_t i=0; i<Font_11x18.FontHeight; i++){
 			if((uint16_t)(rows[i] << j) & 0x8000) ssd1306_DrawPixel(col, BANNER_Y + i, White);
 		}

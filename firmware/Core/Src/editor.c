@@ -21,8 +21,9 @@
  * the 2 kB flash page those bytes live in (flash_settings_patch), after which
  * everything the firmware derives from the configuration is built again.
  *
- * The double press lists are not offered: they live in an area the tools
- * write as a block, and a configuration flashed by an older tool has none.
+ * The double press lists are offered only when the configuration has them:
+ * they live in an area the tools write as a block, which a configuration
+ * flashed by an older tool leaves empty.
  */
 
 #include <stdio.h>
@@ -53,8 +54,8 @@
 #define SW_C	(6)
 #define SW_D	(7)
 
-enum { LIST_SHORT, LIST_LONG, LIST_COUNT };
-static const char *const list_names[LIST_COUNT] = {"Short", "Long"};
+enum { LIST_SHORT, LIST_LONG, LIST_DOUBLE, LIST_COUNT };
+static const char *const list_names[LIST_COUNT] = {"Short", "Long", "Double"};
 
 // The command types the editor writes. Anything else is shown by name and
 // left alone until the type is changed, which replaces it.
@@ -121,7 +122,7 @@ static uint8_t *cmd_ptr(void){
 	uint32_t at = (uint32_t)MIDI_ROM_KEY_STRIDE * MIDI_NUM_SWITCHES * ed.bank
 			+ (uint32_t)MIDI_ROM_KEY_STRIDE * ed.sw
 			+ (uint32_t)MIDI_ROM_CMD_SIZE * ed.slot;
-	return (ed.list == LIST_LONG ? pLongPressCmds : pSwitchCmds) + at;
+	return (ed.list == LIST_DOUBLE ? pDoublePressCmds : ed.list == LIST_LONG ? pLongPressCmds : pSwitchCmds) + at;
 }
 
 static uint8_t *label_ptr(void){
@@ -381,11 +382,11 @@ static const char *const bank_switch_names[] = {"Bank", "Bank+MIDI", "MIDI only"
 static const char *const setlist_names[] = {"No", "Yes", "Shown"};
 
 static const setting_t settings[] = {
-	{"LONGPRES", GLOBAL_SETTINGS_LONG_PRESS,          S_MS,     5,   200, 50,  true,  NULL},
-	{"DBLPRESS", GLOBAL_SETTINGS_DOUBLE_PRESS,        S_MS,     5,   200, 30,  true,  NULL},
+	{"LONGPRES", GLOBAL_SETTINGS_LONG_PRESS,          S_MS,     10,  250, 50,  true,  NULL},
+	{"DBLPRESS", GLOBAL_SETTINGS_DOUBLE_PRESS,        S_MS,     10,  100, 30,  true,  NULL},
 	{"COMBO",    GLOBAL_SETTINGS_COMBO,               S_MS,     2,    25, 8,   true,  NULL},
-	{"BRIGHT",   GLOBAL_SETTINGS_LED_BRIGHTNESS,      S_PCT,    1,   100, 100, false, NULL},
-	{"RESTBRIG", GLOBAL_SETTINGS_LED_REST_BRIGHTNESS, S_PCT,    0,   100, 100, false, NULL},
+	{"BRIGHT",   GLOBAL_SETTINGS_LED_BRIGHTNESS,      S_PCT,    1,   100, 100, true,  NULL},
+	{"RESTBRIG", GLOBAL_SETTINGS_LED_REST_BRIGHTNESS, S_PCT,    1,   100, 100, true,  NULL},
 	{"BANKJUMP", GLOBAL_SETTINGS_BANK_JUMP_STEP,      S_NUM,    1,    31, 8,   true,  NULL},
 	{"SLEEP",    GLOBAL_SETTINGS_SLEEP_AFTER_MIN,     S_MIN,    0,    60, 0,   false, NULL},
 	{"GLOBCHAN", GLOBAL_SETTINGS_GLOBAL_CHANNEL,      S_CHAN,   0,    16, 0,   false, NULL},
@@ -400,8 +401,8 @@ static const setting_t settings[] = {
 	{"USB THRU", GLOBAL_SETTINGS_USB_THRU,            S_ONOFF,  0,     1, 0,   false, NULL},
 	{"RT THRU",  GLOBAL_SETTINGS_REALTIME_PASS,       S_ONOFF,  0,     1, 0,   false, NULL},
 	{"KEMPER",   GLOBAL_SETTINGS_KEMPER_MODE,         S_ONOFF,  0,     1, 0,   false, NULL},
-	{"EXP1 CC",  GLOBAL_SETTINGS_EXP1_CC,             S_NUM,    0,   127, 0,   false, NULL},
-	{"EXP2 CC",  GLOBAL_SETTINGS_EXP2_CC,             S_NUM,    0,   127, 0,   false, NULL},
+	{"EXP1 CC",  GLOBAL_SETTINGS_EXP1_CC,             S_NUM,    1,   127, 11,  true,  NULL},
+	{"EXP2 CC",  GLOBAL_SETTINGS_EXP2_CC,             S_NUM,    1,   127, 4,   true,  NULL},
 	{"EXP1SEND", GLOBAL_SETTINGS_LED_FEEDBACK,        S_FLAG,   EXP_SEND_ON_BANK(0), 1, 0, false, NULL},
 	{"EXP2SEND", GLOBAL_SETTINGS_LED_FEEDBACK,        S_FLAG,   EXP_SEND_ON_BANK(1), 1, 0, false, NULL},
 	{"BARBEATS", GLOBAL_SETTINGS_LED_FEEDBACK,        S_FLAG,   BEAT_COUNTER_MASK, 15, 0, false, NULL},
@@ -566,7 +567,7 @@ static void field_step(uint8_t f, int8_t d){
 		break;
 	case F_LIST:
 		save();
-		ed.list = step_wrap(ed.list, d, 0, LIST_COUNT - 1);
+		ed.list = step_wrap(ed.list, d, 0, flash_settings_double_stored() ? LIST_DOUBLE : LIST_LONG);
 		load_cmd();
 		break;
 	case F_SLOT:

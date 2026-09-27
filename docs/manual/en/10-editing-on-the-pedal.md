@@ -33,7 +33,7 @@ On the commands screen the first fields say what is being edited:
 
 1. the bank;
 2. the button;
-3. short or long press;
+3. short, long or double press, the last only when the configuration has double press commands;
 4. which of the ten commands.
 
 Then come the command's type and the fields that type has — channel, CC or note number, on and off values, whether it toggles, and so on — and below them the four characters of the button's label, one field each.
@@ -42,7 +42,7 @@ The editor writes these types:
 
 `---` (no command), `PC`, `CC`, `Note`, `Bank`, `Tap`, `Start`, `Stop`, `Panic` and `Wait` (a pause; one [on the beat](06-commands.md#on-the-beat) is left alone).
 
-A command of any other type is shown by name and left exactly as it is until the type field is changed, which replaces it. The double press lists are not offered: they live in an area the tools write as a block.
+A command of any other type is shown by name and left exactly as it is until the type field is changed, which replaces it. The double press lists live in an area the tools write as a block: a configuration with no double press commands at all, or written for firmware older than 0.26, has none, so the editor offers only the short and long lists there.
 
 ## Editing the settings
 
@@ -50,10 +50,10 @@ A command of any other type is shown by name and left exactly as it is until the
 
 | On the pedal | In the configurator (CSV) |
 |---|---|
-| `LONGPRES` | the long press time (`Long_Press_ms`) |
-| `DBLPRESS` | the double press time (`Double_Press_ms`) |
+| `LONGPRES` | the long press time (`Long_Press_ms`), 100–2500 ms |
+| `DBLPRESS` | the double press time (`Double_Press_ms`), 100–1000 ms |
 | `COMBO` | the combination time (`Combo_ms`) |
-| `BRIGHT`, `RESTBRIG` | the two LED brightnesses (`LED_Brightness`, `LED_Rest_Brightness`) |
+| `BRIGHT`, `RESTBRIG` | the two LED brightnesses (`LED_Brightness`, `LED_Rest_Brightness`), 1–100 % |
 | `BANKJUMP` | how far a long press on Bank Up / Down jumps (`Bank_Jump_Step`) |
 | `SLEEP` | the sleep timeout (`Sleep_After_Min`) |
 | `GLOBCHAN` | the global channel (`Global_Channel`) |
@@ -67,7 +67,7 @@ A command of any other type is shown by name and left exactly as it is until the
 | `LINKTOGL` | linked toggles (`Link_Toggles`) |
 | `USB THRU`, `RT THRU` | the two thru switches (`USB_MIDI_Thru`, `RealTime_Passthrough`) |
 | `KEMPER` | Kemper mode (`Kemper_Mode`) |
-| `EXP1 CC`, `EXP2 CC` | the expression pedal CC numbers (`Exp1_CC`, `Exp2_CC`) |
+| `EXP1 CC`, `EXP2 CC` | the expression pedal CC numbers (`Exp1_CC`, `Exp2_CC`), 1–127 |
 | `EXP1SEND`, `EXP2SEND` | each pedal sends its position on entering a bank (`Send_On_Bank`) |
 | `BARBEATS` | the beats in a bar for the bar and beat on the display, `off` or 1–15 (`Beat_Counter`) |
 

@@ -75,8 +75,8 @@ def pack_global_settings(df):
         bin_list[GLOBAL_SETTINGS_REALTIME_PASS] = 0x1
 
     # Expression Pedal CC numbers, CC 11 and CC 4 when empty or missing
-    bin_list[GLOBAL_SETTINGS_EXP1_CC] = ranged_int(_setting(df, "Exp1_CC"), 0, 127, "Exp1_CC", 11)
-    bin_list[GLOBAL_SETTINGS_EXP2_CC] = ranged_int(_setting(df, "Exp2_CC"), 0, 127, "Exp2_CC", 4)
+    bin_list[GLOBAL_SETTINGS_EXP1_CC] = ranged_int(_setting(df, "Exp1_CC"), 1, 127, "Exp1_CC", 11)
+    bin_list[GLOBAL_SETTINGS_EXP2_CC] = ranged_int(_setting(df, "Exp2_CC"), 1, 127, "Exp2_CC", 4)
 
     # Bank LED Modes (Index 4, 5)
     # 0=Normal, 1=Reverse, 2=AlwaysOn(Blink)
@@ -103,14 +103,14 @@ def pack_global_settings(df):
     if "Remember_State" in df.index and "Y" in str(df.loc["Remember_State", "Value"]).upper():
         bin_list[GLOBAL_SETTINGS_REMEMBER_STATE] = 0x1
 
-    # Long press threshold in ms, stored in 10 ms units (10..2500 ms)
+    # Long press threshold in ms, stored in 10 ms units (100..2500 ms)
     long_ms = 500
     if "Long_Press_ms" in df.index:
         try:
             long_ms = int(float(str(df.loc["Long_Press_ms", "Value"])))
         except ValueError:
             long_ms = 500
-    bin_list[GLOBAL_SETTINGS_LONG_PRESS] = max(1, min(250, round(long_ms / 10)))
+    bin_list[GLOBAL_SETTINGS_LONG_PRESS] = max(10, min(250, round(long_ms / 10)))
 
     # LED brightness in percent (1-100); lit LEDs and LEDs lit at rest.
     # 0 is reserved: the firmware reads it as "not set" (older configs).

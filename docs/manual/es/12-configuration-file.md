@@ -60,7 +60,7 @@ Los ajustes de toda la pedalera, como filas `Label,Value`. En el configurador so
 | `Boot_Banner` | Banner at power on | Off / Slow / Normal / Fast | Al encender, el `ConfigName`, o el [texto propio](09-the-display.md#el-texto-propio-del-banner) de la pedalera si tiene uno, y la versión de firmware cruzan la pantalla una vez en letra grande, de derecha a izquierda, en lugar del nombre bajo la animación de arranque: a unos 37, 74 o 110 píxeles por segundo, unos cuatro segundos para un nombre completo en Normal. La pedalera funciona todo el rato: cualquier pulsador, o una pulsación desde el ordenador, lo corta en el acto y hace lo de siempre, y la pantalla del banco vuelve por debajo con lo que haya cambiado mientras tanto. El modo seguro se muestra encima. Por defecto Off. Necesita firmware 0.62 (byte global 46); un firmware anterior muestra el nombre como antes. |
 | `MIDI_Channel` | MIDI channel | 1–16 | Canal que usan los pedales de expresión (salvo que un pedal tenga el suyo). Los botones usan el canal de cada comando. Canal 1 si nunca se ha puesto. |
 | `Global_Channel` | Global channel | Off / 1–16 | Lleva toda la configuración a un solo canal: todos los mensajes salen por él en lugar del canal guardado en cada comando, pedales incluidos. Off deja cada comando en el suyo. Un comando `Chan` nombra sus canales a propósito, así que no se toca. Por defecto Off. |
-| `Exp1_CC`, `Exp2_CC` | Expression pedal 1 CC, Expression pedal 2 CC | 0–127 | Número de CC que envía cada pedal de expresión. Por defecto 11 y 4. |
+| `Exp1_CC`, `Exp2_CC` | Expression pedal 1 CC, Expression pedal 2 CC | 1–127 | Número de CC que envía cada pedal de expresión. Por defecto 11 y 4. |
 
 ### Pulsaciones
 
