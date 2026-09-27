@@ -30,7 +30,7 @@ Los dos jacks se leen con el ADC uno detrás de otro. Entre lectura y lectura ca
 | Ajuste | En el CSV | Qué hace |
 |---|---|---|
 | **Expression pedal 1 CC**, **2 CC** (pestaña Global) | `Exp1_CC`, `Exp2_CC` | El CC que envía cada pedal. Por defecto 11 y 4. |
-| Canal | `Channel` | 1–16, o Global para usar **MIDI channel** (`MIDI_Channel`) de la pestaña Global. |
+| Canal | `Channel` | 1–16, o Global para usar **MIDI channel** (`MIDI_Channel`) de la pestaña Global. El canal que dé un banco al pedal, o un comando `Exp`, gana a este, y `Global_Channel`, si está puesto, a todos. |
 | Curva | `Curve` | Linear, Log o Exp. Log va rápida al principio del recorrido y Exp va lenta al principio. |
 | Invertir | `Invert` | Intercambia talón y punta. |
 
@@ -175,7 +175,7 @@ Pon los comandos de encendido y apagado del wah en un botón toggle y elige ese 
 - Lo puedes seguir pisando a mano: las dos direcciones solo actúan en el momento en que el pedal sale del talón o lleva ahí el tiempo suficiente, así que un wah que apagas a mano con el pedal arriba, o que enciendes a mano en el talón, se queda como lo dejaste.
 - El botón es el mismo en todos los bancos, y no pasa nada en un banco donde no sea un toggle, así que pon el wah en el mismo botón en los bancos que lo necesiten.
 - También funciona cuando un banco silencia el pedal.
-- Mientras un comando `Exp` tiene el pedal en otro destino, el auto-engage no toca su botón.
+- Mientras un comando `Exp` tiene el pedal en otro destino, el auto-engage no toca su botón, y tampoco mientras se ve una [página](04-banks.md#segunda-página): sus botones son de otro banco.
 
 En la demo, el pedal 1 activa solo el botón D, el WAH del banco 8 (y TRK4 en el banco 1), y lo apaga tras 600 ms en el talón.
 

@@ -9,7 +9,7 @@ Con el configurador todo es más fácil, pero el configurador no siempre está a
 Mantén **Bank Down y Bank Up a la vez durante dos segundos** y la pedalera abre el editor sobre la configuración que está usando; mantener otra vez los mismos dos pulsadores lo cierra.
 
 - Los diez LED se encienden mientras está abierto.
-- Mientras está abierto, ningún pulsador envía nada, así que no puede salir nada por error.
+- Mientras está abierto, ningún pulsador envía nada, ni tampoco los botones de punta, talón y auto-engage de los pedales, así que no puede salir nada por error.
 - Si hay una [vista previa de banco](04-banks.md#vista-previa-de-banco) en pantalla, abrir el editor la quita.
 
 ## Los pulsadores

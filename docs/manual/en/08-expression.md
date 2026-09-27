@@ -30,7 +30,7 @@ The two jacks are read through the ADC one after the other. Between readings eac
 | Setting | In the CSV | What it does |
 |---|---|---|
 | **Expression pedal 1 CC**, **2 CC** (Global tab) | `Exp1_CC`, `Exp2_CC` | The CC each pedal sends. Defaults 11 and 4. |
-| Channel | `Channel` | 1–16, or Global to use **MIDI channel** (`MIDI_Channel`) from the Global tab. |
+| Channel | `Channel` | 1–16, or Global to use **MIDI channel** (`MIDI_Channel`) from the Global tab. A bank's channel for the pedal, or an `Exp` command's, wins over this one, and `Global_Channel`, when set, over all of them. |
 | Curve | `Curve` | Linear, Log or Exp. Log is fast at the start of the travel, Exp is slow at the start. |
 | Invert | `Invert` | Swap heel and toe. |
 
@@ -175,7 +175,7 @@ Put the wah's on and off commands on a toggle button and name that button under 
 - It can still be pressed by hand: both directions act only on the moment the pedal leaves the heel or has rested there long enough, so a wah switched off by hand with the pedal up, or on by hand at the heel, stays as it was left.
 - The button is the same in every bank, and nothing happens in a bank where it is not a toggle, so put the wah on the same button in the banks that need it.
 - It works when a bank silences the pedal too.
-- While an `Exp` command has the pedal somewhere else, auto-engage leaves its button alone.
+- While an `Exp` command has the pedal somewhere else, auto-engage leaves its button alone, and so it does while a [page](04-banks.md#second-page) is shown: its buttons are another bank's.
 
 In the demo, pedal 1 auto-engages button D, the WAH in bank 8 (and TRK4 in bank 1), switching it off after 600 ms at the heel.
 

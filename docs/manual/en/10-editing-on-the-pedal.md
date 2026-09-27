@@ -9,7 +9,7 @@ Everything is easier from the configurator, but the configurator is not always t
 Hold **Bank Down and Bank Up together for two seconds** and the pedal opens the editor on the configuration it is running; the same two switches held again leave it.
 
 - All ten LEDs light while it is open.
-- None of the switches sends anything while it is open, so nothing can go out by mistake.
+- None of the switches sends anything while it is open, nor do the pedals' toe, heel and auto-engage buttons, so nothing can go out by mistake.
 - If a [bank preview](04-banks.md#bank-preview) is showing, opening the editor drops it.
 
 ## The switches

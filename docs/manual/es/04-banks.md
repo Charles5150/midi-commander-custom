@@ -147,10 +147,10 @@ La página es un banco como cualquier otro y podrías usarla por su cuenta, pero
 - Al volver no se envía de nuevo nada del banco: sus comandos de entrada salieron cuando entraste en él.
 - Los comandos de entrada de la página salen cuando se muestra, y los de salida cuando vuelves, así que una página puede encender algo en el equipo y volver a apagarlo. Déjalos vacíos para una página que solo cambia los pulsadores.
 - Bank Up / Down, los comandos `Bank` relativos y el setlist avanzan desde el banco, no desde la página, y salen de la página por el camino.
-- Los pedales de expresión conservan los `BankExpression_Settings` del banco y lo que hayan puesto los comandos `Exp`. Sus botones de punta, talón y auto-engage pulsan el botón de la página que se muestra.
+- Los pedales de expresión conservan los `BankExpression_Settings` del banco y lo que hayan puesto los comandos `Exp`. Sus botones de punta y talón pulsan el botón de la página que se muestra; el auto-engage espera a que vuelvas al banco.
 - El texto que el ordenador escribió hasta el próximo cambio de banco se queda en la pantalla.
 - Tras apagar y encender con `Remember_State`, la pedalera vuelve al banco, no a su página. Cada página guarda sus propios estados de toggle, como cualquier banco.
-- `GoTo`, un cambio de banco por MIDI entrante o un cambio de configuración también salen de la página, enviando sus comandos de salida y luego los del banco.
+- `GoTo`, un cambio de banco por MIDI entrante o un cambio de configuración también salen de la página, enviando sus comandos de salida y luego los del banco. Si llevan al propio banco, solo vuelven, como el botón `Page`: los comandos del banco no se envían otra vez.
 
 En la demo, la canción 1 (banco 12) tiene PG 2 en D, que muestra el banco 31.
 

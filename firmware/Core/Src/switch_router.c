@@ -26,6 +26,7 @@
 void update_leds_on_bank_change(void);
 static void fire_bank_enter_cmds(uint8_t bank);
 static void fire_bank_leave_cmds(uint8_t bank);
+static void toggle_page(uint8_t target);
 static inline bool cmd_is_leave(const uint8_t *pRom);
 static void apply_scene(uint8_t mask, uint8_t states);
 static void save_scene(uint8_t target);
@@ -408,7 +409,8 @@ static void send_ccinc(uint8_t *pRom, bool repeat){
 /*
  * Relative Program Change ("next / previous preset"): moves from the program
  * last sent on the channel, whoever sent it: a PC command, a bank being
- * entered, or the host over USB. Nothing sent yet counts as program 0. Shared
+ * entered, or the host over USB. Nothing sent yet counts as program 0. Kept by
+ * the channel on the wire, so it follows the host with Global_Channel. Shared
  * by every button, so a Next and a Previous button work as a pair.
  */
 static uint8_t pc_current[16] = { [0 ... 15] = 0xFF };
@@ -418,7 +420,7 @@ void sw_note_program(uint8_t channel, uint8_t program){
 }
 
 static void send_pc_relative(const uint8_t *pRom, bool repeat){
-	uint8_t channel = pRom[0] & 0x0F;
+	uint8_t channel = midiCmd_channel(pRom[0]);	// the channel it goes out on
 	int16_t step = (pRom[1] & 0x7F) ? (pRom[1] & 0x7F) : 1;
 	int16_t top = pRom[3] & 0x7F;
 	bool wrap = (pRom[3] & 0x80) != 0;
@@ -845,6 +847,10 @@ static void goto_bank(uint8_t bank){
 	preview_end();	// however the bank changes, a bank being chosen is dropped
 	if(bank >= MIDI_NUM_BANKS) return;
 	if(page_home == 0xFF && bank == switch_current_page) return;
+	if(bank == page_home){
+		toggle_page(0xFF);	// back from its page: the bank itself is not left
+		return;
+	}
 	previous_bank = home_bank();
 	if(page_home != 0xFF){
 		// Leaving the bank from its page leaves the page first
@@ -1190,7 +1196,8 @@ int get_available_delayed_cmd_slot(void){
 
 void handle_delayed_cmds(void){
 	for(int i=0; i<MAX_DELAYED_CMDS; i++){
-		if(delayed_cmds[i].systick_timout < HAL_GetTick()){
+		uint32_t due = delayed_cmds[i].systick_timout;
+		if(due != UINT32_MAX && (int32_t)(HAL_GetTick() - due) > 0){	// safe across the tick wrapping
 			uint8_t* pRom = delayed_cmds[i].pRomCmd;
 			// The Off goes where the On went, whatever Chan command sent it
 			midiCmd_force_channel(delayed_cmds[i].channel);
@@ -1225,7 +1232,8 @@ void set_cmd_duration_delay(uint8_t *pRom){
 		delayed_cmds[slot].pRomCmd = pRom;
 		delayed_cmds[slot].channel = midiCmd_forced_channel();
 		delayed_cmds[slot].outputs_off = midiCmd_outputs_off();
-		delayed_cmds[slot].systick_timout = HAL_GetTick() + midiCmd_get_delay(pRom);
+		uint32_t due = HAL_GetTick() + midiCmd_get_delay(pRom);
+		delayed_cmds[slot].systick_timout = due - (due == UINT32_MAX);	// that one means free
 	}
 }
 
@@ -1270,7 +1278,7 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 			send_pc_relative(pRom, false);
 		} else {
 			status = midiCmd_send_pc_command_from_rom(pRom);
-			sw_note_program(pRom[0], pRom[1]);
+			sw_note_program(midiCmd_channel(pRom[0]), pRom[1]);
 		}
 		break;
 	case CMD_CC_NIBBLE:
@@ -2208,7 +2216,7 @@ static void seq_start(const uint8_t *seq, uint8_t cmds, const uint8_t *pRom){
 	}
 	uint32_t ms;
 	tempo_beat_now(&s->start_beat, &ms);
-	s->own = lfo_div_ticks[(seq[1] & 0x0F) < LFO_DIV_COUNT ? (seq[1] & 0x0F) : 3];
+	s->own = lfo_div_ticks[(seq[1] & 0x0F) < LFO_DIV_COUNT ? (seq[1] & 0x0F) : LFO_DIV_COUNT - 1];
 	s->div = speed_div(s->own);
 	s->offset = 0;
 	s->count = count;
@@ -3051,7 +3059,7 @@ static bool all_switches_released(void){
 static void flush_delayed_cmds(void){
 	for(int i=0; i<MAX_DELAYED_CMDS; i++){
 		if(delayed_cmds[i].systick_timout != UINT32_MAX){
-			delayed_cmds[i].systick_timout = 0;
+			delayed_cmds[i].systick_timout = HAL_GetTick() - 1;
 		}
 	}
 	handle_delayed_cmds();
@@ -3136,7 +3144,7 @@ static void switch_config(uint8_t target){
 }
 
 void sw_trigger_button(uint8_t sw){
-	if(sw >= MIDI_NUM_SWITCHES) return;
+	if(sw >= MIDI_NUM_SWITCHES || editor_is_open()) return;	// the editor sends nothing
 	// A quick tap: the down list, then the up list, exactly like a foot press
 	fire_short_down(sw);
 	fire_short_up(sw);

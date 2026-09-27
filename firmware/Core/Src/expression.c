@@ -208,11 +208,11 @@ static void set_pin_pulldown(uint32_t channel) {
     if (channel == ADC_CHANNEL_7) {
         GPIOA->CRL &= ~(0xF << 28);
         GPIOA->CRL |=  (0x8 << 28);         // Input with pull-up/down
-        GPIOA->ODR &= ~GPIO_PIN_7;          // ODR=0 -> pull down
+        GPIOA->BRR = GPIO_PIN_7;            // ODR=0 -> pull down, atomic against TIM2
     } else if (channel == ADC_CHANNEL_8) {
         GPIOB->CRL &= ~(0xF << 0);
         GPIOB->CRL |=  (0x8 << 0);
-        GPIOB->ODR &= ~GPIO_PIN_0;
+        GPIOB->BRR = GPIO_PIN_0;
     }
 }
 
@@ -385,7 +385,8 @@ static uint8_t scale_output(uint8_t v, uint8_t lo, uint8_t hi)
 static uint8_t midi_channel(const exp_cal_t *c)
 {
   if (c->channel) return c->channel - 1;
-  return pGlobalSettings[GLOBAL_SETTINGS_CHANNEL] & 0x0FU;
+  uint8_t v = pGlobalSettings[GLOBAL_SETTINGS_CHANNEL];
+  return (v <= 15U) ? v : 0U;	// erased flash is channel 1, not 16
 }
 
 /*
@@ -637,7 +638,8 @@ uint8_t expression_get_midi(uint8_t pedal)
  *
  * While an Exp command has the pedal somewhere else it leaves the button
  * alone: the pedal is not driving the wah then. It only follows the edges, so
- * getting the pedal back does not fire anything either.
+ * getting the pedal back does not fire anything either. So does a page: its
+ * buttons are another bank's, and the wah belongs to the bank of the song.
  */
 static void auto_engage(exp_pedal_t *p, bool redirected, uint8_t midi_value)
 {
@@ -654,13 +656,13 @@ static void auto_engage(exp_pedal_t *p, bool redirected, uint8_t midi_value)
       return;
   }
 
-  if (redirected) {
+  uint8_t page = sw_get_current_page();
+  if (redirected || page != sw_get_home_bank()) {
       p->auto_at_heel = at_heel;
       p->auto_off_done = true;
       return;
   }
 
-  uint8_t page = sw_get_current_page();
   bool usable = sw_button_is_toggle(page, c->auto_button);
   bool on = usable && sw_get_toggle_state(page, c->auto_button);
 

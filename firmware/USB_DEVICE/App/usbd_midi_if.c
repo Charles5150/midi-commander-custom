@@ -769,7 +769,7 @@ uint16_t MIDI_DataRx(uint8_t *msg, uint16_t length)
 				tempo_external_transport(data[0]);
 			}
 			// Realtime messages. Clock/Start/Continue/Stop pass when enabled.
-			if(pGlobalSettings[GLOBAL_SETTINGS_REALTIME_PASS]){
+			if(pGlobalSettings[GLOBAL_SETTINGS_REALTIME_PASS] == 1){	// erased flash is off
 				uint8_t b = data[0];
 				if(b == 0xF8 || b == 0xFA || b == 0xFB || b == 0xFC){
 					midiCmd_send_byte_serial(b);

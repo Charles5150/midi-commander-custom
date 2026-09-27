@@ -287,6 +287,7 @@ Dos ajustes resuelven un equipo que no está en el canal para el que se escribi�
 
 - Nombrar canales es a propósito, así que un `Chan` gana al canal global: un `Chan 3` encima de un comando lo deja en el canal 3 aunque el resto de la configuración se mueva.
 - Igual que un `Ramp`, un `Chan` solo llega al comando que tiene justo debajo.
+- Sus canales no pasan a un `Ramp`, `LFO` o `Seq` que tenga debajo: esos mandan por el canal del propio CC, o por el canal global. Las salidas que elige tampoco pasan; pon el `Chan` en su lugar, como se explica más abajo.
 - También cuenta al soltar, así que un CC momentáneo se apaga en todos los canales en los que se encendió.
 
 En la demo, mantener A en el banco 11 silencia los canales 1, 2 y 3 con un solo CC.

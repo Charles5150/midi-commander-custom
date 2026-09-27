@@ -147,10 +147,10 @@ The page is a bank like any other and could be used on its own, but reached this
 - Nothing of the bank is sent again on coming back: its enter commands went out when you entered it.
 - The page's enter commands go out when it is shown, and its leave commands when you go back, so a page can switch something on the device and off again. Leave them empty for a page that only changes the switches.
 - Bank Up / Down, relative `Bank` commands and the setlist move on from the bank, not the page, and leave the page on the way.
-- The expression pedals keep the bank's `BankExpression_Settings` and whatever `Exp` commands set. Their toe, heel and auto-engage buttons press the button of the page shown.
+- The expression pedals keep the bank's `BankExpression_Settings` and whatever `Exp` commands set. Their toe and heel buttons press the button of the page shown; auto-engage waits until you are back on the bank.
 - Text the computer wrote until the bank changes stays on the display.
 - After a power cycle with `Remember_State`, the pedal comes back on the bank, not on its page. Each page keeps its own toggle states, like any bank.
-- `GoTo`, a bank change from incoming MIDI or a configuration switch leave the page too, sending its leave commands and then the bank's.
+- `GoTo`, a bank change from incoming MIDI or a configuration switch leave the page too, sending its leave commands and then the bank's. One that goes to the bank itself only goes back, like the `Page` button: the bank's commands are not sent again.
 
 In the demo, song 1 (bank 12) has PG 2 on D, which shows bank 31.
 

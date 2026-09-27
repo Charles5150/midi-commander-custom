@@ -354,7 +354,7 @@ void tempo_task(void){
 		__enable_irq();
 		if(!ext){
 			midiCmd_send_clock_command();
-		} else if(!pGlobalSettings[GLOBAL_SETTINGS_REALTIME_PASS]){
+		} else if(pGlobalSettings[GLOBAL_SETTINGS_REALTIME_PASS] != 1){
 			// The host's clock is not forwarded, so re-clock the DIN output
 			// at its tempo; USB already has the host's own clock
 			midiCmd_send_byte_serial(0xF8);

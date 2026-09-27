@@ -287,6 +287,7 @@ Two settings cover a rig that does not live on the channel the configuration was
 
 - Naming channels is on purpose, so a `Chan` beats the global channel: a `Chan 3` above a command keeps it on channel 3 while the rest of the configuration moves.
 - Like a `Ramp`, a `Chan` only reaches the command directly below it.
+- Its channels do not reach a `Ramp`, `LFO` or `Seq` below it: those send on the CC's own channel, or on the global channel. The outputs it picks are not passed on either; put the `Chan` in their place, as below.
 - It counts for the release too, so a momentary CC goes off on every channel it went on.
 
 In the demo, holding A in bank 11 mutes channels 1, 2 and 3 with one CC.

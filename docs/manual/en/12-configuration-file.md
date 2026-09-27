@@ -58,7 +58,7 @@ The settings of the whole pedal, as `Label,Value` rows. In the configurator they
 |---|---|---|---|
 | `ConfigName` | Configuration name | up to 16 chars | Shown on the display at boot. |
 | `Boot_Banner` | Banner at power on | Off / Slow / Normal / Fast | At power on, the `ConfigName`, or the pedal's [own text](09-the-display.md#the-banners-own-text) when it has one, and the firmware version cross the display once in large letters, right to left, in place of the name under the boot animation: about 37, 74 or 110 pixels a second, some four seconds for a full name at Normal. The pedal works all along: any switch, or a press from the computer, ends it at once and does what it always does, and the bank screen comes back underneath with whatever changed meanwhile. Safe mode shows over it. Default Off. Needs firmware 0.62 (global byte 46); older firmware shows the name as before. |
-| `MIDI_Channel` | MIDI channel | 1–16 | Channel used by the expression pedals (unless a pedal sets its own). Buttons use the channel of each command. |
+| `MIDI_Channel` | MIDI channel | 1–16 | Channel used by the expression pedals (unless a pedal sets its own). Buttons use the channel of each command. Channel 1 when never set. |
 | `Global_Channel` | Global channel | Off / 1–16 | Move the whole configuration to one channel: every message goes out on it instead of the channel stored in each command, pedals included. Off leaves each command on its own. A `Chan` command names its channels on purpose, so it is left alone. Default Off. |
 | `Exp1_CC`, `Exp2_CC` | Expression pedal 1 CC, Expression pedal 2 CC | 0–127 | CC number sent by each expression pedal. Defaults 11 and 4. |
 
