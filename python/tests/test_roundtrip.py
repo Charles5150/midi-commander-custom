@@ -9,6 +9,7 @@ import os
 import sys
 import struct
 import unittest
+from collections import Counter
 
 import pandas as pd
 
@@ -3218,13 +3219,18 @@ class FakePedal:
     """A pedal in memory that answers the SysEx the slot tools use: four slots
     of flash, a target selected with SELECT_SLOT, erase, write and read."""
 
-    def __init__(self, version="0.31", active=0, fail_write_at=None):
+    def __init__(self, version="0.31", active=0, fail_write_at=None, lose_answer_at=(),
+                 lose_write_at=()):
         self.version = version
         self.active = active
         self.target = active
         self.flash = {s: bytearray(b"\xff" * unpacker.IMAGE_SIZE) for s in range(4)}
         self.resets = 0
         self.fail_write_at = fail_write_at  # a byte offset whose write fails, as 0.71 answers
+        # Byte offsets whose answer, or whose write message, goes astray once (#147)
+        self.lose_answer_at = set(lose_answer_at)
+        self.lose_write_at = set(lose_write_at)
+        self.writes = Counter()
         self.answer = []
 
     def __enter__(self):
@@ -3259,16 +3265,33 @@ class FakePedal:
             self.flash[self.target] = bytearray(b"\xff" * unpacker.IMAGE_SIZE)
         elif data[0] == md.SYSEX_CMD_WRITE_FLASH:
             at = ((data[1] << 7) | data[2]) * 16
+            self.writes[at] += 1
+            if at in self.lose_write_at:
+                self.lose_write_at.discard(at)
+                self.answer = None
+                return
             nib = data[3:]
             self.flash[self.target][at:at + 16] = bytes(
                 (nib[2 * i] << 4) | nib[2 * i + 1] for i in range(16))
             self.answer = [1] if at == self.fail_write_at else []
+            if at in self.lose_answer_at:
+                self.lose_answer_at.discard(at)
+                self.answer = None
         elif data[0] == md.SYSEX_CMD_RESET:
             self.resets += 1
 
     def wait_for_sysex(self, expected_rsp, timeout=2.0):
+        from lib.midiDevice import DeviceTimeout
         answer, self.answer = self.answer, []
+        if answer is None:
+            raise DeviceTimeout(f"No response {expected_rsp} from device")
         return answer
+
+    def flush_input(self):
+        pass
+
+    def read_chunk(self, chunk_index, timeout=1.0):
+        return bytes(self.flash[self.target][chunk_index * 16:chunk_index * 16 + 16])
 
 
 class BackupSlotsTest(unittest.TestCase):
@@ -4453,6 +4476,43 @@ class FlashWriteErrorTest(unittest.TestCase):
         self.assertIn("at byte 160", str(ctx.exception))
         # nothing written after the chunk that failed
         self.assertEqual(bytes(pedal.flash[0][176:192]), b"\xff" * 16)
+
+    def test_a_lost_answer_is_not_a_failure(self):
+        """#147: the block was written, only its answer went astray: read back,
+        found, not sent again."""
+        from lib.slotIO import pack_sections, write_image
+        config, image = pack_sections(read_config_csv(DEMO_CSV))
+        pedal = FakePedal(lose_answer_at={160, 4096})
+        write_image(pedal, config, image)
+        self.assertEqual(bytes(pedal.flash[0][:len(image)]), image)
+        self.assertEqual((pedal.writes[160], pedal.writes[4096]), (1, 1))
+
+    def test_a_lost_write_is_sent_again(self):
+        """#147: the message itself went astray: the block reads erased and goes again."""
+        from lib.slotIO import pack_sections, write_image
+        config, image = pack_sections(read_config_csv(DEMO_CSV))
+        pedal = FakePedal(lose_write_at={160, 4096})
+        write_image(pedal, config, image)
+        self.assertEqual(bytes(pedal.flash[0][:len(image)]), image)
+        self.assertEqual((pedal.writes[160], pedal.writes[4096]), (2, 2))
+
+    def test_a_pedal_that_never_answers_stops_it(self):
+        from lib.midiDevice import DeviceTimeout
+        from lib.slotIO import WRITE_TRIES, pack_sections, write_image
+
+        class Deaf(FakePedal):
+            def send(self, data):
+                super().send(data)
+                from lib import midiDevice as md
+                if data[0] == md.SYSEX_CMD_WRITE_FLASH and ((data[1] << 7) | data[2]) * 16 == 160:
+                    self.flash[self.target][160:176] = b"\xff" * 16
+                    self.answer = None
+
+        pedal = Deaf()
+        with self.assertRaises(DeviceTimeout) as ctx:
+            write_image(pedal, *pack_sections(read_config_csv(DEMO_CSV)))
+        self.assertIn("byte 160", str(ctx.exception))
+        self.assertEqual(pedal.writes[160], WRITE_TRIES)
 
     def test_csv_to_flash_reports_it(self):
         import argparse

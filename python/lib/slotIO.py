@@ -110,6 +110,42 @@ def pack_sections(sections):
     return config, image
 
 
+# How often a block whose answer did not come is looked at and sent again
+WRITE_TRIES = 4
+
+
+def _write_chunk(dev, x, chunk, log):
+    """Write one 16 byte block. An answer that does not come, seen on macOS now
+    and then (#147), is not taken as a failure: the block is read back, which
+    says unmistakably whether it is there, as the read answer carries its
+    address and the write answer does not, and is sent again if it is not. The
+    firmware writes a block already holding the same bytes without complaint.
+    """
+    data = [SYSEX_CMD_WRITE_FLASH, (x >> 7) & 0x7F, x & 0x7F]
+    for byte in chunk:
+        data += [byte >> 4, byte & 0x0F]
+    for attempt in range(WRITE_TRIES):
+        dev.send(data)
+        try:
+            answer = dev.wait_for_sysex(SYSEX_RSP_WRITE_FLASH, timeout=2.0)
+        except DeviceTimeout:
+            try:
+                dev.flush_input()	# a late answer must not pass for the next block's
+                back = dev.read_chunk(x)
+            except DeviceTimeout:
+                continue
+            if back == chunk:
+                log(f"No answer for byte {x * 16}, but it was written")
+                return
+            log(f"No answer for byte {x * 16}: sending it again")
+            continue
+        # Empty when written; firmware 0.71 on answers 01 when it could not be
+        if answer:
+            raise FlashWriteError(f"the pedal could not write its flash at byte {x * 16}")
+        return
+    raise DeviceTimeout(f"no answer from the pedal for byte {x * 16}, {WRITE_TRIES} times")
+
+
 def write_image(dev, config, image, log=_quiet, progress=None):
     """Erase the selected slot and write ``image`` into it.
 
@@ -140,12 +176,8 @@ def write_image(dev, config, image, log=_quiet, progress=None):
         chunk = image[x * 16 : (x + 1) * 16].ljust(16, b"\xff")
         if chunk == b"\xff" * 16:
             continue  # already erased
-        data = [SYSEX_CMD_WRITE_FLASH, (x >> 7) & 0x7F, x & 0x7F]
-        for byte in chunk:
-            data += [byte >> 4, byte & 0x0F]
-        dev.send(data)
-        # Empty when written; firmware 0.71 on answers 01 when it could not be
-        if dev.wait_for_sysex(SYSEX_RSP_WRITE_FLASH, timeout=2.0):
-            raise FlashWriteError(
-                f"the pedal could not write its flash at byte {x * 16} of {len(image)}")
+        try:
+            _write_chunk(dev, x, bytes(chunk), log)
+        except FlashWriteError as e:
+            raise FlashWriteError(f"{e} of {len(image)}") from None
         time.sleep(0.005)
