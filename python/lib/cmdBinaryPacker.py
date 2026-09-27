@@ -236,6 +236,15 @@ HID_SPECIAL_KEYS = {
     "f10": 67,
     "f11": 68,
     "f12": 69,
+    "home": 74,
+    "pageup": 75,
+    "delete": 76,
+    "end": 77,
+    "pagedown": 78,
+    "right": 79,
+    "left": 80,
+    "down": 81,
+    "up": 82,
     }
 
 

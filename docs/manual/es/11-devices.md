@@ -6,7 +6,7 @@ La pedalera habla con un ordenador por USB y con el resto de tu equipo por su to
 
 ![Por dónde entra y sale el MIDI](../images/midi-routes-es.svg)
 
-Hay cuatro configuraciones listas en `python/templates/` que ponen los controles principales de un equipo bajo tus pies sin tener que configurar nada, o casi nada, en el equipo. Para usar una, ábrela con **Load CSV** en el configurador y pulsa **Flash to Device**, o desde un terminal:
+Hay configuraciones listas en `python/templates/` que ponen los controles principales de un equipo bajo tus pies sin tener que configurar nada, o casi nada, en el equipo: el [Fractal FM3](#plantilla-para-fractal-audio-fm3), el [Line 6 HX Stomp](#plantilla-para-line-6-hx-stomp), el [Neural DSP Quad Cortex](#plantilla-para-neural-dsp-quad-cortex), el [Eventide H90](#plantilla-para-eventide-h90), los Strymon [TimeLine](#timeline), [BigSky](#bigsky), [Volante](#volante) e [Iridium](#iridium), el [Hotone Ampero II](#plantilla-para-hotone-ampero-ii), la [Boss RC-600](#plantilla-para-boss-rc-600) y el [Kemper Player](#plantilla-para-kemper-profiler-player), y en el ordenador [MainStage](#apple-mainstage), [Gig Performer](#gig-performer), [Cantabile](#cantabile) y [Ableton Live](#ableton-live). Para usar una, ábrela con **Load CSV** en el configurador y pulsa **Flash to Device**, o desde un terminal:
 
 ```bash
 .venv/bin/python python/CSV_to_Flash.py python/templates/FM3.csv
@@ -94,6 +94,141 @@ El Quad Cortex tiene un mapa MIDI fijo, así que no hay que asignar nada: en **S
 
 Para usar otro canal, u otro setlist, cambia `CHANNEL` o `SETLIST` al principio de `python/make_quad_cortex_template.py` y vuelve a ejecutarlo: `SETLIST` es el LSB del Bank Select, 0 para Factory Presets, 1 para My Presets y de 2 a 12 para los setlists del usuario. Las escenas G y H son el CC 43 con 6 y 7, para cualquier botón en el configurador.
 
+## Plantilla para Eventide H90
+
+**`python/templates/H90.csv`** está lista para grabar y manejar un Eventide H90 por la salida DIN. Conecta el MIDI OUT de la pedalera al MIDI IN del H90 y alimenta la pedalera por USB.
+
+| Bancos | Botones |
+|---|---|
+| 0–30, `P001`–`P031` | Al entrar en el banco se carga el Program 1 a 31 de la Playlist actual. 1 y 2 activan y desactivan el Preset A y el Preset B, 3 el Program entero, 4 A B son los HotSwitches 1–3, C abre y cierra el afinador, D marca el tap tempo |
+| 31, `PERF` | PERFORM 1–6, los Performance Parameters del Program, y afinador y tap |
+
+El H90 cambia cada uno de estos con un valor de 64 o más, esté como esté, así que cada pulsación envía 127 y el LED solo se va alternando: puede quedar desfasado del H90 tras cargar un Program. Los pedales de expresión mueven el HotKnob del Program y su ganancia de salida.
+
+El H90 viene sin ningún CC MIDI asignado, así que en **System > MIDI** pon su canal MIDI en 1 y, en **Global Control**, asigna:
+
+| Global Control | CC |
+|---|---|
+| P HotKnob, P Out Gain | 16, 17 (los pedales de expresión) |
+| P Act/Byp, A Act/Byp, B Act/Byp | 20, 21, 22 |
+| HS1, HS2, HS3 | 23, 24, 25 |
+| Tuner, Tap Tempo | 26, 27 |
+| PERFORM 1–6 | 40–45 |
+
+El H90 cuenta los Program Change desde 1 de fábrica, así que el primero de la plantilla, el PC 0, es el que el H90 muestra como PC 1. Si cada banco carga el Program de al lado del que dice su nombre, cambia **PC Offset** en System > MIDI. Para usar otros números, cambia las constantes al principio de `python/make_h90_template.py` y vuelve a ejecutarlo.
+
+## Plantillas para Strymon
+
+Cuatro plantillas para los pedales MIDI de Strymon, cada una con el mapa MIDI propio del pedal, así que no hay que asignar nada en él. Cada una carga un preset por banco, los 30 primeros más o menos; el Strymon cuenta sus presets en bancos MIDI de 128, así que un preset por encima del 127 lleva un Program Change con `BankSelect_(PC)` a 128 por el banco MIDI y `BankSelectHighByte_(PC)` a `Y`, que envía el CC#0 con el banco, como piden los manuales.
+
+Un Strymon carga los presets activos, así que su botón de bypass se enciende mientras está **en bypass**. El tap es el Remote Tap, CC 93, enviado solo al pisar.
+
+### TimeLine
+
+**`python/templates/TimeLine.csv`**, según el manual del TimeLine, rev H. Conecta el MIDI OUT de la pedalera al MIDI IN del TimeLine y, en sus Globals, pon MIDI Channel en 1 y activa MIDI Continuous Controllers y MIDI Patch Change.
+
+| Bancos | Botones |
+|---|---|
+| 0–29, `00A`–`14B` | Al entrar en el banco se carga el preset con el mismo nombre. 1 pone el bypass, 2 activa Infinite Repeats, D marca el tap tempo |
+| 30, `LOOP` | El looper: Record, Play, Stop, Undo, Redo, Reverse, Half Speed y tap |
+| 31, `FS` | Los pulsadores A y B del TimeLine, el Pre/Post del looper, bypass, repeticiones infinitas y tap |
+
+| Función | CC | Valores |
+|---|---|---|
+| Bypass | 102 | 0 bypass, 127 activo |
+| Infinite Repeats | 97 | 127 activo, 0 apagado |
+| Looper Stop, Play, Record, Undo, Redo | 85, 86, 87, 89, 90 | cualquier valor |
+| Looper Reverse, Half Speed, Pre/Post | 94, 95, 96 | cualquier valor lo cambia |
+| Pulsadores A y B | 80, 82 | 0 al pisar, 127 al soltar, el "down=0 up=127" del manual |
+| Pedal de expresión 1, 2 | 100, 14 | la expresión del TimeLine, y Mix |
+
+### BigSky
+
+**`python/templates/BigSky.csv`**, según el manual del BigSky, rev D. Se prepara como el TimeLine.
+
+| Bancos | Botones |
+|---|---|
+| 0–30, `00A`–`10A` | Al entrar en el banco se carga el preset con el mismo nombre. 1 pone el bypass, 2 sostiene la reverb mientras está pisado, 3 la deja sostenida, D marca el tap tempo |
+| 31, `FS` | Los pulsadores A, B y C del BigSky, bypass, sostenido y tap |
+
+El sostenido es el Press/Hold switch del BigSky, CC 97: que sea infinito o congele depende del ajuste del preset. Los pulsadores A, B y C son los CC 80, 82 y 81, enviados como los del TimeLine; el bypass es el CC 102, y los pedales de expresión son la expresión del BigSky, CC 100, y Mix, CC 15.
+
+### Volante
+
+**`python/templates/Volante.csv`**, según el manual del Volante, rev E. Conecta el MIDI OUT de la pedalera al MIDI IN del Volante; de fábrica escucha en el canal 1.
+
+| Bancos | Botones |
+|---|---|
+| 0–29, `P000`–`P029` | Al entrar en el banco se carga el preset con el mismo número; del 0 al 7 son los ocho de los botones del Volante. 1 pone el bypass, 2 invierte, 3 pausa con rampa, 4 sostiene el eco, oscilando, mientras está pisado, D marca el tap tempo |
+| 30, `SOS` | El looper SOS: activar y desactivar el modo SOS, Record / Splice / Clear, Exit, invertir, pausa y tap |
+| 31, `HEAD` | Las cuatro cabezas de reproducción, eco y reverb activos o no, y tap |
+
+| Función | CC | Valores |
+|---|---|---|
+| Cabezas de reproducción 1–4 | 21–24 | 127 activa, 0 apagada |
+| SOS mode, Pause (ramp), Reverse, Infinite Hold | 41, 43, 44, 45 | 127 activo, 0 apagado |
+| SOS Record / Splice / Clear, Exit SOS Looper | 49, 50 | cualquier valor |
+| Echo, Reverb | 78, 79 | 127 activo, 0 apagado |
+| Bypass | 102 | 0 bypass, 127 activo |
+| Pedal de expresión 1, 2 | 100, 12 | la expresión del Volante, y Echo Level |
+
+Los botones de cabezas, eco y reverb empiezan apagados, tenga el preset lo que tenga activo.
+
+### Iridium
+
+**`python/templates/Iridium.csv`**, según el manual del Iridium, rev D. El Iridium no tiene conector DIN: su MIDI entra por la toma EXP, con el cable MIDI EXP de Strymon o cualquier adaptador MIDI TRS desde el MIDI OUT de la pedalera. Pon antes la toma en modo Digital: enciende el Iridium con FAV pisado y gira LEVEL hasta que el LED ON se ponga azul. De fábrica escucha en el canal 1.
+
+| Bancos | Botones |
+|---|---|
+| 0–31, `P000`–`P031` | Al entrar en el banco se carga el preset con el mismo número; el 0 es el de FAV. 1 2 3 eligen el ampli, Round, Chime o Punch, A B C la sala, pequeña, mediana o grande, y D pone el bypass |
+
+Los botones de ampli y de sala forman dos grupos exclusivos, así que los LED muestran la última elección; empiezan apagados, porque no se sabe la del preset. El ampli es el CC 19 con 1 a 3, el tamaño de sala el CC 18 con 1 a 3, el bypass el CC 102. Los pedales de expresión son el pedal de volumen del Iridium, CC 7, y Drive, CC 13.
+
+## Plantilla para Hotone Ampero II
+
+**`python/templates/Ampero_II.csv`** está lista para grabar y manejar un Hotone Ampero II, según su MIDI Control Information List (firmware V1.0.2). Conecta el MIDI OUT de la pedalera al MIDI IN del Ampero II; de fábrica escucha en todos los canales, Omni, tanto por MIDI IN como por USB.
+
+| Bancos | Botones |
+|---|---|
+| 0–29, `01-1`–`08-2` | Al entrar en el banco se carga el patch con el mismo nombre. 1 2 3 4 son las escenas 1–4, A y B los slots de efecto de FS1 y FS2, C abre y cierra el afinador, D marca el tap tempo |
+| 30, `LOOP` | El looper: su menú, Record / Overdub, Play / Stop, Undo / Redo, Clear, Half Speed y Reverse, encendidos mientras están activos, y tap |
+| 31, `FS` | El menú de la caja de ritmos y su Play / Stop, el afinador, el bypass, encendido mientras está en bypass, y los slots de efecto de FS1–FS4 |
+
+| Función | CC | Valores |
+|---|---|---|
+| Patch Volume, Expression Pedal (EXP 3) | 7, 11 | los pedales de expresión; el volumen va de 0 a 100 |
+| Escena | 25 | 1–4 |
+| Menú de la caja de ritmos, Play / Stop | 36, 37 | 127 activo, 0 apagado |
+| Afinador, menú del looper | 60, 62 | 127 activo, 0 apagado |
+| Looper Rec / Overdub, Undo / Redo, Clear | 63, 67, 68 | 127, solo al pisar |
+| Looper Play / Stop | 64 | 127 reproduce, 0 para |
+| Looper Speed, Playback | 65, 66 | 0 media velocidad, al revés; 127 vuelve a lo normal |
+| Tap Tempo | 76 | 127, solo al pisar |
+| Engage / Bypass | 78 | 0 bypass analógico, 2 activo |
+| FS 1–4 Effect Slot | 79–82 | 127, luego 0 |
+
+Un patch por encima del 128 lleva un Program Change con `BankSelect_(PC)` a 128 y `BankSelectHighByte_(PC)` a `Y`, 256 por encima del 256, que envía el CC#0 con 1 o 2. El Ampero II Stomp y el Stage tienen mapas propios, con tres y cinco patches por banco y cinco escenas, así que los nombres de los patches no coincidirían.
+
+## Plantilla para Boss RC-600
+
+**`python/templates/RC-600.csv`** está lista para grabar y manejar una Boss RC-600 Loop Station. Conecta el MIDI OUT de la pedalera al MIDI IN de la RC-600; de fábrica escucha en el canal 1 (MENU > MIDI > RX CH CTL).
+
+| Bancos | Botones |
+|---|---|
+| 0–30, `M001`–`M031` | Al entrar en el banco se recupera la memoria 01 a 31. 1 2 3 graban y reproducen las pistas 1–3, 4 deshace y rehace, A arranca todas las pistas, B las para, C borra la pista actual, D marca el tap tempo |
+| 31, `TRKS` | Las pistas 4–6, y los mismos deshacer, arrancar, parar, borrar y tap |
+
+Las memorias y el arranque y la parada no necesitan nada: un Program Change del 0 al 98 recupera la memoria 01 a 99, y MIDI Start y Stop arrancan y paran las pistas según los ajustes ALL START y ALL STOP de la memoria. El resto no tiene CC MIDI de fábrica: prepáralo en **MEMORY > ASSIGN**, cada ASSIGN con SW ON, SOURCE MODE MOMENT, y ACT LOW 0 y ACT HIGH 127:
+
+| SOURCE | TARGET |
+|---|---|
+| MIDI CC#80, 81, 82 | TRK1 REC/PLY, TRK2 REC/PLY, TRK3 REC/PLY |
+| MIDI CC#86, 87, 88 | TRK4 REC/PLY, TRK5 REC/PLY, TRK6 REC/PLY |
+| MIDI CC#83, 84, 85 | CUR.TRK UN/RED, CUR.TRK CLEAR, TAP TEMPO |
+| MIDI CC#70, 71 | los pedales de expresión: LOOP LEVEL, o el nivel de una pista |
+
+La RC-600 guarda los ajustes de ASSIGN en cada memoria, así que tienen que estar, y escritos, en cada memoria que recupera la plantilla. Todos los botones envían 127 al pisar y 0 al soltar.
+
 ## Plantilla para Kemper Profiler Player
 
 **`python/templates/Kemper_Player.csv`** está lista para grabar y manejar un Kemper Profiler Player. El Player no tiene tomas DIN: conecta el USB de la pedalera a la toma USB A del Player, que hace de ordenador y la alimenta. Ese es el enlace cuyo Active Sensing, un byte cada 300 ms, atasca el firmware de fábrica; este lo lee y lo vacía todo según llega, así que el enlace nunca se atasca.
@@ -123,6 +258,52 @@ El Player tiene un mapa MIDI fijo, así que no hay que asignar nada: escucha en 
 | Botones de efecto I–IIII | 75–78 | 127 y 0 |
 
 Para usar otro canal, cambia `CHANNEL` al principio de `python/make_kemper_player_template.py` y vuelve a ejecutarlo, o edita los botones en el configurador. Los cincuenta rigs también responden a un Program Change normal: el manual del Player los numera del 1 al 50, que aquí es `Number` del 0 al 49.
+
+## Plantillas para programas del ordenador
+
+Cuatro plantillas para los programas que tocan en directo desde un ordenador, con la pedalera en su USB. Se apoyan en lo que funciona sin aprender nada: un Program Change donde el programa responde a uno, y sus propios atajos de teclado, que la pedalera teclea como lo haría un teclado USB. Los atajos van a la ventana que está delante, así que en el escenario deja el programa ahí. Lo que un programa no tiene como atajo sale como un CC, para aprenderlo una vez; los pedales de expresión envían los CC 11 y 1, expresión y rueda de modulación, a los que la mayoría de instrumentos responden tal cual.
+
+En las tablas, Ctrl, Shift y Cmd son las teclas que la pedalera mantiene con la tecla; los modificadores del comando Key están en [Teclas del teclado](06-commands.md#teclas-del-teclado).
+
+### Apple MainStage
+
+**`python/templates/MainStage.csv`**. MainStage responde de fábrica a los Program Change de cualquier controlador y da a cada patch un número; **Reset Program Change Numbers**, Opción-Mayúsculas-Comando-R, los numera en el orden de la Patch List.
+
+| Bancos | Botones |
+|---|---|
+| 0–30, `P000`–`P030` | Al entrar en el banco se selecciona el patch con ese número de programa. 1 y 2 el patch anterior y el siguiente (↑ ↓), 3 y 4 el primer patch del set anterior y del siguiente (← →), A reproducir / parar (Espacio), B grabar (Ctrl+R), C el afinador (Cmd+T), D tap tempo (Ctrl+T) |
+| 31, `CTRL` | Pánico (Ctrl+P), silencio general (Ctrl+M), patch anterior y siguiente, y FX1–FX4, CC 20–23, 127 activo y 0 apagado, para asignarlos a controles de pantalla con **Assign & Map** |
+
+### Gig Performer
+
+**`python/templates/Gig_Performer.csv`**. Gig Performer da de fábrica un Program Change a cada rackspace, desde 0 y en su orden.
+
+| Bancos | Botones |
+|---|---|
+| 0–31, `R000`–`R031` | Al entrar en el banco se selecciona el rackspace con ese número. 1 y 2 la parte de canción de arriba y de abajo en la vista Setlist (↑ ↓), 3 reproducir / parar, 4 pánico, A y B FX1 y FX2, C el afinador (Shift+T), D tap tempo |
+
+Aprende los CC una vez en **Options > Global MIDI**, con **Momentary** marcado, porque cada pulsación envía 127 y al soltar 0: Tap Tempo CC 20, Play/Stop CC 21 y Panic CC 22. FX1 y FX2, CC 24 y 25, 127 activo y 0 apagado, son para widgets.
+
+### Cantabile
+
+**`python/templates/Cantabile.csv`**, para Cantabile en Windows.
+
+| Bancos | Botones |
+|---|---|
+| 0–31, `S000`–`S031` | Al entrar en el banco se carga la canción del set list con ese número de programa. 1 y 2 el estado anterior y el siguiente (Shift+T, T), 3 reproducir / parar, 4 pánico, A B C FX1–FX3, D tap tempo |
+
+Cantabile responde a los Program Change mediante un binding: añade uno en el background rack desde la entrada MIDI de la pedalera, con Program Change, al set list, cargando la canción por su número de programa. Asigna el resto igual, con **Learn Binding**: tap tempo CC 20, reproducir / parar CC 21 y pánico CC 22, cada uno 127 al pisar y 0 al soltar. FX1–FX3, CC 24–26, 127 activo y 0 apagado, son para parámetros de plugins.
+
+### Ableton Live
+
+**`python/templates/Ableton_Live.csv`**. Live no responde a los Program Change, así que esta tiene dos bancos, y un setlist mantiene en ellos Bank Up y Bank Down.
+
+| Bancos | Botones |
+|---|---|
+| 0, `LIVE` | La vista Session y el transporte: 1 y 2 la escena de arriba y la de abajo (↑ ↓), 3 lanza la escena seleccionada (Enter), 4 el metrónomo (O, Live 12), A reproducir / parar (Espacio), B continuar (Shift+Espacio), C grabar (F9), D tap tempo |
+| 1, `FX` | FX1–FX8, CC 21–28, 127 activo y 0 apagado |
+
+Asigna los CC una vez en el modo MIDI Map, **Cmd+M** (Ctrl+M en Windows): haz clic en el botón Tap y pisa D, haz clic en un parámetro y pisa un botón FX, y sal del modo. La entrada MIDI de la pedalera necesita **Remote** activado en Settings > Link, Tempo & MIDI.
 
 ## Kemper en las dos direcciones
 

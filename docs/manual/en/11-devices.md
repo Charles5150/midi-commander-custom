@@ -6,7 +6,7 @@ The pedal talks to a computer over USB and to the rest of your gear through its 
 
 ![Where MIDI goes in and out](../images/midi-routes-en.svg)
 
-Four ready-made configurations under `python/templates/` put a device's main controls under your feet with nothing, or next to nothing, to set up on the device. To use one, open it with **Load CSV** in the configurator and press **Flash to Device**, or from a terminal:
+Ready-made configurations under `python/templates/` put a device's main controls under your feet with nothing, or next to nothing, to set up on the device: the [Fractal FM3](#fractal-audio-fm3-template), the [Line 6 HX Stomp](#line-6-hx-stomp-template), the [Neural DSP Quad Cortex](#neural-dsp-quad-cortex-template), the [Eventide H90](#eventide-h90-template), the Strymon [TimeLine](#timeline), [BigSky](#bigsky), [Volante](#volante) and [Iridium](#iridium), the [Hotone Ampero II](#hotone-ampero-ii-template), the [Boss RC-600](#boss-rc-600-template) and the [Kemper Player](#kemper-profiler-player-template), and on the computer [MainStage](#apple-mainstage), [Gig Performer](#gig-performer), [Cantabile](#cantabile) and [Ableton Live](#ableton-live). To use one, open it with **Load CSV** in the configurator and press **Flash to Device**, or from a terminal:
 
 ```bash
 .venv/bin/python python/CSV_to_Flash.py python/templates/FM3.csv
@@ -94,6 +94,141 @@ The Quad Cortex has a fixed MIDI map, so it needs no assignments: under **Settin
 
 To use another channel, or another setlist, change `CHANNEL` or `SETLIST` at the top of `python/make_quad_cortex_template.py` and run it again: `SETLIST` is the Bank Select LSB, 0 for Factory Presets, 1 for My Presets and 2 to 12 for the user setlists. Scenes G and H are CC 43 with 6 and 7, for any button in the configurator.
 
+## Eventide H90 template
+
+**`python/templates/H90.csv`** is ready to flash for an Eventide H90 driven over the DIN output. Connect the pedal's MIDI OUT to the H90's MIDI IN and power the pedal over USB.
+
+| Banks | Buttons |
+|---|---|
+| 0–30, `P001`–`P031` | Entering the bank loads Program 1 to 31 of the current Playlist. 1 and 2 switch Preset A and Preset B on and off, 3 the whole Program, 4 A B are HotSwitches 1–3, C opens and closes the tuner, D taps the tempo |
+| 31, `PERF` | PERFORM 1–6, the Program's Performance Parameters, then tuner and tap |
+
+The H90 switches each of these on a value of 64 or more, whatever state it is in, so every press sends 127 and the LED only takes turns: it can be out of step with the H90 after a Program loads. The expression pedals move the Program's HotKnob and its output gain.
+
+The H90 comes with no MIDI CC mapped, so under **System > MIDI**, set its MIDI channel to 1, then under **Global Control** map:
+
+| Global Control | CC |
+|---|---|
+| P HotKnob, P Out Gain | 16, 17 (the expression pedals) |
+| P Act/Byp, A Act/Byp, B Act/Byp | 20, 21, 22 |
+| HS1, HS2, HS3 | 23, 24, 25 |
+| Tuner, Tap Tempo | 26, 27 |
+| PERFORM 1–6 | 40–45 |
+
+The H90 counts Program Changes from 1 by default, so the template's first, PC 0, is what the H90 shows as PC 1. If each bank loads the Program next to the one its name says, change **PC Offset** in System > MIDI. To use other numbers, change the constants at the top of `python/make_h90_template.py` and run it again.
+
+## Strymon templates
+
+Four templates for Strymon's MIDI pedals, each on the pedal's own MIDI map, so nothing is assigned on it. Each loads a preset per bank, the first 30 or so; the Strymon counts its presets in MIDI banks of 128, so a preset above 127 takes a Program Change with `BankSelect_(PC)` set to 128 times the MIDI bank and `BankSelectHighByte_(PC)` to `Y`, which sends CC#0 with the bank as the manuals ask.
+
+A Strymon loads a preset engaged, so its bypass button is lit while it is **bypassed**. Tap is Remote Tap, CC 93, sent on the press only.
+
+### TimeLine
+
+**`python/templates/TimeLine.csv`**, from the TimeLine manual, rev H. Connect the pedal's MIDI OUT to the TimeLine's MIDI IN and, in its Globals, set MIDI Channel to 1 and turn MIDI Continuous Controllers and MIDI Patch Change on.
+
+| Banks | Buttons |
+|---|---|
+| 0–29, `00A`–`14B` | Entering the bank loads the preset of the same name. 1 bypasses, 2 switches Infinite Repeats, D taps the tempo |
+| 30, `LOOP` | The looper: Record, Play, Stop, Undo, Redo, Reverse, Half Speed, then tap |
+| 31, `FS` | The TimeLine's A and B footswitches, the looper's Pre/Post, bypass, infinite repeats and tap |
+
+| Function | CC | Values |
+|---|---|---|
+| Bypass | 102 | 0 bypasses, 127 engages |
+| Infinite Repeats | 97 | 127 on, 0 off |
+| Looper Stop, Play, Record, Undo, Redo | 85, 86, 87, 89, 90 | any value |
+| Looper Reverse, Half Speed, Pre/Post | 94, 95, 96 | any value switches it |
+| A and B footswitches | 80, 82 | 0 on the press, 127 on the release, the manual's "down=0 up=127" |
+| Expression pedal 1, 2 | 100, 14 | the TimeLine's expression, and Mix |
+
+### BigSky
+
+**`python/templates/BigSky.csv`**, from the BigSky manual, rev D. Set up as the TimeLine.
+
+| Banks | Buttons |
+|---|---|
+| 0–30, `00A`–`10A` | Entering the bank loads the preset of the same name. 1 bypasses, 2 holds the reverb while pressed, 3 latches the hold, D taps the tempo |
+| 31, `FS` | The BigSky's A, B and C footswitches, bypass, hold and tap |
+
+The hold is the BigSky's Press/Hold switch, CC 97: whether it holds infinite or freezes is the preset's own setting. The A, B and C footswitches are CC 80, 82 and 81, sent as the TimeLine's; bypass is CC 102, and the expression pedals are the BigSky's expression, CC 100, and Mix, CC 15.
+
+### Volante
+
+**`python/templates/Volante.csv`**, from the Volante manual, rev E. Connect the pedal's MIDI OUT to the Volante's MIDI IN; the Volante listens on channel 1 out of the box.
+
+| Banks | Buttons |
+|---|---|
+| 0–29, `P000`–`P029` | Entering the bank loads the preset of the same number, 0 to 7 being the eight on the Volante's buttons. 1 bypasses, 2 reverses, 3 pauses with the ramp, 4 holds the echo, oscillating, while pressed, D taps the tempo |
+| 30, `SOS` | The SOS looper: SOS mode on and off, Record / Splice / Clear, Exit, reverse, pause, then tap |
+| 31, `HEAD` | The four playback heads, echo and reverb on and off, then tap |
+
+| Function | CC | Values |
+|---|---|---|
+| Playback heads 1–4 | 21–24 | 127 on, 0 off |
+| SOS mode, Pause (ramp), Reverse, Infinite Hold | 41, 43, 44, 45 | 127 on, 0 off |
+| SOS Record / Splice / Clear, Exit SOS Looper | 49, 50 | any value |
+| Echo, Reverb | 78, 79 | 127 on, 0 off |
+| Bypass | 102 | 0 bypasses, 127 on |
+| Expression pedal 1, 2 | 100, 12 | the Volante's expression, and Echo Level |
+
+The heads, echo and reverb buttons start dark whatever the preset has on.
+
+### Iridium
+
+**`python/templates/Iridium.csv`**, from the Iridium manual, rev D. The Iridium has no DIN socket: its MIDI goes into the EXP jack, through Strymon's MIDI EXP cable or any TRS MIDI adapter from the pedal's MIDI OUT. Set the jack to Digital mode first: power the Iridium up holding FAV and turn LEVEL until the ON LED is blue. It listens on channel 1 out of the box.
+
+| Banks | Buttons |
+|---|---|
+| 0–31, `P000`–`P031` | Entering the bank loads the preset of the same number, 0 being the one on FAV. 1 2 3 choose the amp, Round, Chime or Punch, A B C the room, small, medium or large, and D bypasses |
+
+The amp and room buttons are two exclusive groups, so the LEDs show the choice last made; they start dark, as the preset's own choice is not known. Amp is CC 19 with 1 to 3, room size CC 18 with 1 to 3, bypass CC 102. The expression pedals are the Iridium's volume pedal, CC 7, and Drive, CC 13.
+
+## Hotone Ampero II template
+
+**`python/templates/Ampero_II.csv`** is ready to flash for a Hotone Ampero II, from its MIDI Control Information List (firmware V1.0.2). Connect the pedal's MIDI OUT to the Ampero II's MIDI IN; out of the box it listens on every channel, Omni, from MIDI IN and USB alike.
+
+| Banks | Buttons |
+|---|---|
+| 0–29, `01-1`–`08-2` | Entering the bank loads the patch of the same name. 1 2 3 4 are scenes 1–4, A and B the effect slots on FS1 and FS2, C opens and closes the tuner, D taps the tempo |
+| 30, `LOOP` | The looper: its menu, Record / Overdub, Play / Stop, Undo / Redo, Clear, Half Speed and Reverse, lit while on, then tap |
+| 31, `FS` | The drum machine's menu and Play / Stop, the tuner, bypass, lit while bypassed, and the effect slots on FS1–FS4 |
+
+| Function | CC | Values |
+|---|---|---|
+| Patch Volume, Expression Pedal (EXP 3) | 7, 11 | the expression pedals; volume goes 0–100 |
+| Scene | 25 | 1–4 |
+| Drum Machine menu, Play / Stop | 36, 37 | 127 on, 0 off |
+| Tuner, Looper menu | 60, 62 | 127 on, 0 off |
+| Looper Rec / Overdub, Undo / Redo, Clear | 63, 67, 68 | 127, on the press only |
+| Looper Play / Stop | 64 | 127 plays, 0 stops |
+| Looper Speed, Playback | 65, 66 | 0 half speed, reverse; 127 back to normal |
+| Tap Tempo | 76 | 127, on the press only |
+| Engage / Bypass | 78 | 0 analog bypass, 2 engages |
+| FS 1–4 Effect Slot | 79–82 | 127, then 0 |
+
+A patch above 128 takes a Program Change with `BankSelect_(PC)` set to 128 and `BankSelectHighByte_(PC)` to `Y`, 256 above 256, which sends CC#0 1 or 2. The Ampero II Stomp and Stage have maps of their own, three and five patches to a bank and five scenes, so the patch names would not match.
+
+## Boss RC-600 template
+
+**`python/templates/RC-600.csv`** is ready to flash for a Boss RC-600 Loop Station. Connect the pedal's MIDI OUT to the RC-600's MIDI IN; it listens on channel 1 out of the box (MENU > MIDI > RX CH CTL).
+
+| Banks | Buttons |
+|---|---|
+| 0–30, `M001`–`M031` | Entering the bank recalls memory 01 to 31. 1 2 3 record and play tracks 1–3, 4 undoes and redoes, A starts every track, B stops them, C clears the current track, D taps the tempo |
+| 31, `TRKS` | Tracks 4–6, then the same undo, start, stop, clear and tap |
+
+Memories and start / stop need nothing: a Program Change 0 to 98 recalls memory 01 to 99, and MIDI Start and Stop start and stop the tracks as the memory's ALL START and ALL STOP settings say. The rest has no MIDI CC out of the box: set these up under **MEMORY > ASSIGN**, each ASSIGN with SW ON, SOURCE MODE MOMENT, and ACT LOW 0 and ACT HIGH 127:
+
+| SOURCE | TARGET |
+|---|---|
+| MIDI CC#80, 81, 82 | TRK1 REC/PLY, TRK2 REC/PLY, TRK3 REC/PLY |
+| MIDI CC#86, 87, 88 | TRK4 REC/PLY, TRK5 REC/PLY, TRK6 REC/PLY |
+| MIDI CC#83, 84, 85 | CUR.TRK UN/RED, CUR.TRK CLEAR, TAP TEMPO |
+| MIDI CC#70, 71 | the expression pedals: LOOP LEVEL, or a track's level |
+
+The RC-600 keeps the ASSIGN settings in each memory, so they have to be in, and written to, every memory the template recalls. Every button sends 127 on the press and 0 on the release.
+
 ## Kemper Profiler Player template
 
 **`python/templates/Kemper_Player.csv`** is ready to flash for a Kemper Profiler Player. The Player has no DIN sockets: plug the pedal's USB into the Player's USB A socket, where the Player acts as host and powers it. That is the link whose Active Sensing, a byte every 300 ms, stalls the stock firmware; this one reads and drains everything that arrives, so the link never backs up.
@@ -123,6 +258,52 @@ The Player has a fixed MIDI map, so it needs no assignments: it listens on all s
 | Effect buttons I–IIII | 75–78 | 127 and 0 |
 
 To use another channel, change `CHANNEL` at the top of `python/make_kemper_player_template.py` and run it again, or edit the buttons in the configurator. The fifty rigs also answer to a plain Program Change: the Player's manual numbers them 1 to 50, which is `Number` 0 to 49 here.
+
+## Templates for programs on the computer
+
+Four templates for the programs that play live from a computer, with the pedal on its USB. They lean on what works without learning anything: a Program Change where the program answers one, and its own keyboard shortcuts, which the pedal types as a USB keyboard would. The shortcuts go to the window in front, so keep the program there on stage. What a program has no shortcut for goes out as a CC, to learn once; the expression pedals send CC 11 and CC 1, expression and the modulation wheel, which most instruments answer as they are.
+
+In the tables, Ctrl, Shift and Cmd are the keys the pedal holds with the key; the Key command's modifiers are listed in [Keyboard keys](06-commands.md#keyboard-keys).
+
+### Apple MainStage
+
+**`python/templates/MainStage.csv`**. MainStage answers Program Changes from any controller out of the box and gives each patch a number; **Reset Program Change Numbers**, Option-Shift-Command-R, numbers them in the order of the Patch List.
+
+| Banks | Buttons |
+|---|---|
+| 0–30, `P000`–`P030` | Entering the bank selects the patch with that program number. 1 and 2 the previous and next patch (↑ ↓), 3 and 4 the first patch of the previous and next set (← →), A play / stop (Space), B recording (Ctrl+R), C the tuner (Cmd+T), D tap tempo (Ctrl+T) |
+| 31, `CTRL` | Panic (Ctrl+P), master mute (Ctrl+M), previous and next patch, and FX1–FX4, CC 20–23, 127 on and 0 off, to assign to screen controls with **Assign & Map** |
+
+### Gig Performer
+
+**`python/templates/Gig_Performer.csv`**. Gig Performer gives each rackspace a Program Change out of the box, from 0 in their order.
+
+| Banks | Buttons |
+|---|---|
+| 0–31, `R000`–`R031` | Entering the bank selects the rackspace with that number. 1 and 2 the song part above and below in the Setlist view (↑ ↓), 3 play / stop, 4 panic, A and B FX1 and FX2, C the tuner (Shift+T), D tap tempo |
+
+Learn the CCs once under **Options > Global MIDI**, with **Momentary** ticked, since each press sends 127 and its release 0: Tap Tempo CC 20, Play/Stop CC 21 and Panic CC 22. FX1 and FX2, CC 24 and 25, 127 on and 0 off, are for widgets.
+
+### Cantabile
+
+**`python/templates/Cantabile.csv`**, for Cantabile on Windows.
+
+| Banks | Buttons |
+|---|---|
+| 0–31, `S000`–`S031` | Entering the bank loads the song of the set list with that program number. 1 and 2 the previous and next state (Shift+T, T), 3 play / stop, 4 panic, A B C FX1–FX3, D tap tempo |
+
+Cantabile answers Program Changes through a binding: add one in the background rack from the pedal's MIDI input, on Program Change, to the set list, loading the song by its program number. Bind the rest the same way, with **Learn Binding**: tap tempo CC 20, play / stop CC 21 and panic CC 22, each 127 on the press and 0 on the release. FX1–FX3, CC 24–26, 127 on and 0 off, are for plugin parameters.
+
+### Ableton Live
+
+**`python/templates/Ableton_Live.csv`**. Live answers no Program Change, so this one is two banks, which a setlist keeps Bank Up and Bank Down on.
+
+| Banks | Buttons |
+|---|---|
+| 0, `LIVE` | The Session View and the transport: 1 and 2 the scene above and below (↑ ↓), 3 launches the scene selected (Enter), 4 the metronome (O, Live 12), A play / stop (Space), B continue (Shift+Space), C record (F9), D tap tempo |
+| 1, `FX` | FX1–FX8, CC 21–28, 127 on and 0 off |
+
+Map the CCs once in MIDI Map mode, **Cmd+M** (Ctrl+M on Windows): click the Tap button and press D, click a parameter and press an FX button, then leave the mode. The pedal's MIDI input needs **Remote** on in Settings > Link, Tempo & MIDI.
 
 ## Two way with a Kemper
 

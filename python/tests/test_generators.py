@@ -25,6 +25,17 @@ GENERATORS = {
     "make_hx_stomp_template": os.path.join("templates", "HX_Stomp.csv"),
     "make_kemper_player_template": os.path.join("templates", "Kemper_Player.csv"),
     "make_quad_cortex_template": os.path.join("templates", "Quad_Cortex.csv"),
+    "make_h90_template": os.path.join("templates", "H90.csv"),
+    "make_timeline_template": os.path.join("templates", "TimeLine.csv"),
+    "make_bigsky_template": os.path.join("templates", "BigSky.csv"),
+    "make_volante_template": os.path.join("templates", "Volante.csv"),
+    "make_iridium_template": os.path.join("templates", "Iridium.csv"),
+    "make_ampero_ii_template": os.path.join("templates", "Ampero_II.csv"),
+    "make_rc600_template": os.path.join("templates", "RC-600.csv"),
+    "make_mainstage_template": os.path.join("templates", "MainStage.csv"),
+    "make_gig_performer_template": os.path.join("templates", "Gig_Performer.csv"),
+    "make_cantabile_template": os.path.join("templates", "Cantabile.csv"),
+    "make_ableton_live_template": os.path.join("templates", "Ableton_Live.csv"),
 }
 
 

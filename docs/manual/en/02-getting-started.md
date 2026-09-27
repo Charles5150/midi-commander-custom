@@ -95,7 +95,7 @@ The configurator is where a configuration is built and sent to the pedal. The la
 1. Connect the pedal in normal mode, not DFU mode.
 2. Load a starting point:
    - the configurator opens on `python/demo-all-features.csv`, a configuration that uses every feature, with labels saying what each button does;
-   - or one of the ready-made [templates](11-devices.md) for a Fractal FM3, a Line 6 HX Stomp, a Neural DSP Quad Cortex or a Kemper Player, with **Load CSV…**;
+   - or one of the ready-made [templates](11-devices.md) for a Fractal FM3, Line 6 HX Stomp, Neural DSP Quad Cortex, Eventide H90, Strymon pedal, Hotone Ampero II, Boss RC-600 or Kemper Player, or MainStage, Gig Performer, Cantabile or Ableton Live, with **Load CSV…**;
    - or **Read from Device**, to start from what the pedal holds now.
 3. Edit it.
 4. Click **Flash to Device**.
