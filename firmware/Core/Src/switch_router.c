@@ -28,6 +28,7 @@ void update_leds_on_bank_change(void);
 static void fire_bank_enter_cmds(uint8_t bank);
 static void fire_bank_leave_cmds(uint8_t bank);
 static void toggle_page(uint8_t target);
+static void settle_pending_presses(void);
 static inline bool cmd_is_leave(const uint8_t *pRom);
 static void apply_scene(uint8_t mask, uint8_t states);
 static void save_scene(uint8_t target);
@@ -852,6 +853,7 @@ static void goto_bank(uint8_t bank){
 		toggle_page(0xFF);	// back from its page: the bank itself is not left
 		return;
 	}
+	settle_pending_presses();
 	previous_bank = home_bank();
 	if(page_home != 0xFF){
 		// Leaving the bank from its page leaves the page first
@@ -888,10 +890,12 @@ static void show_page(uint8_t bank){
 static void toggle_page(uint8_t target){
 	if(page_home != 0xFF){
 		uint8_t home = page_home;
+		settle_pending_presses();
 		fire_bank_leave_cmds(switch_current_page);
 		page_home = 0xFF;
 		show_page(home);
 	} else if(target < MIDI_NUM_BANKS && target != switch_current_page){
+		settle_pending_presses();
 		page_home = switch_current_page;
 		show_page(target);
 		fire_bank_enter_cmds(target);
@@ -2884,6 +2888,34 @@ static void fire_short_up(uint8_t i){
 	if(pending_defer_release(i)) return;	// still waiting: released once it finishes
 	uint8_t toggleState = (sw->switch_toggle_state >> button_bank(bank, i)) & 1;
 	run_list_up(get_rom_pointer(bank, i, 0), cycle_current_first(bank, i), toggleState, 0);
+}
+
+/*
+ * A press still telling a short from a long or double press belongs to the
+ * bank it was made in. Before the bank or page changes it is settled there as
+ * a short press: a tap waiting for its second goes down and up, a press still
+ * held goes down, and its release sends that bank's up list. A bank change in
+ * its list is dropped, as the bank is changing already.
+ */
+static void settle_pending_presses(void){
+	uint8_t saved_bank = pending_bank;
+	uint8_t saved_page = pending_page;
+	uint8_t saved_flags = trigger_flags;
+	trigger_flags = LIST_SKIP_BANK;
+	for(uint8_t i=0; i<MIDI_NUM_SWITCHES; i++){
+		sw_t *sw = &a_sw_obj[i];
+		if(sw->press_state == PRESS_WAIT_SECOND){
+			sw->press_state = PRESS_IDLE;
+			fire_short_down(i);
+			fire_short_up(i);
+		} else if(sw->press_state == PRESS_PENDING || sw->press_state == PRESS_COMBO_WAIT){
+			fire_short_down(i);
+			sw->press_state = PRESS_SHORT;
+		}
+	}
+	trigger_flags = saved_flags;
+	pending_bank = saved_bank;
+	pending_page = saved_page;
 }
 
 static void fire_long_down(uint8_t i){

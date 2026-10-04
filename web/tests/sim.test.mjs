@@ -182,6 +182,29 @@ test("Bank Up moves on from the index bank", async () => {
   assert.ok(names.some((c) => Number(c[0]) === s.bank && c[1] === s.bankName), `bank ${s.bank} is ${s.bankName} in the demo`);
 });
 
+test("a tap waiting for its double press goes out in its own bank when the bank changes", async () => {
+  const flash = await flashWith(packDemo([
+    "p = d['DoublePress_Settings']",        // STOP on LOOP gets a double press
+    "m = (p.Bank_Number == '1') & (p.Button_Identifier == '3')",
+    "p.loc[m, ['A_CommandType', 'A_Channel_(PC/CC/Note/PB)', 'A_Number_(PC/CC/Note)', 'A_OnValue_(CC/PB)']] = ['CC', '1', '30', '127']",
+  ].join("\n")));
+  for (const again of [false, true]) {
+    const sim = simWithDemo(flash);
+    const pedal = await Pedal.open(sim.access);
+    const quick = (id) => { sim.footswitch(id, true); sim.run(40); sim.footswitch(id, false); sim.run(40); };
+    tap(sim, 0);                            // to LOOP
+    const seen = watch(sim);
+    quick(2);                               // STOP, then Bank Up inside the double press time
+    quick(9);
+    if (again) quick(2);                    // and switch 3 again: a press in the new bank
+    sim.run(600);
+    const usb = seen.filter((m) => m.startsWith("USB"));
+    assert.deepEqual(usb.slice(0, 2), ["USB b0 03 7f", "USB b0 03 00"], "STOP, from LOOP");
+    assert.ok(!usb.some((m) => m.startsWith("USB b0 1e")), "and no double press");
+    assert.equal((await pedal.getState()).bankName, again ? "PTCH" : "HOME", "switch 3 on HOME goes to PTCH");
+  }
+});
+
 test("MIDI into the page's port: raw bytes to USB events and back", () => {
   assert.deepEqual(toUsbEvents([0xb0, 10, 127]), [0xb, 0xb0, 10, 127]);
   assert.deepEqual(toUsbEvents([0xc1, 5]), [0xc, 0xc1, 5, 0]);
