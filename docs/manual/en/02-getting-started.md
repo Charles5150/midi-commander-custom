@@ -17,7 +17,7 @@ Flashing firmware does not erase your configuration, and the pedal's bootloader 
 
 ## 1. Flash the firmware
 
-The first time, the pedal has to be put in its update mode by hand. The firmware comes as a ready built `.dfu` file attached to the [latest release](https://github.com/Charles5150/midi-commander-custom/releases/latest). Older images are on the [releases](https://github.com/Charles5150/midi-commander-custom/releases) page, and some are also kept in `artifacts/` for reference. You can build the image yourself instead, as [CONTRIBUTING](../../../CONTRIBUTING.md) explains; both routes end in the same place.
+The first time, the pedal has to be put in its update mode by hand. The firmware comes as a ready built `.dfu` file attached to the [latest release](https://github.com/Charles5150/midi-commander-custom/releases/latest). Older images are on the [releases](https://github.com/Charles5150/midi-commander-custom/releases) page. You can build the image yourself instead, as [CONTRIBUTING](../../../CONTRIBUTING.md) explains; both routes end in the same place.
 
 1. Install `dfu-util`:
    - macOS: `brew install dfu-util`;

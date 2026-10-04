@@ -13,7 +13,7 @@ for questions.
 | `python/` | Configuration tools: GUI, `CSV_to_Flash.py`, `Flash_to_CSV.py`, `Backup_Slots.py`, packers and `slotIO.py` (reading and writing a slot) under `lib/` |
 | `python/tests/` | Tests for the Python tools and the manual |
 | `docs/manual/` | The user manual, `en/` and `es/` with the same chapters, and the pictures both share |
-| `artifacts/` | Built firmware images. Current ones are attached to GitHub releases |
+| `artifacts/` | Built firmware images, not tracked. Released ones are attached to GitHub releases |
 | `tools/`, `scripts/` | DFU packaging helpers used by the PlatformIO build |
 
 ## Building the firmware
@@ -47,7 +47,7 @@ With the Python environment in `.venv` the upload goes through `Update_Firmware.
 
 The raw binary can also be flashed directly: `dfu-util --alt 0 -s 0x08003000 --download .pio/build/midi_dfu/firmware.bin`.
 
-Hardware notes (MCU, pinout, I²C addresses) are in `HardwareNotes.txt`; `backup/` holds a dump of the original firmware and EEPROM.
+Hardware notes (MCU, pinout, I²C addresses) are in `HardwareNotes.txt`. A dump of MeloAudio's original firmware and EEPROM used to be kept in `backup/`. It is MeloAudio's work, not under this project's licence, so it is no longer in the tree; git history still has it, at [0e618bb](https://github.com/Charles5150/midi-commander-custom/tree/0e618bb2de251e9625e15a399e0fd3c1e04c41a9/backup).
 
 ## Flashing
 
@@ -138,12 +138,12 @@ It goes in rounds of about two minutes under the traffic a computer sends on a g
 
 ## Making changes
 
-- Keep the flash layout in `firmware/Core/Src/flash_midi_settings.c`,
-  `python/lib/configPacker.py` and `python/lib/binaryUnpacker.py` in sync, and
-  add a round-trip test for any new field.
+- Keep the flash layout in `firmware/Core/Inc/flash_midi_settings.h` and
+  `python/lib/flashLayout.py` in sync, and add a round-trip test for any new
+  field.
 - Bump `FIRMWARE_VERSION` in `firmware/Core/Inc/main.h` when the SysEx
   protocol or the configuration format changes, and publish the image as a
-  GitHub release rather than committing another `artifacts/release-x.y.dfu`.
+  GitHub release.
 - The display's fonts are pictures,
   `firmware/Middlewares/stm32-ssd1306-master/ssd1306/fonts/*.txt`. After a
   change run `tools/pack_fonts.py`, which packs them into `ssd1306_fonts.c`;

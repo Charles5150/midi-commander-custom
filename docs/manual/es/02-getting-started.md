@@ -17,7 +17,7 @@ Flashear el firmware no borra tu configuración, y el bootloader de la pedalera 
 
 ## 1. Flashea el firmware
 
-La primera vez hay que poner la pedalera en su modo de actualización a mano. El firmware viene como un archivo `.dfu` ya compilado, adjunto a la [última release](https://github.com/Charles5150/midi-commander-custom/releases/latest). Las imágenes anteriores están en la página de [releases](https://github.com/Charles5150/midi-commander-custom/releases), y algunas se guardan también en `artifacts/` como referencia. Si lo prefieres, puedes compilar tú la imagen, como explica [CONTRIBUTING](../../../CONTRIBUTING.md) (en inglés); los dos caminos llegan al mismo sitio.
+La primera vez hay que poner la pedalera en su modo de actualización a mano. El firmware viene como un archivo `.dfu` ya compilado, adjunto a la [última release](https://github.com/Charles5150/midi-commander-custom/releases/latest). Las imágenes anteriores están en la página de [releases](https://github.com/Charles5150/midi-commander-custom/releases). Si lo prefieres, puedes compilar tú la imagen, como explica [CONTRIBUTING](../../../CONTRIBUTING.md) (en inglés); los dos caminos llegan al mismo sitio.
 
 1. Instala `dfu-util`:
    - macOS: `brew install dfu-util`;
