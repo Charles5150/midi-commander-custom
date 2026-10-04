@@ -31,7 +31,6 @@ static volatile uint32_t asked_at;
 
 bool dfu_entry_possible(void){
 	// A build linked at the start of flash has its own code at 0x08003000.
-	// Asked of the linker, not of VTOR, which main() sets the same in both.
 	return (uint32_t)g_pfnVectors == APP_START;
 }
 

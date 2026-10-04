@@ -23,7 +23,7 @@ VS Code extension), then:
 
 ```bash
 platformio run -e midi_dfu      # DFU image, also writes artifacts/dfu/platformio-latest.dfu
-platformio run -e midi_debug    # ST-Link image at 0x08000000
+platformio run -e midi_debug    # ST-Link image at 0x08000000, erases the DFU bootloader
 ```
 
 The first build downloads the ARM toolchain. CI builds both environments on

@@ -54,7 +54,6 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define APP_VECT_TAB_OFFSET 0x3000U
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -87,9 +86,13 @@ static void MX_ADC1_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+extern const uint32_t g_pfnVectors[];
+
+// The table is wherever the linker put it: 0x08003000 behind the DFU
+// bootloader, 0x08000000 in the ST-Link build.
 static inline void RelocateVectorTable(void)
 {
-  SCB->VTOR = FLASH_BASE | APP_VECT_TAB_OFFSET;
+  SCB->VTOR = (uint32_t)g_pfnVectors;
   __DSB();
   __ISB();
 }
