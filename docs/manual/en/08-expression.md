@@ -2,7 +2,7 @@
 
 **English** · [Español](../es/08-expression.md)
 
-Two expression pedals plug into the pedal's 1/4" jacks. Each sends a CC on its own channel, with calibrated end points and a response curve; each can also be a pair of extra footswitches, switch a wah on and off by itself, and send something different in every bank.
+Two expression pedals plug into the pedal's 1/4" jacks. Each sends a CC on its own channel, with calibrated end points and a response curve; each can also be a pair of extra footswitches, switch a wah on and off by itself, and send something different in every bank. A jack can also take a [box of up to three switches](#a-box-of-switches-on-the-jack) instead of a pedal.
 
 ## Connecting and calibrating
 
@@ -163,6 +163,34 @@ In the Expression tab, name a **toe** button and the level the pedal must reach 
 
 *Firmware 0.15 or later.*
 
+## A box of switches on the jack
+
+A jack needs no pedal in it: a small box of up to three footswitches plugged in instead gives the pedal three more switches, with nothing changed inside it. Set the jack's **Sends** to **Switches** (`Output` `Switches`) and say what each of the box's switches holds down: **1**–**4**, **A**–**D**, or Bank **Down** or **Up** (`Box_1`, `Box_2`, `Box_3`).
+
+- A box switch is the pedal's own switch under another foot: held, it holds that switch down, so its short and long press lists, a double press, a momentary hold and a Bank Up held to jump all work as from the pedal itself, in the **current bank**.
+- The jack sends no MIDI of its own, and its toe and heel switches and auto-engage do not apply.
+- A switch left at **None** does nothing.
+
+**Building the box.** It is wired as an expression pedal is, so it plugs into the same jack with the same cable:
+
+- four equal resistors, 10 kΩ say, in a chain between the two contacts the ends of a pedal's potentiometer go to;
+- each switch between the third contact, the one a pedal's wiper goes to, and a joint of the chain: switch 1 to the joint nearest the heel end, switch 2 to the middle one, switch 3 to the one nearest the toe end;
+- and a resistor of 100 kΩ from the wiper contact to the heel end, so that with nothing pressed the jack reads as a pedal at the heel.
+
+Switch 1 then puts the jack a quarter of the way from heel to toe, switch 2 halfway and switch 3 three quarters, and the pedal takes the nearest level. The levels count in the calibrated travel, so **Calibrate** the jack with the box too: nothing pressed for the heel, then switch 3 held for the toe. A reading above three quarters, such as a pedal at the toe, presses nothing.
+
+A level must read the same twice running, some 25 ms apart, before it counts, so a contact bouncing presses nothing; going from one switch to another lets the first go before the second goes down. Pressing two at once is not supported: the jack then reads somewhere in between.
+
+To try the setting with an expression pedal instead, move it quickly to a quarter, a half or three quarters of its travel: moved slowly, it holds down each level it passes on the way.
+
+*Firmware 1.10 or later. Tried with an expression pedal and with the pedal moved from the computer; not yet with a box.*
+
+<details><summary>Under the hood</summary>
+
+The jack is read as for a pedal, every 24 ms or so with both jacks in use, and the average of 16 samples is placed in the calibrated travel, 0 to 1024. The nearest of 0, 256, 512 and 768 is the level, and a reading above 896 is level 0. A level held is a press of the switch through the same queue as the virtual pedal's presses (`sw_virtual_press`), so the switch scan sees it as a foot. Stored in the jack's calibration record: `Output` 6, and bytes 7 to 9, which a pedal uses for its toe and heel switches, hold what the box's switches press, 0–7 for 1–D, 8 for Bank Down, 9 for Bank Up, 0xFF for none.
+
+</details>
+
 ## Auto-engage
 
 A wah that switches itself on and off, as on Fractal and Line 6 units: no stomping on the wah before using it.
@@ -249,8 +277,9 @@ Optional; two rows, `Pedal` 1 and 2.
 | `Out_Min`, `Out_Max` | 0–127 | Values sent at the heel and at the toe. Defaults 0 and 127. |
 | `Auto_Button` | None or 1–4, A–D | Button switched on as the pedal leaves the heel and off after resting there (auto-engage). |
 | `Auto_Off_ms` | 10–2540 | How long the pedal must rest at the heel before that button goes off. Default 500. |
-| `Output` | CC, PitchBend, CC14, Speed, Wheel or Arrows | What the pedal sends: its CC with 7 bits, Pitch Bend, a 14-bit CC pair, nothing but the [speed of the LFOs and sequences](#speed-of-the-lfos-and-sequences), or [scrolling on the computer](#scrolling-on-the-computer). Default CC. |
+| `Output` | CC, PitchBend, CC14, Speed, Wheel, Arrows or Switches | What the pedal sends: its CC with 7 bits, Pitch Bend, a 14-bit CC pair, nothing but the [speed of the LFOs and sequences](#speed-of-the-lfos-and-sequences), or [scrolling on the computer](#scrolling-on-the-computer); Switches for a [box of switches](#a-box-of-switches-on-the-jack) in the jack. Default CC. |
 | `Send_On_Bank` | Y / N | Send the pedal's position as a bank is entered, after its enter commands. Default N. Firmware 0.87. |
+| `Box_1`, `Box_2`, `Box_3` | None, 1–4, A–D, Down or Up | With `Output` Switches, the switch each of the box's switches holds down. Default None. Firmware 1.10. |
 
 ### BankExpression_Settings
 

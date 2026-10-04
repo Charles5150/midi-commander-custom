@@ -79,14 +79,20 @@ EXP_STRIDE = 16
 EXP_CURVES = {"LINEAR": 0, "LOG": 1, "EXP": 2}
 # What a pedal sends: a 7-bit CC, Pitch Bend, or a 14-bit CC pair (MSB on the
 # CC, LSB on CC + 32)
-EXP_OUTPUTS = {"CC": 0, "PITCHBEND": 1, "CC14": 2, "SPEED": 3, "WHEEL": 4, "ARROWS": 5}
+EXP_OUTPUTS = {"CC": 0, "PITCHBEND": 1, "CC14": 2, "SPEED": 3, "WHEEL": 4, "ARROWS": 5, "SWITCHES": 6}
+EXP_OUT_SWITCHES = 6
 EXP_DEFAULTS = {
     "Min_ADC": "80", "Max_ADC": "3900", "Curve": "Linear", "Invert": "N",
     "Channel": "Global", "Toe_Button": "None", "Heel_Button": "None",
     "Toe_Level": "120", "Heel_Level": "7", "Out_Min": "0", "Out_Max": "127",
     "Auto_Button": "None", "Auto_Off_ms": "500", "Output": "CC", "Send_On_Bank": "N",
+    "Box_1": "None", "Box_2": "None", "Box_3": "None",
 }
 EXP_BUTTON_IDS = ["1", "2", "3", "4", "A", "B", "C", "D"]
+# What a switch of a box on the jack (Output Switches) holds down: a command
+# switch, or Bank Down or Up
+BOX_SWITCH_IDS = EXP_BUTTON_IDS + ["Down", "Up"]
+BOX_COLUMNS = ["Box_1", "Box_2", "Box_3"]
 
 
 def _key(bank, button) -> tuple:
@@ -466,7 +472,8 @@ def expression_send_on_bank(df) -> int:
 def pack_expression_settings(df) -> bytes:
     """Two 16 byte records: min/max ADC (LE), curve, invert, channel, toe and
     heel buttons and levels, output range, auto-engage button and off delay,
-    output kind."""
+    output kind. With Output Switches the jack holds a box of switches, and
+    bytes 7 to 9 say what its switches hold down instead."""
     rows = {}
     if df is not None:
         for _, row in df.iterrows():
@@ -513,8 +520,23 @@ def pack_expression_settings(df) -> bytes:
         if out_text in ("CC14BIT", "14BIT", "14BITCC"):
             out_text = "CC14"
         if out_text not in EXP_OUTPUTS:
-            raise ValueError(f"Expression pedal {i + 1}: Output must be CC, PitchBend, CC14, Speed, Wheel or Arrows, not {get('Output')!r}")
+            raise ValueError(f"Expression pedal {i + 1}: Output must be CC, PitchBend, CC14, Speed, Wheel, Arrows "
+                             f"or Switches, not {get('Output')!r}")
         output = EXP_OUTPUTS[out_text]
+        if output == EXP_OUT_SWITCHES:
+            box = []
+            for col in BOX_COLUMNS:
+                text = str(get(col)).strip()
+                if text.upper() in ("", "NONE", "NAN", "OFF", "-"):
+                    box.append(0xFF)
+                    continue
+                names = {n.upper(): n for n in BOX_SWITCH_IDS}
+                if text.upper() not in names:
+                    raise ValueError(f"Expression pedal {i + 1}: {col} must be None, "
+                                     f"{', '.join(BOX_SWITCH_IDS)}, not {text!r}")
+                box.append(BOX_SWITCH_IDS.index(names[text.upper()]))
+            toe_btn, heel_btn, toe_level = box
+            auto_btn = 0
 
         out += bytes([lo & 0xFF, lo >> 8, hi & 0xFF, hi >> 8, curve, invert, channel,
                       toe_btn, heel_btn, toe_level, heel_level,

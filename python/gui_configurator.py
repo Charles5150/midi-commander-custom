@@ -1443,7 +1443,8 @@ class MidiCommanderGUI(ctk.CTk):
                 else empty_expression_settings()
             )
             for col, default in (("Out_Min", "0"), ("Out_Max", "127"), ("Auto_Button", "None"), ("Auto_Off_ms", "500"),
-                                 ("Output", "CC"), ("Send_On_Bank", "N")):
+                                 ("Output", "CC"), ("Send_On_Bank", "N"),
+                                 ("Box_1", "None"), ("Box_2", "None"), ("Box_3", "None")):
                 if col not in self.df_exp.columns:
                     self.df_exp[col] = default
             self.populate_expression()
@@ -2249,7 +2250,8 @@ class MidiCommanderGUI(ctk.CTk):
             w["out_max"] = IntEntry(out, 0, 127, clean(r.get("Out_Max")) or "127", width=55)
             w["out_max"].pack(side="left", padx=(6, 2))
             ctk.CTkLabel(out, text="at the toe, as").pack(side="left", padx=(6, 2))
-            w["output"] = Option(out, ["CC", "PitchBend", "CC14", "Speed", "Wheel", "Arrows"], clean(r.get("Output")) or "CC", width=100)
+            w["output"] = Option(out, ["CC", "PitchBend", "CC14", "Speed", "Wheel", "Arrows", "Switches"],
+                                 clean(r.get("Output")) or "CC", width=100)
             w["output"].pack(side="left", padx=(6, 2))
             w["send_on_bank"] = Check(out, text="Send on entering a bank", checked=is_yes(r.get("Send_On_Bank")), width=20)
             w["send_on_bank"].pack(side="left", padx=(14, 2))
@@ -2263,6 +2265,15 @@ class MidiCommanderGUI(ctk.CTk):
             w["auto_off"] = IntEntry(auto, 10, 2540, clean(r.get("Auto_Off_ms")) or "500", width=65)
             w["auto_off"].pack(side="left", padx=(6, 2))
             ctk.CTkLabel(auto, text="ms").pack(side="left", padx=(2, 2))
+
+            box_row = ctk.CTkFrame(box, fg_color="transparent")
+            box_row.pack(fill="x", padx=8, pady=(0, 8))
+            ctk.CTkLabel(box_row, text="Sending Switches, a box on the jack: its switch").pack(side="left")
+            for k in range(3):
+                ctk.CTkLabel(box_row, text=f"{k + 1} holds" if k == 0 else f", {k + 1}").pack(side="left", padx=(6, 2))
+                w[f"box_{k + 1}"] = Option(box_row, ["None"] + BUTTON_IDS + ["Down", "Up"],
+                                           clean(r.get(f"Box_{k + 1}")) or "None", width=75)
+                w[f"box_{k + 1}"].pack(side="left")
 
             self.exp_widgets[i] = w
 
@@ -2294,7 +2305,10 @@ class MidiCommanderGUI(ctk.CTk):
             "it off again. The button can still be pressed by hand.\n"
             "Send on entering a bank: as a bank is entered, after its enter commands, the pedal sends "
             "where it is, so a preset called up takes the volume from the pedal, not from the "
-            "preset. Leave it off for a jack with no pedal in it, which would send its heel value.",
+            "preset. Leave it off for a jack with no pedal in it, which would send its heel value.\n"
+            "Switches: the jack holds a box of up to three switches instead of a pedal, and each "
+            "holds down a switch of the pedal, 1-4, A-D or Bank Down and Up, as if by foot. The "
+            "manual shows how to wire one.",
         ).pack(anchor="w", pady=(6, 0))
 
     def _live_toggle(self):
@@ -3152,6 +3166,8 @@ class MidiCommanderGUI(ctk.CTk):
             self.df_exp.at[i, "Auto_Off_ms"] = w["auto_off"].value() or "500"
             self.df_exp.at[i, "Output"] = w["output"].value()
             self.df_exp.at[i, "Send_On_Bank"] = w["send_on_bank"].value()
+            for k in range(1, 4):
+                self.df_exp.at[i, f"Box_{k}"] = w[f"box_{k}"].value()
 
     def apply_bank_changes(self):
         """Bank names and per bank expression settings back into their frames."""

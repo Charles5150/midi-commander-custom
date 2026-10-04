@@ -589,6 +589,34 @@ const font6x8 = fs.readFileSync(path.join(root, "firmware/Middlewares/stm32-ssd1
   .map((line) => parseInt(line.replace(/#/g, "1").replace(/\./g, "0").padEnd(8, "0"), 2));
 
 // Whether the screen holds this text in the 6x8 font with its top left at x, y
+test("a box of switches on an expression jack holds down the pedal's switches", async () => {
+  const sim = simWithDemo(await flashWith(packDemo([
+    "e = d['Expression_Settings']",
+    "e.loc[e.Pedal == '2', ['Output', 'Min_ADC', 'Max_ADC', 'Invert', 'Box_2', 'Box_3']] = ['Switches', '0', '4095', 'N', '2', 'Up']",
+  ].join("\n"))));
+  const pedal = await Pedal.open(sim.access);
+  const bank = async () => (await running(sim, () => pedal.getState())).bankName;
+  const box = (value) => { sim.pedal(1, value); sim.run(300); };
+  const seen = watch(sim);
+  box(0);
+  assert.equal(await bank(), "HOME");
+
+  box(1024);                                // switch 1 holds nothing down
+  box(0);
+  assert.equal(await bank(), "HOME");
+  box(2048);                                // switch 2 is switch 2: the index goes to FX
+  box(0);
+  sim.run(600);
+  assert.equal(await bank(), "FX");
+  box(3072);                                // switch 3 is Bank Up
+  box(0);
+  sim.run(600);
+  assert.notEqual(await bank(), "FX");
+  box(4095);                                // past the last level, a pedal at the toe: nothing
+  box(0);
+  assert.deepEqual(seen.filter((m) => /^(USB|DIN) b[0-9a-f] 0b /.test(m)), [], "and no CC of a pedal");
+});
+
 function smallTextAt(sim, x, y, text) {
   for (let i = 0; i < text.length; i++) {
     for (let row = 0; row < 8; row++) {

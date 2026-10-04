@@ -1754,7 +1754,7 @@ class ExpressionOutputTest(unittest.TestCase):
 
     def test_every_kind_round_trips(self):
         for name, code in (("CC", 0), ("PitchBend", 1), ("CC14", 2), ("Speed", 3), ("Wheel", 4),
-                           ("Arrows", 5)):
+                           ("Arrows", 5), ("Switches", 6)):
             packed = self.with_outputs(name, "CC")
             self.assertEqual(self.output_bytes(packed), [code, 0])
             exp = unpacker.unpack_config(packed)[4]
@@ -1789,10 +1789,65 @@ class ExpressionOutputTest(unittest.TestCase):
         with open(path) as handle:
             header = handle.read()
         for name, code in (("CC", 0), ("PITCHBEND", 1), ("CC14", 2), ("SPEED", 3), ("WHEEL", 4),
-                           ("ARROWS", 5)):
+                           ("ARROWS", 5), ("SWITCHES", 6)):
             m = re.search(rf"#define\s+EXP_OUT_{name}\s+\((\d+)\)", header)
             self.assertEqual(int(m.group(1)), code, name)
             self.assertEqual(packer.EXP_OUTPUTS[name], code)
+
+
+class SwitchBoxTest(unittest.TestCase):
+    """A box of switches on an expression jack, Output Switches (firmware 1.10)."""
+
+    def setUp(self):
+        self.sections = read_config_csv(DEMO_CSV)
+
+    def pack(self, **cells):
+        from lib.configPacker import empty_expression_settings
+
+        df = empty_expression_settings()
+        for col, value in cells.items():
+            df.loc[1, col] = value
+        return packer.pack_config({**self.sections, packer.EXPRESSION_SECTION: df})
+
+    def record(self, packed):
+        at = unpacker.EXP_OFFSET + unpacker.EXP_STRIDE
+        return packed[at:at + unpacker.EXP_STRIDE]
+
+    def test_what_the_switches_hold_down(self):
+        packed = self.pack(Output="Switches", Box_1="A", Box_2="Up", Box_3="down")
+        p = self.record(packed)
+        self.assertEqual(p[15], 6)
+        self.assertEqual(list(p[7:10]), [4, 9, 8])
+        self.assertEqual(p[13], 0)      # no auto-engage
+        exp = unpacker.unpack_config(packed)[4]
+        row = exp.iloc[1]
+        self.assertEqual([row["Box_1"], row["Box_2"], row["Box_3"]], ["A", "Up", "Down"])
+        self.assertEqual([row["Toe_Button"], row["Heel_Button"], row["Toe_Level"]], ["None", "None", "120"])
+
+    def test_unused_switches(self):
+        p = self.record(self.pack(Output="Switches", Box_1="1"))
+        self.assertEqual(list(p[7:10]), [0, 0xFF, 0xFF])
+
+    def test_a_pedal_ignores_the_box(self):
+        packed = self.pack(Box_1="A", Toe_Button="B")
+        p = self.record(packed)
+        self.assertEqual(list(p[7:10]), [5, 0xFF, 120])
+        row = unpacker.unpack_config(packed)[4].iloc[1]
+        self.assertEqual([row["Toe_Button"], row["Box_1"]], ["B", "None"])
+
+    def test_bad_switch(self):
+        with self.assertRaises(ValueError):
+            self.pack(Output="Switches", Box_2="E")
+
+    def test_firmware_ids_match(self):
+        """Down and Up are the virtual pedal's switches 8 and 9."""
+        path = os.path.join(os.path.dirname(__file__), "..", "..", "firmware", "Core", "Inc",
+                            "switch_router.h")
+        with open(path) as handle:
+            header = handle.read()
+        for name in ("DOWN", "UP"):
+            m = re.search(rf"#define\s+SW_VIRTUAL_BANK_{name}\s+\((\d+)\)", header)
+            self.assertEqual(packer.BOX_SWITCH_IDS[int(m.group(1))], name.title())
 
 
 class PanicTest(unittest.TestCase):

@@ -53,10 +53,14 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
  *   [11]   lowest value sent (0-127)          [12] highest value sent
  *   [13]   auto-engage button + 1 (0 none)    [14] auto-engage rest, 10 ms units
  *   [15]   what it sends: EXP_OUT_CC, EXP_OUT_PITCHBEND, EXP_OUT_CC14, EXP_OUT_SPEED,
- *          EXP_OUT_WHEEL or EXP_OUT_ARROWS
- *   Blank flash (0xFF) means "not set" everywhere. Blank flash (0xFF) means "not set" everywhere. The tools
- *   used to write zeros after byte 10, so a range of 0 to 0 means the full
- *   range too.
+ *          EXP_OUT_WHEEL, EXP_OUT_ARROWS or EXP_OUT_SWITCHES
+ *   Blank flash (0xFF) means "not set" everywhere. The tools used to write
+ *   zeros after byte 10, so a range of 0 to 0 means the full range too.
+ *
+ *   With EXP_OUT_SWITCHES the jack holds a box of switches, not a pedal, and
+ *   [7..9] say what the box's switches 1 to 3 press: 0-7 the command
+ *   switches, SW_VIRTUAL_BANK_DOWN or SW_VIRTUAL_BANK_UP, 0xFF nothing. The
+ *   toe, heel and auto-engage switches do not apply.
  */
 #define EXP_SETTINGS_STRIDE		(16)
 #define EXP_CURVE_LINEAR		(0)
@@ -68,6 +72,8 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
 #define EXP_OUT_SPEED			(3)	// no MIDI: the speed of the LFOs and sequences
 #define EXP_OUT_WHEEL			(4)	// no MIDI: a mouse wheel turning as fast as the pedal says
 #define EXP_OUT_ARROWS			(5)	// no MIDI: the Down (or Up) arrow key, repeated as fast
+#define EXP_OUT_SWITCHES		(6)	// no MIDI: a box of up to three switches on the jack (1.10)
+#define EXP_BOX_SWITCHES		(3)
 
 #define MIDI_NUM_BANKS			(32)
 #define MIDI_NUM_SWITCHES		(8)

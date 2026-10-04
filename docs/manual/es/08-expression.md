@@ -2,7 +2,7 @@
 
 [English](../en/08-expression.md) · **Español**
 
-Se pueden conectar dos pedales de expresión a los jacks de 6,3 mm de la pedalera. Cada uno envía un CC por su propio canal, con los extremos calibrados y una curva de respuesta. Además, cada uno puede servir de par de pulsadores extra, encender y apagar un wah por sí solo y enviar algo distinto en cada banco.
+Se pueden conectar dos pedales de expresión a los jacks de 6,3 mm de la pedalera. Cada uno envía un CC por su propio canal, con los extremos calibrados y una curva de respuesta. Además, cada uno puede servir de par de pulsadores extra, encender y apagar un wah por sí solo y enviar algo distinto en cada banco. Un jack también puede llevar una [caja de hasta tres pulsadores](#una-caja-de-pulsadores-en-el-jack) en lugar de un pedal.
 
 ## Conectar y calibrar
 
@@ -163,6 +163,34 @@ En la pestaña Expression, elige un botón de **toe** (punta) y el nivel que deb
 
 *Firmware 0.15 o posterior.*
 
+## Una caja de pulsadores en el jack
+
+Un jack no necesita un pedal: una cajita de hasta tres pulsadores enchufada en su lugar le da a la pedalera tres pulsadores más, sin tocar nada por dentro. Pon el **Sends** del jack en **Switches** (`Output` `Switches`) y elige qué mantiene pulsado cada pulsador de la caja: **1**–**4**, **A**–**D**, o Bank **Down** o **Up** (`Box_1`, `Box_2`, `Box_3`).
+
+- Un pulsador de la caja es un pulsador de la pedalera bajo otro pie: mientras lo mantienes, mantiene ese pulsador pisado, así que sus listas de pulsación corta y larga, la doble pulsación, el momentáneo al mantener y el salto de un Bank Up mantenido funcionan igual que desde la propia pedalera, en el **banco actual**.
+- El jack no envía MIDI propio, y sus pulsadores de punta y talón y el auto-engage no se aplican.
+- Un pulsador en **None** no hace nada.
+
+**Cómo montar la caja.** Se cablea como un pedal de expresión, así que va en el mismo jack con el mismo cable:
+
+- cuatro resistencias iguales, por ejemplo de 10 kΩ, en cadena entre los dos contactos a los que van los extremos del potenciómetro de un pedal;
+- cada pulsador entre el tercer contacto, al que va el cursor del pedal, y una unión de la cadena: el pulsador 1 a la unión más cercana al extremo del talón, el 2 a la del medio y el 3 a la más cercana al extremo de la punta;
+- y una resistencia de 100 kΩ del contacto del cursor al extremo del talón, para que sin nada pulsado el jack lea como un pedal en el talón.
+
+Así el pulsador 1 pone el jack a un cuarto del recorrido entre talón y punta, el 2 a la mitad y el 3 a tres cuartos, y la pedalera toma el nivel más cercano. Los niveles cuentan sobre el recorrido calibrado, así que **calibra** el jack también con la caja: nada pulsado para el talón y luego el pulsador 3 mantenido para la punta. Una lectura por encima de tres cuartos, como un pedal en la punta, no pulsa nada.
+
+Un nivel tiene que leerse igual dos veces seguidas, con unos 25 ms entre ellas, para contar, así que un contacto que rebota no pulsa nada; pasar de un pulsador a otro suelta el primero antes de pisar el segundo. Pulsar dos a la vez no está contemplado: el jack lee entonces algo intermedio.
+
+Para probar el ajuste con un pedal de expresión, llévalo rápido a un cuarto, a la mitad o a tres cuartos de su recorrido: si lo mueves despacio, mantiene pulsado cada nivel por el que pasa.
+
+*Firmware 1.10 o posterior. Probado con un pedal de expresión y con el pedal movido desde el ordenador; todavía no con una caja.*
+
+<details><summary>Por dentro</summary>
+
+El jack se lee como para un pedal, cada 24 ms más o menos con los dos jacks en uso, y la media de 16 muestras se sitúa en el recorrido calibrado, de 0 a 1024. El más cercano de 0, 256, 512 y 768 es el nivel, y una lectura por encima de 896 es el nivel 0. Un nivel mantenido es una pulsación del pulsador por la misma cola que las del pedal virtual (`sw_virtual_press`), así que el escaneo de pulsadores lo ve como un pie. Se guarda en el registro de calibración del jack: `Output` 6, y los bytes 7 a 9, que un pedal usa para sus pulsadores de punta y talón, guardan lo que pulsan los de la caja: 0–7 para 1–D, 8 para Bank Down, 9 para Bank Up y 0xFF para ninguno.
+
+</details>
+
 ## Auto-engage
 
 Un wah que se enciende y se apaga solo, como en los equipos de Fractal y Line 6: sin tener que pisar el wah antes de usarlo.
@@ -249,8 +277,9 @@ Opcional; dos filas, `Pedal` 1 y 2.
 | `Out_Min`, `Out_Max` | 0–127 | Valores que se envían en el talón y en la punta. Por defecto 0 y 127. |
 | `Auto_Button` | None o 1–4, A–D | Botón que se enciende cuando el pedal sale del talón y se apaga tras quedarse ahí (auto-engage). |
 | `Auto_Off_ms` | 10–2540 | Cuánto tiempo tiene que quedarse el pedal en el talón antes de que se apague ese botón. Por defecto 500. |
-| `Output` | CC, PitchBend, CC14, Speed, Wheel o Arrows | Qué envía el pedal: su CC con 7 bits, Pitch Bend, una pareja de CC de 14 bits, nada más que la [velocidad de los LFO y las secuencias](#velocidad-de-los-lfo-y-las-secuencias), o [scroll en el ordenador](#hacer-scroll-en-el-ordenador). Por defecto CC. |
+| `Output` | CC, PitchBend, CC14, Speed, Wheel, Arrows o Switches | Qué envía el pedal: su CC con 7 bits, Pitch Bend, una pareja de CC de 14 bits, nada más que la [velocidad de los LFO y las secuencias](#velocidad-de-los-lfo-y-las-secuencias), o [scroll en el ordenador](#hacer-scroll-en-el-ordenador); Switches para una [caja de pulsadores](#una-caja-de-pulsadores-en-el-jack) en el jack. Por defecto CC. |
 | `Send_On_Bank` | Y / N | Enviar la posición del pedal al entrar en un banco, después de sus comandos de entrada. Por defecto N. Firmware 0.87. |
+| `Box_1`, `Box_2`, `Box_3` | None, 1–4, A–D, Down o Up | Con `Output` Switches, el pulsador que mantiene pisado cada pulsador de la caja. Por defecto None. Firmware 1.10. |
 
 ### BankExpression_Settings
 

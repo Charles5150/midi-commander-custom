@@ -337,7 +337,7 @@ EXPRESSION_FIELDS = [
     {"col": "Curve", "label": "Curve", **_choice(["Linear", "Log", "Exp"])},
     {"col": "Invert", "label": "Invert", **CHECK},
     {"col": "Channel", "label": "Channel", **_choice(["Global"] + CHANNELS)},
-    {"col": "Output", "label": "Sends", **_choice(["CC", "PitchBend", "CC14", "Speed", "Wheel", "Arrows"])},
+    {"col": "Output", "label": "Sends", **_choice(["CC", "PitchBend", "CC14", "Speed", "Wheel", "Arrows", "Switches"])},
     {"col": "Out_Min", "label": "Out min", **_int(0, 127)},
     {"col": "Out_Max", "label": "Out max", **_int(0, 127), "default": "127"},
     {"col": "Toe_Button", "label": "Toe taps", **_choice(["None"] + BUTTON_IDS, blank="None")},
@@ -347,6 +347,10 @@ EXPRESSION_FIELDS = [
     {"col": "Auto_Button", "label": "Auto-engage", **_choice(["None"] + BUTTON_IDS, blank="None")},
     {"col": "Auto_Off_ms", "label": "\u2026 off after ms", **_int(10, 2540), "default": "500"},
     {"col": "Send_On_Bank", "label": "Send on entering a bank", **CHECK},
+    # Sends Switches: a box of switches on the jack, see the manual
+    {"col": "Box_1", "label": "Box switch 1 holds", **_choice(["None"] + BUTTON_IDS + ["Down", "Up"], blank="None")},
+    {"col": "Box_2", "label": "Box switch 2 holds", **_choice(["None"] + BUTTON_IDS + ["Down", "Up"], blank="None")},
+    {"col": "Box_3", "label": "Box switch 3 holds", **_choice(["None"] + BUTTON_IDS + ["Down", "Up"], blank="None")},
 ]
 
 SECTION_COLUMNS = {

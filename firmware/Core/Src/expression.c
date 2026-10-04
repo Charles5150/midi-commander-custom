@@ -51,6 +51,10 @@
  *
  * Or scroll, for lyrics, a score or a teleprompter: a mouse wheel, or the
  * arrow keys, going as fast as the pedal is pressed. See scroll.
+ *
+ * Or the jack holds no pedal at all but a small box of switches, each putting
+ * the jack at its own level, and each level holds down a switch of the pedal.
+ * See switch_box.
  */
 
 #include "expression.h"
@@ -126,7 +130,8 @@ typedef struct {
   uint8_t out_max;      // value sent at the toe
   uint8_t auto_button;  // auto-engage button, NO_BUTTON when unused
   uint16_t auto_off_ms; // rest at the heel before switching it off
-  uint8_t out_mode;     // EXP_OUT_CC, EXP_OUT_PITCHBEND, EXP_OUT_CC14, EXP_OUT_SPEED, EXP_OUT_WHEEL or EXP_OUT_ARROWS
+  uint8_t out_mode;     // EXP_OUT_CC, EXP_OUT_PITCHBEND, EXP_OUT_CC14, EXP_OUT_SPEED, EXP_OUT_WHEEL, EXP_OUT_ARROWS or EXP_OUT_SWITCHES
+  uint8_t box[EXP_BOX_SWITCHES]; // EXP_OUT_SWITCHES: the switch each level holds down, NO_BUTTON for none
 } exp_cal_t;
 
 // What a pedal sends at the moment
@@ -156,6 +161,8 @@ typedef struct {
   uint8_t bank;          // home bank at the last reading, 0xFF before the first
   uint32_t scroll_acc;   // way scrolled since the last step, see scroll
   uint32_t scroll_tick;
+  uint8_t box_down;      // switch box: the level held down, 0 for none
+  uint8_t box_seen;      // the level of the last reading
 } exp_pedal_t;
 
 static exp_pedal_t pedals[EXP_PEDAL_COUNT];
@@ -293,8 +300,17 @@ static void load_calibration(uint32_t i)
   c->auto_button = (p[13] >= 1 && p[13] <= MIDI_NUM_SWITCHES) ? p[13] - 1U : NO_BUTTON;
   c->auto_off_ms = (p[14] != 0 && p[14] != 0xFF) ? p[14] * AUTO_OFF_UNIT_MS : AUTO_OFF_DEFAULT_MS;
 
-  c->out_mode = (p[15] == EXP_OUT_PITCHBEND || p[15] == EXP_OUT_CC14
-                 || (p[15] >= EXP_OUT_SPEED && p[15] <= EXP_OUT_ARROWS)) ? p[15] : EXP_OUT_CC;
+  c->out_mode = (p[15] >= EXP_OUT_PITCHBEND && p[15] <= EXP_OUT_SWITCHES) ? p[15] : EXP_OUT_CC;
+
+  // A box of switches: what each of its levels holds down, and nothing else
+  for (uint32_t k = 0; k < EXP_BOX_SWITCHES; k++) {
+      c->box[k] = (c->out_mode == EXP_OUT_SWITCHES && p[7 + k] < SW_VIRTUAL_COUNT) ? p[7 + k] : NO_BUTTON;
+  }
+  if (c->out_mode == EXP_OUT_SWITCHES) {
+      c->toe_button = NO_BUTTON;
+      c->heel_button = NO_BUTTON;
+      c->auto_button = NO_BUTTON;
+  }
 }
 
 static uint8_t adc_to_midi(const exp_cal_t *c, uint32_t sample)
@@ -576,13 +592,73 @@ static void send_extras(uint32_t i, uint8_t midi_value)
   }
 }
 
+/*
+ * A box of switches on the jack, wired as a pedal would be: a chain of four
+ * equal resistors across the two outer contacts, and each switch connecting
+ * the middle contact to a joint of the chain. Switch 1 puts the jack a quarter
+ * of the way from the heel to the toe, switch 2 halfway and switch 3 three
+ * quarters; nothing pressed reads as the heel, held there by a resistor from
+ * the middle contact. The levels are counted in the calibrated travel, so
+ * Calibrate with switch 3 held for the toe and nothing for the heel takes a
+ * box whose supply is not the pedal's own. Above the last level, and for a
+ * pedal at the toe, nothing is pressed.
+ *
+ * A level held holds the switch down, through the same queue as the virtual
+ * pedal's presses, so a long press, a double press or a Bank Up held to jump
+ * work as from the foot. A level must read the same twice running before it
+ * counts, so a contact bouncing or a level passed on the way to another
+ * presses nothing. Going straight from one level to another lets the first
+ * switch go before the second goes down.
+ */
+#define BOX_BAND (1024U / (EXP_BOX_SWITCHES + 1U))
+
+static void box_press(uint8_t id, bool down)
+{
+  __disable_irq();	// the USB interrupt queues virtual presses too
+  sw_virtual_press(id, down);
+  __enable_irq();
+}
+
+static void box_release(exp_pedal_t *p)
+{
+  if (p->box_down != 0U && p->cal.box[p->box_down - 1U] != NO_BUTTON) {
+      box_press(p->cal.box[p->box_down - 1U], false);
+  }
+  p->box_down = 0;
+}
+
+static void switch_box(exp_pedal_t *p, uint32_t sample)
+{
+  const exp_cal_t *c = &p->cal;
+  uint32_t n = 0;
+  if (sample >= c->max_adc) n = 1024U;
+  else if (sample > c->min_adc) n = ((sample - c->min_adc) * 1024U) / (c->max_adc - c->min_adc);
+  if (c->invert) n = 1024U - n;
+
+  // Nearest level, a band of a quarter of the travel round each
+  uint8_t level = (uint8_t)((n + BOX_BAND / 2U) / BOX_BAND);
+  if (level > EXP_BOX_SWITCHES) level = 0;
+
+  bool steady = (level == p->box_seen);
+  p->box_seen = level;
+  if (!steady || level == p->box_down) return;
+
+  box_release(p);
+  if (level != 0U && c->box[level - 1U] != NO_BUTTON) {
+      box_press(c->box[level - 1U], true);
+  }
+  p->box_down = level;
+}
+
 // --- Public API --------------------------------------------------------------
 void expression_init(void)
 {
   speed_pedal = EXP_PEDAL_COUNT;
   sw_set_mod_speed(MOD_SPEED_OWN);
   for (uint32_t i = 0; i < EXP_PEDAL_COUNT; i++) {
+    box_release(&pedals[i]);	// with the switches of the configuration left
     load_calibration(i);
+    pedals[i].box_seen = 0;
     pedals[i].last_sent_midi = 0xFFU;
     pedals[i].last_sent_value = 0xFFFFU;
     pedals[i].target_kind = SEND_CC7;
@@ -705,6 +781,11 @@ static void process_pedal(uint32_t i)
   uint32_t alpha = (diff_raw > EXP_FAST_MOVE_THRESHOLD) ? EXP_ADAPTIVE_MAX_ALPHA
                                                         : EXP_ADAPTIVE_MIN_ALPHA;
   p->ema_adc_value = (alpha * raw_avg + (100U - alpha) * p->ema_adc_value) / 100U;
+
+  if (p->cal.out_mode == EXP_OUT_SWITCHES) {
+      switch_box(p, raw_avg);
+      return;
+  }
 
   // Hysteresis, released at the calibrated end points so they are always reached
   uint32_t filtered = p->ema_adc_value;

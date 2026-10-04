@@ -146,7 +146,9 @@ IMAGE_SIZE = DOUBLE_PRESS_OFFSET + DOUBLE_PRESS_PAGES * FLASH_PAGE_SIZE
 EXT2_OFFSET = IMAGE_SIZE
 EXT2_SIZE = EXT2_BANK_SWITCH_LABELS_OFFSET + EXT2_BANK_SWITCH_LABELS_SIZE
 EXP_CURVE_NAMES = {0: "Linear", 1: "Log", 2: "Exp"}
-EXP_OUTPUT_NAMES = {0: "CC", 1: "PitchBend", 2: "CC14", 3: "Speed", 4: "Wheel", 5: "Arrows"}
+EXP_OUTPUT_NAMES = {0: "CC", 1: "PitchBend", 2: "CC14", 3: "Speed", 4: "Wheel", 5: "Arrows", 6: "Switches"}
+EXP_OUT_SWITCHES = 6
+BOX_SWITCH_IDS = ["1", "2", "3", "4", "A", "B", "C", "D", "Down", "Up"]
 EXP_BUTTON_IDS = ["1", "2", "3", "4", "A", "B", "C", "D"]
 
 SLOT_NAMES = [chr(ord("A") + i) for i in range(MIDI_NUM_COMMANDS_PER_SWITCH)]
@@ -668,6 +670,12 @@ def unpack_expression_settings(data: bytes) -> pd.DataFrame:
         out_max = p[12] if p[12] <= 127 else 127
         if p[11] == 0 and p[12] == 0:
             out_max = 127
+        # A box of switches keeps what they hold down in bytes 7 to 9, where
+        # the toe and heel switches go, which it has no use for
+        box = [0xFF] * 3
+        if p[15] == EXP_OUT_SWITCHES:
+            box = list(p[7:10])
+            p = bytes(p[:7]) + bytes([0xFF, 0xFF, 120]) + bytes(p[10:13]) + bytes([0]) + bytes(p[14:])
         rows.append(
             {
                 "Pedal": str(i + 1),
@@ -686,6 +694,8 @@ def unpack_expression_settings(data: bytes) -> pd.DataFrame:
                 "Auto_Off_ms": str(p[14] * 10 if p[14] not in (0, 0xFF) else 500),
                 "Output": EXP_OUTPUT_NAMES.get(p[15], "CC"),
                 "Send_On_Bank": "Y" if data[35] != 0xFF and data[35] & (0x04 << i) else "N",
+                **{f"Box_{k + 1}": BOX_SWITCH_IDS[b] if b < len(BOX_SWITCH_IDS) else "None"
+                   for k, b in enumerate(box)},
             }
         )
     return pd.DataFrame(rows)
