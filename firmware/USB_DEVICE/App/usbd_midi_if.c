@@ -1,6 +1,6 @@
 /*
- *
- * EEPROM Routines taken in part form Github - nimaltd/ee24
+ * The pedal's USB MIDI interface: incoming messages, and the SysEx commands
+ * the configurator and the tools use (see midi_defines.h).
  */
 
 #include "usbd_midi_if.h"
@@ -29,7 +29,7 @@
 extern I2C_HandleTypeDef hi2c1;
 
 
-#define SYSEX_MAX_LENGTH 80	// the longest is the GET_STATE answer, 66 bytes
+#define SYSEX_MAX_LENGTH 80	// the longest is the GET_STATE answer, 75 bytes
 uint8_t sysex_rx_buffer[SYSEX_MAX_LENGTH];
 uint8_t sysex_rx_counter = 0;
 uint8_t sysex_tx_assembly_buffer[160];	// room for an 80 byte GET_SCREEN answer as USB MIDI events
@@ -298,7 +298,7 @@ void sysex_press_button(uint8_t* data_packet_start){
  * labels and the level of all ten LEDs (0-16), so blinking and dimmed LEDs show
  * as they really are, the eight stored values and last whether the pedal
  * started in safe mode, then how it is holding up (see health.c). 71 bytes
- * in all.
+ * after the response code, 75 with F0 7D 45 and F7.
  */
 void sysex_get_state(void){
 	uint8_t bank = sw_get_current_page();

@@ -108,7 +108,7 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
 
 // Number of flash pages reserved for the settings. Pages are 2 kB on the
 // STM32F103RE (FLASH_PAGE_SIZE). Must stay in sync with ALLOWED_NUM_FLASH_PAGES
-// and FLASH_PAGE_SIZE in python/CSV_to_Flash.py.
+// and FLASH_PAGE_SIZE in python/lib/slotIO.py.
 #define FLASH_SETTINGS_NO_PAGES	(12)
 #define FLASH_SETTINGS_SIZE		(FLASH_SETTINGS_NO_PAGES * FLASH_PAGE_SIZE)
 
@@ -186,6 +186,16 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
  *   LABELS       BUTTON_LABEL_LEN chars per button
  *   LONG_CMDS    second command set, same size as CMDS
  *   EXP          two pedal calibration records
+ *   BANK_ENTER   one command list per bank, sent on entering it
+ *   SYSEX        stored SysEx payloads
+ *   BANK_SWITCH  the Bank Down/Up command lists
+ *   SETLIST      bank numbers in setlist order
+ *   BANK_EXP     expression pedal CC and channel per bank
+ *   BANK_EXP_RANGE  expression pedal output range per bank
+ *   CYCLE_LABELS labels of the states of cycle buttons
+ *   COMBOS       two switch combinations
+ * After the slot's pages come the double press commands (CFG_DOUBLE_CMDS_OFF)
+ * and then the second extension area (CFG_EXT2_OFF), both stored elsewhere.
  */
 #define CFG_BUTTONS			(MIDI_NUM_BANKS * MIDI_NUM_SWITCHES)
 /*
@@ -218,9 +228,9 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
 #define CFG_SETLIST_OFF		(CFG_BANK_SWITCH_OFF + CFG_BANK_SWITCH_SIZE)
 /*
  * Expression pedals per bank: [pedal 1 CC, pedal 1 channel, pedal 2 CC, pedal 2
- * channel]. CC 0-127 replaces the pedal's CC in that bank, BANK_EXP_CC_OFF
- * silences it there, BANK_EXP_CC_SPEED makes it set the speed of the LFOs
- * and sequences, and BANK_EXP_CC_WHEEL and BANK_EXP_CC_ARROWS make it scroll;
+ * channel]. CC 0-127 replaces the pedal's CC in that bank, EXP_TARGET_OFF
+ * silences it there, EXP_TARGET_SPEED makes it set the speed of the LFOs
+ * and sequences, and EXP_TARGET_WHEEL and EXP_TARGET_ARROWS make it scroll;
  * channel 1-16 replaces its channel. Erased flash (0xFF),
  * which is all a configuration written before 0.28 holds here, keeps the
  * pedal's own settings.
@@ -228,10 +238,6 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
 #define CFG_BANK_EXP_STRIDE	(4)
 #define CFG_BANK_EXP_SIZE	(MIDI_NUM_BANKS * CFG_BANK_EXP_STRIDE)
 #define CFG_BANK_EXP_OFF	(CFG_SETLIST_OFF + CFG_SETLIST_SIZE)
-#define BANK_EXP_CC_OFF		(128)	// 0x80, above any CC number
-#define BANK_EXP_CC_SPEED	(130)	// 0x82, EXP_TARGET_SPEED
-#define BANK_EXP_CC_WHEEL	(132)	// 0x84, EXP_TARGET_WHEEL
-#define BANK_EXP_CC_ARROWS	(133)	// 0x85, EXP_TARGET_ARROWS
 /*
  * Expression pedal output range per bank: [pedal 1 lowest, pedal 1 highest,
  * pedal 2 lowest, pedal 2 highest], 0-127 each. Erased flash (0xFF), which is

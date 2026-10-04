@@ -83,7 +83,7 @@ void leds_init(void){
 	TIM2->EGR = TIM_EGR_UG;			// load PSC/ARR
 	TIM2->SR  = 0;
 	TIM2->DIER = TIM_DIER_UIE;
-	HAL_NVIC_SetPriority(TIM2_IRQn, 3, 0);	// below USB, DMA and the switch scan
+	HAL_NVIC_SetPriority(TIM2_IRQn, 3, 0);	// below DMA and I2C (0-1), above SysTick (4) and USB (5-6)
 	HAL_NVIC_EnableIRQ(TIM2_IRQn);
 	TIM2->CR1 = TIM_CR1_CEN;
 }

@@ -608,7 +608,7 @@ class FirmwareLayoutTest(unittest.TestCase):
 
         self.assertIn(name, self.macros, name)
         expr = resolve(self.macros[name])
-        self.assertNotRegex(expr, r"[A-Za-z_]", f"{name} -> {expr}")
+        self.assertNotRegex(re.sub(r"\b0[xX][0-9A-Fa-f]+\b", "", expr), r"[A-Za-z_]", f"{name} -> {expr}")
         return eval(expr)  # noqa: S307 - integer arithmetic from our own headers
 
     def test_offsets_match(self):
@@ -626,10 +626,10 @@ class FirmwareLayoutTest(unittest.TestCase):
             ("CFG_SETLIST_OFF", "SETLIST_OFFSET"),
             ("CFG_BANK_EXP_OFF", "BANK_EXP_OFFSET"),
             ("CFG_BANK_EXP_STRIDE", "BANK_EXP_STRIDE"),
-            ("BANK_EXP_CC_OFF", "BANK_EXP_CC_OFF"),
-            ("BANK_EXP_CC_SPEED", "BANK_EXP_CC_SPEED"),
-            ("BANK_EXP_CC_WHEEL", "BANK_EXP_CC_WHEEL"),
-            ("BANK_EXP_CC_ARROWS", "BANK_EXP_CC_ARROWS"),
+            ("EXP_TARGET_OFF", "BANK_EXP_CC_OFF"),
+            ("EXP_TARGET_SPEED", "BANK_EXP_CC_SPEED"),
+            ("EXP_TARGET_WHEEL", "BANK_EXP_CC_WHEEL"),
+            ("EXP_TARGET_ARROWS", "BANK_EXP_CC_ARROWS"),
             ("SETLIST_MAX", "SETLIST_MAX"),
             ("CFG_CYCLE_LABELS_OFF", "CYCLE_LABELS_OFFSET"),
             ("CYCLE_LABEL_COUNT", "CYCLE_LABEL_COUNT"),

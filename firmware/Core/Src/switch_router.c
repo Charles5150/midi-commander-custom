@@ -447,7 +447,6 @@ static void send_pc_relative(const uint8_t *pRom, bool repeat){
 	display_show_message(msg);
 }
 
-// A stored SysEx payload, wrapped in F0 ... F7 and sent to USB and DIN
 // A Tap command that steps the tempo up or down
 static bool tap_is_step(const uint8_t *pRom){
 	uint8_t mode = pRom[0] & 0x0F;
@@ -483,6 +482,7 @@ static void send_tap(const uint8_t *pRom){
 	display_show_tempo();
 }
 
+// A stored SysEx payload, wrapped in F0 ... F7 and sent to USB and DIN
 static void send_stored_sysex(const uint8_t *pRom){
 	uint8_t index = pRom[1];
 	if(index >= SYSEX_STRING_COUNT) return;
@@ -1023,11 +1023,11 @@ static bool get_button_tempo_flash(uint8_t sw){
 }
 
 uint8_t get_bank_down_led_mode(){ // SW_E is Bank Down
-	return sanitize_led_mode(pGlobalSettings[5]);
+	return sanitize_led_mode(pGlobalSettings[GLOBAL_SETTINGS_BANK_DOWN_LED]);
 }
 
 uint8_t get_bank_up_led_mode(){ // SW_5 is Bank Up
-	return sanitize_led_mode(pGlobalSettings[4]);
+	return sanitize_led_mode(pGlobalSettings[GLOBAL_SETTINGS_BANK_UP_LED]);
 }
 
 // Helper to determine LED state based on Mode and Press state
@@ -1116,7 +1116,7 @@ static inline bool feedback_numbers_has(uint8_t n){
 
 void sw_led_init(void){
 	feedback_numbers_clear();
-	// Scan all commands in EEPROM, and build the table of whether the LED should toggle with the switch, or be momentary
+	// Scan all commands in flash, and build the table of whether the LED should toggle with the switch, or be momentary
 	for(int page=0; page<MIDI_NUM_BANKS; page++){
 		for(int sw=0; sw<8; sw++){
 			// Clear the toggle bit

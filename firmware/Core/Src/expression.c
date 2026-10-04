@@ -149,7 +149,7 @@ typedef struct {
   bool toe_armed;       // false while sitting past the threshold
   bool heel_armed;
   bool switches_primed; // toe/heel armed from a real reading yet
-  uint8_t target_cc;      // CC in use (BANK_EXP_CC_OFF when silent), 0xFF before the first reading
+  uint8_t target_cc;      // CC in use (EXP_TARGET_OFF when silent), 0xFF before the first reading
   uint8_t target_channel;
   uint8_t target_min;
   uint8_t target_max;
@@ -423,10 +423,10 @@ static bool pedal_target(uint32_t i, uint8_t *cc, uint8_t *channel,
   *channel = midi_channel(c);
   *lo = (r[0] <= 127U) ? r[0] : c->out_min;
   *hi = (r[1] <= 127U) ? r[1] : c->out_max;
-  bool enabled = (b[0] != BANK_EXP_CC_OFF);
+  bool enabled = (b[0] != EXP_TARGET_OFF);
   *own = true;
-  if ((b[0] <= 127U || b[0] == BANK_EXP_CC_SPEED
-       || b[0] == BANK_EXP_CC_WHEEL || b[0] == BANK_EXP_CC_ARROWS) && b[0] != *cc) {
+  if ((b[0] <= 127U || b[0] == EXP_TARGET_SPEED
+       || b[0] == EXP_TARGET_WHEEL || b[0] == EXP_TARGET_ARROWS) && b[0] != *cc) {
       *cc = b[0];
       *own = false;
   }
@@ -835,7 +835,7 @@ static void process_pedal(uint32_t i)
   uint16_t out_value = seven ? scale_output(midi_value, lo, hi)
                              : scale_fine(fine_value, lo, hi);
   uint8_t out_midi = seven ? (uint8_t)out_value : (uint8_t)(out_value >> 7);
-  uint8_t target = enabled ? cc : BANK_EXP_CC_OFF;
+  uint8_t target = enabled ? cc : EXP_TARGET_OFF;
   if (target != p->target_cc || channel != p->target_channel
       || lo != p->target_min || hi != p->target_max || kind != p->target_kind) {
       if (target != EXP_TARGET_SPEED) speed_release(i);
