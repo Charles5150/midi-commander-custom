@@ -1,16 +1,7 @@
 """Pack a parsed configuration CSV into the flash image the firmware expects.
 
-Layout (must match firmware/Core/Src/flash_midi_settings.c):
-
-    0..15    global settings
-    16..31   config name
-    32..127  bank strings
-    128..    8 banks x 8 buttons x 10 commands x 4 bytes
-    2688..   button LED mode table, one byte per button (bank * 8 + button)
-    2752..   button labels, 4 ASCII chars per button, space padded
-    3008..   long press commands, same layout as the main command area
-    5568..   expression pedal calibration, 16 bytes per pedal
-    ....     commands sent when each bank is entered, one button's list per bank
+The layout is in flashLayout, which follows
+firmware/Core/Inc/flash_midi_settings.h.
 """
 
 from contextlib import contextmanager
@@ -18,16 +9,15 @@ from contextlib import contextmanager
 import lib.cmdBinaryPacker as cbp
 import lib.settingsBinaryPacker as sbp
 from lib.displayText import display_bytes
+from lib.flashLayout import (
+    NUM_BANKS, BUTTON_IDS, EXP_BUTTON_IDS, BOX_SWITCH_IDS, LABEL_LEN, EXP_STRIDE,
+    SYSEX_STRING_COUNT, SYSEX_STRING_MAX, BANK_SWITCH_LISTS, SETLIST_MAX, COMBO_COUNT,
+    DOUBLE_PRESS_OFFSET, EXT2_OFFSET, EXT2_MARKER, EXT2_MAP_OFFSET, MIDI_MAP_COUNT, MIDI_MAP_STRIDE,
+    EXT2_BANK_SWITCH_LABELS_SIZE,
+)
 
-NUM_BANKS = 32
-NUM_BUTTONS = 8
-BUTTON_IDS = ["1", "2", "3", "4", "A", "B", "C", "D"]
-LABEL_LEN = 4
 LONG_PRESS_SECTION = "LongPress_Settings"
 DOUBLE_PRESS_SECTION = "DoublePress_Settings"
-FLASH_PAGE_SIZE = 2048
-SLOT_PAGES = 12
-DOUBLE_PRESS_OFFSET = SLOT_PAGES * FLASH_PAGE_SIZE
 EXPRESSION_SECTION = "Expression_Settings"
 BANK_ENTER_SECTION = "BankEnter_Settings"
 SYSEX_SECTION = "SysEx_Strings"
@@ -36,32 +26,11 @@ SETLIST_SECTION = "Setlist"
 BANK_EXPRESSION_SECTION = "BankExpression_Settings"
 BANK_EXP_COLUMNS = ["Bank_Number", "Exp1_CC", "Exp1_Channel", "Exp1_Min", "Exp1_Max",
                     "Exp2_CC", "Exp2_Channel", "Exp2_Min", "Exp2_Max"]
-BANK_EXP_CC_OFF = 0x80
-BANK_EXP_CC_SPEED = 0x82
-BANK_EXP_CC_WHEEL = 0x84
-BANK_EXP_CC_ARROWS = 0x85
-SETLIST_MAX = 32
 COMBO_SECTION = "Combo_Settings"
-COMBO_COUNT = 12
 COMBO_COLUMNS = ["Switches", "Bank", "Run_Bank", "Run_Button", "Run_List"]
-# The second extension area (firmware 0.90): two pages per slot after the
-# double press area, counted only when it starts with EXT2_MARKER
-DOUBLE_PRESS_PAGES = 5
-EXT2_OFFSET = DOUBLE_PRESS_OFFSET + DOUBLE_PRESS_PAGES * FLASH_PAGE_SIZE
-EXT2_PAGES = 2
-EXT2_MARKER = b"EXT2"
-EXT2_MAP_OFFSET = 16
 # MIDI map: messages arriving over USB turned into others on the DIN output
 MIDI_MAP_SECTION = "MidiMap_Settings"
-MIDI_MAP_COUNT = 32
-MIDI_MAP_STRIDE = 12
-# Long press labels (firmware 0.91), after the map
-EXT2_LONG_LABELS_OFFSET = EXT2_MAP_OFFSET + MIDI_MAP_COUNT * MIDI_MAP_STRIDE
-# The labels of Bank Down and Bank Up (firmware 1.08), after the long press
-# labels: the screen shows them with Bank_Switch_Mode at MIDI only. The tools
-# read and write in pieces of 16 bytes, so the two take that much.
-EXT2_BANK_SWITCH_LABELS_OFFSET = EXT2_LONG_LABELS_OFFSET + NUM_BANKS * len(BUTTON_IDS) * LABEL_LEN
-EXT2_BANK_SWITCH_LABELS_SIZE = 16
+# The bank switches with a label of their own (firmware 1.08)
 BANK_SWITCH_LABELED = ["Down", "Up"]
 MIDI_MAP_COLUMNS = ["In_Type", "In_Channel", "In_Number", "In_Min", "In_Max",
                     "Out_Type", "Out_Channel", "Out_Number", "Out_Min", "Out_Max",
@@ -71,11 +40,6 @@ MIDI_MAP_TYPES = {"Note": 0x90, "CC": 0xB0, "PC": 0xC0, "Pressure": 0xD0, "Pitch
 MIDI_MAP_RUN = "Run"
 MIDI_MAP_NOTHING = "Nothing"
 MIDI_MAP_OUT_TYPES = {**MIDI_MAP_TYPES, MIDI_MAP_RUN: 0x01, MIDI_MAP_NOTHING: 0x00}
-BANK_SWITCH_LISTS = [("Down", "Short"), ("Down", "Long"), ("Up", "Short"), ("Up", "Long")]
-SYSEX_STRING_COUNT = 16
-SYSEX_STRING_MAX = 23
-SYSEX_STRING_STRIDE = SYSEX_STRING_MAX + 1
-EXP_STRIDE = 16
 EXP_CURVES = {"LINEAR": 0, "LOG": 1, "EXP": 2}
 # What a pedal sends: a 7-bit CC, Pitch Bend, or a 14-bit CC pair (MSB on the
 # CC, LSB on CC + 32)
@@ -88,10 +52,6 @@ EXP_DEFAULTS = {
     "Auto_Button": "None", "Auto_Off_ms": "500", "Output": "CC", "Send_On_Bank": "N",
     "Box_1": "None", "Box_2": "None", "Box_3": "None",
 }
-EXP_BUTTON_IDS = ["1", "2", "3", "4", "A", "B", "C", "D"]
-# What a switch of a box on the jack (Output Switches) holds down: a command
-# switch, or Bank Down or Up
-BOX_SWITCH_IDS = EXP_BUTTON_IDS + ["Down", "Up"]
 BOX_COLUMNS = ["Box_1", "Box_2", "Box_3"]
 
 
@@ -100,6 +60,13 @@ def _key(bank, button) -> tuple:
     if b.endswith(".0"):
         b = b[:-2]
     return (b, str(button).strip().upper())
+
+
+def _pedal(row) -> str:
+    """An Expression_Settings row's pedal, "1" or "2" (a spreadsheet may have
+    written "1.0")."""
+    p = str(row.get("Pedal", "")).strip()
+    return p[:-2] if p.endswith(".0") else p
 
 
 @contextmanager
@@ -463,7 +430,7 @@ def expression_send_on_bank(df) -> int:
     bits = 0
     if df is not None:
         for _, row in df.iterrows():
-            pedal = str(row.get("Pedal", "")).strip().rstrip(".0")
+            pedal = _pedal(row)
             if pedal in ("1", "2") and str(row.get("Send_On_Bank", "")).strip().upper().startswith("Y"):
                 bits |= sbp.EXP_SEND_ON_BANK << (int(pedal) - 1)
     return bits
@@ -477,17 +444,16 @@ def pack_expression_settings(df) -> bytes:
     rows = {}
     if df is not None:
         for _, row in df.iterrows():
-            rows[str(row.get("Pedal", "")).strip().rstrip(".0") or "?"] = row
+            rows[_pedal(row)] = row
     out = b""
     for i in range(2):
         row = rows.get(str(i + 1))
         get = (lambda k: row.get(k, EXP_DEFAULTS[k])) if row is not None else (lambda k: EXP_DEFAULTS[k])
         lo = max(0, min(4095, _to_int(get("Min_ADC"), 80)))
         hi = max(0, min(4095, _to_int(get("Max_ADC"), 3900)))
-        curve = EXP_CURVES.get(str(get("Curve")).strip().upper()[:6].rstrip("ARITHM"), None)
-        if curve is None:
-            c = str(get("Curve")).strip().upper()
-            curve = 1 if c.startswith("LOG") else 2 if c.startswith("EXP") else 0
+        # Linear, Log or Logarithmic, Exp or Exponential
+        c = str(get("Curve")).strip().upper()
+        curve = EXP_CURVES["LOG"] if c.startswith("LOG") else EXP_CURVES["EXP"] if c.startswith("EXP") else EXP_CURVES["LINEAR"]
         invert = 1 if str(get("Invert")).strip().upper().startswith("Y") else 0
         ch_text = str(get("Channel")).strip()
         channel = 0 if ch_text.upper().startswith("G") or ch_text == "" else max(0, min(16, _to_int(ch_text, 0)))
@@ -582,13 +548,13 @@ def bank_exp_cc_byte(value) -> int:
     if text == "":
         return 0xFF
     if text.lower() == "off":
-        return BANK_EXP_CC_OFF
+        return cbp.EXP_TARGET_OFF
     if text.lower() == "speed":
-        return BANK_EXP_CC_SPEED
+        return cbp.EXP_TARGET_SPEED
     if text.lower() == "wheel":
-        return BANK_EXP_CC_WHEEL
+        return cbp.EXP_TARGET_WHEEL
     if text.lower() == "arrows":
-        return BANK_EXP_CC_ARROWS
+        return cbp.EXP_TARGET_ARROWS
     try:
         return max(0, min(127, int(float(text))))
     except ValueError:
@@ -689,8 +655,8 @@ def pack_flash_image(sections: dict) -> bytes:
     """Everything the tools write: the configuration and, when any button has
     one, the double press commands after the slot's pages (firmware 0.26),
     then the second extension area when it holds something (0.90)."""
-    image = pack_config(sections)
     double = pack_double_press(sections)
+    image = pack_config(sections, has_double=double is not None)
     if double is not None:
         image = image.ljust(DOUBLE_PRESS_OFFSET, b"\xff") + double
     ext2 = pack_ext2(sections)
@@ -699,8 +665,10 @@ def pack_flash_image(sections: dict) -> bytes:
     return image
 
 
-def pack_config(sections: dict) -> bytes:
-    """``sections`` is the dict returned by ``configCsv.read_config_csv``."""
+def pack_config(sections: dict, has_double=None) -> bytes:
+    """``sections`` is the dict returned by ``configCsv.read_config_csv``.
+    ``has_double`` saves packing the double press commands again when the
+    caller already knows whether there are any."""
     df_global = sections["Global_Settings"].set_index("Label")
     df_banks = sections["Bank_Naming"].set_index("Bank_Number")
     df_buttons = sections["Button_Settings"]
@@ -711,7 +679,9 @@ def pack_config(sections: dict) -> bytes:
     out[sbp.GLOBAL_SETTINGS_LED_FEEDBACK] |= expression_send_on_bank(sections.get(EXPRESSION_SECTION))
     # Tells the firmware this slot's double press area was written, so it never
     # reads what older firmware or tools may have left there
-    if pack_double_press(sections) is not None:
+    if has_double is None:
+        has_double = pack_double_press(sections) is not None
+    if has_double:
         out[sbp.GLOBAL_SETTINGS_DOUBLE_STORED] = 1
     with _at("Bank_Naming"):
         out += sbp.pack_bank_strings(df_banks)

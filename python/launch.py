@@ -1,4 +1,4 @@
-#! env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Set up the Python tools on first use, then open the configurator.
 

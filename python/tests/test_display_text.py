@@ -14,6 +14,7 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 
+import lib.flashLayout as layout  # noqa: E402
 import lib.binaryUnpacker as unpacker  # noqa: E402
 import lib.cmdBinaryPacker as cbp  # noqa: E402
 from lib.configCsv import read_config_csv  # noqa: E402
@@ -72,7 +73,7 @@ class PackTest(unittest.TestCase):
         (cls.df_global, cls.df_banks, cls.df_buttons, *_) = unpacker.unpack_config(cls.packed)
 
     def test_packs(self):
-        self.assertEqual(len(self.packed), unpacker.CONFIG_SIZE)
+        self.assertEqual(len(self.packed), layout.CONFIG_SIZE)
 
     def test_config_name(self):
         self.assertEqual(self.packed[16:32], b"Cancion del Ano ")

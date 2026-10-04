@@ -1,4 +1,4 @@
-#! env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Back up every configuration slot of the Midi Commander at once, or restore them.
 

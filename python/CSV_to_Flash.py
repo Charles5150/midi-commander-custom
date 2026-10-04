@@ -1,4 +1,4 @@
-#! env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Load a configuration CSV onto the Midi Commander over USB MIDI SysEx."""
 import argparse
@@ -67,13 +67,12 @@ def main(args: argparse.Namespace) -> int:
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(
-        description="This is a tool to load a CSV configuration to the Midi Commander device. "
-        "First, plug the Midi Commander to the USB port and turn it on. Then, run this tool "
-        "by giving it as input the CSV file downloaded from the Google Spreadsheet configuration.",
+        description="Write a configuration CSV to the Midi Commander over USB. "
+        "Make one with the configurator, Flash_to_CSV.py or a make_*_template.py script.",
     )
     p.add_argument(
         "csv_file",
-        help="Path to a CSV file downloaded from the Google Spreadsheet configuration",
+        help="the configuration CSV, as the configurator saves it",
     )
     p.add_argument(
         "--slot",

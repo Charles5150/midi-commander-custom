@@ -18,9 +18,10 @@ from lib.configCsv import read_config_csv, write_config_csv
 from lib.configPacker import pack_config, pack_flash_image
 from lib.configSchema import schema
 from lib.displayText import display_text
-
-FLASH_PAGE_SIZE = 2048
-SLOT_PAGES = 12
+# The sizes the page needs to read a slot come from here too
+from lib.flashLayout import (  # noqa: F401
+    CONFIG_SIZE, DOUBLE_PRESS_OFFSET, DOUBLE_PRESS_SIZE, EXT2_OFFSET, EXT2_SIZE, FLASH_PAGE_SIZE, SLOT_PAGES,
+)
 
 # The sections in the order a CSV has them, and write_config_csv's name for each
 SECTION_ARGS = [
@@ -150,10 +151,3 @@ def image_to_sections(data: bytes, image: bytes) -> str:
     csv = sections_to_csv(_to_json({k: v for k, v in sections.items() if v is not None}))
     return csv_to_sections(csv.encode("utf-8"))
 
-
-# Sizes the page needs to read a slot, from the same place slotIO takes them
-CONFIG_SIZE = unpacker.CONFIG_SIZE
-DOUBLE_PRESS_OFFSET = unpacker.DOUBLE_PRESS_OFFSET
-DOUBLE_PRESS_SIZE = unpacker.DOUBLE_PRESS_SIZE
-EXT2_OFFSET = unpacker.EXT2_OFFSET
-EXT2_SIZE = unpacker.EXT2_SIZE

@@ -8,7 +8,7 @@ import os
 import pandas as pd
 
 from lib.configCsv import write_config_csv
-from lib.configPacker import NUM_BANKS
+from lib.flashLayout import NUM_BANKS
 
 NO_SEND = "128"         # an off value of 128 sends nothing
 

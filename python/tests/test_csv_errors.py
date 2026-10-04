@@ -7,6 +7,7 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 
+import lib.flashLayout as layout  # noqa: E402
 import lib.cmdBinaryPacker as cbp  # noqa: E402
 import lib.configPacker as packer  # noqa: E402
 from lib.configCsv import read_config_csv  # noqa: E402
@@ -106,7 +107,7 @@ class LocationTest(unittest.TestCase):
         sections = demo()
         for i in range(cbp.CYCLE_LABEL_COUNT + 1):
             bank, button = divmod(i, 8)
-            set_command(sections, "Button_Settings", 20 + bank, packer.BUTTON_IDS[button], "J",
+            set_command(sections, "Button_Settings", 20 + bank, layout.BUTTON_IDS[button], "J",
                         CommandType="Cycle", **{"OnValue_(CC/PB)": f"L{i}"})
         self.check(sections, "Button_Settings bank", "Too many different cycle labels")
 

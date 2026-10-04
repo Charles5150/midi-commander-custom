@@ -190,8 +190,12 @@ def version_at_least(version: str, major: int, minor: int) -> bool:
     return tuple(parts) >= (major, minor)
 
 
+# The firmware's USB product name, inside every name the systems give its ports
+PRODUCT_NAME = "MIDI Commander Custom"
+
+
 def _matches(name: str) -> bool:
-    return "STM" in name or "MIDI Commander" in name
+    return PRODUCT_NAME in name
 
 
 # With USB_Ports at 3 the pedal is three ports: 1 the pedal, 2 its DIN output,
@@ -245,7 +249,9 @@ class MidiCommander:
         if self.inport is None:
             raise DeviceNotFound("Could not open MIDI input: " + "; ".join(errors))
 
-        for name in outputs:
+        # The output of the same port as the input, so the answers come back
+        kind = port_kind(self.inport.name)
+        for name in sorted(outputs, key=lambda n: port_kind(n) != kind):
             try:
                 self.outport = mido.open_output(name)
                 break
@@ -286,6 +292,15 @@ class MidiCommander:
             if len(data) >= 2 and data[0] == MIDI_MANUF_ID and data[1] == expected_rsp:
                 return data[2:]
         raise DeviceTimeout(f"No response {expected_rsp} from device")
+
+    def _wait_for_answer(self, expected_rsp, timeout, wanted):
+        """wait_for_sysex until an answer is `wanted`, skipping stale ones for
+        an earlier request, all within `timeout`."""
+        deadline = time.monotonic() + timeout
+        while True:
+            data = self.wait_for_sysex(expected_rsp, max(0.0, deadline - time.monotonic()))
+            if wanted(data):
+                return data
 
     def firmware_at_least(self, major: int, minor: int, timeout=1.0) -> bool:
         """True when the firmware reports a version of at least major.minor."""
@@ -386,10 +401,7 @@ class MidiCommander:
         buffer = bytearray()
         for part in range(SCREEN_PARTS):
             self.send([SYSEX_CMD_GET_SCREEN, part])
-            while True:
-                data = self.wait_for_sysex(SYSEX_RSP_GET_SCREEN, timeout)
-                if data and data[0] == part:
-                    break
+            data = self._wait_for_answer(SYSEX_RSP_GET_SCREEN, timeout, lambda d: d and d[0] == part)
             chunk = unpack7(data[1:])
             if len(chunk) != SCREEN_PART_BYTES:
                 raise ValueError(f"screen part {part} has {len(chunk)} bytes")
@@ -409,15 +421,10 @@ class MidiCommander:
         hi = (chunk_index >> 7) & 0x7F
         lo = chunk_index & 0x7F
         self.send([SYSEX_CMD_READ_FLASH, hi, lo])
-        while True:
-            data = self.wait_for_sysex(SYSEX_RSP_READ_FLASH, timeout)
-            if len(data) >= 34 and data[0] == hi and data[1] == lo:
-                nibbles = data[2:34]
-                return bytes(
-                    (nibbles[2 * i] << 4) | (nibbles[2 * i + 1] & 0x0F)
-                    for i in range(16)
-                )
-            # A stale response for another chunk, keep waiting
+        data = self._wait_for_answer(SYSEX_RSP_READ_FLASH, timeout,
+                                     lambda d: len(d) >= 34 and d[0] == hi and d[1] == lo)
+        nibbles = data[2:34]
+        return bytes((nibbles[2 * i] << 4) | (nibbles[2 * i + 1] & 0x0F) for i in range(16))
 
     def read_settings(self, num_bytes: int, progress=None, start: int = 0) -> bytes:
         """num_bytes of the target slot's image from byte `start` (a multiple of 16)."""

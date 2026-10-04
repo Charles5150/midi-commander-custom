@@ -15,6 +15,7 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
 from lib import webBridge as wb  # noqa: E402
+import lib.flashLayout as layout  # noqa: E402
 from lib.configCsv import read_config_csv  # noqa: E402
 from lib.configPacker import pack_config, pack_flash_image  # noqa: E402
 from lib.configSchema import COMMAND_SPECS, ENTER_COMMAND_TYPES, SHORT_COMMAND_TYPES, schema  # noqa: E402
@@ -65,9 +66,8 @@ class BridgeTest(unittest.TestCase):
         problem = wb.check(json.dumps(sections))
         self.assertIn("Nonsense", problem)
 
-    def test_sizes_match_the_unpacker(self):
-        import lib.binaryUnpacker as unpacker
-        self.assertEqual(wb.CONFIG_SIZE, unpacker.CONFIG_SIZE)
+    def test_sizes_match_the_layout(self):
+        self.assertEqual(wb.CONFIG_SIZE, layout.CONFIG_SIZE)
         self.assertEqual(wb.DOUBLE_PRESS_OFFSET, 12 * 2048)
 
 

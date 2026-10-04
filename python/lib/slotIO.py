@@ -10,7 +10,11 @@ from math import ceil
 
 import lib.binaryUnpacker as unpacker
 from lib.configCsv import write_config_csv
-from lib.configPacker import EXT2_MARKER, EXT2_OFFSET, pack_config, pack_flash_image
+from lib.configPacker import pack_config, pack_flash_image
+from lib.flashLayout import (
+    CONFIG_SIZE, DOUBLE_PRESS_OFFSET, DOUBLE_PRESS_SIZE, EXT2_MARKER, EXT2_OFFSET, EXT2_SIZE, FLASH_PAGE_SIZE,
+    SLOT_PAGES,
+)
 from lib.midiDevice import (
     SYSEX_CMD_ERASE_FLASH,
     SYSEX_CMD_WRITE_FLASH,
@@ -19,13 +23,7 @@ from lib.midiDevice import (
     DeviceTimeout,
     version_at_least,
 )
-
-# Flash pages are 2 kB on the STM32F103RE (high density)
-FLASH_PAGE_SIZE = 2048
-
-# This needs to be in sync with FLASH_SETTINGS_NO_PAGES in
-# firmware/Core/Inc/flash_midi_settings.h
-ALLOWED_NUM_FLASH_PAGES = 12
+from lib.settingsBinaryPacker import GLOBAL_SETTINGS_DOUBLE_STORED
 
 
 class SlotError(Exception):
@@ -67,17 +65,17 @@ def read_image(dev, version, progress=None):
     proper, and the same followed by the double press area when the slot has
     one (firmware 0.26 and a slot whose tools wrote it), then the second
     extension area when it has that (0.90, and its marker is there)."""
-    data = dev.read_settings(unpacker.CONFIG_SIZE, progress)
+    data = dev.read_settings(CONFIG_SIZE, progress)
     image = data
-    if version_at_least(version, 0, 26) and data[37] == 1:
+    if version_at_least(version, 0, 26) and data[GLOBAL_SETTINGS_DOUBLE_STORED] == 1:
         extension = dev.read_settings(
-            unpacker.DOUBLE_PRESS_SIZE, progress, start=unpacker.DOUBLE_PRESS_OFFSET)
-        image = data.ljust(unpacker.DOUBLE_PRESS_OFFSET, b"\xff") + extension
+            DOUBLE_PRESS_SIZE, progress, start=DOUBLE_PRESS_OFFSET)
+        image = data.ljust(DOUBLE_PRESS_OFFSET, b"\xff") + extension
     if version_at_least(version, 0, 90):
-        head = dev.read_settings(16, None, start=unpacker.EXT2_OFFSET)
+        head = dev.read_settings(16, None, start=EXT2_OFFSET)
         if head.startswith(EXT2_MARKER):
-            ext2 = head + dev.read_settings(unpacker.EXT2_SIZE - 16, progress, start=unpacker.EXT2_OFFSET + 16)
-            image = image.ljust(unpacker.EXT2_OFFSET, b"\xff") + ext2
+            ext2 = head + dev.read_settings(EXT2_SIZE - 16, progress, start=EXT2_OFFSET + 16)
+            image = image.ljust(EXT2_OFFSET, b"\xff") + ext2
     return data, image
 
 
@@ -112,10 +110,10 @@ def pack_sections(sections):
     config = pack_config(sections)
     image = pack_flash_image(sections)
     pages = ceil(len(config) / FLASH_PAGE_SIZE)
-    if pages > ALLOWED_NUM_FLASH_PAGES:
+    if pages > SLOT_PAGES:
         raise ValueError(
             f"the configuration needs {pages} flash pages, more than the "
-            f"{ALLOWED_NUM_FLASH_PAGES} a slot has")
+            f"{SLOT_PAGES} a slot has")
     return config, image
 
 
@@ -169,7 +167,7 @@ def write_image(dev, config, image, log=_quiet, progress=None):
             new_enough = False
         if not new_enough:
             log("WARNING: the MIDI map and the long press labels need firmware 0.90 or later; writing everything else")
-            image = image[:EXT2_OFFSET] if config[37] == 1 else config  # the double press area stays
+            image = image[:EXT2_OFFSET] if config[GLOBAL_SETTINGS_DOUBLE_STORED] == 1 else config  # the double press area stays
     if len(image) > len(config):
         try:
             new_enough = dev.firmware_at_least(0, 26)
@@ -178,7 +176,7 @@ def write_image(dev, config, image, log=_quiet, progress=None):
         if not new_enough:
             log("WARNING: double press needs firmware 0.26 or later; writing everything else")
             image = bytearray(config)
-            image[37] = 0  # GLOBAL_SETTINGS_DOUBLE_STORED
+            image[GLOBAL_SETTINGS_DOUBLE_STORED] = 0
             image = bytes(image)
 
     log("Erasing Flash Settings")

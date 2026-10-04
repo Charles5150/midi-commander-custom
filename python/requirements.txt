@@ -1,4 +1,6 @@
-pandas
-mido
-python-rtmidi
-customtkinter
+# The oldest versions the tests pass with (Python 3.11); pip takes the newest
+pandas>=2.0
+mido>=1.3
+# 1.5.4 is the first with a build for Apple silicon
+python-rtmidi>=1.5.4
+customtkinter>=5.2

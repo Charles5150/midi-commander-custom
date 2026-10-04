@@ -1,4 +1,4 @@
-#! env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Work the pedal hard for about a minute and check it is still sound.
 

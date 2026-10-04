@@ -5,20 +5,24 @@ resulting DataFrames use exactly the same column layout the GUI configurator
 and ``CSV_to_Flash.py`` expect, so a device dump can be saved as a CSV and
 edited or re-flashed without any further conversion.
 
-Memory layout (see firmware/Core/Src/flash_midi_settings.c):
-
-    0..15    global settings
-    16..31   config name (ASCII, space padded)
-    32..127  8 banks x (4 byte large name + 8 byte small name)
-    128..    8 banks x 8 buttons x 10 commands x 4 bytes
-    2688..   button LED mode table, one byte per button (bank * 8 + button)
+The layout is in flashLayout, which follows
+firmware/Core/Inc/flash_midi_settings.h.
 """
 
 import pandas as pd
 
 from lib.configPacker import (
-    BANK_SWITCH_LABELED, EXT2_BANK_SWITCH_LABELS_OFFSET, EXT2_BANK_SWITCH_LABELS_SIZE, EXT2_LONG_LABELS_OFFSET, EXT2_MAP_OFFSET, EXT2_MARKER, MIDI_MAP_COLUMNS, MIDI_MAP_COUNT, MIDI_MAP_OUT_TYPES,
-    MIDI_MAP_RUN, MIDI_MAP_STRIDE, MIDI_MAP_TYPES,
+    BANK_SWITCH_LABELED, COMBO_COLUMNS, MIDI_MAP_COLUMNS, MIDI_MAP_OUT_TYPES, MIDI_MAP_RUN, MIDI_MAP_TYPES,
+)
+from lib.flashLayout import (
+    NUM_BANKS, BUTTON_IDS, default_int, EXP_BUTTON_IDS, BOX_SWITCH_IDS, LABEL_LEN, GLOBAL_SIZE, CMD_SIZE,
+    BUTTON_STRIDE, COMMANDS_OFFSET, LED_MODES_OFFSET, LABELS_OFFSET, LONG_PRESS_OFFSET, EXP_OFFSET,
+    EXP_STRIDE, BANK_ENTER_OFFSET, SYSEX_OFFSET, SYSEX_STRING_COUNT, SYSEX_STRING_MAX,
+    SYSEX_STRING_STRIDE, BANK_SWITCH_OFFSET, BANK_SWITCH_LISTS, SETLIST_OFFSET, SETLIST_MAX,
+    BANK_EXP_OFFSET, BANK_EXP_STRIDE, BANK_EXP_RANGE_OFFSET, BANK_EXP_RANGE_STRIDE,
+    CYCLE_LABELS_OFFSET, COMBOS_OFFSET, COMBO_COUNT, COMBO_STRIDE, CONFIG_SIZE, DOUBLE_PRESS_OFFSET,
+    DOUBLE_PRESS_SIZE, EXT2_OFFSET, EXT2_MARKER, EXT2_MAP_OFFSET, MIDI_MAP_COUNT,
+    MIDI_MAP_STRIDE, EXT2_LONG_LABELS_OFFSET, EXT2_BANK_SWITCH_LABELS_OFFSET, EXT2_SIZE,
 )
 
 from lib.cmdBinaryPacker import (
@@ -92,64 +96,9 @@ from lib.cmdBinaryPacker import (
     MIDI_NUM_COMMANDS_PER_SWITCH,
 )
 
-GLOBAL_SIZE = 48
-NUM_BANKS = 32
-BANK_STRINGS_SIZE = NUM_BANKS * 12
-BUTTON_IDS = ["1", "2", "3", "4", "A", "B", "C", "D"]
-CMD_SIZE = 4
-BUTTON_STRIDE = MIDI_NUM_COMMANDS_PER_SWITCH * CMD_SIZE
-LABEL_LEN = 4
-COMMANDS_OFFSET = GLOBAL_SIZE + BANK_STRINGS_SIZE
-LED_MODES_OFFSET = COMMANDS_OFFSET + NUM_BANKS * len(BUTTON_IDS) * BUTTON_STRIDE
-LABELS_OFFSET = LED_MODES_OFFSET + NUM_BANKS * len(BUTTON_IDS)
-LONG_PRESS_OFFSET = LABELS_OFFSET + NUM_BANKS * len(BUTTON_IDS) * LABEL_LEN
-EXP_OFFSET = LONG_PRESS_OFFSET + NUM_BANKS * len(BUTTON_IDS) * BUTTON_STRIDE
-EXP_STRIDE = 16
-BANK_ENTER_OFFSET = EXP_OFFSET + 2 * EXP_STRIDE
-SYSEX_OFFSET = BANK_ENTER_OFFSET + NUM_BANKS * BUTTON_STRIDE
-SYSEX_STRING_COUNT = 16
-SYSEX_STRING_MAX = 23
-SYSEX_STRING_STRIDE = SYSEX_STRING_MAX + 1
-BANK_SWITCH_OFFSET = SYSEX_OFFSET + SYSEX_STRING_COUNT * SYSEX_STRING_STRIDE
-# 0 Down short, 1 Down long, 2 Up short, 3 Up long
-BANK_SWITCH_LISTS = [("Down", "Short"), ("Down", "Long"), ("Up", "Short"), ("Up", "Long")]
-SETLIST_OFFSET = BANK_SWITCH_OFFSET + len(BANK_SWITCH_LISTS) * BUTTON_STRIDE
-SETLIST_MAX = 32
-# Expression pedal CC and channel per bank (firmware 0.28), 4 bytes per bank
-BANK_EXP_OFFSET = SETLIST_OFFSET + SETLIST_MAX
-BANK_EXP_STRIDE = 4
-BANK_EXP_CC_OFF = 0x80
-BANK_EXP_CC_SPEED = 0x82
-BANK_EXP_CC_WHEEL = 0x84
-BANK_EXP_CC_ARROWS = 0x85
-# Expression pedal output range per bank (firmware 0.33), 4 bytes per bank
-BANK_EXP_RANGE_OFFSET = BANK_EXP_OFFSET + NUM_BANKS * BANK_EXP_STRIDE
-BANK_EXP_RANGE_STRIDE = 4
-# Labels of the states of cycle buttons (firmware 0.38), 4 chars each
-CYCLE_LABELS_OFFSET = BANK_EXP_RANGE_OFFSET + NUM_BANKS * BANK_EXP_RANGE_STRIDE
-# Two switches pressed together (firmware 0.59), 4 bytes each: the pair, the
-# bank it counts in plus one (0 every bank), and the bank, button and list it runs
-COMBOS_OFFSET = CYCLE_LABELS_OFFSET + CYCLE_LABEL_COUNT * CYCLE_LABEL_LEN
-COMBO_COUNT = 12
-COMBO_STRIDE = 4
-COMBO_COLUMNS = ["Switches", "Bank", "Run_Bank", "Run_Button", "Run_List"]
-CONFIG_SIZE = COMBOS_OFFSET + COMBO_COUNT * COMBO_STRIDE
-# Double press commands follow the slot's 12 pages, in the extension area the
-# firmware maps there (firmware 0.26). Same shape as the long press commands.
-FLASH_PAGE_SIZE = 2048
-SLOT_PAGES = 12
-DOUBLE_PRESS_OFFSET = SLOT_PAGES * FLASH_PAGE_SIZE
-DOUBLE_PRESS_SIZE = NUM_BANKS * len(BUTTON_IDS) * BUTTON_STRIDE
-DOUBLE_PRESS_PAGES = 5
-IMAGE_SIZE = DOUBLE_PRESS_OFFSET + DOUBLE_PRESS_PAGES * FLASH_PAGE_SIZE
-# The second extension area follows (firmware 0.90), see configPacker
-EXT2_OFFSET = IMAGE_SIZE
-EXT2_SIZE = EXT2_BANK_SWITCH_LABELS_OFFSET + EXT2_BANK_SWITCH_LABELS_SIZE
 EXP_CURVE_NAMES = {0: "Linear", 1: "Log", 2: "Exp"}
 EXP_OUTPUT_NAMES = {0: "CC", 1: "PitchBend", 2: "CC14", 3: "Speed", 4: "Wheel", 5: "Arrows", 6: "Switches"}
 EXP_OUT_SWITCHES = 6
-BOX_SWITCH_IDS = ["1", "2", "3", "4", "A", "B", "C", "D", "Down", "Up"]
-EXP_BUTTON_IDS = ["1", "2", "3", "4", "A", "B", "C", "D"]
 
 SLOT_NAMES = [chr(ord("A") + i) for i in range(MIDI_NUM_COMMANDS_PER_SWITCH)]
 
@@ -216,8 +165,8 @@ def _button_led_byte(value: int) -> tuple:
 
 def unpack_global_settings(data: bytes) -> pd.DataFrame:
     g = data[:GLOBAL_SIZE]
-    exp1 = g[2] if 0 < g[2] <= 127 else 11
-    exp2 = g[3] if 0 < g[3] <= 127 else 4
+    exp1 = g[2] if 0 < g[2] <= 127 else default_int("Exp1_CC")
+    exp2 = g[3] if 0 < g[3] <= 127 else default_int("Exp2_CC")
     rows = [
         ("MIDI_Channel", str((g[0] & 0x0F) + 1)),
         ("RealTime_Passthrough", "Y" if g[1] == 1 else "N"),
@@ -229,10 +178,10 @@ def unpack_global_settings(data: bytes) -> pd.DataFrame:
         ("USB_MIDI_Thru", "Y" if g[6] != 0xFF and g[6] & 0x01 else "N"),
         ("USB_Ports", "3" if g[6] != 0xFF and g[6] & 0x02 else "1"),
         ("Remember_State", "Y" if g[7] == 1 else "N"),
-        ("Long_Press_ms", str((g[8] if 0 < g[8] < 0xFF else 50) * 10)),
-        ("LED_Brightness", str(g[9] if 0 < g[9] <= 100 else 100)),
-        ("LED_Rest_Brightness", str(g[10] if 0 < g[10] <= 100 else 100)),
-        ("Bank_Jump_Step", str(g[11] if 0 < g[11] < NUM_BANKS else 8)),
+        ("Long_Press_ms", str(g[8] * 10 if 0 < g[8] < 0xFF else default_int("Long_Press_ms"))),
+        ("LED_Brightness", str(g[9] if 0 < g[9] <= 100 else default_int("LED_Brightness"))),
+        ("LED_Rest_Brightness", str(g[10] if 0 < g[10] <= 100 else default_int("LED_Rest_Brightness"))),
+        ("Bank_Jump_Step", str(g[11] if 0 < g[11] < NUM_BANKS else default_int("Bank_Jump_Step"))),
         ("Bank_Change_Mode", {1: "PC", 2: "CC"}.get(g[12], "Off")),
         ("Bank_Change_Channel", str(g[13]) if 1 <= g[13] <= 16 else "Any"),
         ("Bank_Change_CC", str(g[14] if g[14] <= 127 else 0)),
@@ -243,16 +192,16 @@ def unpack_global_settings(data: bytes) -> pd.DataFrame:
         ("LED_Feedback", "Y" if g[35] != 0xFF and g[35] & 0x01 else "N"),
         ("Link_Toggles", "Y" if g[35] != 0xFF and g[35] & 0x02 else "N"),
         ("Beat_Counter", str(g[35] >> 4) if g[35] != 0xFF and g[35] >> 4 else "Off"),
-        ("Double_Press_ms", str((g[36] if 0 < g[36] < 0xFF else 30) * 10)),
+        ("Double_Press_ms", str(g[36] * 10 if 0 < g[36] < 0xFF else default_int("Double_Press_ms"))),
         ("Remote_Mode", {1: "CC", 2: "Note"}.get(g[38], "Off")),
         ("Remote_Channel", str(g[39]) if 1 <= g[39] <= 16 else "Any"),
-        ("Remote_First", str(g[40] if g[40] <= 118 else 102)),
+        ("Remote_First", str(g[40] if g[40] <= 118 else default_int("Remote_First"))),
         ("Global_Channel", str(g[41]) if 1 <= g[41] <= 16 else "Off"),
         ("Edit_Lock", "Y" if g[42] == 1 else "N"),
         ("Kemper_Mode", "Y" if g[43] == 1 else "N"),
         ("GT1000_Mode", "Y" if g[43] == 2 else "N"),
         ("Global_Bank", str(g[44] - 1) if 1 <= g[44] <= 32 else "Off"),
-        ("Combo_ms", str((g[45] if 0 < g[45] < 0xFF else 8) * 10)),
+        ("Combo_ms", str(g[45] * 10 if 0 < g[45] < 0xFF else default_int("Combo_ms"))),
         ("Boot_Banner", {1: "Slow", 2: "Normal", 3: "Fast"}.get(g[46], "Off")),
         ("Bank_Preview", str(g[47] if 0 < g[47] <= 60 else 0)),
         ("Setlist_Display", "Y" if g[33] == 2 else "N"),
@@ -618,13 +567,13 @@ def unpack_bank_expression_settings(data: bytes) -> pd.DataFrame:
     """Per bank CC, channel and output range of each expression pedal; empty
     cells keep the pedal's own."""
     def cc_text(b):
-        if b == BANK_EXP_CC_OFF:
+        if b == EXP_TARGET_OFF:
             return "Off"
-        if b == BANK_EXP_CC_SPEED:
+        if b == EXP_TARGET_SPEED:
             return "Speed"
-        if b == BANK_EXP_CC_WHEEL:
+        if b == EXP_TARGET_WHEEL:
             return "Wheel"
-        if b == BANK_EXP_CC_ARROWS:
+        if b == EXP_TARGET_ARROWS:
             return "Arrows"
         return str(b) if b <= 127 else ""
 

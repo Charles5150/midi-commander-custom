@@ -1,4 +1,4 @@
-#! env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Generate the Ableton Live template, python/templates/Ableton_Live.csv.
 

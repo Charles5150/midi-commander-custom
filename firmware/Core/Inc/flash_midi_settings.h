@@ -107,8 +107,8 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
 
 
 // Number of flash pages reserved for the settings. Pages are 2 kB on the
-// STM32F103RE (FLASH_PAGE_SIZE). Must stay in sync with ALLOWED_NUM_FLASH_PAGES
-// and FLASH_PAGE_SIZE in python/lib/slotIO.py.
+// STM32F103RE (FLASH_PAGE_SIZE). SLOT_PAGES in python/lib/flashLayout.py,
+// which test_roundtrip checks.
 #define FLASH_SETTINGS_NO_PAGES	(12)
 #define FLASH_SETTINGS_SIZE		(FLASH_SETTINGS_NO_PAGES * FLASH_PAGE_SIZE)
 

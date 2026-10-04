@@ -1,4 +1,4 @@
-#! env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Generate the Neural DSP Quad Cortex template, python/templates/Quad_Cortex.csv.
 
@@ -18,7 +18,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 from lib.configCsv import write_config_csv  # noqa: E402
-from lib.configPacker import NUM_BANKS  # noqa: E402
+from lib.flashLayout import NUM_BANKS  # noqa: E402
 from make_demo_config import Demo  # noqa: E402
 
 OUT = os.path.join(HERE, "templates", "Quad_Cortex.csv")

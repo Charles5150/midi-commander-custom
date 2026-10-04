@@ -19,10 +19,10 @@ configuration, and cannot be followed.
 import pandas as pd
 
 from lib.bankClipboard import _bank, _button
+from lib.flashLayout import NUM_BANKS
 
 BANK = "Bank_Number"
 BUTTON = "Button_Identifier"
-NUM_BANKS = 32
 IF_BANK_TESTS = ("BANK IS", "BANK IS NOT")
 
 

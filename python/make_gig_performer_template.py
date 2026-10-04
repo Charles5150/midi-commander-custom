@@ -1,4 +1,4 @@
-#! env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Generate the Gig Performer template, python/templates/Gig_Performer.csv.
 

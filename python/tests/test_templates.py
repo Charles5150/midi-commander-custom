@@ -3,7 +3,7 @@
 Each row is a button of a template, as the pedal reads it back: its bank,
 button, command, number and on / off values, or its key and modifiers.
 The Quad Cortex, FM3, HX Stomp and Kemper Player ones have their own tests
-in test_roundtrip.py.
+in test_device_templates.py.
 """
 import os
 import sys

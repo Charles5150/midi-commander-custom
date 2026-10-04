@@ -1,10 +1,13 @@
 from lib.cmdBinaryPacker import cell_text, ranged_int
 from lib.displayText import display_bytes
+from lib.flashLayout import default_int
 
 GLOBAL_SETTINGS_CHANNEL = 0
 GLOBAL_SETTINGS_REALTIME_PASS = 1
 GLOBAL_SETTINGS_EXP1_CC = 2
 GLOBAL_SETTINGS_EXP2_CC = 3
+GLOBAL_SETTINGS_BANK_UP_LED = 4
+GLOBAL_SETTINGS_BANK_DOWN_LED = 5
 GLOBAL_SETTINGS_USB_THRU = 6
 USB_THRU_ON = 0x01
 USB_THREE_PORTS = 0x02         # three USB MIDI ports (USB_Ports)
@@ -45,8 +48,6 @@ BANK_PREVIEW_MAX_S = 60
 # Set by configPacker when the image carries double press commands
 GLOBAL_SETTINGS_DOUBLE_STORED = 37
 
-BANK_SWITCH_MODES = {"BANK": 0, "BANK+MIDI": 1, "MIDI": 2}
-
 BANK_CHANGE_MODES = {"OFF": 0, "PC": 1, "CC": 2}
 REMOTE_MODES = {"OFF": 0, "CC": 1, "NOTE": 2}
 BANNER_SPEEDS = {"OFF": 0, "SLOW": 1, "NORMAL": 2, "FAST": 3}
@@ -69,7 +70,7 @@ def _channel_setting(df, label, off_word) -> int:
 
 
 def pack_global_settings(df):
-    # global settings will be 32 bytes long
+    # Bytes 0..15; the name and the settings added later follow
     bin_list = [0] * 16
     # MIDI_Channel is 1-16 in the CSV (same convention as per-command
     # channels); the firmware expects the 0-15 wire value. Empty is 1.
@@ -79,14 +80,10 @@ def pack_global_settings(df):
         bin_list[GLOBAL_SETTINGS_REALTIME_PASS] = 0x1
 
     # Expression Pedal CC numbers, CC 11 and CC 4 when empty or missing
-    bin_list[GLOBAL_SETTINGS_EXP1_CC] = ranged_int(_setting(df, "Exp1_CC"), 1, 127, "Exp1_CC", 11)
-    bin_list[GLOBAL_SETTINGS_EXP2_CC] = ranged_int(_setting(df, "Exp2_CC"), 1, 127, "Exp2_CC", 4)
+    bin_list[GLOBAL_SETTINGS_EXP1_CC] = ranged_int(_setting(df, "Exp1_CC"), 1, 127, "Exp1_CC", default_int("Exp1_CC"))
+    bin_list[GLOBAL_SETTINGS_EXP2_CC] = ranged_int(_setting(df, "Exp2_CC"), 1, 127, "Exp2_CC", default_int("Exp2_CC"))
 
-    # Bank LED Modes (Index 4, 5)
-    # 0=Normal, 1=Reverse, 2=AlwaysOn(Blink)
-    GLOBAL_SETTINGS_BANK_UP_LED = 4
-    GLOBAL_SETTINGS_BANK_DOWN_LED = 5
-    
+    # Bank Up / Down LED modes: 0 Normal, 1 Reverse, 2 AlwaysOn
     def get_led_mode(val):
         s = str(val).upper()
         if "REVERSE" in s: return 1
@@ -95,7 +92,7 @@ def pack_global_settings(df):
 
     if "Bank_Up_LED_Mode" in df.index:
         bin_list[GLOBAL_SETTINGS_BANK_UP_LED] = get_led_mode(df.loc["Bank_Up_LED_Mode", "Value"])
-    
+
     if "Bank_Down_LED_Mode" in df.index:
         bin_list[GLOBAL_SETTINGS_BANK_DOWN_LED] = get_led_mode(df.loc["Bank_Down_LED_Mode", "Value"])
 
@@ -118,17 +115,18 @@ def pack_global_settings(df):
         bin_list[GLOBAL_SETTINGS_REMEMBER_STATE] = 0x1
 
     # Long press threshold in ms, stored in 10 ms units (100..2500 ms)
-    long_ms = 500
+    long_ms = default_int("Long_Press_ms")
     if "Long_Press_ms" in df.index:
         try:
             long_ms = int(float(str(df.loc["Long_Press_ms", "Value"])))
         except ValueError:
-            long_ms = 500
+            long_ms = default_int("Long_Press_ms")
     bin_list[GLOBAL_SETTINGS_LONG_PRESS] = max(10, min(250, round(long_ms / 10)))
 
     # LED brightness in percent (1-100); lit LEDs and LEDs lit at rest.
     # 0 is reserved: the firmware reads it as "not set" (older configs).
-    def percent(label, default=100):
+    def percent(label):
+        default = default_int(label)
         if label not in df.index:
             return default
         try:
@@ -139,12 +137,12 @@ def pack_global_settings(df):
     bin_list[GLOBAL_SETTINGS_LED_REST_BRIGHTNESS] = percent("LED_Rest_Brightness")
 
     # Banks skipped by a long press on Bank Up/Down
-    step = 8
+    step = default_int("Bank_Jump_Step")
     if "Bank_Jump_Step" in df.index:
         try:
             step = int(float(str(df.loc["Bank_Jump_Step", "Value"])))
         except ValueError:
-            step = 8
+            step = default_int("Bank_Jump_Step")
     bin_list[GLOBAL_SETTINGS_BANK_JUMP_STEP] = max(1, min(31, step))
 
     # Let an incoming Program Change or Control Change select a bank
@@ -230,12 +228,12 @@ def pack_global_settings(df):
     bin_list[GLOBAL_SETTINGS_LED_FEEDBACK] |= beats << BEAT_COUNTER_SHIFT
 
     # Double press window in ms, stored in 10 ms units (100..1000 ms)
-    double_ms = 300
+    double_ms = default_int("Double_Press_ms")
     if "Double_Press_ms" in df.index:
         try:
-            double_ms = int(float(str(df.loc["Double_Press_ms", "Value"]).strip() or 300))
+            double_ms = int(float(str(df.loc["Double_Press_ms", "Value"]).strip() or double_ms))
         except ValueError:
-            double_ms = 300
+            double_ms = default_int("Double_Press_ms")
     bin_list[GLOBAL_SETTINGS_DOUBLE_PRESS] = max(10, min(100, round(double_ms / 10)))
 
     # Remote press: ten CCs or notes from Remote_First press the ten switches
@@ -252,12 +250,12 @@ def pack_global_settings(df):
 
     bin_list[GLOBAL_SETTINGS_REMOTE_CHANNEL] = _channel_setting(df, "Remote_Channel", "Any")
 
-    first = 102
+    first = default_int("Remote_First")
     if "Remote_First" in df.index:
         try:
-            first = int(float(str(df.loc["Remote_First", "Value"]).strip() or 102))
+            first = int(float(str(df.loc["Remote_First", "Value"]).strip() or first))
         except ValueError:
-            first = 102
+            first = default_int("Remote_First")
     bin_list[GLOBAL_SETTINGS_REMOTE_FIRST] = max(0, min(118, first))
 
     # The global channel: every command goes out on it instead of its own, so
@@ -297,12 +295,12 @@ def pack_global_settings(df):
 
     # How long a switch of a combination waits for the other one, in ms,
     # stored in 10 ms units (20..250 ms)
-    combo_ms = 80
+    combo_ms = default_int("Combo_ms")
     if "Combo_ms" in df.index:
         try:
-            combo_ms = int(float(str(df.loc["Combo_ms", "Value"]).strip() or 80))
+            combo_ms = int(float(str(df.loc["Combo_ms", "Value"]).strip() or combo_ms))
         except ValueError:
-            combo_ms = 80
+            combo_ms = default_int("Combo_ms")
     bin_list[GLOBAL_SETTINGS_COMBO] = max(2, min(25, round(combo_ms / 10)))
 
     # The power on banner: the configuration's name and the firmware version

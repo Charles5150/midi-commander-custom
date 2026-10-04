@@ -24,14 +24,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 from lib.cmdBinaryPacker import (  # noqa: E402
-    EXP_TARGETS, HID_SPECIAL_KEYS, LFO_DIVISIONS, LFO_SHAPES, MEDIA_KEYS, RAMP_MAX_MS,
+    EXP_TARGETS, LFO_DIVISIONS, LFO_SHAPES, MEDIA_KEYS, RAMP_MAX_MS,
     MMC_COMMANDS, MMC_LOCATE_MAX, SONG_MODES, SONG_POSITION_MAX,
     VAR_MODES, VAR_COUNT, VAR_DEFAULT_TOP, IF_TESTS, IF_BUTTON_TESTS, IF_VALUE_TESTS,
     SCENE_BUTTONS, SCENE_MODES, MACRO_LISTS, LISTEN_LOOKS, BUTTON_ACTIONS, CHAN_OUTPUTS, WAIT_BAR_MAX, NRPN_KINDS, NRPN_MAX, button_mode, command_type,
 )
 from lib.configCsv import read_config_csv, write_config_csv  # noqa: E402
 from lib.displayText import display_text  # noqa: E402
-from lib.configPacker import NUM_BANKS, BUTTON_IDS  # noqa: E402
+from lib.flashLayout import GLOBAL_DEFAULTS, NUM_BANKS, BUTTON_IDS  # noqa: E402
 from lib.configPacker import (  # noqa: E402
     BANK_ENTER_SECTION,
     BANK_SWITCH_SECTION,
@@ -183,7 +183,7 @@ def is_reference_csv(path):
 # --- Value sets -------------------------------------------------------------
 # Shared with the web configurator: see lib/configSchema.py
 from lib.configSchema import (  # noqa: E402
-    BANK_MODES, BANK_SWITCH_MODES, BANKS, BUTTON_GROUPS, CCINC_DIRECTIONS, CHANNELS, CMD_FIELDS,
+    BANK_MODES, BANKS, BUTTON_GROUPS, CCINC_DIRECTIONS, CHANNELS, CMD_FIELDS,
     COMMAND_TYPES, CONFIG_SLOT_NAMES, ENTER_COMMAND_TYPES, GLOBAL_FIELDS, GLOBAL_GROUPS, KEY_MODES,
     KEY_NAMES, LED_MODES, MODIFIERS, NO_COMMAND, SHORT_COMMAND_TYPES, SLOTS, TAP_MODES, THIS_BANK,
     WAIT_MODES,
@@ -1307,43 +1307,7 @@ class MidiCommanderGUI(ctk.CTk):
             self.df_global = data["Global_Settings"].astype(object).reset_index(drop=True)
             self.df_global["Label"] = self.df_global["Label"].astype(str).str.strip()
             labels = self.df_global["Label"].tolist()
-            defaults = [
-                ("Exp1_CC", "11"),
-                ("Exp2_CC", "4"),
-                ("Bank_Up_LED_Mode", "Normal"),
-                ("Bank_Down_LED_Mode", "Normal"),
-                ("USB_MIDI_Thru", "N"),
-                ("USB_Ports", "1"),
-                ("Remember_State", "N"),
-                ("Long_Press_ms", "500"),
-                ("LED_Brightness", "100"),
-                ("LED_Rest_Brightness", "100"),
-                ("Bank_Jump_Step", "8"),
-                ("Bank_Change_Mode", "Off"),
-                ("Bank_Change_Channel", "Any"),
-                ("Bank_Change_CC", "0"),
-                ("Bank_Switch_Mode", "Bank"),
-                ("Sleep_After_Min", "0"),
-                ("Setlist_Mode", "N"),
-                ("Clock_Follow", "N"),
-                ("LED_Feedback", "N"),
-                ("Link_Toggles", "N"),
-                ("Beat_Counter", "Off"),
-                ("Double_Press_ms", "300"),
-                ("Remote_Mode", "Off"),
-                ("Remote_Channel", "Any"),
-                ("Remote_First", "102"),
-                ("Global_Channel", "Off"),
-                ("Edit_Lock", "N"),
-                ("Kemper_Mode", "N"),
-                ("GT1000_Mode", "N"),
-                ("Global_Bank", "Off"),
-                ("Combo_ms", "80"),
-                ("Boot_Banner", "Off"),
-                ("Bank_Preview", "0"),
-                ("Setlist_Display", "N"),
-            ]
-            missing = [{"Label": l, "Value": v} for l, v in defaults if l not in labels]
+            missing = [{"Label": l, "Value": v} for l, v in GLOBAL_DEFAULTS.items() if l not in labels]
             if missing:
                 self.df_global = pd.concat(
                     [self.df_global, pd.DataFrame(missing)], ignore_index=True

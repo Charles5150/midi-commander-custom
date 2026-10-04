@@ -45,7 +45,9 @@ def read_config_csv(path: str) -> dict:
         ).dropna(how="all")
         df = df.loc[:, ~df.columns.str.contains("^Unnamed")]
         df.columns = df.columns.str.strip()
-        sections[name] = df
+        # A row cut short (the trailing commas go above) leaves its last cells
+        # as None in pandas 2 and NaN in 3: NaN for all, as the tools expect
+        sections[name] = df.mask(df.isna())
     return sections
 
 

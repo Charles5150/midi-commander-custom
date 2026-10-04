@@ -1,4 +1,4 @@
-#! env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """How long the pedal takes from a switch going down to its first MIDI message.
 

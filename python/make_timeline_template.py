@@ -1,4 +1,4 @@
-#! env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Generate the Strymon TimeLine template, python/templates/TimeLine.csv.
 
