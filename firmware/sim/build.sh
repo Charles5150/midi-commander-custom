@@ -18,6 +18,7 @@ src="
   $fw/Core/Src/expression.c
   $fw/Core/Src/editor.c
   $fw/Core/Src/kemper.c
+  $fw/Core/Src/gt1000.c
   $fw/Core/Src/leds.c
   $fw/Core/Src/flash_midi_settings.c
   $fw/Core/Src/state_store.c

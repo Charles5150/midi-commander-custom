@@ -67,7 +67,7 @@ A command of any other type is shown by name and left exactly as it is until the
 | `LINKTOGL` | linked toggles (`Link_Toggles`) |
 | `USB THRU`, `RT THRU` | the two thru switches (`USB_MIDI_Thru`, `RealTime_Passthrough`) |
 | `3 PORTS` | three USB MIDI ports (`USB_Ports`), from the next start |
-| `KEMPER` | Kemper mode (`Kemper_Mode`) |
+| `TWO WAY` | which unit to talk to both ways: `Off`, `Kemper` (`Kemper_Mode`) or `GT-1000` (`GT1000_Mode`) |
 | `EXP1 CC`, `EXP2 CC` | the expression pedal CC numbers (`Exp1_CC`, `Exp2_CC`), 1–127 |
 | `EXP1SEND`, `EXP2SEND` | each pedal sends its position on entering a bank (`Send_On_Bank`) |
 | `BARBEATS` | the beats in a bar for the bar and beat on the display, `off` or 1–15 (`Beat_Counter`) |
@@ -98,7 +98,7 @@ For the configuration that mutes the amp or upsets the rig at start-up, with no 
 
 - no bank enter or leave list runs, neither at start-up nor when the bank changes;
 - the saved bank and toggle states are not brought back, even with `Remember_State` on: it starts on bank 0 with everything off;
-- `Kemper_Mode` stays off, so no beacon and no questions go to the amp;
+- `Kemper_Mode` and `GT1000_Mode` stay off, so no beacon and no questions go to the amp or the GT-1000;
 - the expression pedals keep their position to themselves until they are moved;
 - the switch held at power on is not a press, and letting go of it does nothing.
 

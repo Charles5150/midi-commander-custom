@@ -19,6 +19,7 @@ Bank_Jump_Step,5
 Bank_Switch_Mode,Bank
 Setlist_Mode,Y
 Kemper_Mode,Y
+GT1000_Mode,N
 ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 * Bank_Naming,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 Bank_Number,Bank_Name_Large,Bank_Info_Small

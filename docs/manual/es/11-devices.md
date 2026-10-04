@@ -309,7 +309,7 @@ Asigna los CC una vez en el modo MIDI Map, **Cmd+M** (Ctrl+M en Windows): haz cl
 
 Todo lo anterior va en una sola dirección: la pedalera le dice al ampli qué hacer y confía en que haya hecho caso. A un Kemper Profiler también se le puede preguntar por su estado, y entonces la pedalera muestra lo que el ampli está haciendo de verdad, llegue como llegue a ello.
 
-**Para activarlo**, marca **Talk to a Kemper** en la pestaña **Global** del configurador (`Kemper_Mode` `Y` en el CSV), o parte de la [plantilla del Kemper Player](#plantilla-para-kemper-profiler-player), que lo trae activado. El editor de la pedalera lo ofrece como `KEMPER`.
+**Para activarlo**, marca **Talk to a Kemper** en la pestaña **Global** del configurador (`Kemper_Mode` `Y` en el CSV), o parte de la [plantilla del Kemper Player](#plantilla-para-kemper-profiler-player), que lo trae activado. El editor de la pedalera lo ofrece como `TWO WAY`, en `Kemper`.
 
 Vuelven tres cosas que merece la pena ver desde el suelo:
 
@@ -344,6 +344,42 @@ kemper> tuner
 
 Todavía no se ha probado con un Kemper de verdad. Los números que usa —el `00 20 33` del fabricante, las funciones, las páginas de módulos, las del afinador y la baliza— son los de la documentación MIDI del Profiler y los de los controladores abiertos que hablan con él, y un test compara la lista del firmware con la de las herramientas, así que si algún ampli no está de acuerdo, el arreglo estará en esa tabla de números y en ningún otro sitio.
 
+
+## GT-1000 en las dos direcciones
+
+A una Boss GT-1000 o GT-1000CORE también se le puede preguntar por su estado. Los equipos Roland se leen como una gran tabla de direcciones, y la pedalera lee tres rincones de ella.
+
+**Para activarlo**, marca **Talk to a GT-1000** en la pestaña **Global** del configurador (`GT1000_Mode` `Y` en el CSV); el editor de la pedalera lo ofrece como `TWO WAY`, en `GT-1000`. La pedalera habla con un solo equipo a la vez, así que `Kemper_Mode` y `GT1000_Mode` no pueden estar activados a la vez.
+
+Lo que vuelve:
+
+- **El patch en el que estás**, en la línea pequeña junto al nombre del banco, igual que el rig de un Kemper: caben once caracteres y el resto de los dieciséis se desplaza. La pedalera pregunta el número de patch cada segundo, así que un patch cambiado en la propia unidad aparece en menos de un segundo, y una letra del nombre editada en la unidad, al momento.
+- **Qué efectos están encendidos, según los ASSIGN que ya tienes.** Una GT-1000 solo activa un efecto desde un Control Change a través de un ASSIGN, que configuras en la unidad: por ejemplo, fuente `CC#80`, destino `DELAY 1` `ON OFF`. La pedalera lee los dieciséis ASSIGN de cada patch al que llega y, por cada uno que esté activado, venga de un CC (1–31 o 64–95) y encienda y apague un efecto, sigue ese efecto: encendido o apagado, se pasa al LED feedback como ese CC, 127 o 0, así que cualquier botón toggle que lo envíe queda encendido o apagado igual que la unidad, en todos los bancos, tanto si el efecto se cambió con tu pie como en la unidad o desde otro sitio. No se envía nada de vuelta por ello, y el canal no tiene por qué coincidir. Los efectos que conoce son COMP, OD/DS 1 y 2, PREAMP 1 y 2, NS 1 y 2, EQ 1–4, DELAY 1–4, MASTER DELAY, CHORUS, FX1–FX4, REVERB y PEDAL FX.
+
+Así que prepara primero la GT-1000, un ASSIGN por cada efecto que quieras en el suelo, y pon en los botones de la pedalera los mismos CC como toggle. Un patch con otros ASSIGN se sigue con los suyos, al entrar en él.
+
+**Cómo conectarla.** Las respuestas llegan por USB, y el USB de la GT-1000, como el de la pedalera, es un dispositivo, no un host: no se pueden enchufar el uno al otro. Tienen que encontrarse en algo que haga de host para los dos y pase el MIDI entre ellos: un ordenador con un enrutador MIDI, o una caja host MIDI USB como una CME H2MIDI Pro o una iConnectivity mioXM, con el puerto de la pedalera enrutado al de la GT-1000 y de vuelta. Lo que pregunta la pedalera sale también por su salida DIN, así que un cable DIN a la MIDI IN de la unidad puede llevar las preguntas mientras las respuestas vuelven por el host.
+
+<details><summary>Por dentro</summary>
+
+Los mensajes de Roland son RQ1, que pide un tramo de las direcciones, y DT1, que lo lleva, según la MIDI Implementation de la unidad. La pedalera pregunta el número de patch cada segundo y, cuando cambia, el nombre y los dieciséis ASSIGN, y luego el interruptor de cada efecto que activa un ASSIGN, también cada segundo. Además escribe un 1 en la dirección `7F 00 00 01` cada cinco segundos: ningún documento de Roland la menciona, pero es lo que hace el editor de la unidad, y hace que la unidad informe de lo que se cambia en ella en el momento en que se cambia. Sin eso, la pedalera se pone al día igualmente en menos de un segundo. Un mensaje con la suma de comprobación mal se ignora. El modo seguro deja `GT1000_Mode` desactivado, así que no sale ninguna pregunta.
+
+</details>
+
+*Firmware 1.09 o posterior.*
+
+### Probado sin GT-1000
+
+La conversación se probó en la pedalera contra `python/GT1000_Sim.py`, una GT-1000 de mentira en el ordenador, que responde a lo que pregunta la pedalera con los propios mensajes de Roland y te deja cambiar el patch, configurar un ASSIGN o activar un efecto para ver cómo lo sigue la pedalera.
+
+```bash
+.venv/bin/python python/GT1000_Sim.py
+gt1000> patch 12 Lead Boost
+gt1000> assign 1 DELAY 1 81
+gt1000> fx DELAY 1
+```
+
+Todavía no se ha probado con una GT-1000 de verdad. Las direcciones, la estructura de los ASSIGN y los números de destino son los de la MIDI Implementation de Roland para la GT-1000 (versión 4.01), y un test compara la tabla del firmware con la de las herramientas, así que si alguna unidad no está de acuerdo, el arreglo estará en esa tabla y en ningún otro sitio.
 
 ## Tres puertos USB
 

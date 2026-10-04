@@ -121,7 +121,7 @@ static volatile bool tuner_on = false;		// set from the USB interrupt
 static volatile uint32_t heard_at = 0;
 
 bool kemper_is_on(void){
-	return pGlobalSettings[GLOBAL_SETTINGS_KEMPER_MODE] == 1 && !sw_safe_mode();
+	return pGlobalSettings[GLOBAL_SETTINGS_KEMPER_MODE] == TWO_WAY_KEMPER && !sw_safe_mode();
 }
 
 void kemper_reset(void){

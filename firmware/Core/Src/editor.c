@@ -380,6 +380,7 @@ typedef struct {
 
 static const char *const bank_switch_names[] = {"Bank", "Bank+MIDI", "MIDI only"};
 static const char *const setlist_names[] = {"No", "Yes", "Shown"};
+static const char *const two_way_names[] = {"Off", "Kemper", "GT-1000"};
 
 static const setting_t settings[] = {
 	{"LONGPRES", GLOBAL_SETTINGS_LONG_PRESS,          S_MS,     10,  250, 50,  true,  NULL},
@@ -401,7 +402,7 @@ static const setting_t settings[] = {
 	{"USB THRU", GLOBAL_SETTINGS_USB_THRU,            S_FLAG,   USB_THRU_ON, 1, 0, false, NULL},
 	{"3 PORTS",  GLOBAL_SETTINGS_USB_THRU,            S_FLAG,   USB_THREE_PORTS, 1, 0, false, NULL},
 	{"RT THRU",  GLOBAL_SETTINGS_REALTIME_PASS,       S_ONOFF,  0,     1, 0,   false, NULL},
-	{"KEMPER",   GLOBAL_SETTINGS_KEMPER_MODE,         S_ONOFF,  0,     1, 0,   false, NULL},
+	{"TWO WAY",  GLOBAL_SETTINGS_KEMPER_MODE,         S_CHOICE, 0,     2, 0,   false, two_way_names},
 	{"EXP1 CC",  GLOBAL_SETTINGS_EXP1_CC,             S_NUM,    1,   127, 11,  true,  NULL},
 	{"EXP2 CC",  GLOBAL_SETTINGS_EXP2_CC,             S_NUM,    1,   127, 4,   true,  NULL},
 	{"EXP1SEND", GLOBAL_SETTINGS_LED_FEEDBACK,        S_FLAG,   EXP_SEND_ON_BANK(0), 1, 0, false, NULL},

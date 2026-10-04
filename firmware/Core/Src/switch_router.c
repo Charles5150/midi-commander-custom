@@ -10,6 +10,7 @@
 #include "flash_midi_settings.h"
 #include "display.h"
 #include "kemper.h"
+#include "gt1000.h"
 #include "usbd_hid_custom.h"
 #include "usbd_midi_if.h"
 #include "tempo.h"
@@ -3136,6 +3137,7 @@ static void switch_config(uint8_t target){
 	lfo_stop_all();
 	seq_stop_all();
 	kemper_reset();		// nothing carried over from the amp that was there
+	gt1000_reset();
 
 	display_setBankName(0);
 	display_show_config(slot);

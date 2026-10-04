@@ -67,7 +67,7 @@ Un comando de cualquier otro tipo se muestra por su nombre y se deja exactamente
 | `LINKTOGL` | toggles enlazados (`Link_Toggles`) |
 | `USB THRU`, `RT THRU` | los dos thru (`USB_MIDI_Thru`, `RealTime_Passthrough`) |
 | `3 PORTS` | tres puertos MIDI USB (`USB_Ports`), desde el próximo arranque |
-| `KEMPER` | modo Kemper (`Kemper_Mode`) |
+| `TWO WAY` | con qué equipo hablar en las dos direcciones: `Off`, `Kemper` (`Kemper_Mode`) o `GT-1000` (`GT1000_Mode`) |
 | `EXP1 CC`, `EXP2 CC` | los números de CC de los pedales de expresión (`Exp1_CC`, `Exp2_CC`), 1–127 |
 | `EXP1SEND`, `EXP2SEND` | cada pedal envía su posición al entrar en un banco (`Send_On_Bank`) |
 | `BARBEATS` | los tiempos de un compás para el compás y el tiempo en la pantalla, `off` o 1–15 (`Beat_Counter`) |
@@ -98,7 +98,7 @@ Para la configuración que silencia el ampli o le lía el equipo al arrancar, si
 
 - no se ejecuta ninguna lista de entrada ni de salida de banco, ni al arrancar ni al cambiar de banco;
 - el banco y los estados de toggle guardados no se recuperan, aunque `Remember_State` esté activado: arranca en el banco 0 con todo apagado;
-- `Kemper_Mode` se queda desactivado, así que al ampli no le llega ni la baliza ni ninguna pregunta;
+- `Kemper_Mode` y `GT1000_Mode` se quedan desactivados, así que ni al ampli ni a la GT-1000 les llega la baliza ni ninguna pregunta;
 - los pedales de expresión se guardan su posición hasta que los mueves;
 - el pulsador pisado al encender no cuenta como pulsación, y soltarlo no hace nada.
 

@@ -1336,6 +1336,7 @@ class MidiCommanderGUI(ctk.CTk):
                 ("Global_Channel", "Off"),
                 ("Edit_Lock", "N"),
                 ("Kemper_Mode", "N"),
+                ("GT1000_Mode", "N"),
                 ("Global_Bank", "Off"),
                 ("Combo_ms", "80"),
                 ("Boot_Banner", "Off"),

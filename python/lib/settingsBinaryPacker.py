@@ -35,6 +35,8 @@ GLOBAL_SETTINGS_REMOTE_FIRST = 40
 GLOBAL_SETTINGS_GLOBAL_CHANNEL = 41
 GLOBAL_SETTINGS_EDIT_LOCK = 42
 GLOBAL_SETTINGS_KEMPER_MODE = 43
+TWO_WAY_KEMPER = 1               # Kemper_Mode
+TWO_WAY_GT1000 = 2               # GT1000_Mode
 GLOBAL_SETTINGS_GLOBAL_BANK = 44
 GLOBAL_SETTINGS_COMBO = 45
 GLOBAL_SETTINGS_BANNER = 46
@@ -268,10 +270,14 @@ def pack_global_settings(df):
     lock = str(df.loc["Edit_Lock", "Value"]).strip() if "Edit_Lock" in df.index else "N"
     bin_list[GLOBAL_SETTINGS_EDIT_LOCK] = 1 if lock.upper().startswith("Y") else 0
 
-    # Two way Kemper: the pedal asks the amp to report itself and follows what
-    # comes back, the rig name on the display and the modules on the LEDs.
-    kemper = str(df.loc["Kemper_Mode", "Value"]).strip() if "Kemper_Mode" in df.index else "N"
-    bin_list[GLOBAL_SETTINGS_KEMPER_MODE] = 1 if kemper.upper().startswith("Y") else 0
+    # Two way: the pedal asks a Kemper, or a GT-1000, to report itself and
+    # follows what comes back, the rig or the patch on the display and the
+    # effects on the LEDs. One unit at a time: they share the byte.
+    kemper = _setting(df, "Kemper_Mode").upper().startswith("Y")
+    gt1000 = _setting(df, "GT1000_Mode").upper().startswith("Y")
+    if kemper and gt1000:
+        raise ValueError("Kemper_Mode and GT1000_Mode cannot both be Y: the pedal talks to one of them")
+    bin_list[GLOBAL_SETTINGS_KEMPER_MODE] = TWO_WAY_KEMPER if kemper else TWO_WAY_GT1000 if gt1000 else 0
 
     # The bank the global buttons are stored in: a button marked Global in any
     # other bank takes its lists, its label and its light from the same button

@@ -109,6 +109,7 @@ Los ajustes de toda la pedalera, como filas `Label,Value`. En el configurador so
 | `Remote_Channel` | … listening on channel | Any / 1–16 | Canal en el que la pedalera escucha esos mensajes. Mantenlo aparte de los canales por los que envían los botones si `LED_Feedback` está activado. |
 | `Remote_First` | … from number | 0–118 | Número de CC o de nota del pulsador 1; los otros nueve van a continuación. Por defecto 102, o sea CC 102–111, números que por convención no usa ningún aparato. |
 | `Kemper_Mode` | Talk to a Kemper | Y / N | Habla con un Kemper Profiler en las dos direcciones: la pedalera le pide al ampli que informe de sí mismo y sigue lo que le llega, con el rig en el que estás escrito junto al nombre del banco y los módulos de efectos encendiendo los botones que los activan. Mira [Kemper en las dos direcciones](11-devices.md#kemper-en-las-dos-direcciones). Por defecto N; activado en la plantilla del Kemper Player. |
+| `GT1000_Mode` | Talk to a GT-1000 | Y / N | Habla con una Boss GT-1000 o GT-1000CORE en las dos direcciones: el nombre del patch escrito junto al nombre del banco, y los efectos que sus ASSIGN activan desde un CC encendiendo los botones que envían ese CC. No puede estar activado a la vez que `Kemper_Mode`. Mira [GT-1000 en las dos direcciones](11-devices.md#gt-1000-en-las-dos-direcciones). Por defecto N. |
 
 ### Alimentación
 

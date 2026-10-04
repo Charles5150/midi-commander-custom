@@ -23,6 +23,9 @@ from lib.configCsv import read_config_csv  # noqa: E402
 import lib.configPacker as packer  # noqa: E402
 import lib.kemperProtocol as kp  # noqa: E402
 import Kemper_Sim as kemper_sim  # noqa: E402
+import lib.gt1000Protocol as gp  # noqa: E402
+import lib.settingsBinaryPacker as sbp  # noqa: E402
+import GT1000_Sim as gt1000_sim  # noqa: E402
 from lib.configPacker import pack_config  # noqa: E402
 
 SAMPLE_CSV = os.path.join(os.path.dirname(HERE), "MeloConfig_10_Cmds - RC-600.csv")
@@ -3959,6 +3962,127 @@ class KemperModeTest(unittest.TestCase):
         outport.sent.clear()
         amp.tune("A", -100)
         self.assertEqual(outport.sent, [kp.tuner_mode(True), kp.tuner_note(57), kp.tuner_deviance(8092)])
+
+
+class GT1000ModeTest(unittest.TestCase):
+    """Two way talk with a Boss GT-1000 (firmware 1.09)."""
+
+    FIRMWARE = os.path.join(os.path.dirname(__file__), "..", "..", "firmware", "Core")
+
+    def gt1000_c(self):
+        with open(os.path.join(self.FIRMWARE, "Src", "gt1000.c")) as handle:
+            return handle.read()
+
+    def define(self, text, name):
+        found = re.search(r"^#define\s+" + name + r"\s+\((0x[0-9A-Fa-f]+|\d+)(?:UL)?\)", text, re.M)
+        self.assertIsNotNone(found, name)
+        return int(found.group(1), 0)
+
+    def test_dialect_matches_firmware(self):
+        """The tools and the pedal speak the unit's numbers the same way."""
+        text = self.gt1000_c()
+        self.assertEqual(self.define(text, "GT_MANUF"), gp.MANUFACTURER)
+        self.assertEqual(self.define(text, "GT_DEVICE"), gp.DEVICE)
+        self.assertEqual(tuple(self.define(text, f"GT_MODEL_{i}") for i in range(1, 5)), gp.MODEL)
+        for name in ("CMD_RQ1", "CMD_DT1", "HEAD_LEN", "ADDR_NOTIFY", "ADDR_PATCH_NUMBER",
+                     "PATCH_NUMBER_SIZE", "ADDR_PATCH_NAME", "PATCH_NAME_SIZE", "ADDR_ASSIGN",
+                     "ASSIGN_STRIDE", "ASSIGN_COUNT", "ASSIGN_SIZE", "ASSIGN_READ",
+                     "SOURCE_CC1", "SOURCE_CC31", "SOURCE_CC64", "SOURCE_CC95"):
+            self.assertEqual(self.define(text, "GT_" + name), getattr(gp, name), name)
+
+    def test_effects_match_firmware(self):
+        table = self.gt1000_c().split("effects[] = {", 1)[1].split("};", 1)[0]
+        rows = [(int(t), int(a, 16)) for t, a in re.findall(r"\{\s*(\d+),\s*0x([0-9A-Fa-f]+)UL\s*\}", table)]
+        self.assertEqual(rows, [(target, address) for _, target, address in gp.EFFECTS])
+
+    def test_sources_cover_the_two_ranges_of_cc(self):
+        self.assertEqual(gp.source_for_cc(1), gp.SOURCE_CC1)
+        self.assertEqual(gp.source_for_cc(31), gp.SOURCE_CC31)
+        self.assertEqual(gp.source_for_cc(64), gp.SOURCE_CC64)
+        self.assertEqual(gp.source_for_cc(95), gp.SOURCE_CC95)
+        for cc in (0, 32, 63, 96):
+            with self.assertRaises(ValueError):
+                gp.source_for_cc(cc)
+
+    def test_messages_byte_for_byte(self):
+        """As Roland's MIDI Implementation writes them, sums and all."""
+        self.assertEqual(gp.notify(), [0xF0, 0x41, 0x7F, 0x00, 0x00, 0x00, 0x4F, 0x12,
+                                       0x7F, 0x00, 0x00, 0x01, 0x01, 0x7F, 0xF7])
+        self.assertEqual(gp.rq1(gp.ADDR_PATCH_NAME, 16), [0xF0, 0x41, 0x7F, 0x00, 0x00, 0x00, 0x4F, 0x11,
+                                                         0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10,
+                                                         0x60, 0xF7])
+        # the sixteenth ASSIGN, 0x40 on from the fifteenth in seven bit bytes
+        self.assertEqual(gp.assign_address(1), 0x10000340)
+        self.assertEqual(gp.assign_address(15), 0x10000A40)
+        answer = gp.dt1(0x10001D00, [1])
+        self.assertEqual(gp.parse(answer), (gp.CMD_DT1, gp.linear(0x10001D00), [1]))
+        answer[-2] ^= 1
+        self.assertIsNone(gp.parse(answer), "a wrong sum is not read")
+
+    def test_setting_round_trip(self):
+        for kemper, gt, byte in (("N", "N", 0), ("Y", "N", 1), ("N", "Y", 2)):
+            sections = read_config_csv(DEMO_CSV)
+            g = sections["Global_Settings"]
+            g.loc[g["Label"] == "Kemper_Mode", "Value"] = kemper
+            g.loc[g["Label"] == "GT1000_Mode", "Value"] = gt
+            packed = packer.pack_config(sections)
+            self.assertEqual(packed[43], byte)
+            back = unpacker.unpack_config(packed)[0].set_index("Label")["Value"]
+            self.assertEqual((back["Kemper_Mode"], back["GT1000_Mode"]), (kemper, gt))
+
+    def test_one_unit_at_a_time(self):
+        sections = read_config_csv(DEMO_CSV)
+        g = sections["Global_Settings"]
+        g.loc[g["Label"] == "Kemper_Mode", "Value"] = "Y"
+        g.loc[g["Label"] == "GT1000_Mode", "Value"] = "Y"
+        with self.assertRaisesRegex(ValueError, "GT1000_Mode"):
+            packer.pack_config(sections)
+
+    def test_setting_defaults_to_off(self):
+        """A configuration written before 1.09 says nothing, and stays quiet."""
+        sections = read_config_csv(DEMO_CSV)
+        sections["Global_Settings"] = sections["Global_Settings"][
+            sections["Global_Settings"]["Label"] != "GT1000_Mode"]
+        self.assertEqual(packer.pack_config(sections)[43], 0)
+
+    def test_the_firmware_tells_the_two_apart(self):
+        with open(os.path.join(self.FIRMWARE, "Inc", "midi_defines.h")) as handle:
+            defines = handle.read()
+        self.assertEqual(self.define(defines, "TWO_WAY_KEMPER"), sbp.TWO_WAY_KEMPER)
+        self.assertEqual(self.define(defines, "TWO_WAY_GT1000"), sbp.TWO_WAY_GT1000)
+        self.assertIn("== TWO_WAY_GT1000", self.gt1000_c())
+        with open(os.path.join(self.FIRMWARE, "Src", "kemper.c")) as handle:
+            self.assertIn("== TWO_WAY_KEMPER", handle.read())
+
+    def test_the_make_believe_unit_answers_what_is_asked(self):
+        """GT1000_Sim, without a pedal or a port in sight."""
+        import mido
+
+        class Port:
+            def __init__(self, queue=None):
+                self.queue = list(queue or [])
+                self.sent = []
+
+            def poll(self):
+                return self.queue.pop(0) if self.queue else None
+
+            def send(self, message):
+                self.sent.append([0xF0] + list(message.data) + [0xF7])
+
+        ask = lambda m: mido.Message("sysex", data=m[1:-1])    # noqa: E731
+        inport = Port([ask(gp.notify()), ask(gp.rq1(gp.ADDR_PATCH_NAME, 16)),
+                       ask(gp.rq1(gp.assign_address(1), gp.ASSIGN_READ)),
+                       mido.Message("control_change", control=81, value=127)])
+        outport = Port()
+        unit = gt1000_sim.FakeGT1000(inport, outport)
+        unit.name = "Lead Boost"
+        self.assertEqual(unit.poll(), ["notify", "10000000/16", "10000340/14", "DELAY 1 on"])
+        self.assertTrue(unit.notify)
+        self.assertEqual(outport.sent[0], gp.dt1(gp.ADDR_PATCH_NAME, list(b"Lead Boost      ")))
+        self.assertEqual(outport.sent[1], gp.dt1(gp.assign_address(1), gp.assign_data(
+            True, gp.EFFECT_TARGETS["DELAY 1"], gp.source_for_cc(81))))
+        # the CC switched the effect, and with reports on the unit says so
+        self.assertEqual(outport.sent[2], gp.dt1(gp.EFFECT_ADDRESSES["DELAY 1"], [1]))
 
 
 class MacroTest(unittest.TestCase):

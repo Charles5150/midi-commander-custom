@@ -86,6 +86,26 @@ It answers the pedal as a Kemper Profiler would, over the same USB link a Player
 
 See [Two way with a Kemper](11-devices.md#two-way-with-a-kemper).
 
+## GT1000_Sim: a GT-1000 to try GT1000_Mode without one
+
+```bash
+.venv/bin/python python/GT1000_Sim.py
+gt1000> patch 12 Lead Boost
+gt1000> fx DELAY 1
+```
+
+It answers the pedal as a Boss GT-1000 would, in Roland's RQ1 and DT1 messages. It starts on a patch whose ASSIGNs 1–4 switch OD/DS 1, DELAY 1, REVERB and CHORUS with CC 80–83, and a CC from the pedal switches the effect as the unit would. At its prompt:
+
+| Command | What it does |
+|---|---|
+| `patch <n> [name]` | goes to patch n, naming it |
+| `assign <n> <effect> <cc>` | ASSIGN n (1–16) switches that effect when that CC comes in |
+| `fx <effect>` | switches an effect on or off, as its switch on the unit would |
+| `show` | what the unit is supposed to be doing |
+| `quit` | ends it |
+
+See [Two way with a GT-1000](11-devices.md#two-way-with-a-gt-1000).
+
 ## Update_Firmware: update the firmware
 
 ```bash

@@ -42,6 +42,7 @@
 #include "tempo.h"
 #include "sleep.h"
 #include "kemper.h"
+#include "gt1000.h"
 #include "dfu_entry.h"
 
 /* USER CODE END Includes */
@@ -263,6 +264,7 @@ int main(void)
       display_task();
       sleep_task();
       kemper_task();
+      gt1000_task();
       dfu_entry_task();
       IWDG->KR = 0xAAAA;	// feed the watchdog
 

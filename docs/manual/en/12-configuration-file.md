@@ -109,6 +109,7 @@ The settings of the whole pedal, as `Label,Value` rows. In the configurator they
 | `Remote_Channel` | … listening on channel | Any / 1–16 | Channel the pedal listens on for those messages. Keep it apart from the channels the buttons send on if `LED_Feedback` is on. |
 | `Remote_First` | … from number | 0–118 | CC or note number for switch 1; the other nine follow. Default 102, so CC 102–111, numbers no device uses by convention. |
 | `Kemper_Mode` | Talk to a Kemper | Y / N | Talk to a Kemper Profiler both ways: the pedal asks the amp to report itself and follows what comes back, the rig you are on written beside the bank name and the effect modules lighting the buttons that switch them. See [Two way with a Kemper](11-devices.md#two-way-with-a-kemper). Default N, on in the Kemper Player template. |
+| `GT1000_Mode` | Talk to a GT-1000 | Y / N | Talk to a Boss GT-1000 or GT-1000CORE both ways: the patch name written beside the bank name, and the effects its ASSIGNs switch from a CC lighting the buttons that send that CC. Cannot be on together with `Kemper_Mode`. See [Two way with a GT-1000](11-devices.md#two-way-with-a-gt-1000). Default N. |
 
 ### Power
 

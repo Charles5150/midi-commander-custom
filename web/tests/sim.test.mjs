@@ -527,6 +527,62 @@ test("with Kemper_Mode, the amp's tuner takes the screen while it is up", async 
   assert.ok(infoLineIs(sim, "1/10>S01"), "an amp that stops answering takes its tuner away");
 });
 
+// The GT-1000 answering a question: DT1 with the address as four 7 bit bytes
+function gtData(address, data) {
+  const body = [(address >> 24) & 0x7f, (address >> 16) & 0x7f, (address >> 8) & 0x7f, address & 0x7f, ...data];
+  const sum = (128 - (body.reduce((a, b) => a + b, 0) & 0x7f)) & 0x7f;
+  return [0xf0, 0x41, 0x10, 0x00, 0x00, 0x00, 0x4f, 0x12, ...body, sum, 0xf7];
+}
+const hex = (bytes) => bytes.map((b) => b.toString(16).padStart(2, "0")).join(" ");
+const gtAsk = (a, size) => {
+  const body = [(a >> 24) & 0x7f, (a >> 16) & 0x7f, (a >> 8) & 0x7f, a & 0x7f, 0, 0, 0, size];
+  const sum = (128 - (body.reduce((x, y) => x + y, 0) & 0x7f)) & 0x7f;
+  return "DIN " + hex([0xf0, 0x41, 0x7f, 0x00, 0x00, 0x00, 0x4f, 0x11, ...body, sum, 0xf7]);
+};
+
+test("with GT1000_Mode, the patch name is on the display and the ASSIGNs light the buttons", async () => {
+  const sim = simWithDemo(await flashWith(packDemo("g = d['Global_Settings']\ng.loc[g.Label == 'GT1000_Mode', 'Value'] = 'Y'")));
+  const seen = watch(sim);
+  sim.run(10000);                           // the demo's power on banner goes by first
+  assert.ok(seen.includes("DIN f0 41 7f 00 00 00 4f 12 7f 00 00 01 01 7f f7"), "asked to report changes");
+  assert.ok(seen.includes(gtAsk(0x00000000, 4)), "and asked for the patch number every second");
+  assert.ok(!seen.some((m) => m.includes(" 4f 11 10 00 ")), "nothing of a patch not heard of yet");
+  tap(sim, 1);                              // the FX bank: switch 1 sends CC 10, a toggle
+  seen.length = 0;
+
+  const unit = (address, data) => { sim.usbIn(gtData(address, data)); sim.run(60); };
+  unit(0x00000000, [0, 0, 0, 12]);          // patch 12: the pedal asks for the rest of it
+  assert.ok(seen.includes(gtAsk(0x10000000, 16)), "the name");
+  assert.ok(seen.includes(gtAsk(0x10000300, 14)) && seen.includes(gtAsk(0x10000a40, 14)), "the sixteen ASSIGNs");
+
+  unit(0x10000000, [..."Lead Boost      "].map((c) => c.charCodeAt(0)));
+  sim.run(200);
+  assert.ok(infoLineIs(sim, "Lead Boost"), "the patch name in the info line");
+
+  // ASSIGN 1: on, target 158 (DELAY 1 ON OFF), min 0, max 1, source 31 (CC 10)
+  seen.length = 0;
+  unit(0x10000300, [1, 0, 0, 9, 14, 0, 0, 0, 0, 0, 0, 0, 1, 31]);
+  assert.ok(seen.includes(gtAsk(0x10001d00, 1)), "the switch of the effect it switches");
+  const pedal = await Pedal.open(sim.access);
+  assert.equal((await running(sim, () => pedal.getState())).toggles[0], false);
+
+  unit(0x10001d00, [1]);                    // DELAY 1 on: the button sending CC 10 lights
+  sim.run(100);
+  assert.equal((await running(sim, () => pedal.getState())).toggles[0], true);
+  unit(0x10001d00, [0]);                    // and off again, switched on the unit
+  sim.run(100);
+  assert.equal((await running(sim, () => pedal.getState())).toggles[0], false);
+
+  unit(0x10001c00, [1]);                    // an effect no ASSIGN switches changes nothing
+  sim.run(100);
+  assert.equal((await running(sim, () => pedal.getState())).toggles[0], false);
+  const garbled = gtData(0x10001d00, [1]);
+  garbled[garbled.length - 2] ^= 1;         // nor does a message with the wrong sum
+  sim.usbIn(garbled);
+  sim.run(100);
+  assert.equal((await running(sim, () => pedal.getState())).toggles[0], false);
+});
+
 // The 6x8 font as its picture draws it, a row of 8 bits per line, the leftmost pixel in bit 7
 const font6x8 = fs.readFileSync(path.join(root, "firmware/Middlewares/stm32-ssd1306-master/ssd1306/fonts/6x8.txt"), "utf8")
   .split("\n").filter((line) => /^[#.]{6}$/.test(line))

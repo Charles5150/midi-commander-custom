@@ -127,6 +127,7 @@ def global_settings() -> pd.DataFrame:
                 # link, so the pedal asks: the rig name goes on the display and
                 # the modules light the buttons that switch them
                 ("Kemper_Mode", "Y"),
+                ("GT1000_Mode", "N"),
             )
         ]
     )

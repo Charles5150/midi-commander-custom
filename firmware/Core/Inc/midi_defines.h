@@ -349,7 +349,9 @@
 #define GLOBAL_SETTINGS_REMOTE_FIRST (40)	// CC or note for switch 1; the next nine follow
 #define GLOBAL_SETTINGS_GLOBAL_CHANNEL (41)	// 0 = each command keeps its own, 1-16 = they all go out on that one
 #define GLOBAL_SETTINGS_EDIT_LOCK (42)		// 1 = the two bank switches no longer open the on-pedal editor
-#define GLOBAL_SETTINGS_KEMPER_MODE (43)	// 1 = ask a Kemper for its state and follow what it answers
+#define GLOBAL_SETTINGS_KEMPER_MODE (43)	// ask a unit for its state and follow what it answers: TWO_WAY_
+#define TWO_WAY_KEMPER		(1)	// a Kemper Profiler (Kemper_Mode)
+#define TWO_WAY_GT1000		(2)	// a Boss GT-1000 or GT-1000CORE (GT1000_Mode)
 #define GLOBAL_SETTINGS_GLOBAL_BANK (44)	// 1-32 = that bank holds the global buttons, 0 = none
 #define GLOBAL_SETTINGS_COMBO (45)		// Two switch window in 10 ms units (0/0xFF = 80 ms)
 #define GLOBAL_SETTINGS_BANNER (46)		// Power on banner: 0/0xFF off, 1 slow, 2 normal, 3 fast

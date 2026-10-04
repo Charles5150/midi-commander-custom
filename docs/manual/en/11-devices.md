@@ -309,7 +309,7 @@ Map the CCs once in MIDI Map mode, **Cmd+M** (Ctrl+M on Windows): click the Tap 
 
 Everything above sends one way: the pedal tells the amp what to do and hopes it listened. A Kemper Profiler can also be asked about itself, and then the pedal shows what the amp is really doing, however it got there.
 
-**To turn it on**, tick **Talk to a Kemper** in the configurator's **Global** tab (`Kemper_Mode` `Y` in the CSV), or start from the [Kemper Player template](#kemper-profiler-player-template), which has it on. The on-pedal editor offers it as `KEMPER`.
+**To turn it on**, tick **Talk to a Kemper** in the configurator's **Global** tab (`Kemper_Mode` `Y` in the CSV), or start from the [Kemper Player template](#kemper-profiler-player-template), which has it on. The on-pedal editor offers it as `TWO WAY`, set to `Kemper`.
 
 Three things come back and are worth seeing from the floor:
 
@@ -344,6 +344,42 @@ kemper> tuner
 
 It has not been tried against a real Kemper yet. The numbers it speaks — the maker's `00 20 33`, the functions, the module pages, the tuner's and the beacon — are the ones the Profiler's MIDI documentation and the open controllers that talk to one use, and a test checks the firmware's list against the tools', so if an amp ever disagrees the fix will be in that table of numbers and nowhere else.
 
+
+## Two way with a GT-1000
+
+A Boss GT-1000 or GT-1000CORE can be asked about itself too. Roland units are read as one big table of addresses, and the pedal reads three corners of it.
+
+**To turn it on**, tick **Talk to a GT-1000** in the configurator's **Global** tab (`GT1000_Mode` `Y` in the CSV); the on-pedal editor offers it as `TWO WAY`, set to `GT-1000`. The pedal talks to one unit at a time, so `Kemper_Mode` and `GT1000_Mode` cannot both be on.
+
+What comes back:
+
+- **The patch you are on**, in the small line beside the bank name, as with a Kemper's rig: eleven characters fit and the rest of the sixteen scroll. The pedal asks for the patch number every second, so a patch changed on the unit itself shows up within a second, and a letter of the name edited on the unit at once.
+- **Which effects are on, by the ASSIGNs you already have.** A GT-1000 switches an effect from a Control Change only through an ASSIGN, which you set up on the unit: source `CC#80`, target `DELAY 1` `ON OFF`, say. The pedal reads the sixteen ASSIGNs of each patch it lands on, and for every one that is on, comes from a CC (1–31 or 64–95) and switches an effect on and off, it follows that effect: on or off, it is handed to the LED feedback as that CC, 127 or 0, so any toggle button sending it ends up lit or dark like the unit, in every bank, whether the effect was switched with your foot, on the unit or from a third place. Nothing is sent back because of it, and the channel does not have to match. The effects it knows are COMP, OD/DS 1 and 2, PREAMP 1 and 2, NS 1 and 2, EQ 1–4, DELAY 1–4, MASTER DELAY, CHORUS, FX1–FX4, REVERB and PEDAL FX.
+
+So set the GT-1000 up first, an ASSIGN per effect you want on the floor, and give the pedal's buttons the same CCs as toggles. A patch with different ASSIGNs is followed with its own, as it is entered.
+
+**How to connect it.** The answers come in over USB, and the GT-1000's USB, like the pedal's, is a device, not a host: the two cannot be plugged into each other. They have to meet on something that is a host to both and passes MIDI between them: a computer running a MIDI router, or a USB MIDI host box such as a CME H2MIDI Pro or an iConnectivity mioXM, with the pedal's port routed to the GT-1000's and back. What the pedal asks goes out on its DIN output as well, so a DIN cable to the unit's MIDI IN can carry the questions while the answers come back over the host.
+
+<details><summary>Under the hood</summary>
+
+Roland's messages are RQ1, which asks for a stretch of the address space, and DT1, which carries one, from the unit's MIDI Implementation. The pedal asks for the patch number every second, and when it changes, for the name and the sixteen ASSIGNs, and then for the switch of each effect an ASSIGN switches, again every second. It also writes 1 to the address `7F 00 00 01` every five seconds: no Roland document mentions it, but it is what the unit's editor does, and it makes the unit report what is changed on it the moment it is changed. Without it the pedal still catches up within a second. A message with a wrong checksum is ignored. Safe mode keeps `GT1000_Mode` off, so no questions go out.
+
+</details>
+
+*Firmware 1.09 or later.*
+
+### Tried without a GT-1000
+
+The conversation was tested on the pedal against `python/GT1000_Sim.py`, a GT-1000 of make believe on the computer, which answers what the pedal asks in Roland's own messages and lets you change the patch, set an ASSIGN or switch an effect to watch the pedal follow.
+
+```bash
+.venv/bin/python python/GT1000_Sim.py
+gt1000> patch 12 Lead Boost
+gt1000> assign 1 DELAY 1 81
+gt1000> fx DELAY 1
+```
+
+It has not been tried against a real GT-1000 yet. The addresses, the ASSIGN layout and the target numbers are the ones in Roland's MIDI Implementation for the GT-1000 (version 4.01), and a test checks the firmware's table against the tools', so if a unit ever disagrees the fix will be in that table and nowhere else.
 
 ## Three USB ports
 

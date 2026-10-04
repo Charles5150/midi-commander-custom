@@ -116,6 +116,7 @@ GLOBAL_GROUPS = [
         ("Remote_Channel", "… listening on channel", ""),
         ("Remote_First", "… from number", "1 2 3 4 A B C D, Bank Down, Bank Up take ten in a row"),
         ("Kemper_Mode", "Talk to a Kemper", "the rig name on the display, the modules on the LEDs and its tuner on the screen"),
+        ("GT1000_Mode", "Talk to a GT-1000", "the patch name on the display, and the effects its ASSIGNs switch by CC on the LEDs"),
     ]),
     ("Power", [
         ("Sleep_After_Min", "Sleep after", "idle minutes before the display and LEDs go out, 0 = never"),
@@ -138,7 +139,7 @@ GLOBAL_FIELDS = {
     "MIDI_Channel": _choice(CHANNELS),
     **{label: CHECK for label in ("RealTime_Passthrough", "USB_MIDI_Thru", "Remember_State",
                                   "Setlist_Mode", "Setlist_Display", "Clock_Follow", "LED_Feedback", "Link_Toggles",
-                                  "Edit_Lock", "Kemper_Mode")},
+                                  "Edit_Lock", "Kemper_Mode", "GT1000_Mode")},
     "Bank_Up_LED_Mode": _choice(LED_MODES),
     "Bank_Down_LED_Mode": _choice(LED_MODES),
     "Exp1_CC": _int(1, 127),

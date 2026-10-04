@@ -17,6 +17,7 @@
 #include "ssd1306.h"
 #include "display.h"
 #include "kemper.h"
+#include "gt1000.h"
 #include "banner_store.h"
 #include "state_store.h"
 #include "latency.h"
@@ -768,6 +769,7 @@ static void handle_sysex_event(uint8_t cin, const uint8_t *data, uint8_t len){
 		if(len < 2 || data[0] != SYSEX_START || data[1] != MIDI_MANUF_ID){
 			sysex_foreign = !is_end;
 			kemper_sysex_chunk(data, len, is_end);	// the amp reporting itself
+			gt1000_sysex_chunk(data, len, is_end);
 			thru_push(data, len);
 			return;
 		}
@@ -776,6 +778,7 @@ static void handle_sysex_event(uint8_t cin, const uint8_t *data, uint8_t len){
 	if(sysex_foreign){
 		if(!sysex_discard){
 			kemper_sysex_chunk(data, len, is_end);
+			gt1000_sysex_chunk(data, len, is_end);
 			thru_push(data, len);
 		}
 		if(is_end){

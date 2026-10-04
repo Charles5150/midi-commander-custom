@@ -29,6 +29,7 @@
 #include "state_store.h"
 #include "restart_state.h"
 #include "kemper.h"
+#include "gt1000.h"
 #include "latency.h"
 #include "dfu_entry.h"
 #include "ssd1306.h"
@@ -315,6 +316,7 @@ static void millisecond(void){
 		display_task();
 		sleep_task();
 		kemper_task();
+		gt1000_task();
 		dfu_entry_task();
 		break;
 	}

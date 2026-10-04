@@ -16,7 +16,7 @@ What the display shows most of the time:
 - **Toggles:** the cell of a toggle button is drawn inverted while the toggle is on, so the state of the whole bank shows at a glance.
 - **Ten switches:** with `Bank_Switch_Mode` at `MIDI only` and a label on Bank Down or Bank Up, the grid is 2×5, the bank switches in the fifth column, and the labels in smaller letters ([On the screen](04-banks.md#what-the-bank-switches-send)).
 
-A [cycle button](05-buttons.md#cycle-buttons) shows the label of the state it last sent, and a [second page](04-banks.md#second-page) shows the page's labels in place of the bank's. With `Setlist_Display` on, a song of the setlist shows its place in it and the next song in the info line, `3/12>INTR` ([Where you are in it](04-banks.md#where-you-are-in-it)). With `Kemper_Mode` on, the rig you are on takes the info line, and the amp's tuner the whole screen while it is up ([Two way with a Kemper](11-devices.md#two-way-with-a-kemper)).
+A [cycle button](05-buttons.md#cycle-buttons) shows the label of the state it last sent, and a [second page](04-banks.md#second-page) shows the page's labels in place of the bank's. With `Setlist_Display` on, a song of the setlist shows its place in it and the next song in the info line, `3/12>INTR` ([Where you are in it](04-banks.md#where-you-are-in-it)). With `Kemper_Mode` on, the rig you are on takes the info line, and the amp's tuner the whole screen while it is up ([Two way with a Kemper](11-devices.md#two-way-with-a-kemper)); with `GT1000_Mode` on, the GT-1000's patch name takes it ([Two way with a GT-1000](11-devices.md#two-way-with-a-gt-1000)).
 
 ### What shows over it
 

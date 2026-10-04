@@ -86,6 +86,26 @@ Responde a la pedalera como lo haría un Kemper Profiler, por la misma conexión
 
 Mira [Kemper en las dos direcciones](11-devices.md#kemper-en-las-dos-direcciones).
 
+## GT1000_Sim: una GT-1000 para probar GT1000_Mode sin tenerla
+
+```bash
+.venv/bin/python python/GT1000_Sim.py
+gt1000> patch 12 Lead Boost
+gt1000> fx DELAY 1
+```
+
+Responde a la pedalera como lo haría una Boss GT-1000, con los mensajes RQ1 y DT1 de Roland. Arranca en un patch cuyos ASSIGN 1–4 activan OD/DS 1, DELAY 1, REVERB y CHORUS con los CC 80–83, y un CC de la pedalera activa el efecto como lo haría la unidad. En su prompt:
+
+| Comando | Qué hace |
+|---|---|
+| `patch <n> [nombre]` | va al patch n y le pone nombre |
+| `assign <n> <efecto> <cc>` | el ASSIGN n (1–16) activa ese efecto cuando llega ese CC |
+| `fx <efecto>` | enciende o apaga un efecto, como su pulsador en la unidad |
+| `show` | lo que se supone que está haciendo la unidad |
+| `quit` | termina |
+
+Mira [GT-1000 en las dos direcciones](11-devices.md#gt-1000-en-las-dos-direcciones).
+
 ## Update_Firmware: actualizar el firmware
 
 ```bash

@@ -753,6 +753,7 @@ def global_settings() -> pd.DataFrame:
                 ("Global_Channel", "Off"),
                 ("Edit_Lock", "N"),
                 ("Kemper_Mode", "N"),
+                ("GT1000_Mode", "N"),
                 ("Global_Bank", str(GLOBAL_BANK)),
                 ("Combo_ms", "80"),
                 ("Boot_Banner", "Normal"),
