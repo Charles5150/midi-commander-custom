@@ -405,6 +405,12 @@ gt1000> fx DELAY 1
 
 It has not been tried against a real GT-1000 yet. The addresses, the ASSIGN layout and the target numbers are the ones in Roland's MIDI Implementation for the GT-1000 (version 4.01), and a test checks the firmware's table against the tools', so if a unit ever disagrees the fix will be in that table and nowhere else.
 
+## Following a MOD Dwarf
+
+A MOD Dwarf can light the pedal's LEDs too, with nothing more than `LED_Feedback` (**Follow the computer** in the configurator's **Global** tab): when the Dwarf sends back the CC of a control the pedal switches, the toggle buttons that send it are lit or dark like the Dwarf, however the control was changed. Only USB comes in, as the pedal has no MIDI IN socket. A Dwarf that reports on another CC, or with other values, is followed with a [`Listen`](06-commands.md#listening-on-another-cc) command on the button.
+
+A user has tried it with a Dwarf running Starless, changes made on the Dwarf showing on the pedal's LEDs and buttons ([discussion #83](https://github.com/Charles5150/midi-commander-custom/discussions/83)). It has not been tried here.
+
 ## Three USB ports
 
 With `USB_Ports` at 3 the pedal shows up on the computer as three USB MIDI ports instead of one:

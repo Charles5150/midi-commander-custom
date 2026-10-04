@@ -405,6 +405,12 @@ gt1000> fx DELAY 1
 
 Todavía no se ha probado con una GT-1000 de verdad. Las direcciones, la estructura de los ASSIGN y los números de destino son los de la MIDI Implementation de Roland para la GT-1000 (versión 4.01), y un test compara la tabla del firmware con la de las herramientas, así que si alguna unidad no está de acuerdo, el arreglo estará en esa tabla y en ningún otro sitio.
 
+## Seguir a una MOD Dwarf
+
+Una MOD Dwarf también puede encender los LEDs de la pedalera, con solo `LED_Feedback` (**Follow the computer** en la pestaña **Global** del configurador): cuando la Dwarf devuelve el CC de un control que la pedalera conmuta, los botones toggle que lo envían se encienden o se apagan como en la Dwarf, se haya cambiado el control como se haya cambiado. Solo entra por USB, porque la pedalera no tiene toma MIDI IN. Una Dwarf que informe en otro CC, o con otros valores, se sigue con un comando [`Listen`](06-commands.md#escuchar-otro-cc) en el botón.
+
+Un usuario lo ha probado con una Dwarf con Starless: los cambios hechos en la Dwarf se ven en los LEDs y los botones de la pedalera ([discusión #83](https://github.com/Charles5150/midi-commander-custom/discussions/83)). Aquí no se ha probado.
+
 ## Tres puertos USB
 
 Con `USB_Ports` a 3 la pedalera aparece en el ordenador como tres puertos MIDI USB en vez de uno:
