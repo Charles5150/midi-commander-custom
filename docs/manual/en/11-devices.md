@@ -6,7 +6,7 @@ The pedal talks to a computer over USB and to the rest of your gear through its 
 
 ![Where MIDI goes in and out](../images/midi-routes-en.svg)
 
-Ready-made configurations under `python/templates/` put a device's main controls under your feet with nothing, or next to nothing, to set up on the device: the [Fractal FM3](#fractal-audio-fm3-template), the [Line 6 HX Stomp](#line-6-hx-stomp-template), the [Neural DSP Quad Cortex](#neural-dsp-quad-cortex-template), the [Eventide H90](#eventide-h90-template), the Strymon [TimeLine](#timeline), [BigSky](#bigsky), [Volante](#volante) and [Iridium](#iridium), the [Hotone Ampero II](#hotone-ampero-ii-template), the [Boss RC-600](#boss-rc-600-template) and the [Kemper Player](#kemper-profiler-player-template), and on the computer [MainStage](#apple-mainstage), [Gig Performer](#gig-performer), [Cantabile](#cantabile) and [Ableton Live](#ableton-live). To use one, open it with **Load CSV** in the configurator and press **Flash to Device**, or from a terminal:
+Ready-made configurations under `python/templates/` put a device's main controls under your feet with nothing, or next to nothing, to set up on the device: the [Fractal FM3](#fractal-audio-fm3-template), the [Line 6 HX Stomp](#line-6-hx-stomp-template), the [Neural DSP Quad Cortex](#neural-dsp-quad-cortex-template), the [Eventide H90](#eventide-h90-template), the Strymon [TimeLine](#timeline), [BigSky](#bigsky), [Volante](#volante) and [Iridium](#iridium), the Meris [Enzo X, LVX and MercuryX](#meris-templates), the [Hotone Ampero II](#hotone-ampero-ii-template), the [Boss RC-600](#boss-rc-600-template) and the [Kemper Player](#kemper-profiler-player-template), and on the computer [MainStage](#apple-mainstage), [Gig Performer](#gig-performer), [Cantabile](#cantabile) and [Ableton Live](#ableton-live). To use one, open it with **Load CSV** in the configurator and press **Flash to Device**, or from a terminal:
 
 ```bash
 .venv/bin/python python/CSV_to_Flash.py python/templates/FM3.csv
@@ -183,6 +183,30 @@ The heads, echo and reverb buttons start dark whatever the preset has on.
 | 0–31, `P000`–`P031` | Entering the bank loads the preset of the same number, 0 being the one on FAV. 1 2 3 choose the amp, Round, Chime or Punch, A B C the room, small, medium or large, and D bypasses |
 
 The amp and room buttons are two exclusive groups, so the LEDs show the choice last made; they start dark, as the preset's own choice is not known. Amp is CC 19 with 1 to 3, room size CC 18 with 1 to 3, bypass CC 102. The expression pedals are the Iridium's volume pedal, CC 7, and Drive, CC 13.
+
+## Meris templates
+
+**`python/templates/Enzo_X.csv`**, **`LVX.csv`** and **`MercuryX.csv`**, for the Meris X pedals, from their manuals (v1.5.1, the MercuryX's v1.5), on their own MIDI map, so nothing is assigned on them. Connect the pedal's MIDI OUT to the Meris's MIDI IN and, in its Globals, set MIDI CHANNEL to 1.
+
+| Banks | Buttons |
+|---|---|
+| 0–16, `P01`–`P97` | Six presets a bank, two of the Meris's banks of three: 1, 2, 3 on top and A, B, C below, each a Program Change; bank 16 has presets 97–99 and, on A, B and C, the three favorites (`FAV1`–`FAV3`, PC 100–102). 4 bypasses, and held opens the tuner. D taps the tempo; on the MercuryX, which takes no tap over MIDI, D is the Hold Modifier, held while pressed |
+| 31, `CTL` | Bypass, the Hold Modifier while pressed, the tuner and tap; on the LVX, the looper's Record / Overdub, Play / Stop, FX1 and FX2 on A, B, C and 4 |
+
+Banks 17–30 are empty: Bank Down from bank 0 goes straight to `CTL`.
+
+| Function | CC | Values |
+|---|---|---|
+| Bypass | 14 | 0 bypasses, 127 enables |
+| Tap | 99 | 127, on the press only (Enzo X and LVX) |
+| Tuner | 117 | 127, each press opens or closes it |
+| Hold Modifier | 118 | 127 on the press, 0 on the release, as the manuals ask |
+| LVX looper: Record / Overdub, Play / Stop, FX1, FX2 | 100–103 | 127 |
+| Expression pedal 1, 2 | 4, and 60 on the Enzo X or 1 | the Meris's expression, and Mix |
+
+The bypass button is lit while the Meris is **bypassed**, and starts dark, taking the Meris to be enabled: if it was bypassed, the first press enables it. The preset buttons only flash: the Meris's screen shows which preset is on. Tried in the simulated pedal; not yet tried with a Meris.
+
+The Meris pedals answer no request for their preset or its state that is documented, so there is no two way with them as with a Kemper or a GT-1000.
 
 ## Hotone Ampero II template
 

@@ -36,6 +36,9 @@ GENERATORS = {
     "make_gig_performer_template": os.path.join("templates", "Gig_Performer.csv"),
     "make_cantabile_template": os.path.join("templates", "Cantabile.csv"),
     "make_ableton_live_template": os.path.join("templates", "Ableton_Live.csv"),
+    "make_enzo_x_template": os.path.join("templates", "Enzo_X.csv"),
+    "make_lvx_template": os.path.join("templates", "LVX.csv"),
+    "make_mercuryx_template": os.path.join("templates", "MercuryX.csv"),
 }
 
 

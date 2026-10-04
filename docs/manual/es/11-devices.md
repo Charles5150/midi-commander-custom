@@ -6,7 +6,7 @@ La pedalera habla con un ordenador por USB y con el resto de tu equipo por su to
 
 ![Por dónde entra y sale el MIDI](../images/midi-routes-es.svg)
 
-Hay configuraciones listas en `python/templates/` que ponen los controles principales de un equipo bajo tus pies sin tener que configurar nada, o casi nada, en el equipo: el [Fractal FM3](#plantilla-para-fractal-audio-fm3), el [Line 6 HX Stomp](#plantilla-para-line-6-hx-stomp), el [Neural DSP Quad Cortex](#plantilla-para-neural-dsp-quad-cortex), el [Eventide H90](#plantilla-para-eventide-h90), los Strymon [TimeLine](#timeline), [BigSky](#bigsky), [Volante](#volante) e [Iridium](#iridium), el [Hotone Ampero II](#plantilla-para-hotone-ampero-ii), la [Boss RC-600](#plantilla-para-boss-rc-600) y el [Kemper Player](#plantilla-para-kemper-profiler-player), y en el ordenador [MainStage](#apple-mainstage), [Gig Performer](#gig-performer), [Cantabile](#cantabile) y [Ableton Live](#ableton-live). Para usar una, ábrela con **Load CSV** en el configurador y pulsa **Flash to Device**, o desde un terminal:
+Hay configuraciones listas en `python/templates/` que ponen los controles principales de un equipo bajo tus pies sin tener que configurar nada, o casi nada, en el equipo: el [Fractal FM3](#plantilla-para-fractal-audio-fm3), el [Line 6 HX Stomp](#plantilla-para-line-6-hx-stomp), el [Neural DSP Quad Cortex](#plantilla-para-neural-dsp-quad-cortex), el [Eventide H90](#plantilla-para-eventide-h90), los Strymon [TimeLine](#timeline), [BigSky](#bigsky), [Volante](#volante) e [Iridium](#iridium), los Meris [Enzo X, LVX y MercuryX](#plantillas-para-meris), el [Hotone Ampero II](#plantilla-para-hotone-ampero-ii), la [Boss RC-600](#plantilla-para-boss-rc-600) y el [Kemper Player](#plantilla-para-kemper-profiler-player), y en el ordenador [MainStage](#apple-mainstage), [Gig Performer](#gig-performer), [Cantabile](#cantabile) y [Ableton Live](#ableton-live). Para usar una, ábrela con **Load CSV** en el configurador y pulsa **Flash to Device**, o desde un terminal:
 
 ```bash
 .venv/bin/python python/CSV_to_Flash.py python/templates/FM3.csv
@@ -183,6 +183,30 @@ Los botones de cabezas, eco y reverb empiezan apagados, tenga el preset lo que t
 | 0–31, `P000`–`P031` | Al entrar en el banco se carga el preset con el mismo número; el 0 es el de FAV. 1 2 3 eligen el ampli, Round, Chime o Punch, A B C la sala, pequeña, mediana o grande, y D pone el bypass |
 
 Los botones de ampli y de sala forman dos grupos exclusivos, así que los LED muestran la última elección; empiezan apagados, porque no se sabe la del preset. El ampli es el CC 19 con 1 a 3, el tamaño de sala el CC 18 con 1 a 3, el bypass el CC 102. Los pedales de expresión son el pedal de volumen del Iridium, CC 7, y Drive, CC 13.
+
+## Plantillas para Meris
+
+**`python/templates/Enzo_X.csv`**, **`LVX.csv`** y **`MercuryX.csv`**, para los Meris X, según sus manuales (v1.5.1, el del MercuryX v1.5), con su propio mapa MIDI, así que no hay que asignar nada en ellos. Conecta el MIDI OUT de la pedalera al MIDI IN del Meris y, en sus Globals, pon MIDI CHANNEL en 1.
+
+| Bancos | Botones |
+|---|---|
+| 0–16, `P01`–`P97` | Seis presets por banco, dos de los bancos de tres del Meris: 1, 2, 3 arriba y A, B, C abajo, cada uno un Program Change; el banco 16 tiene los presets 97–99 y, en A, B y C, los tres favoritos (`FAV1`–`FAV3`, PC 100–102). 4 hace bypass y, mantenido, abre el afinador. D marca el tempo; en el MercuryX, que no admite tap por MIDI, D es el Hold Modifier, mientras se pisa |
+| 31, `CTL` | Bypass, el Hold Modifier mientras se pisa, el afinador y tap; en el LVX, Record / Overdub, Play / Stop, FX1 y FX2 del looper en A, B, C y 4 |
+
+Los bancos 17–30 están vacíos: Bank Down desde el banco 0 va directo a `CTL`.
+
+| Función | CC | Valores |
+|---|---|---|
+| Bypass | 14 | 0 hace bypass, 127 lo activa |
+| Tap | 99 | 127, solo al pisar (Enzo X y LVX) |
+| Afinador | 117 | 127, cada pisada lo abre o lo cierra |
+| Hold Modifier | 118 | 127 al pisar, 0 al soltar, como piden los manuales |
+| Looper del LVX: Record / Overdub, Play / Stop, FX1, FX2 | 100–103 | 127 |
+| Pedal de expresión 1, 2 | 4, y 60 en el Enzo X o 1 | la expresión del Meris, y Mix |
+
+El botón de bypass se enciende mientras el Meris está **en bypass**, y empieza apagado, dando el Meris por activado: si estaba en bypass, la primera pisada lo activa. Los botones de preset solo parpadean: la pantalla del Meris dice qué preset suena. Probadas en la pedalera simulada; todavía no con un Meris.
+
+Los Meris no responden a ninguna petición documentada de su preset o su estado, así que con ellos no hay diálogo en las dos direcciones como con un Kemper o una GT-1000.
 
 ## Plantilla para Hotone Ampero II
 
