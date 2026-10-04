@@ -32,9 +32,13 @@ bool midi_map_message(const uint8_t *data, void (*din)(const uint8_t *data, uint
 	uint8_t channel = (uint8_t)((data[0] & 0x0F) + 1);
 	uint8_t number = data[1] & 0x7F;
 	uint8_t value = data[2] & 0x7F;
+	// A note's release reaches every entry for its note whatever their range,
+	// so the entry its Note On matched lets go of the note it played
+	bool release = false;
 	switch(type){
-	case 0x80: type = 0x90; value = 0; break;
-	case 0x90: case 0xB0: break;
+	case 0x80: type = 0x90; value = 0; release = true; break;
+	case 0x90: release = (value == 0); break;
+	case 0xB0: break;
 	case 0xC0: value = number; break;
 	case 0xD0: value = number; number = 0; break;
 	case 0xE0: number = 0; break;
@@ -47,11 +51,13 @@ bool midi_map_message(const uint8_t *data, void (*din)(const uint8_t *data, uint
 		if(e[0] != type) continue;
 		if(e[1] != 0 && e[1] != channel) continue;
 		if(e[2] != MIDI_MAP_ANY && e[2] != number) continue;
-		if(value < e[3] || value > e[4]) continue;
+		if(!release && (value < e[3] || value > e[4])) continue;
 		matched = true;
 		if(e[10] == MIDI_MAP_KEEP) keep = true;
 
 		uint8_t out = map_value(e, value);
+		// A release sends the bottom of the output range, not a scaled 0
+		if(release && !(e[8] == MIDI_MAP_ANY && e[9] == MIDI_MAP_ANY)) out = e[8] & 0x7F;
 		if(e[5] == MIDI_MAP_RUN){
 			// Off for a release: a Note Off, or a CC or pedal below the middle
 			sw_request_list(e[6], e[7], type == 0xC0 || value >= 64);
@@ -62,10 +68,17 @@ bool midi_map_message(const uint8_t *data, void (*din)(const uint8_t *data, uint
 		msg[1] = (e[7] == MIDI_MAP_ANY) ? number : (e[7] & 0x7F);
 		msg[2] = out;
 		switch(e[5]){
-		case 0x90: case 0xB0:
+		case 0x90:
+			// A release comes out as a Note Off, whatever the output range
+			if(release){ msg[0] = (uint8_t)(0x80 | (msg[0] & 0x0F)); msg[2] = 0x40; }
+			din(msg, 3);
+			break;
+		case 0xB0:
 			din(msg, 3);
 			break;
 		case 0xC0:
+			// A program is chosen on the press, and the release sends nothing
+			if(release) break;
 			if(e[7] == MIDI_MAP_ANY) msg[1] = out;
 			din(msg, 2);
 			break;

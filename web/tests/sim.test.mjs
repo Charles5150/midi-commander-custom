@@ -237,6 +237,28 @@ test("the demo's MIDI map turns what comes in over USB into what goes out on DIN
   assert.deepEqual(send([0x8d, 36, 0]), ["USB b0 44 00", "DIN b0 44 00"]);
 });
 
+test("a note's release through the MIDI map is a Note Off of the note it played (before 1.12, a Note On)", async () => {
+  // Note 60 on channel 14 split by velocity onto notes 72 (always 100) and 74,
+  // and note 61 as a PC
+  const tweak = [
+    "import pandas as pd",
+    "m = d['MidiMap_Settings']",
+    "rows = [['Note', '14', '60', '1', '63', 'Note', '2', '72', '100', '100', '', '', '', 'N'],",
+    "        ['Note', '14', '60', '64', '127', 'Note', '2', '74', '', '', '', '', '', 'N'],",
+    "        ['Note', '14', '61', '', '', 'PC', '2', '5', '', '', '', '', '', 'N']]",
+    "d['MidiMap_Settings'] = pd.concat([m, pd.DataFrame(rows, columns=m.columns)], ignore_index=True)",
+  ].join("\n");
+  const sim = simWithDemo(await flashWith(packDemo(tweak)));
+  const seen = watch(sim);
+  const send = (bytes) => { sim.usbIn(bytes); sim.run(20); return seen.splice(0); };
+  assert.deepEqual(send([0x9d, 60, 30]), ["DIN 91 48 64"]);
+  assert.deepEqual(send([0x8d, 60, 64]), ["DIN 81 48 40", "DIN 81 4a 40"]);
+  assert.deepEqual(send([0x9d, 60, 90]), ["DIN 91 4a 5a"]);
+  assert.deepEqual(send([0x9d, 60, 0]), ["DIN 81 48 40", "DIN 81 4a 40"]);
+  assert.deepEqual(send([0x9d, 61, 90]), ["DIN c1 05"]);
+  assert.deepEqual(send([0x8d, 61, 0]), []);
+});
+
 test("a bank's enter list of 80 messages reaches USB and DIN whole (before 1.03, 32 did)", async () => {
   // Bank 7 of the demo, empty on entering, gets five CCs on all sixteen channels
   const tweak = [
