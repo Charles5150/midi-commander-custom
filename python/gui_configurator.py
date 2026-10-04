@@ -1103,6 +1103,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.setlist_widgets = []
         self.bank_switch_editors = []
         self.bank_switch_row = None
+        self.bank_switch_label = None
         self.sysex_widgets = {}
         self.current_csv_path = None  # where Save writes; None asks
         self.loaded_name = None       # the file shown, a reference file included
@@ -1456,6 +1457,8 @@ class MidiCommanderGUI(ctk.CTk):
                 if BANK_SWITCH_SECTION in data
                 else empty_bank_switch_settings()
             )
+            if "Label" not in self.df_bank_switch.columns:     # a CSV from before 1.08
+                self.df_bank_switch.insert(2, "Label", "")
             self.df_setlist = (
                 data[SETLIST_SECTION].astype(object).reset_index(drop=True)
                 if SETLIST_SECTION in data
@@ -2760,7 +2763,8 @@ class MidiCommanderGUI(ctk.CTk):
             "Bank_Switch_Mode in the Global tab decides whether they also change bank (Bank+MIDI), "
             "change bank silently (Bank) or stop changing bank altogether (MIDI only), which turns "
             "the pedal into a ten switch controller. Each list fires as a tap, press then release, "
-            "so toggles flip once. Bank commands are ignored here.",
+            "so toggles flip once. Bank commands are ignored here. With MIDI only, a label on the "
+            "short press puts the switch on the screen, five cells to a row.",
         ).pack(anchor="w")
 
         sel = ctk.CTkFrame(tab, fg_color="transparent")
@@ -2789,6 +2793,15 @@ class MidiCommanderGUI(ctk.CTk):
             return
         self.bank_switch_row = match.index[0]
         current = df.loc[self.bank_switch_row]
+        self.bank_switch_label = None
+        if press == "Short":
+            label_frame = ctk.CTkFrame(self.bank_switch_frame, fg_color="transparent")
+            label_frame.pack(anchor="w", pady=(0, 8))
+            ctk.CTkLabel(label_frame, text="Label:", font=BOLD).pack(side="left")
+            self.bank_switch_label = TextEntry(label_frame, 4, current.get("Label"), width=70, display=True)
+            self.bank_switch_label.pack(side="left", padx=(8, 12))
+            ctk.CTkLabel(label_frame, text="on the screen when Bank switches is MIDI only",
+                         text_color=MUTED).pack(side="left")
         table = ctk.CTkFrame(self.bank_switch_frame)
         table.pack(fill="x")
         for slot in SLOTS:
@@ -2800,6 +2813,8 @@ class MidiCommanderGUI(ctk.CTk):
             return
         if self.bank_switch_row is None:
             return
+        if self.bank_switch_label is not None:
+            self.df_bank_switch.at[self.bank_switch_row, "Label"] = self.bank_switch_label.value().strip()
         for editor in self.bank_switch_editors:
             for field, val in editor.values().items():
                 self.df_bank_switch.at[self.bank_switch_row, f"{editor.slot}_{field}"] = (

@@ -564,10 +564,14 @@ function renderExpression(main) {
 
 // --- Bank switches -------------------------------------------------------------
 function renderBankSwitch(main) {
-  main.append(h("p", { class: "hint" }, "What Bank Down and Bank Up send when Bank switches (Global) is Bank+MIDI or MIDI only."));
+  main.append(h("p", { class: "hint" }, "What Bank Down and Bank Up send when Bank switches (Global) is Bank+MIDI or MIDI only. With MIDI only, a label on the short press puts the switch on the screen, five cells to a row."));
   for (const [sw, press] of [["Down", "Short"], ["Down", "Long"], ["Up", "Short"], ["Up", "Long"]]) {
     const r = rowOf("BankSwitch_Settings", { Switch: sw, Press: press });
-    main.append(h("section", { class: "card" }, h("h3", {}, `Bank ${sw}, ${press.toLowerCase()} press`), commandList(r.sec, r.row, state.schema.commandTypes)));
+    const label = press === "Short"
+      ? h("div", { class: "fields" }, labelled("Label", fieldControl({ kind: "text", max: 4, display: true },
+        () => cell(r.sec, r.row, "Label"), (v) => setCell(r.sec, r.row, "Label", v))))
+      : null;
+    main.append(h("section", { class: "card" }, h("h3", {}, `Bank ${sw}, ${press.toLowerCase()} press`), label, commandList(r.sec, r.row, state.schema.commandTypes)));
   }
 }
 

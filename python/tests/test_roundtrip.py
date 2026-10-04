@@ -1186,6 +1186,7 @@ class DoublePressTest(unittest.TestCase):
         sections = {k: v for k, v in self.sections.items()
                     if k not in (packer.DOUBLE_PRESS_SECTION, packer.MIDI_MAP_SECTION)}
         sections[packer.LONG_PRESS_SECTION] = sections[packer.LONG_PRESS_SECTION].assign(Long_Label="")
+        sections[packer.BANK_SWITCH_SECTION] = sections[packer.BANK_SWITCH_SECTION].assign(Label="")
         self.assertEqual(packer.pack_flash_image(sections), packer.pack_config(sections))
         self.assertIsNone(packer.pack_double_press(sections))
 
@@ -4677,7 +4678,7 @@ class LongLabelTest(unittest.TestCase):
         header = self.source("Inc", "flash_midi_settings.h")
         self.assertIn("#define EXT2_LONG_LABELS_OFF	(EXT2_MAP_OFF + MIDI_MAP_COUNT * MIDI_MAP_STRIDE)", header)
         self.assertEqual(packer.EXT2_LONG_LABELS_OFFSET, 16 + 32 * 12)
-        self.assertEqual(unpacker.EXT2_SIZE, packer.EXT2_LONG_LABELS_OFFSET + 32 * 8 * 4)
+        self.assertEqual(packer.EXT2_BANK_SWITCH_LABELS_OFFSET, packer.EXT2_LONG_LABELS_OFFSET + 32 * 8 * 4)
         self.assertLessEqual(unpacker.EXT2_SIZE, packer.EXT2_PAGES * 2048)
         defines = self.source("Inc", "midi_defines.h")
         self.assertRegex(defines, r"#define BANK_MODE_REVEAL\s+\(7\)")
@@ -4689,7 +4690,7 @@ class LongLabelTest(unittest.TestCase):
         self.assertEqual(len(ext), unpacker.EXT2_SIZE)
         self.assertEqual(ext[:4], b"EXT2")
         self.assertEqual(ext[16:packer.EXT2_LONG_LABELS_OFFSET], b"\xff" * (32 * 12))
-        labels = ext[packer.EXT2_LONG_LABELS_OFFSET:]
+        labels = ext[packer.EXT2_LONG_LABELS_OFFSET:packer.EXT2_BANK_SWITCH_LABELS_OFFSET]
         self.assertEqual(labels[:4], b"PLAY")
         self.assertEqual(labels[4:8], b"    ")
         self.assertEqual(labels[-4:], b"end ")
@@ -4706,7 +4707,8 @@ class LongLabelTest(unittest.TestCase):
         # A map alone keeps the labels erased, which the firmware reads as none
         ext = packer.pack_flash_image(self.long_sections({}, with_map=True))[unpacker.EXT2_OFFSET:]
         self.assertEqual(ext[:4], b"EXT2")
-        self.assertEqual(ext[packer.EXT2_LONG_LABELS_OFFSET:], b"\xff" * (32 * 8 * 4))
+        self.assertEqual(ext[packer.EXT2_LONG_LABELS_OFFSET:packer.EXT2_BANK_SWITCH_LABELS_OFFSET],
+                         b"\xff" * (32 * 8 * 4))
 
     def test_reveal_command(self):
         self.assertEqual(cbp.cmd_bank({"KeyMode_(Key)": "Reveal"}), [0x47, 0, 0, 0])
@@ -4731,6 +4733,85 @@ class LongLabelTest(unittest.TestCase):
         self.assertIn("const uint8_t *all = flash_settings_long_labels();", router)
         flash = self.source("Src", "flash_midi_settings.c")
         self.assertIn("return ext2_part(EXT2_LONG_LABELS_OFF);", flash)
+
+
+class BankSwitchLabelTest(unittest.TestCase):
+    """Labels for Bank Down and Bank Up, shown with Bank_Switch_Mode at MIDI only (1.08)."""
+
+    FIRMWARE = MidiMapTest.FIRMWARE
+    source = MidiMapTest.source
+
+    def sections(self, labels, csv=None):
+        sections = dict(read_config_csv(csv or SAMPLE_CSV))
+        df = packer.empty_bank_switch_settings()
+        for (switch, press), text in labels.items():
+            df.loc[(df["Switch"] == switch) & (df["Press"] == press), "Label"] = text
+        sections[packer.BANK_SWITCH_SECTION] = df
+        return sections
+
+    def test_layout_agrees(self):
+        """After the long press labels, 16 bytes, in both the tools and the firmware."""
+        header = self.source("Inc", "flash_midi_settings.h")
+        self.assertIn("#define EXT2_BANK_SW_LABELS_OFF	(EXT2_LONG_LABELS_OFF + CFG_BUTTONS * BUTTON_LABEL_LEN)", header)
+        self.assertIn("#define EXT2_BANK_SW_LABELS_SIZE	(16)", header)
+        self.assertEqual(packer.EXT2_BANK_SWITCH_LABELS_SIZE, 16)
+        self.assertEqual(unpacker.EXT2_SIZE, packer.EXT2_BANK_SWITCH_LABELS_OFFSET + 16)
+        self.assertEqual(unpacker.EXT2_SIZE % 16, 0)        # the tools move it 16 bytes at a time
+        self.assertEqual(packer.BANK_SWITCH_LABELED, ["Down", "Up"])
+
+    def test_round_trip(self):
+        image = packer.pack_flash_image(self.sections({("Down", "Short"): "PREV", ("Up", "Short"): "nxt"}))
+        ext = image[unpacker.EXT2_OFFSET:]
+        self.assertEqual(ext[:4], b"EXT2")             # the labels alone write the area
+        self.assertEqual(ext[packer.EXT2_BANK_SWITCH_LABELS_OFFSET:], b"PREVnxt " + b"\xff" * 8)
+        back = unpacker.unpack_bank_switch_settings(image).set_index(["Switch", "Press"])["Label"]
+        self.assertEqual(back.to_dict(), {("Down", "Short"): "PREV", ("Down", "Long"): "",
+                                          ("Up", "Short"): "nxt", ("Up", "Long"): ""})
+
+    def test_one_label(self):
+        image = packer.pack_flash_image(self.sections({("Up", "Short"): "NEXT"}))
+        labels = image[unpacker.EXT2_OFFSET + packer.EXT2_BANK_SWITCH_LABELS_OFFSET:]
+        self.assertEqual(labels[:8], b"    NEXT")         # spaces are no label to the firmware
+
+    def test_no_labels_no_area(self):
+        self.assertIsNone(packer.pack_ext2(self.sections({})))
+        sections = dict(read_config_csv(SAMPLE_CSV))
+        sections.pop(packer.BANK_SWITCH_SECTION, None)
+        self.assertIsNone(packer.pack_ext2(sections))
+        # a CSV written before 1.08 has no Label column
+        df = packer.empty_bank_switch_settings().drop(columns=["Label"])
+        sections[packer.BANK_SWITCH_SECTION] = df
+        self.assertIsNone(packer.pack_ext2(sections))
+
+    def test_long_press_row_has_none(self):
+        """The screen shows one label a switch: a long press row's would be lost."""
+        with self.assertRaises(ValueError) as caught:
+            packer.pack_flash_image(self.sections({("Down", "Long"): "JUMP"}))
+        self.assertIn("Down Long", str(caught.exception))
+
+    def test_csv_round_trip(self):
+        import tempfile
+
+        from lib.configCsv import write_config_csv
+
+        sections = self.sections({("Down", "Short"): "PREV", ("Up", "Short"): "NEXT"}, DEMO_CSV)
+        image = packer.pack_flash_image(sections)
+        frames = unpacker.unpack_config(image)
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "back.csv")
+            write_config_csv(out, frames[0], frames[1], frames[2], df_long_press=frames[3],
+                             df_expression=frames[4], df_bank_enter=frames[5], df_sysex=frames[6],
+                             df_bank_switch=frames[7], df_setlist=frames[8])
+            again = read_config_csv(out)
+        self.assertEqual(packer.pack_flash_image(again)[unpacker.EXT2_OFFSET:][packer.EXT2_BANK_SWITCH_LABELS_OFFSET:],
+                         image[unpacker.EXT2_OFFSET:][packer.EXT2_BANK_SWITCH_LABELS_OFFSET:])
+
+    def test_firmware(self):
+        """Ten cells only with MIDI only and a label, Bank Up on top."""
+        display = self.source("Src", "display.c")
+        self.assertIn("!= BANK_SWITCH_MIDI_ONLY) return NULL;", display)
+        self.assertIn("flash_settings_bank_switch_labels()", display)
+        self.assertIn("draw_label_cell(4, which == 1, true, label, false);", display)
 
 
 class BankDirectTest(unittest.TestCase):

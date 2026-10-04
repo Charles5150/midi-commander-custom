@@ -17,7 +17,7 @@ Memory layout (see firmware/Core/Src/flash_midi_settings.c):
 import pandas as pd
 
 from lib.configPacker import (
-    EXT2_LONG_LABELS_OFFSET, EXT2_MAP_OFFSET, EXT2_MARKER, MIDI_MAP_COLUMNS, MIDI_MAP_COUNT, MIDI_MAP_OUT_TYPES,
+    BANK_SWITCH_LABELED, EXT2_BANK_SWITCH_LABELS_OFFSET, EXT2_BANK_SWITCH_LABELS_SIZE, EXT2_LONG_LABELS_OFFSET, EXT2_MAP_OFFSET, EXT2_MARKER, MIDI_MAP_COLUMNS, MIDI_MAP_COUNT, MIDI_MAP_OUT_TYPES,
     MIDI_MAP_RUN, MIDI_MAP_STRIDE, MIDI_MAP_TYPES,
 )
 
@@ -144,7 +144,7 @@ DOUBLE_PRESS_PAGES = 5
 IMAGE_SIZE = DOUBLE_PRESS_OFFSET + DOUBLE_PRESS_PAGES * FLASH_PAGE_SIZE
 # The second extension area follows (firmware 0.90), see configPacker
 EXT2_OFFSET = IMAGE_SIZE
-EXT2_SIZE = EXT2_LONG_LABELS_OFFSET + NUM_BANKS * len(BUTTON_IDS) * LABEL_LEN
+EXT2_SIZE = EXT2_BANK_SWITCH_LABELS_OFFSET + EXT2_BANK_SWITCH_LABELS_SIZE
 EXP_CURVE_NAMES = {0: "Linear", 1: "Log", 2: "Exp"}
 EXP_OUTPUT_NAMES = {0: "CC", 1: "PitchBend", 2: "CC14", 3: "Speed", 4: "Wheel", 5: "Arrows"}
 EXP_BUTTON_IDS = ["1", "2", "3", "4", "A", "B", "C", "D"]
@@ -711,15 +711,22 @@ def unpack_bank_enter_settings(data: bytes) -> pd.DataFrame:
 
 
 def unpack_bank_switch_settings(data: bytes) -> pd.DataFrame:
-    """Command lists for the Bank Down/Up switches, short and long press."""
-    columns = ["Switch", "Press"]
+    """Command lists for the Bank Down/Up switches, short and long press, with
+    the label of each switch on its short press row (firmware 1.08) when the
+    second extension area of a full image holds one."""
+    ext = bytes(data[EXT2_OFFSET:EXT2_OFFSET + EXT2_SIZE])
+    labels = ext[EXT2_BANK_SWITCH_LABELS_OFFSET:] if ext.startswith(EXT2_MARKER) else b""
+    columns = ["Switch", "Press", "Label"]
     for slot in SLOT_NAMES:
         columns += [f"{slot}_{f}" for f in CMD_FIELDS]
     columns += [f"{slot}_KeyMode_(Key)" for slot in SLOT_NAMES]
 
     rows = []
     for i, (switch, press) in enumerate(BANK_SWITCH_LISTS):
-        row = {"Switch": switch, "Press": press}
+        row = {"Switch": switch, "Press": press, "Label": ""}
+        if press == "Short":
+            at = BANK_SWITCH_LABELED.index(switch) * LABEL_LEN
+            row["Label"] = _ascii(labels[at:at + LABEL_LEN])
         for slot_index, slot in enumerate(SLOT_NAMES):
             offset = BANK_SWITCH_OFFSET + i * BUTTON_STRIDE + slot_index * CMD_SIZE
             cmd = unpack_command(data[offset : offset + CMD_SIZE])

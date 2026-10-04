@@ -57,6 +57,12 @@ MIDI_MAP_COUNT = 32
 MIDI_MAP_STRIDE = 12
 # Long press labels (firmware 0.91), after the map
 EXT2_LONG_LABELS_OFFSET = EXT2_MAP_OFFSET + MIDI_MAP_COUNT * MIDI_MAP_STRIDE
+# The labels of Bank Down and Bank Up (firmware 1.08), after the long press
+# labels: the screen shows them with Bank_Switch_Mode at MIDI only. The tools
+# read and write in pieces of 16 bytes, so the two take that much.
+EXT2_BANK_SWITCH_LABELS_OFFSET = EXT2_LONG_LABELS_OFFSET + NUM_BANKS * len(BUTTON_IDS) * LABEL_LEN
+EXT2_BANK_SWITCH_LABELS_SIZE = 16
+BANK_SWITCH_LABELED = ["Down", "Up"]
 MIDI_MAP_COLUMNS = ["In_Type", "In_Channel", "In_Number", "In_Min", "In_Max",
                     "Out_Type", "Out_Channel", "Out_Number", "Out_Min", "Out_Max",
                     "Run_Bank", "Run_Button", "Run_List", "Keep"]
@@ -160,7 +166,7 @@ def empty_bank_switch_settings():
 
     rows = []
     for switch, press in BANK_SWITCH_LISTS:
-        row = {"Switch": switch, "Press": press}
+        row = {"Switch": switch, "Press": press, "Label": ""}
         for slot in SLOT_NAMES:
             for f in CMD_FIELDS:
                 row[f"{slot}_{f}"] = "N" if f.startswith("Toggle") else ""
@@ -357,13 +363,36 @@ def pack_long_labels(df) -> bytes:
                     for bank in range(NUM_BANKS) for btn in BUTTON_IDS)
 
 
+def pack_bank_switch_labels(df) -> bytes:
+    """The labels of Bank Down and Bank Up, from the Label column of their short
+    press rows in BankSwitch_Settings (firmware 1.08); all 0xFF when there are
+    none. The switch runs the same lists in every bank, so it has one label."""
+    labels = {}
+    if df is not None and "Label" in df.columns:
+        for _, row in df.iterrows():
+            switch = _cell(row.get("Switch")).title()
+            press = _cell(row.get("Press")).title()
+            text = _cell(row.get("Label"))
+            if not text:
+                continue
+            if press != "Short":
+                raise ValueError(f"{BANK_SWITCH_SECTION} {switch} {press}: only the short press "
+                                 f"row has a label, the one the screen shows")
+            labels[switch] = text
+    if not labels:
+        return b"\xff" * EXT2_BANK_SWITCH_LABELS_SIZE
+    packed = b"".join(pack_label(labels.get(switch, "")) for switch in BANK_SWITCH_LABELED)
+    return packed.ljust(EXT2_BANK_SWITCH_LABELS_SIZE, b"\xff")
+
+
 def pack_ext2(sections: dict):
     """The second extension area, or None when nothing goes there."""
-    table = pack_midi_map(sections.get(MIDI_MAP_SECTION))
-    labels = pack_long_labels(sections.get(LONG_PRESS_SECTION))
-    if table.count(0xFF) == len(table) and labels.count(0xFF) == len(labels):
+    parts = [pack_midi_map(sections.get(MIDI_MAP_SECTION)),
+             pack_long_labels(sections.get(LONG_PRESS_SECTION)),
+             pack_bank_switch_labels(sections.get(BANK_SWITCH_SECTION))]
+    if all(p.count(0xFF) == len(p) for p in parts):
         return None
-    return EXT2_MARKER.ljust(EXT2_MAP_OFFSET, b"\xff") + table + labels
+    return EXT2_MARKER.ljust(EXT2_MAP_OFFSET, b"\xff") + b"".join(parts)
 
 
 def empty_sysex_strings():

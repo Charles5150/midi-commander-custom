@@ -196,12 +196,13 @@ Se editan en la pestaña **Bank Switch** del configurador, y en la pestaña **Gl
 - Las listas son las mismas en todos los bancos, porque los pulsadores sirven para moverse y deben comportarse igual estés donde estés.
 - Cada lista sale como un toque, pulsar y soltar, así que un comando `Toggle` cambia una vez por pulsación y guarda su propio estado.
 - Los comandos `Bank` se ignoran aquí: adónde llegas lo deciden el propio pulsador y `Bank_Switch_Mode`.
+- **En la pantalla.** Con `MIDI only`, pon una etiqueta a la pulsación corta de cualquiera de los dos pulsadores y la pantalla muestra los diez: cinco casillas por fila, colocadas como en la pedalera, **1 2 3 4** y Bank Up arriba, **A B C D** y Bank Down abajo, con las etiquetas en letra más pequeña para que sigan cabiendo cuatro caracteres. Un pulsador sin etiqueta muestra `UP` o `DN`. Una etiqueta por pulsador, como las listas, la misma en todos los bancos; sin ninguna etiqueta, o con los pulsadores cambiando de banco, la pantalla son las ocho casillas de siempre (firmware 1.08 o posterior).
 
 *Firmware 0.17 o posterior.*
 
 ### `BankSwitch_Settings`
 
-Opcional; cuatro filas, una por pulsador y duración de la pulsación: `Switch` `Down` o `Up`, `Press` `Short` o `Long`, y después las mismas diez casillas de comando que un botón. Pueden faltar filas o ir en cualquier orden.
+Opcional; cuatro filas, una por pulsador y duración de la pulsación: `Switch` `Down` o `Up`, `Press` `Short` o `Long`, `Label`, y después las mismas diez casillas de comando que un botón. Pueden faltar filas o ir en cualquier orden. `Label` tiene hasta 4 caracteres, y solo la llevan las filas `Short`: es la etiqueta del pulsador en la pantalla con `MIDI only`.
 
 ## Cuatro configuraciones
 

@@ -196,12 +196,13 @@ Edit them in the configurator's **Bank Switch** tab, and choose in the **Global*
 - The lists are the same in every bank, because the switches are navigation and should behave the same wherever you are.
 - Each list fires as a tap, press then release, so a `Toggle` command flips once per press and keeps its own state.
 - `Bank` commands are ignored here: where you end up is decided by the switch itself and by `Bank_Switch_Mode`.
+- **On the screen.** With `MIDI only`, give the short press of either switch a label and the screen shows all ten switches: five cells to a row, laid out like the pedal, **1 2 3 4** and Bank Up on top, **A B C D** and Bank Down below, the labels in smaller letters so four characters still fit. A switch left without a label shows `UP` or `DN`. One label each, like the lists, in every bank; with no label at all, or with the switches changing bank, the screen is the usual eight cells (firmware 1.08 or later).
 
 *Firmware 0.17 or later.*
 
 ### `BankSwitch_Settings`
 
-Optional; four rows, one per switch and press length: `Switch` `Down` or `Up`, `Press` `Short` or `Long`, then the same ten command slots as a button. Rows may be missing or in any order.
+Optional; four rows, one per switch and press length: `Switch` `Down` or `Up`, `Press` `Short` or `Long`, `Label`, then the same ten command slots as a button. Rows may be missing or in any order. `Label` is up to 4 characters, and only the `Short` rows take one: it is the switch's label on the screen with `MIDI only`.
 
 ## Four configurations
 

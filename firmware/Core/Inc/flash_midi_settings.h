@@ -283,6 +283,8 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
  *   [16..]    the MIDI map, MIDI_MAP_COUNT entries of MIDI_MAP_STRIDE bytes
  *   [400..]   long press labels, BUTTON_LABEL_LEN chars per button, as the
  *             labels in the slot; erased flash is no label
+ *   [1424..]  the labels of Bank Down and Bank Up (1.08), then 0xFF to 16
+ *             bytes; erased flash is no label
  */
 #define FLASH_EXT2_PAGES		(2)
 #define FLASH_EXT2_ADDR(n)		(FLASH_BANNER_ADDR + FLASH_PAGE_SIZE + (n) * FLASH_EXT2_PAGES * FLASH_PAGE_SIZE)
@@ -294,6 +296,8 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
 #define EXT2_MARKER				(0x32545845U)	// "EXT2", little endian
 #define EXT2_MAP_OFF			(16)
 #define EXT2_LONG_LABELS_OFF	(EXT2_MAP_OFF + MIDI_MAP_COUNT * MIDI_MAP_STRIDE)
+#define EXT2_BANK_SW_LABELS_OFF	(EXT2_LONG_LABELS_OFF + CFG_BUTTONS * BUTTON_LABEL_LEN)
+#define EXT2_BANK_SW_LABELS_SIZE	(16)
 
 /*
  * MIDI map: what a message arriving over USB turns into. Every entry that
@@ -327,6 +331,8 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
 const uint8_t *flash_settings_midi_map(void);
 // The active slot's long press labels, or NULL when its tools wrote none
 const uint8_t *flash_settings_long_labels(void);
+// The active slot's Bank Down and Bank Up labels, in that order, or NULL
+const uint8_t *flash_settings_bank_switch_labels(void);
 
 // Erase and write act on the target slot, see flash_settings_set_target()
 bool flash_settings_erase(void);

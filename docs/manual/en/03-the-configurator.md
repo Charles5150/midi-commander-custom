@@ -84,7 +84,7 @@ The commands each bank sends when you switch to it, and, below a `Leave` command
 
 ## Bank Switch
 
-The command lists of the Bank Down and Bank Up switches, one per switch and press length. They only go out when **Bank switches** (`Bank_Switch_Mode`) in the Global tab says so. See [BankSwitch_Settings](04-banks.md#bankswitch_settings).
+The command lists of the Bank Down and Bank Up switches, one per switch and press length, and a **Label** for each switch on its short press, shown on the screen with `MIDI only`. They only go out when **Bank switches** (`Bank_Switch_Mode`) in the Global tab says so. See [BankSwitch_Settings](04-banks.md#bankswitch_settings).
 
 <img src="../../images/gui_bank_switch.png" width="500">
 

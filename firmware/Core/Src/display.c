@@ -13,6 +13,11 @@
  * Each label cell is 32 px wide and holds up to 4 chars in 7x10. Cells of
  * toggle buttons are drawn inverted while the toggle is on.
  *
+ * With Bank_Switch_Mode at MIDI only the pedal is ten switches, and once Bank
+ * Down or Bank Up has a label the grid is five cells to a row, as the switches
+ * are laid out: 1 2 3 4 and Bank Up on top, A B C D and Bank Down below. A
+ * cell is then 25 px wide and its 4 chars are in 6x8.
+ *
  * The host can put its own text in the top line over SysEx (the patch or song
  * name): in place of the bank name, of the info line, or across the whole line.
  * A text wider than its place scrolls across it once, when it arrives or the
@@ -48,6 +53,10 @@
 #define SCREEN_SHOWN_W	(128)	// the buffer is 130 wide, the glass shows 128
 #define NAME_W		(44)	// 4 large chars
 #define INFO_X		(50)
+#define CELL10_W	(25)	// five cells to a row
+#define CELL10_X	(1)	// the 125 px they take, in the middle
+#define LABEL10_FONT	Font_6x8
+#define LABEL10_CHAR_W	(6)
 
 static volatile uint8_t refresh_pending = 0;
 static uint8_t current_bank = 0;
@@ -272,8 +281,7 @@ void display_banner_task(void){
 // Copy the stored label of a button into buf (up to 4 chars, NUL terminated),
 // dropping anything not printable. Erased flash (0xFF) yields an empty label,
 // and the reset bit (LABEL_RESET_BIT) is no part of the character.
-static void get_label(uint8_t bank, uint8_t sw, char buf[BUTTON_LABEL_LEN + 1]){
-	const uint8_t *src = sw_button_label(bank, sw);
+static void label_text(const uint8_t *src, char buf[BUTTON_LABEL_LEN + 1]){
 	int n = 0;
 	for(int i=0; i<BUTTON_LABEL_LEN; i++){
 		char c = (src[i] == 0xFF) ? ' ' : (char)(src[i] & 0x7F);
@@ -284,11 +292,50 @@ static void get_label(uint8_t bank, uint8_t sw, char buf[BUTTON_LABEL_LEN + 1]){
 	buf[n] = 0;
 }
 
+static void get_label(uint8_t bank, uint8_t sw, char buf[BUTTON_LABEL_LEN + 1]){
+	label_text(sw_button_label(bank, sw), buf);
+}
+
+// Bank Down and Bank Up's labels when the screen shows ten cells, else NULL
+static const uint8_t *ten_cell_labels(void){
+	if(pGlobalSettings[GLOBAL_SETTINGS_BANK_SWITCH_MODE] != BANK_SWITCH_MIDI_ONLY) return NULL;
+	const uint8_t *labels = flash_settings_bank_switch_labels();
+	if(labels == NULL) return NULL;
+	for(uint8_t i=0; i<2 * BUTTON_LABEL_LEN; i++){
+		if(labels[i] != 0xFF && labels[i] != ' ') return labels;
+	}
+	return NULL;
+}
+
+// One cell of the grid: column col of the top or bottom row
+static void draw_label_cell(uint8_t col, bool top, bool ten, const char *label, bool active){
+	uint8_t w = ten ? CELL10_W : CELL_W;
+	uint8_t x = ten ? (uint8_t)(CELL10_X + col * CELL10_W) : (uint8_t)(col * CELL_W);
+	uint8_t y = top ? ROW_TOP_Y : ROW_BOT_Y;
+	SSD1306_COLOR bg = active ? White : Black;
+	SSD1306_COLOR fg = active ? Black : White;
+
+	fill_rect(x, y, w, CELL_H, bg);
+
+	uint8_t text_w = (uint8_t)(strlen(label) * (ten ? LABEL10_CHAR_W : LABEL_CHAR_W));
+	// The narrow cells leave a pixel or two between labels: centred on the
+	// letters alone, not the blank column after the last, they get one more
+	if(ten && text_w) text_w--;
+	uint8_t tx = (uint8_t)(x + (w - text_w + (ten ? 1 : 0)) / 2);
+	ssd1306_SetCursor(tx, (uint8_t)(y + (ten ? 3 : 2)));
+	ssd1306_WriteString((char *)label, ten ? LABEL10_FONT : LABEL_FONT, fg);
+}
+
+// Bank Down (0) or Bank Up (1) in the fifth column
+static void draw_bank_switch_cell(const uint8_t *labels, uint8_t which){
+	char label[BUTTON_LABEL_LEN + 1];
+	label_text(labels + which * BUTTON_LABEL_LEN, label);
+	if(label[0] == 0) strcpy(label, which ? "UP" : "DN");
+	draw_label_cell(4, which == 1, true, label, false);
+}
+
 static void draw_cell(uint8_t bank, uint8_t sw){
 	static const char ids[MIDI_NUM_SWITCHES] = {'1','2','3','4','A','B','C','D'};
-	uint8_t col = sw % 4;
-	uint8_t x = col * CELL_W;
-	uint8_t y = (sw < 4) ? ROW_TOP_Y : ROW_BOT_Y;
 
 	char label[BUTTON_LABEL_LEN + 1];
 	get_label(bank, sw, label);
@@ -305,15 +352,7 @@ static void draw_cell(uint8_t bank, uint8_t sw){
 	} else {
 		active = sw_button_is_toggle(bank, sw) && sw_get_toggle_state(bank, sw);
 	}
-	SSD1306_COLOR bg = active ? White : Black;
-	SSD1306_COLOR fg = active ? Black : White;
-
-	fill_rect(x, y, CELL_W, CELL_H, bg);
-
-	uint8_t text_w = strlen(label) * LABEL_CHAR_W;
-	uint8_t tx = x + (CELL_W - text_w) / 2;
-	ssd1306_SetCursor(tx, y + 2);
-	ssd1306_WriteString(label, LABEL_FONT, fg);
+	draw_label_cell(sw % 4, sw < 4, ten_cell_labels() != NULL, label, active);
 }
 
 // Host text that only lasts while the bank stays put
@@ -488,6 +527,11 @@ static void render_bank(uint8_t bankNumber){
 
 	for(uint8_t sw=0; sw<MIDI_NUM_SWITCHES; sw++){
 		draw_cell(bankNumber, sw);
+	}
+	const uint8_t *bank_switch = ten_cell_labels();
+	if(bank_switch){
+		draw_bank_switch_cell(bank_switch, 0);
+		draw_bank_switch_cell(bank_switch, 1);
 	}
 }
 

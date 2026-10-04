@@ -86,7 +86,7 @@ Los comandos que envía cada banco cuando llegas a él y, debajo de un comando `
 
 ## Bank Switch
 
-Las listas de comandos de los pulsadores Bank Down y Bank Up, una por pulsador y duración de pulsación. Solo salen cuando lo dice **Bank switches** (`Bank_Switch_Mode`) en la pestaña Global. Mira [BankSwitch_Settings](04-banks.md#bankswitch_settings).
+Las listas de comandos de los pulsadores Bank Down y Bank Up, una por pulsador y duración de pulsación, y una **Label** para cada pulsador en su pulsación corta, que sale en la pantalla con `MIDI only`. Solo salen cuando lo dice **Bank switches** (`Bank_Switch_Mode`) en la pestaña Global. Mira [BankSwitch_Settings](04-banks.md#bankswitch_settings).
 
 <img src="../../images/gui_bank_switch.png" width="500">
 

@@ -84,7 +84,8 @@ def read_image(dev, version, progress=None):
 def save_csv(path, data, image, note="Read from device"):
     """Write a slot read with read_image as a configuration CSV. Returns its name."""
     (df_global, df_banks, df_buttons, _, df_exp,
-     df_enter, df_sysex, df_bank_switch, df_setlist) = unpacker.unpack_config(data)
+     df_enter, df_sysex, _, df_setlist) = unpacker.unpack_config(data)
+    df_bank_switch = unpacker.unpack_bank_switch_settings(image)   # its labels are in the image
     write_config_csv(
         path,
         df_global,

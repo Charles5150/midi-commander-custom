@@ -53,6 +53,8 @@ _Static_assert(EXT2_MAP_OFF + MIDI_MAP_COUNT * MIDI_MAP_STRIDE <= FLASH_EXT2_PAG
 		"the MIDI map does not fit in the second extension area");
 _Static_assert(EXT2_LONG_LABELS_OFF + CFG_BUTTONS * BUTTON_LABEL_LEN <= FLASH_EXT2_PAGES * FLASH_PAGE_SIZE,
 		"the long press labels do not fit in the second extension area");
+_Static_assert(EXT2_BANK_SW_LABELS_OFF + EXT2_BANK_SW_LABELS_SIZE <= FLASH_EXT2_PAGES * FLASH_PAGE_SIZE,
+		"the bank switch labels do not fit in the second extension area");
 
 _Static_assert(PATCH_LOG_ADDR + FLASH_PAGE_SIZE <= FLASH_BASE + 256U * 1024U,
 		"the page patch copy and log do not fit in 256 kB");
@@ -121,6 +123,10 @@ const uint8_t *flash_settings_midi_map(void){
 
 const uint8_t *flash_settings_long_labels(void){
 	return ext2_part(EXT2_LONG_LABELS_OFF);
+}
+
+const uint8_t *flash_settings_bank_switch_labels(void){
+	return ext2_part(EXT2_BANK_SW_LABELS_OFF);
 }
 
 /*

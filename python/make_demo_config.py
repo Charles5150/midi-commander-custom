@@ -155,13 +155,15 @@ class Demo:
         for key, value in fields.items():
             self.double.at[i, f"{slot}_{key}"] = value
 
-    def bank_switch(self, switch, press, slot="A", **fields):
-        """A command on one of the Bank Down/Up switches."""
+    def bank_switch(self, switch, press, slot="A", label=None, **fields):
+        """A command on one of the Bank Down/Up switches, and its label."""
         frame = self.bank_switch_frame
         mask = (frame["Switch"].astype(str) == switch) & (frame["Press"].astype(str) == press)
         found = frame[mask]
         assert len(found) == 1, (switch, press, len(found))
         i = found.index[0]
+        if label is not None:
+            frame.at[i, "Label"] = label
         for key, value in fields.items():
             column = f"{slot}_{key}"
             assert column in frame.columns, column
@@ -688,11 +690,13 @@ def build() -> Demo:
     # The Bank Down/Up switches send MIDI of their own as well as changing
     # bank, which is what Bank_Switch_Mode = Bank+MIDI means. A host can use
     # these to follow the pedal, and the long presses are a mute and a tuner.
-    d.bank_switch("Down", "Short", CommandType="CC",
+    # The labels show only with Bank_Switch_Mode at MIDI only, five cells to a
+    # row: change it in the Global tab to see them.
+    d.bank_switch("Down", "Short", label="BK-", CommandType="CC",
                   **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": "81",
                      "OnValue_(CC/PB)": "127", "OffValue_(CC)": "0",
                      "Toggle_(CC/PB/Note)": "N"})
-    d.bank_switch("Up", "Short", CommandType="CC",
+    d.bank_switch("Up", "Short", label="BK+", CommandType="CC",
                   **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": "82",
                      "OnValue_(CC/PB)": "127", "OffValue_(CC)": "0",
                      "Toggle_(CC/PB/Note)": "N"})

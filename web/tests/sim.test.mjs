@@ -100,8 +100,9 @@ test("the demo written over SysEx reads back the same", async () => {
   const pedal = await Pedal.open(sim.access);
   assert.deepEqual((await pedal.selectSlot(null)).valid, [0]);
   // As the page takes them from the tools (py.js): the double press area,
-  // then the second extension area with the MIDI map and the long press labels
-  const sizes = { config: demo.config.length, double: 10240, doubleOffset: 12 * 2048, ext2Offset: 17 * 2048, ext2: 16 + 32 * 12 + 32 * 8 * 4 };
+  // then the second extension area with the MIDI map, the long press labels
+  // and the bank switches' labels
+  const sizes = { config: demo.config.length, double: 10240, doubleOffset: 12 * 2048, ext2Offset: 17 * 2048, ext2: 16 + 32 * 12 + 32 * 8 * 4 + 16 };
   const back = await running(sim, () => pedal.readImage(firmwareVersion, sizes));
   assert.deepEqual(back.data, demo.config);
   assert.deepEqual(back.image, demo.image);
@@ -524,4 +525,54 @@ test("with Kemper_Mode, the amp's tuner takes the screen while it is up", async 
   assert.ok(!infoLineIs(sim, "1/10>S01"));
   sim.run(3500);
   assert.ok(infoLineIs(sim, "1/10>S01"), "an amp that stops answering takes its tuner away");
+});
+
+// The 6x8 font as its picture draws it, a row of 8 bits per line, the leftmost pixel in bit 7
+const font6x8 = fs.readFileSync(path.join(root, "firmware/Middlewares/stm32-ssd1306-master/ssd1306/fonts/6x8.txt"), "utf8")
+  .split("\n").filter((line) => /^[#.]{6}$/.test(line))
+  .map((line) => parseInt(line.replace(/#/g, "1").replace(/\./g, "0").padEnd(8, "0"), 2));
+
+// Whether the screen holds this text in the 6x8 font with its top left at x, y
+function smallTextAt(sim, x, y, text) {
+  for (let i = 0; i < text.length; i++) {
+    for (let row = 0; row < 8; row++) {
+      for (let c = 0; c < 6; c++) {
+        const want = Boolean((font6x8[(text.charCodeAt(i) - 32) * 8 + row] << c) & 0x80);
+        if (lit(sim, x + i * 6 + c, y + row) !== want) return false;
+      }
+    }
+  }
+  return true;
+}
+
+const cellRows = (sim) => Array.from({ length: 44 }, (_, y) => Array.from({ length: 128 }, (_, x) => lit(sim, x, y + 20)).join()).join();
+
+test("with the bank switches at MIDI only and labelled, the screen shows ten cells", async () => {
+  const demoWith = async (mode, down, up) => {
+    const tweak = [
+      "g = d['Global_Settings']",
+      `g.loc[g.Label == 'Bank_Switch_Mode', 'Value'] = '${mode}'`,
+      "s = d['BankSwitch_Settings']",
+      "s['Label'] = ''",
+      `s.loc[(s.Switch == 'Down') & (s.Press == 'Short'), 'Label'] = '${down}'`,
+      `s.loc[(s.Switch == 'Up') & (s.Press == 'Short'), 'Label'] = '${up}'`,
+    ].join("\n");
+    const sim = simWithDemo(await flashWith(packDemo(tweak)));
+    sim.run(10000);                         // the demo's power on banner goes by first
+    return sim;
+  };
+  // Five to a row, Bank Up on top and Bank Down below, in the 6x8 font
+  const ten = await demoWith("MIDI only", "PREV", "NEXT");
+  assert.ok(smallTextAt(ten, 102, 26, "NEXT"), "Bank Up's label, top right");
+  assert.ok(smallTextAt(ten, 102, 48, "PREV"), "Bank Down's label, bottom right");
+
+  // One label is enough; the other switch shows its name
+  const one = await demoWith("MIDI only", "", "NEXT");
+  assert.ok(smallTextAt(one, 102, 26, "NEXT"));
+  assert.ok(smallTextAt(one, 108, 48, "DN"));
+
+  // Changing bank, or with no label at all, the eight cells as before
+  const plain = cellRows(await demoWith("Bank+MIDI", "", ""));
+  assert.equal(cellRows(await demoWith("Bank+MIDI", "PREV", "NEXT")), plain, "the switches change bank: no labels for them");
+  assert.equal(cellRows(await demoWith("MIDI only", "", "")), plain, "no labels: the screen as it always was");
 });
