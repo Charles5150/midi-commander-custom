@@ -22,6 +22,7 @@ static uint8_t  USBD_MIDI_DataOut (USBD_HandleTypeDef *pdev, uint8_t epnum);
 static uint8_t  *USBD_MIDI_GetCfgDesc (uint16_t *length);
 
 static void midi_tx_kick(void);
+static void midi_tx_reset(void);
 
 USBD_HandleTypeDef *pInstance = NULL; 
 
@@ -83,6 +84,7 @@ __ALIGN_BEGIN uint8_t USBD_MIDI_CfgDesc[USB_MIDI_CONFIG_DESC_SIZ] __ALIGN_END =
 };
 
 static uint8_t USBD_MIDI_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx){
+  midi_tx_reset();
   pInstance = pdev;
   USBD_LL_OpenEP(pdev,MIDI_IN_EP,USBD_EP_TYPE_BULK,MIDI_DATA_IN_PACKET_SIZE);
   USBD_LL_OpenEP(pdev,MIDI_OUT_EP,USBD_EP_TYPE_BULK,MIDI_DATA_OUT_PACKET_SIZE);
@@ -96,6 +98,7 @@ static uint8_t USBD_MIDI_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx){
 
 static uint8_t USBD_MIDI_DeInit (USBD_HandleTypeDef *pdev, uint8_t cfgidx){
   pInstance = NULL;
+  midi_tx_reset();
   USBD_LL_CloseEP(pdev,MIDI_IN_EP);
   USBD_LL_CloseEP(pdev,MIDI_OUT_EP);
   return 0;
@@ -161,6 +164,16 @@ static void midi_tx_kick(void){
 	if(USBD_LL_Transmit(pInstance, MIDI_IN_EP, midi_tx_chunk, n) != USBD_OK){
 		USB_Tx_State = 0;   // retried by the next send or DataIn
 	}
+}
+
+// A bus reset drops the packet in flight and its DataIn never comes: without
+// this the endpoint would stay busy, and USB MIDI output dead, until unplugged
+static void midi_tx_reset(void){
+	uint32_t primask = __get_PRIMASK();
+	__disable_irq();
+	USB_Tx_State = 0;
+	midi_tx_tail = midi_tx_head;
+	if(!primask) __enable_irq();
 }
 
 void USBD_MIDI_SendPacket (uint8_t* buffer, uint8_t len){
