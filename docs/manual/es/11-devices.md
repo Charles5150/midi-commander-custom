@@ -409,7 +409,12 @@ Todavía no se ha probado con una GT-1000 de verdad. Las direcciones, la estruct
 
 Una MOD Dwarf también puede encender los LEDs de la pedalera, con solo `LED_Feedback` (**Follow the computer** en la pestaña **Global** del configurador): cuando la Dwarf devuelve el CC de un control que la pedalera conmuta, los botones toggle que lo envían se encienden o se apagan como en la Dwarf, se haya cambiado el control como se haya cambiado. Solo entra por USB, porque la pedalera no tiene toma MIDI IN. Una Dwarf que informe en otro CC, o con otros valores, se sigue con un comando [`Listen`](06-commands.md#escuchar-otro-cc) en el botón.
 
-Un usuario lo ha probado con una Dwarf con Starless: los cambios hechos en la Dwarf se ven en los LEDs y los botones de la pedalera ([discusión #83](https://github.com/Charles5150/midi-commander-custom/discussions/83)). Aquí no se ha probado.
+Un usuario lo tiene funcionando ([discusión #83](https://github.com/Charles5150/midi-commander-custom/discussions/83)), aunque aquí no se ha probado:
+
+- **Conexión**: la pedalera va directa al puerto USB-A host de la Dwarf, sin ordenador en medio. El ordenador solo hace falta para flashear y configurar la pedalera.
+- **En la pedalera**: **Follow the computer** activado, y botones CC toggle. No hizo falta ningún comando `Listen`.
+- **En la Dwarf**: **Enable MIDI feedback**, en *Web GUI → Settings → Advanced → MIDI Controllers*. Viene con la imagen personalizada Starless (release 17); el firmware oficial de MOD no lo tiene.
+- **En los dos sentidos**: con una versión modificada de Starless 17 que deja compartir el mismo control a un pedal de la Dwarf y a un interruptor MIDI, las dos quedan sincronizadas se pulse la que se pulse, LEDs incluidos.
 
 ## Tres puertos USB
 

@@ -409,7 +409,12 @@ It has not been tried against a real GT-1000 yet. The addresses, the ASSIGN layo
 
 A MOD Dwarf can light the pedal's LEDs too, with nothing more than `LED_Feedback` (**Follow the computer** in the configurator's **Global** tab): when the Dwarf sends back the CC of a control the pedal switches, the toggle buttons that send it are lit or dark like the Dwarf, however the control was changed. Only USB comes in, as the pedal has no MIDI IN socket. A Dwarf that reports on another CC, or with other values, is followed with a [`Listen`](06-commands.md#listening-on-another-cc) command on the button.
 
-A user has tried it with a Dwarf running Starless, changes made on the Dwarf showing on the pedal's LEDs and buttons ([discussion #83](https://github.com/Charles5150/midi-commander-custom/discussions/83)). It has not been tried here.
+A user has it working ([discussion #83](https://github.com/Charles5150/midi-commander-custom/discussions/83)), though it has not been tried here:
+
+- **Connection**: the pedal plugs straight into the Dwarf's USB-A host port, with no computer in between. The computer is only needed to flash and configure the pedal.
+- **On the pedal**: **Follow the computer** on, and CC toggle buttons. No `Listen` command was needed.
+- **On the Dwarf**: **Enable MIDI feedback**, under *Web GUI → Settings → Advanced → MIDI Controllers*. This comes with the Starless custom image (release 17); the official MOD firmware does not have it.
+- **Both ways**: with a modified build of Starless 17 that lets a Dwarf footswitch and a MIDI switch share the same control, the two stay in step whichever one is pressed, LEDs included.
 
 ## Three USB ports
 
