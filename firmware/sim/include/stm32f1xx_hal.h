@@ -125,17 +125,7 @@ HAL_StatusTypeDef HAL_FLASH_Lock(void);
 HAL_StatusTypeDef HAL_FLASH_Program(uint32_t type, uint32_t address, uint64_t data);
 HAL_StatusTypeDef HAL_FLASHEx_Erase(FLASH_EraseInitTypeDef *init, uint32_t *page_error);
 
-// --- UART (DIN), ADC (the expression pedals) ----------------------------------
-
-typedef enum { HAL_UART_STATE_RESET = 0, HAL_UART_STATE_READY = 0x20, HAL_UART_STATE_BUSY_TX = 0x21 } HAL_UART_StateTypeDef;
-typedef struct {
-	uint32_t Instance;
-	volatile HAL_UART_StateTypeDef gState;
-} UART_HandleTypeDef;
-
-HAL_StatusTypeDef HAL_UART_Transmit_DMA(UART_HandleTypeDef *h, uint8_t *data, uint16_t size);
-void HAL_UART_TxCpltCallback(UART_HandleTypeDef *h);
-
+// --- ADC (the expression pedals) --------------------------------------------
 #define ADC_CHANNEL_7				(7U)
 #define ADC_CHANNEL_8				(8U)
 

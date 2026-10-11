@@ -67,6 +67,12 @@ void adc_stop(void);
 #define PIN_AF_PP		(0xBU)	// alternate function, push-pull, 50 MHz
 #define PIN_AF_OD		(0xFU)	// alternate function, open drain, 50 MHz
 void gpio_config(GPIO_TypeDef *port, uint16_t pins, uint32_t config);
+// The DIN output's UART, din_uart.c (sim.c in the simulator), and what it
+// calls back from its interrupt when a block has gone out (midi_cmds.c)
+void din_uart_init(void);
+uint8_t din_uart_ready(void);
+uint8_t din_uart_send(const uint8_t *data, uint16_t len);
+void din_uart_done(void);
 
 /* USER CODE END EFP */
 

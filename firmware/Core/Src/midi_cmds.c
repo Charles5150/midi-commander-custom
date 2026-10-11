@@ -11,7 +11,6 @@
 #include "usbd_midi_if.h"
 #include "ssd1306.h"
 
-extern UART_HandleTypeDef huart2;
 
 /*
  * The DIN output.
@@ -50,7 +49,7 @@ static bool din_transport_waiting(void){
  * Start the next transfer to the DIN output, if the UART is free. Called when
  * something is queued, from the main loop or the USB interrupt (MIDI passed
  * through to DIN), and from the end of the last transfer, so it decides and
- * starts with interrupts off: before 0.65 it spun until HAL_UART_Transmit_DMA
+ * starts with interrupts off: before 0.65 it spun until the HAL's UART send
  * gave in, and an interrupt landing while the main loop was inside that call
  * spun for ever on the lock the main loop held, hanging the pedal. A busy
  * UART is simply left alone: its end of transfer starts the next one.
@@ -58,9 +57,9 @@ static bool din_transport_waiting(void){
 static void din_start(void){
 	uint32_t primask = __get_PRIMASK();
 	__disable_irq();
-	if(huart2.gState == HAL_UART_STATE_READY){
+	if(din_uart_ready()){
 		if(din_clocks){
-			if(HAL_UART_Transmit_DMA(&huart2, &din_clock_byte, 1) == HAL_OK){
+			if(din_uart_send(&din_clock_byte, 1)){
 				din_clocks--;
 				din_busy = 0;
 			}
@@ -69,7 +68,7 @@ static void din_start(void){
 			uint32_t n = din_in - din_out;
 			if(n > DIN_CHUNK) n = DIN_CHUNK;
 			if(n > DIN_RING_SIZE - at) n = DIN_RING_SIZE - at;
-			if(HAL_UART_Transmit_DMA(&huart2, &din_ring[at], (uint16_t)n) == HAL_OK){
+			if(din_uart_send(&din_ring[at], (uint16_t)n)){
 				din_busy = (uint16_t)n;
 			}
 		}
@@ -77,13 +76,11 @@ static void din_start(void){
 	if(!primask) __enable_irq();
 }
 
-void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+void din_uart_done(void)
 {
-	if(huart->Instance == huart2.Instance){
-		din_out += din_busy;
-		din_busy = 0;
-		din_start();
-	}
+	din_out += din_busy;
+	din_busy = 0;
+	din_start();
 }
 
 // A whole message into the queue, or nothing if it does not fit

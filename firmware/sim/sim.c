@@ -51,12 +51,11 @@ SCB_Type sim_scb;
 GPIO_TypeDef sim_gpio[3];
 TIM_TypeDef sim_tim2;
 
-UART_HandleTypeDef huart2 = { .Instance = 2, .gState = HAL_UART_STATE_READY };
 uint8_t f_sys_config_complete = 0;
 
 static volatile uint32_t tick = 0;
 static bool restart_asked = false;
-static bool uart_done_pending = false;
+static bool uart_busy = false, uart_done_pending = false;
 static uint16_t adc_value[2];		// what each expression jack reads, 0..4095
 
 #define IRQ_SYSTICK		(15U)
@@ -160,20 +159,22 @@ uint8_t HID_SendReport_FS(uint8_t *report, uint16_t len){
 
 // The DIN output: the transfer ends at the next interrupt point, so the
 // driver sees it busy for a moment, as it does at 31250 baud
-HAL_StatusTypeDef HAL_UART_Transmit_DMA(UART_HandleTypeDef *h, uint8_t *data, uint16_t size){
-	if(h->gState != HAL_UART_STATE_READY) return HAL_BUSY;
-	h->gState = HAL_UART_STATE_BUSY_TX;
+void din_uart_init(void){}
+uint8_t din_uart_ready(void){ return !uart_busy; }
+uint8_t din_uart_send(const uint8_t *data, uint16_t size){
+	if(uart_busy || !size) return 0;
+	uart_busy = true;
 	out_put(PORT_DIN, data, size);
 	uart_done_pending = true;
-	return HAL_OK;
+	return 1;
 }
 
 static void uart_interrupts(void){
 	for(uint8_t n = 0; uart_done_pending && n < 16; n++){
 		uart_done_pending = false;
-		huart2.gState = HAL_UART_STATE_READY;
+		uart_busy = false;
 		sim_ipsr = IRQ_DMA;
-		HAL_UART_TxCpltCallback(&huart2);
+		din_uart_done();
 		sim_ipsr = 0;
 	}
 }
