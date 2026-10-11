@@ -167,7 +167,7 @@ En la pestaña Expression, elige un botón de **toe** (punta) y el nivel que deb
 
 Un jack no necesita un pedal: una cajita de hasta tres pulsadores enchufada en su lugar le da a la pedalera tres pulsadores más, sin tocar nada por dentro. Pon el **Sends** del jack en **Switches** (`Output` `Switches`) y elige qué mantiene pulsado cada pulsador de la caja: **1**–**4**, **A**–**D**, o Bank **Down** o **Up** (`Box_1`, `Box_2`, `Box_3`).
 
-- Un pulsador de la caja es un pulsador de la pedalera bajo otro pie: mientras lo mantienes, mantiene ese pulsador pisado, así que sus listas de pulsación corta y larga, la doble pulsación, el momentáneo al mantener y el salto de un Bank Up mantenido funcionan igual que desde la propia pedalera, en el **banco actual**.
+- Un pulsador de la caja es un pulsador de la pedalera bajo otro pie: mientras lo mantienes, mantiene ese pulsador pisado, así que sus listas de pulsación corta y larga, la doble pulsación, el momentáneo al mantener y el salto de un Bank Up mantenido funcionan igual que desde la propia pedalera, en el **banco actual**. Sigue pisado mientras lo esté el de la caja: un boost, un freeze o una nota mantenidos durante toda una estrofa se mantienen (antes de 1.15 se soltaba a los 10 segundos, como una pulsación desde el ordenador).
 - El jack no envía MIDI propio, y sus pulsadores de punta y talón y el auto-engage no se aplican.
 - Un pulsador en **None** no hace nada.
 
@@ -187,7 +187,7 @@ Para probar el ajuste con un pedal de expresión, llévalo rápido a un cuarto, 
 
 <details><summary>Por dentro</summary>
 
-El jack se lee como para un pedal, cada 24 ms más o menos con los dos jacks en uso, y la media de 16 muestras se sitúa en el recorrido calibrado, de 0 a 1024. El más cercano de 0, 256, 512 y 768 es el nivel, y una lectura por encima de 896 es el nivel 0. Un nivel mantenido es una pulsación del pulsador por la misma cola que las del pedal virtual (`sw_virtual_press`), así que el escaneo de pulsadores lo ve como un pie. Se guarda en el registro de calibración del jack: `Output` 6, y los bytes 7 a 9, que un pedal usa para sus pulsadores de punta y talón, guardan lo que pulsan los de la caja: 0–7 para 1–D, 8 para Bank Down, 9 para Bank Up y 0xFF para ninguno.
+El jack se lee como para un pedal, cada 24 ms más o menos con los dos jacks en uso, y la media de 16 muestras se sitúa en el recorrido calibrado, de 0 a 1024. El más cercano de 0, 256, 512 y 768 es el nivel, y una lectura por encima de 896 es el nivel 0. Un nivel mantenido es una pulsación del pulsador por la misma cola que las del pedal virtual (`sw_virtual_hold`), así que el escaneo de pulsadores lo ve como un pie; a diferencia de una pulsación desde el ordenador, no tiene el límite de 10 segundos. Se guarda en el registro de calibración del jack: `Output` 6, y los bytes 7 a 9, que un pedal usa para sus pulsadores de punta y talón, guardan lo que pulsan los de la caja: 0–7 para 1–D, 8 para Bank Down, 9 para Bank Up y 0xFF para ninguno.
 
 </details>
 

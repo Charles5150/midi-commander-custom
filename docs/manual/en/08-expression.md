@@ -167,7 +167,7 @@ In the Expression tab, name a **toe** button and the level the pedal must reach 
 
 A jack needs no pedal in it: a small box of up to three footswitches plugged in instead gives the pedal three more switches, with nothing changed inside it. Set the jack's **Sends** to **Switches** (`Output` `Switches`) and say what each of the box's switches holds down: **1**–**4**, **A**–**D**, or Bank **Down** or **Up** (`Box_1`, `Box_2`, `Box_3`).
 
-- A box switch is the pedal's own switch under another foot: held, it holds that switch down, so its short and long press lists, a double press, a momentary hold and a Bank Up held to jump all work as from the pedal itself, in the **current bank**.
+- A box switch is the pedal's own switch under another foot: held, it holds that switch down, so its short and long press lists, a double press, a momentary hold and a Bank Up held to jump all work as from the pedal itself, in the **current bank**. It stays down as long as the box's switch does: a boost, a freeze or a note held for a whole verse holds (before 1.15 it let go after 10 seconds, as a press from the computer does).
 - The jack sends no MIDI of its own, and its toe and heel switches and auto-engage do not apply.
 - A switch left at **None** does nothing.
 
@@ -187,7 +187,7 @@ To try the setting with an expression pedal instead, move it quickly to a quarte
 
 <details><summary>Under the hood</summary>
 
-The jack is read as for a pedal, every 24 ms or so with both jacks in use, and the average of 16 samples is placed in the calibrated travel, 0 to 1024. The nearest of 0, 256, 512 and 768 is the level, and a reading above 896 is level 0. A level held is a press of the switch through the same queue as the virtual pedal's presses (`sw_virtual_press`), so the switch scan sees it as a foot. Stored in the jack's calibration record: `Output` 6, and bytes 7 to 9, which a pedal uses for its toe and heel switches, hold what the box's switches press, 0–7 for 1–D, 8 for Bank Down, 9 for Bank Up, 0xFF for none.
+The jack is read as for a pedal, every 24 ms or so with both jacks in use, and the average of 16 samples is placed in the calibrated travel, 0 to 1024. The nearest of 0, 256, 512 and 768 is the level, and a reading above 896 is level 0. A level held is a press of the switch through the same queue as the virtual pedal's presses (`sw_virtual_hold`), so the switch scan sees it as a foot; unlike a press from the computer, it has no 10 second limit. Stored in the jack's calibration record: `Output` 6, and bytes 7 to 9, which a pedal uses for its toe and heel switches, hold what the box's switches press, 0–7 for 1–D, 8 for Bank Down, 9 for Bank Up, 0xFF for none.
 
 </details>
 

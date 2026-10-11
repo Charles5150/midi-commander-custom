@@ -662,6 +662,29 @@ test("a box of switches on an expression jack holds down the pedal's switches", 
   assert.deepEqual(seen.filter((m) => /^(USB|DIN) b[0-9a-f] 0b /.test(m)), [], "and no CC of a pedal");
 });
 
+test("a box's switch holds as long as it is down; a press from the page lets go after 10 s (before 1.15, both did)", async () => {
+  const sim = simWithDemo(await flashWith(packDemo([
+    "e = d['Expression_Settings']",
+    "e.loc[e.Pedal == '2', ['Output', 'Min_ADC', 'Max_ADC', 'Invert', 'Box_2']] = ['Switches', '0', '4095', 'N', '1']",
+    "b = d['Button_Settings']",
+    "b.loc[(b.Bank_Number == '1') & (b.Button_Identifier == '1'), 'Momentary_Hold'] = 'Y'",
+  ].join("\n"))));
+  tap(sim, 0);                              // the index to LOOP, where switch 1 is CC 1, momentary when held
+  const seen = watch(sim);
+  const cc1 = () => seen.splice(0).filter((m) => m.startsWith("USB b0 01 "));
+  sim.pedal(1, 2048);                       // box switch 2 holds switch 1
+  sim.run(16000);
+  assert.deepEqual(cc1(), ["USB b0 01 7f"], "held 16 s, still down");
+  sim.pedal(1, 0);
+  sim.run(600);
+  assert.deepEqual(cc1(), ["USB b0 01 00"], "let go with the box");
+
+  const pedal = await Pedal.open(sim.access);
+  await running(sim, () => pedal.press("1", true));
+  sim.run(16000);
+  assert.deepEqual(cc1(), ["USB b0 01 7f", "USB b0 01 00"], "a press from the page left down lets go by itself");
+});
+
 function smallTextAt(sim, x, y, text) {
   for (let i = 0; i < text.length; i++) {
     for (let row = 0; row < 8; row++) {

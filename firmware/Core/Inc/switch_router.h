@@ -79,6 +79,9 @@ void sw_note_program(uint8_t channel, uint8_t program);
 #define SW_VIRTUAL_BANK_UP		(9)
 #define SW_VIRTUAL_COUNT		(10)
 void sw_virtual_press(uint8_t id, uint8_t down);
+// The same, for a switch box on an expression jack: no time limit on a hold,
+// which lasts until the box lets go. Main loop only.
+void sw_virtual_hold(uint8_t id, uint8_t down);
 
 // Per button/bank queries used by the display
 uint8_t sw_button_is_toggle(uint8_t bank, uint8_t sw);

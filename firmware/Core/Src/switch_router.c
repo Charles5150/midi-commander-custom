@@ -3324,25 +3324,39 @@ static void run_button_cmd(const uint8_t *pRom){
  *
  * The USB interrupt only queues the request; handle_switches applies it. A
  * virtual press left down (the configurator closed mid-press) lets go by
- * itself after VIRTUAL_MAX_HOLD_MS.
+ * itself after VIRTUAL_MAX_HOLD_MS. A switch box on an expression jack holds
+ * its switches through the same queue, with sw_virtual_hold, and those stay
+ * down as long as the box's switch does, as a foot on the pedal would.
  */
 #define VIRTUAL_QUEUE_LEN		(16)
 #define VIRTUAL_MAX_HOLD_MS		(10000U)
 
-static uint8_t virtual_queue[VIRTUAL_QUEUE_LEN];	// id | 0x80 when down
+#define VIRTUAL_DOWN			(0x80)
+#define VIRTUAL_NO_LIMIT		(0x40)
+
+static uint8_t virtual_queue[VIRTUAL_QUEUE_LEN];	// id | VIRTUAL_DOWN | VIRTUAL_NO_LIMIT
 static uint32_t virtual_when[VIRTUAL_QUEUE_LEN];	// when it came, for latency.c
 static volatile uint8_t virtual_head = 0;	// written by the USB interrupt only
 static volatile uint8_t virtual_tail = 0;	// written by the main loop only
 static uint16_t virtual_down = 0;			// bit per virtual switch id
+static uint16_t virtual_lasting = 0;		// held without VIRTUAL_MAX_HOLD_MS
 static uint32_t virtual_tick[SW_VIRTUAL_COUNT];
 
-void sw_virtual_press(uint8_t id, uint8_t down){
+static void virtual_queue_add(uint8_t id, uint8_t flags){
 	if(id >= SW_VIRTUAL_COUNT) return;
 	uint8_t next = (uint8_t)((virtual_head + 1) % VIRTUAL_QUEUE_LEN);
 	if(next == virtual_tail) return;
-	virtual_queue[virtual_head] = id | (down ? 0x80 : 0);
+	virtual_queue[virtual_head] = id | flags;
 	virtual_when[virtual_head] = latency_now();
 	virtual_head = next;
+}
+
+void sw_virtual_press(uint8_t id, uint8_t down){
+	virtual_queue_add(id, down ? VIRTUAL_DOWN : 0);
+}
+
+void sw_virtual_hold(uint8_t id, uint8_t down){
+	virtual_queue_add(id, (uint8_t)(VIRTUAL_NO_LIMIT | (down ? VIRTUAL_DOWN : 0)));
 }
 
 static void virtual_pin(uint8_t id, GPIO_TypeDef **port, uint16_t *pin, volatile uint16_t **changed){
@@ -3361,15 +3375,18 @@ static void virtual_pin(uint8_t id, GPIO_TypeDef **port, uint16_t *pin, volatile
 	}
 }
 
-static void virtual_set(uint8_t id, bool down){
+static void virtual_set(uint8_t id, bool down, bool lasting){
 	uint16_t bit = (uint16_t)(1U << id);
-	if(((virtual_down & bit) != 0) == down) return;
 	if(down){
-		virtual_down |= bit;
+		// The last press decides: a box taking over a configurator's press
+		// holds it, and the other way round it lets go in time
+		if(lasting) virtual_lasting |= bit;
+		else virtual_lasting &= (uint16_t)~bit;
 		virtual_tick[id] = HAL_GetTick();
-	} else {
-		virtual_down &= (uint16_t)~bit;
 	}
+	if(((virtual_down & bit) != 0) == down) return;
+	if(down) virtual_down |= bit;
+	else virtual_down &= (uint16_t)~bit;
 	GPIO_TypeDef *port;
 	uint16_t pin;
 	volatile uint16_t *changed;
@@ -3388,17 +3405,19 @@ static void virtual_task(void){
 	uint16_t touched = 0;
 	while(virtual_tail != virtual_head){
 		uint8_t e = virtual_queue[virtual_tail];
-		uint16_t bit = (uint16_t)(1U << (e & 0x7F));
+		uint8_t id = e & (uint8_t)~(VIRTUAL_DOWN | VIRTUAL_NO_LIMIT);
+		uint16_t bit = (uint16_t)(1U << id);
 		if(touched & bit) break;
 		touched |= bit;
 		latency_mark(virtual_when[virtual_tail]);
 		virtual_tail = (uint8_t)((virtual_tail + 1) % VIRTUAL_QUEUE_LEN);
-		virtual_set(e & 0x7F, (e & 0x80) != 0);
+		virtual_set(id, (e & VIRTUAL_DOWN) != 0, (e & VIRTUAL_NO_LIMIT) != 0);
 	}
 	uint32_t now = HAL_GetTick();
 	for(uint8_t id=0; id<SW_VIRTUAL_COUNT; id++){
-		if((virtual_down & (1U << id)) && (now - virtual_tick[id]) >= VIRTUAL_MAX_HOLD_MS){
-			virtual_set(id, false);
+		uint16_t bit = (uint16_t)(1U << id);
+		if((virtual_down & bit) && !(virtual_lasting & bit) && (now - virtual_tick[id]) >= VIRTUAL_MAX_HOLD_MS){
+			virtual_set(id, false, false);
 		}
 	}
 }

@@ -615,7 +615,7 @@ static void send_extras(uint32_t i, uint8_t midi_value)
 static void box_press(uint8_t id, bool down)
 {
   __disable_irq();	// the USB interrupt queues virtual presses too
-  sw_virtual_press(id, down);
+  sw_virtual_hold(id, down);
   __enable_irq();
 }
 
