@@ -93,8 +93,6 @@
 #define EXP_PEDAL_COUNT        (2U)
 #define ADC_FULL_SCALE         (4095U)
 
-extern ADC_HandleTypeDef hadc1;
-#define EXP_ADC_HANDLE (&hadc1)
 extern uint8_t f_sys_config_complete;
 
 static const uint32_t kExpChannels[EXP_PEDAL_COUNT] = {ADC_CHANNEL_7, ADC_CHANNEL_8};
@@ -237,27 +235,16 @@ static void begin_adc_channel(uint32_t channel)
 
 static uint32_t read_adc_channel(uint32_t channel)
 {
-  ADC_ChannelConfTypeDef sConfig = {0};
-  sConfig.Channel = channel;
-  sConfig.Rank = ADC_REGULAR_RANK_1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_239CYCLES_5;
-  if (HAL_ADC_ConfigChannel(EXP_ADC_HANDLE, &sConfig) != HAL_OK) {
-      set_pin_pulldown(channel);
-      return 0;
-  }
-
-  HAL_ADC_Start(EXP_ADC_HANDLE);
-  HAL_ADC_PollForConversion(EXP_ADC_HANDLE, 2);
-  __HAL_ADC_CLEAR_FLAG(EXP_ADC_HANDLE, ADC_FLAG_EOC);
+  uint32_t value;
+  adc_sample(channel, &value);	// the first after the switch is thrown away
 
   uint32_t accumulator = 0;
   for (uint32_t i = 0; i < 16; i++) {
-      HAL_ADC_Start(EXP_ADC_HANDLE);
-      if (HAL_ADC_PollForConversion(EXP_ADC_HANDLE, 2) == HAL_OK) {
-          accumulator += HAL_ADC_GetValue(EXP_ADC_HANDLE);
+      if (adc_sample(channel, &value)) {
+          accumulator += value;
       }
   }
-  HAL_ADC_Stop(EXP_ADC_HANDLE);
+  adc_stop();
 
   set_pin_pulldown(channel);
   return accumulator / 16;

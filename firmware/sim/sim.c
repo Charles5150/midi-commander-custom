@@ -54,7 +54,6 @@ TIM_TypeDef sim_tim2;
 I2C_HandleTypeDef hi2c1 = { .Instance = 1, .State = HAL_I2C_STATE_READY };
 DMA_HandleTypeDef hdma_i2c1_tx;
 UART_HandleTypeDef huart2 = { .Instance = 2, .gState = HAL_UART_STATE_READY };
-ADC_HandleTypeDef hadc1 = { .Instance = 3 };
 uint8_t f_sys_config_complete = 0;
 
 static volatile uint32_t tick = 0;
@@ -183,16 +182,11 @@ static void uart_interrupts(void){
 }
 
 // --- The expression pedals --------------------------------------------------
-HAL_StatusTypeDef HAL_ADC_ConfigChannel(ADC_HandleTypeDef *h, ADC_ChannelConfTypeDef *c){
-	h->channel = c->Channel;
-	return HAL_OK;
+bool adc_sample(uint32_t channel, uint32_t *value){
+	*value = adc_value[channel == ADC_CHANNEL_8 ? 1 : 0];
+	return true;
 }
-HAL_StatusTypeDef HAL_ADC_Start(ADC_HandleTypeDef *h){ (void)h; return HAL_OK; }
-HAL_StatusTypeDef HAL_ADC_Stop(ADC_HandleTypeDef *h){ (void)h; return HAL_OK; }
-HAL_StatusTypeDef HAL_ADC_PollForConversion(ADC_HandleTypeDef *h, uint32_t t){ (void)h; (void)t; return HAL_OK; }
-uint32_t HAL_ADC_GetValue(ADC_HandleTypeDef *h){
-	return adc_value[h->channel == ADC_CHANNEL_8 ? 1 : 0];
-}
+void adc_stop(void){}
 
 // --- No bootloader to go to -------------------------------------------------
 bool dfu_entry_possible(void){ return false; }

@@ -32,6 +32,7 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdbool.h>
 
 /* USER CODE END Includes */
 
@@ -55,6 +56,17 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
 void Error(char *msg);
+// The ADC, for the expression pedals (sim.c in the simulator)
+bool adc_sample(uint32_t channel, uint32_t *value);
+void adc_stop(void);
+// A pin's four configuration bits, CNF and MODE, for gpio_config
+#define PIN_OUT			(0x2U)	// output, push-pull, 2 MHz
+#define PIN_IN			(0x4U)	// input, floating
+#define PIN_IN_PULL		(0x8U)	// input, pulled up by ODR 1, down by 0
+#define PIN_ANALOG		(0x0U)
+#define PIN_AF_PP		(0xBU)	// alternate function, push-pull, 50 MHz
+#define PIN_AF_OD		(0xFU)	// alternate function, open drain, 50 MHz
+void gpio_config(GPIO_TypeDef *port, uint16_t pins, uint32_t config);
 
 /* USER CODE END EFP */
 

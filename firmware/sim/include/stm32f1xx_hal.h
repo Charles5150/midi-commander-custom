@@ -154,17 +154,5 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *h);
 
 #define ADC_CHANNEL_7				(7U)
 #define ADC_CHANNEL_8				(8U)
-#define ADC_REGULAR_RANK_1			(1U)
-#define ADC_SAMPLETIME_239CYCLES_5	(7U)
-#define ADC_FLAG_EOC				(2U)
-typedef struct { uint32_t Channel, Rank, SamplingTime; } ADC_ChannelConfTypeDef;
-typedef struct { uint32_t Instance; uint32_t channel; } ADC_HandleTypeDef;
-#define __HAL_ADC_CLEAR_FLAG(h, f)	((void)(h), (void)(f))
-
-HAL_StatusTypeDef HAL_ADC_ConfigChannel(ADC_HandleTypeDef *h, ADC_ChannelConfTypeDef *c);
-HAL_StatusTypeDef HAL_ADC_Start(ADC_HandleTypeDef *h);
-HAL_StatusTypeDef HAL_ADC_Stop(ADC_HandleTypeDef *h);
-HAL_StatusTypeDef HAL_ADC_PollForConversion(ADC_HandleTypeDef *h, uint32_t timeout);
-uint32_t HAL_ADC_GetValue(ADC_HandleTypeDef *h);
 
 #endif

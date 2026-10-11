@@ -67,7 +67,6 @@ DMA_HandleTypeDef hdma_i2c1_tx;
 
 UART_HandleTypeDef huart2;
 DMA_HandleTypeDef hdma_usart2_tx;
-ADC_HandleTypeDef hadc1;
 
 /* USER CODE BEGIN PV */
 uint8_t f_sys_config_complete = 0;
@@ -303,51 +302,52 @@ int main(void)
   /* USER CODE END 3 */
 }
 
+// Wait up to 100 ms, as the HAL did, for a clock bit to read as wanted
+static void clock_wait(volatile uint32_t *reg, uint32_t mask, uint32_t want)
+{
+  uint32_t start = HAL_GetTick();
+  while ((*reg & mask) != want)
+  {
+    if (HAL_GetTick() - start > 100U)
+    {
+      Error_Handler();
+    }
+  }
+}
+
 /**
   * @brief System Clock Configuration
+  * 72 MHz from the 12 MHz crystal times 6; AHB and APB2 at 72, APB1 at 36;
+  * the ADC at 72/6 = 12 MHz, under the F103's 14 MHz; USB at 72/1.5 = 48.
+  * Register by register rather than through the HAL, which took a kilobyte.
+  * The bootloader may have left the PLL running the core, so the core goes
+  * to the HSI first: the PLL can only be set while it is off.
   * @retval None
   */
 void SystemClock_Config(void)
 {
-  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
-  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
+  RCC->CR |= RCC_CR_HSION;
+  clock_wait(&RCC->CR, RCC_CR_HSIRDY, RCC_CR_HSIRDY);
+  RCC->CFGR &= ~RCC_CFGR_SW;
+  clock_wait(&RCC->CFGR, RCC_CFGR_SWS, RCC_CFGR_SWS_HSI);
+  RCC->CR &= ~RCC_CR_PLLON;
+  clock_wait(&RCC->CR, RCC_CR_PLLRDY, 0);
 
-  /** Initializes the RCC Oscillators according to the specified parameters
-  * in the RCC_OscInitTypeDef structure.
-  */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
-  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
-  RCC_OscInitStruct.HSEPredivValue = RCC_HSE_PREDIV_DIV1;
-  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL6;
-  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /** Initializes the CPU, AHB and APB buses clocks
-  */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
-  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+  RCC->CR |= RCC_CR_HSEON;
+  clock_wait(&RCC->CR, RCC_CR_HSERDY, RCC_CR_HSERDY);
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  // ADC at 72/6 = 12 MHz, under the F103's 14 MHz (the reset /2 gave 36)
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USB | RCC_PERIPHCLK_ADC;
-  PeriphClkInit.AdcClockSelection = RCC_ADCPCLK2_DIV6;
-  PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_PLL_DIV1_5;
-  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
-  {
-    Error_Handler();
-  }
+  // USBPRE 0 is /1.5, PLLXTPRE 0 the crystal undivided
+  RCC->CFGR = RCC_CFGR_PLLSRC | RCC_CFGR_PLLMULL6 | RCC_CFGR_ADCPRE_DIV6
+            | RCC_CFGR_PPRE1_DIV2;
+  RCC->CR |= RCC_CR_PLLON;
+  clock_wait(&RCC->CR, RCC_CR_PLLRDY, RCC_CR_PLLRDY);
+
+  FLASH->ACR = (FLASH->ACR & ~FLASH_ACR_LATENCY) | FLASH_LATENCY_2;
+  RCC->CFGR |= RCC_CFGR_SW_PLL;
+  clock_wait(&RCC->CFGR, RCC_CFGR_SWS, RCC_CFGR_SWS_PLL);
+
+  SystemCoreClock = 72000000U;
+  HAL_InitTick(TICK_INT_PRIORITY);
 }
 
 /**
@@ -441,10 +441,26 @@ static void MX_DMA_Init(void)
   * @param None
   * @retval None
   */
+/*
+ * Set the pins of a port to one configuration, PIN_OUT and the like.
+ * Register by register rather than through HAL_GPIO_Init, which took half a
+ * kilobyte.
+ */
+void gpio_config(GPIO_TypeDef *port, uint16_t pins, uint32_t config)
+{
+  for (uint32_t i = 0; i < 16U; i++)
+  {
+    if (pins & (1U << i))
+    {
+      volatile uint32_t *cr = (i < 8U) ? &port->CRL : &port->CRH;
+      uint32_t shift = (i & 7U) * 4U;
+      *cr = (*cr & ~(0xFU << shift)) | (config << shift);
+    }
+  }
+}
+
 static void MX_GPIO_Init(void)
 {
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
-
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
@@ -452,89 +468,100 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOF_CLK_ENABLE();
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, LED_C_Pin|LED_B_Pin|USB_ID_Pin, GPIO_PIN_RESET);
+  // The LEDs and USB_ID low, the switches pulled up
+  GPIOC->BRR = LED_C_Pin|LED_B_Pin|USB_ID_Pin;
+  GPIOA->BRR = LED_D_Pin|LED_2_Pin;
+  GPIOB->BRR = LED_E_Pin|LED_5_Pin|LED_4_Pin|LED_3_Pin|LED_1_Pin|LED_A_Pin;
+  SW_B_GPIO_Port->BSRR = SW_B_Pin;
+  GPIOA->BSRR = SW_C_Pin|SW_D_Pin|SW_E_Pin|SW_2_Pin|SW_1_Pin;
+  GPIOB->BSRR = SW_5_Pin|SW_4_Pin|SW_3_Pin|SW_A_Pin;
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, LED_D_Pin|LED_2_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, LED_E_Pin|LED_5_Pin|LED_4_Pin|LED_3_Pin
-                          |LED_1_Pin|LED_A_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pins : LED_C_Pin LED_B_Pin USB_ID_Pin */
-  GPIO_InitStruct.Pin = LED_C_Pin|LED_B_Pin|USB_ID_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : SW_B_Pin */
-  GPIO_InitStruct.Pin = SW_B_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(SW_B_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : SW_C_Pin SW_D_Pin SW_E_Pin SW_2_Pin
-                           SW_1_Pin */
-  GPIO_InitStruct.Pin = SW_C_Pin|SW_D_Pin|SW_E_Pin|SW_2_Pin
-                          |SW_1_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : LED_D_Pin LED_2_Pin */
-  GPIO_InitStruct.Pin = LED_D_Pin|LED_2_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : LED_E_Pin LED_5_Pin LED_4_Pin LED_3_Pin
-                           LED_1_Pin LED_A_Pin */
-  GPIO_InitStruct.Pin = LED_E_Pin|LED_5_Pin|LED_4_Pin|LED_3_Pin
-                          |LED_1_Pin|LED_A_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : SW_5_Pin SW_4_Pin SW_3_Pin SW_A_Pin */
-  GPIO_InitStruct.Pin = SW_5_Pin|SW_4_Pin|SW_3_Pin|SW_A_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : EXP1_Pin EXP2_Pin */
-  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Pin = EXP1_Pin;
-  HAL_GPIO_Init(EXP1_GPIO_Port, &GPIO_InitStruct);
-  GPIO_InitStruct.Pin = EXP2_Pin;
-  HAL_GPIO_Init(EXP2_GPIO_Port, &GPIO_InitStruct);
-
+  gpio_config(GPIOC, LED_C_Pin|LED_B_Pin|USB_ID_Pin, PIN_OUT);
+  gpio_config(SW_B_GPIO_Port, SW_B_Pin, PIN_IN_PULL);
+  gpio_config(GPIOA, SW_C_Pin|SW_D_Pin|SW_E_Pin|SW_2_Pin|SW_1_Pin, PIN_IN_PULL);
+  gpio_config(GPIOA, LED_D_Pin|LED_2_Pin, PIN_OUT);
+  gpio_config(GPIOB, LED_E_Pin|LED_5_Pin|LED_4_Pin|LED_3_Pin|LED_1_Pin|LED_A_Pin, PIN_OUT);
+  gpio_config(GPIOB, SW_5_Pin|SW_4_Pin|SW_3_Pin|SW_A_Pin, PIN_IN_PULL);
+  gpio_config(EXP1_GPIO_Port, EXP1_Pin, PIN_ANALOG);
+  gpio_config(EXP2_GPIO_Port, EXP2_Pin, PIN_ANALOG);
 }
 
+// A wait of a few microseconds, for the ADC to wake up and to calibrate
+static void adc_delay(void)
+{
+  for (volatile uint32_t n = 0; n < 100U; n++) {
+  }
+}
+
+// Wait for an ADC bit to clear, false after about 10 ms as the HAL did
+static bool adc_wait_clear(uint32_t mask)
+{
+  uint32_t start = HAL_GetTick();
+  while (ADC1->CR2 & mask) {
+    if (HAL_GetTick() - start > 10U) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static void adc_on(void)
+{
+  if (!(ADC1->CR2 & ADC_CR2_ADON)) {
+    ADC1->CR2 |= ADC_CR2_ADON;	// once off, the first ADON only wakes it up
+    adc_delay();
+  }
+}
+
+/*
+ * The ADC, one conversion at a time on the channel the expression pedals ask
+ * for, started by software. Register by register rather than through the HAL,
+ * which took a kilobyte and a half. Calibrated once here, and off between
+ * readings, as it always was.
+ */
 static void MX_ADC1_Init(void)
 {
-  hadc1.Instance = ADC1;
-  hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE; // Disable scan
-  hadc1.Init.ContinuousConvMode = DISABLE;
-  hadc1.Init.DiscontinuousConvMode = DISABLE;
-  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
-  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc1.Init.NbrOfConversion = 1; // Single conversion
-  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  __HAL_RCC_ADC1_CLK_ENABLE();
+  ADC1->CR1 = 0;
+  ADC1->CR2 = ADC_CR2_EXTSEL | ADC_CR2_EXTTRIG;	// EXTSEL 111: SWSTART
+  ADC1->SQR1 = 0;	// a single conversion
+  adc_on();
+  ADC1->CR2 |= ADC_CR2_RSTCAL;
+  if (!adc_wait_clear(ADC_CR2_RSTCAL))
   {
     Error_Handler();
   }
-
-  if (HAL_ADCEx_Calibration_Start(&hadc1) != HAL_OK)
+  ADC1->CR2 |= ADC_CR2_CAL;
+  if (!adc_wait_clear(ADC_CR2_CAL))
   {
     Error_Handler();
   }
+  adc_stop();
+}
 
-  // Channel configuration will be done in expression.c dynamically
+// One conversion of channel 7 or 8, sampled for 239.5 cycles; false if it
+// did not finish within 2 ms
+bool adc_sample(uint32_t channel, uint32_t *value)
+{
+  uint32_t shift = 3U * (channel - 10U * (channel >= 10U));
+  volatile uint32_t *smpr = (channel >= 10U) ? &ADC1->SMPR1 : &ADC1->SMPR2;
+  *smpr |= 7U << shift;
+  ADC1->SQR3 = channel;
+  adc_on();
+  ADC1->CR2 |= ADC_CR2_SWSTART;
+  uint32_t start = HAL_GetTick();
+  while (!(ADC1->SR & ADC_SR_EOC)) {
+    if (HAL_GetTick() - start > 2U) {
+      return false;
+    }
+  }
+  *value = ADC1->DR;	// which clears EOC
+  return true;
+}
+
+void adc_stop(void)
+{
+  ADC1->CR2 &= ~ADC_CR2_ADON;
 }
 
 /* USER CODE BEGIN 4 */
