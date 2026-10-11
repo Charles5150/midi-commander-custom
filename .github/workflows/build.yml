@@ -58,10 +58,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libasound2-dev python3-tk
-          pip install -r python/requirements.txt
+          pip install -r python/requirements.txt pytest pytest-xdist
 
       - name: Run tests
-        run: python -m unittest discover -s python/tests -v
+        # The unittest suite, spread over the runner's cores
+        run: python -m pytest -n auto -q python/tests
 
       - name: Build the simulated pedal
         # The firmware's own sources for WebAssembly: clang and wasm-ld
@@ -81,11 +82,26 @@ jobs:
           python CSV_to_Flash.py --help
           python Flash_to_CSV.py --help
 
+  gui:
+    name: Configurator window
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev python3-tk xvfb
+          pip install -r python/requirements.txt
+
       - name: The configurator's window
         # Opened on a virtual display: every tab, and each CSV saved as loaded
-        run: |
-          sudo apt-get install -y xvfb
-          GUI_TEST=1 xvfb-run -a python -m unittest python/tests/test_gui.py -v
+        run: GUI_TEST=1 xvfb-run -a python -m unittest python/tests/test_gui.py -v
 
   install:
     # What a user does on each system: the launcher sets up .venv, then the tests run in it
@@ -111,8 +127,13 @@ jobs:
         if: runner.os != 'Windows'
         run: ./start-configurator.sh --check
 
-      - name: Run tests in the environment it made
+      - name: The tools run in the environment it made
+        # The whole suite runs in the Python tools job: here, that the tools
+        # import and pack a configuration on each system
         shell: bash
         run: |
           if [ -x .venv/Scripts/python.exe ]; then PY=.venv/Scripts/python.exe; else PY=.venv/bin/python; fi
-          "$PY" -m unittest discover -s python/tests
+          cd python
+          "$PY" -c "import lib.configPacker, lib.binaryUnpacker, lib.midiDevice, lib.configCsv"
+          "$PY" CSV_to_Flash.py --help > /dev/null
+          "$PY" -m unittest tests.test_generators tests.test_buttons
