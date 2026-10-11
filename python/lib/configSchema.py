@@ -19,11 +19,11 @@ from lib.cmdBinaryPacker import (
     BUTTON_ACTIONS, CHAN_OUTPUTS, EXP_TARGETS, HID_SPECIAL_KEYS, IF_BANK_TESTS, IF_BUTTON_TESTS,
     IF_TESTS, IF_VALUE_TESTS, LFO_DIVISIONS, LFO_SHAPES, LISTEN_LOOKS, MACRO_LISTS, MEDIA_KEYS,
     MMC_COMMANDS, MMC_LOCATE_MAX, NRPN_KINDS, NRPN_MAX, RAMP_MAX_MS, SCENE_BUTTONS, SCENE_MODES, SONG_MODES,
-    SONG_POSITION_MAX, VAR_COUNT, VAR_DEFAULT_TOP, VAR_MODES, WAIT_BAR_MAX,
+    SONG_POSITION_MAX, SYSEX_MODES, VAR_COUNT, VAR_DEFAULT_TOP, VAR_MODES, WAIT_BAR_MAX,
 )
 from lib.configPacker import (
     BUTTON_IDS, COMBO_COLUMNS, COMBO_COUNT, MIDI_MAP_COLUMNS, MIDI_MAP_COUNT, MIDI_MAP_OUT_TYPES,
-    MIDI_MAP_TYPES, NUM_BANKS, PRESET_NAME_COLUMNS, SETLIST_MAX, SYSEX_STRING_COUNT,
+    MIDI_MAP_TYPES, NUM_BANKS, EXP_OUTPUT_CHOICES, PRESET_NAME_COLUMNS, SETLIST_MAX, SYSEX_STRING_COUNT,
 )
 from lib.flashLayout import PRESET_NAME_COUNT, PRESET_NAME_LEN
 
@@ -259,8 +259,13 @@ COMMAND_SPECS = {
                              "tempo, until the bank changes (0: every beat), for a device with a tap CC",
                       "Save": "keeps the tempo for next time: writes it into this bank's enter list, in its "
                               "Tap Set or in an empty command"}},
-    "SysEx": {"fields": [_f(NUM, "String", _choice([str(i) for i in range(SYSEX_STRING_COUNT)]))],
-              "hint": "edit the bytes in SysEx strings"},
+    "SysEx": {"fields": [_f(MODE, "Mode", _choice(SYSEX_MODES, blank=SYSEX_MODES[0])),
+                         _f(NUM, "String", _choice([str(i) for i in range(SYSEX_STRING_COUNT)])),
+                         _f(ON, "Value", _int(0, 127), **_when(MODE, "", "Send"))],
+              "hint_by": MODE,
+              "hints": {"": "edit the bytes in SysEx strings; Value goes where the string has VV",
+                        "Send": "edit the bytes in SysEx strings; Value goes where the string has VV",
+                        "Value": "the CC or CCInc below sends its values through this string, where it has VV"}},
     "Bank": {"fields": [_f(MODE, "Action", _choice(BANK_MODES)),
                         _f(ON, "Bank", _choice(BANKS), **_when(MODE, "GoTo", "Page")),
                         _f(ON, "Slot", _choice(CONFIG_SLOT_NAMES), default="1", **_when(MODE, "Config")),
@@ -354,7 +359,7 @@ EXPRESSION_FIELDS = [
     {"col": "Curve", "label": "Curve", **_choice(["Linear", "Log", "Exp"])},
     {"col": "Invert", "label": "Invert", **CHECK},
     {"col": "Channel", "label": "Channel", **_choice(["Global"] + CHANNELS)},
-    {"col": "Output", "label": "Sends", **_choice(["CC", "PitchBend", "CC14", "Speed", "Wheel", "Arrows", "Switches"])},
+    {"col": "Output", "label": "Sends", **_choice(EXP_OUTPUT_CHOICES)},
     {"col": "Out_Min", "label": "Out min", **_int(0, 127)},
     {"col": "Out_Max", "label": "Out max", **_int(0, 127), "default": "127"},
     {"col": "Toe_Button", "label": "Toe taps", **_choice(["None"] + BUTTON_IDS, blank="None")},

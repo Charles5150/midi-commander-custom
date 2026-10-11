@@ -136,12 +136,13 @@ typedef struct {
   uint8_t out_max;      // value sent at the toe
   uint8_t auto_button;  // auto-engage button, NO_BUTTON when unused
   uint16_t auto_off_ms; // rest at the heel before switching it off
-  uint8_t out_mode;     // EXP_OUT_CC, EXP_OUT_PITCHBEND, EXP_OUT_CC14, EXP_OUT_SPEED, EXP_OUT_WHEEL, EXP_OUT_ARROWS or EXP_OUT_SWITCHES
+  uint8_t out_mode;     // EXP_OUT_CC ... EXP_OUT_SWITCHES or EXP_OUT_SYSEX
+  uint8_t sysex;        // EXP_OUT_SYSEX: the stored string it sends
   uint8_t box[EXP_BOX_SWITCHES]; // EXP_OUT_SWITCHES: the switch each level holds down, NO_BUTTON for none
 } exp_cal_t;
 
 // What a pedal sends at the moment
-typedef enum { SEND_CC7, SEND_CC14, SEND_PB, SEND_SPEED, SEND_SCROLL } send_kind_t;
+typedef enum { SEND_CC7, SEND_CC14, SEND_PB, SEND_SPEED, SEND_SCROLL, SEND_SYSEX } send_kind_t;
 
 typedef struct {
   exp_cal_t cal;
@@ -299,6 +300,10 @@ static void load_calibration(uint32_t i)
   c->auto_off_ms = (p[14] != 0 && p[14] != 0xFF) ? p[14] * AUTO_OFF_UNIT_MS : AUTO_OFF_DEFAULT_MS;
 
   c->out_mode = (p[15] >= EXP_OUT_PITCHBEND && p[15] <= EXP_OUT_SWITCHES) ? p[15] : EXP_OUT_CC;
+  if ((p[15] & 0xF0U) == EXP_OUT_SYSEX) {
+      c->out_mode = EXP_OUT_SYSEX;
+      c->sysex = p[15] & 0x0FU;
+  }
 
   // A box of switches: what each of its levels holds down, and nothing else
   for (uint32_t k = 0; k < EXP_BOX_SWITCHES; k++) {
@@ -417,7 +422,8 @@ static bool pedal_target(uint32_t i, uint8_t *cc, uint8_t *channel,
   const uint8_t *b = pBankExpSettings + page * CFG_BANK_EXP_STRIDE + i * 2U;
   const uint8_t *r = pBankExpRange + page * CFG_BANK_EXP_RANGE_STRIDE + i * 2U;
   *cc = (c->out_mode == EXP_OUT_SPEED) ? EXP_TARGET_SPEED
-      : (c->out_mode >= EXP_OUT_WHEEL) ? EXP_TARGET_WHEEL + c->out_mode - EXP_OUT_WHEEL : c->cc_number;
+      : (c->out_mode == EXP_OUT_WHEEL || c->out_mode == EXP_OUT_ARROWS)
+        ? EXP_TARGET_WHEEL + c->out_mode - EXP_OUT_WHEEL : c->cc_number;
   *channel = midi_channel(c);
   *lo = (r[0] <= 127U) ? r[0] : c->out_min;
   *hi = (r[1] <= 127U) ? r[1] : c->out_max;
@@ -444,14 +450,15 @@ static bool pedal_target(uint32_t i, uint8_t *cc, uint8_t *channel,
 }
 
 /*
- * What goes out: Pitch Bend replaces the pedal's own CC only, and a 14-bit CC
- * needs a CC below 32, whose LSB partner is CC + 32.
+ * What goes out: Pitch Bend and SysEx replace the pedal's own CC only, and a
+ * 14-bit CC needs a CC below 32, whose LSB partner is CC + 32.
  */
 static send_kind_t send_kind(const exp_cal_t *c, uint8_t cc, bool own)
 {
   if (cc == EXP_TARGET_SPEED) return SEND_SPEED;
   if (cc == EXP_TARGET_WHEEL || cc == EXP_TARGET_ARROWS) return SEND_SCROLL;
   if (c->out_mode == EXP_OUT_PITCHBEND && own) return SEND_PB;
+  if (c->out_mode == EXP_OUT_SYSEX && own) return SEND_SYSEX;
   if (c->out_mode == EXP_OUT_CC14 && cc < 32U) return SEND_CC14;
   return SEND_CC7;
 }
@@ -887,7 +894,7 @@ static void process_pedal(uint32_t i)
   bool own;
   bool enabled = pedal_target(i, &cc, &channel, &lo, &hi, &own);
   send_kind_t kind = send_kind(&p->cal, cc, own);
-  bool seven = (kind == SEND_CC7 || kind == SEND_SPEED || kind == SEND_SCROLL);
+  bool seven = (kind == SEND_CC7 || kind == SEND_SPEED || kind == SEND_SCROLL || kind == SEND_SYSEX);
   uint16_t out_value = seven ? scale_output(midi_value, lo, hi)
                              : scale_fine(fine_value, lo, hi);
   uint8_t out_midi = seven ? (uint8_t)out_value : (uint8_t)(out_value >> 7);
@@ -942,6 +949,7 @@ static void process_pedal(uint32_t i)
           }
           else if (kind == SEND_PB) sent = midiCmd_send_pb(channel, out_value);
           else if (kind == SEND_CC14) sent = midiCmd_send_cc14(channel, cc, send_value);
+          else if (kind == SEND_SYSEX) sw_send_sysex(p->cal.sysex, (uint8_t)send_value);
           else sent = midiCmd_send_cc(channel, cc, (uint8_t)send_value);
       }
       if (sent != ERROR_BUFFERS_FULL) {

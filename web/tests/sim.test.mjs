@@ -1568,3 +1568,45 @@ test("an expression pedal shows its value on the display while it moves, as a ba
   move(off, 0, 2048);
   assert.ok(infoLineIs(off, "1/10>S01"), "Off: the info line as before");
 });
+
+test("a value inside a stored SysEx, with its Roland checksum, from a press, a toggle, a CCInc and a pedal (1.30)", async () => {
+  // On DIN: the simulator keeps USB SysEx for the pedal's own answers
+  // The demo's string 3, a Boss style write: 41 00 00 00 00 33 12, address 60 00 06 39, VV, CS
+  const katana = (value) => {
+    const body = [0x60, 0x00, 0x06, 0x39, value];
+    const sum = body.reduce((a, b) => a + b, 0);
+    return ["f0", "41", "00", "00", "00", "00", "33", "12", ...[...body, (128 - (sum % 128)) % 128].map((b) => b.toString(16).padStart(2, "0")), "f7"].join(" ");
+  };
+  const sim = simWithDemo(await flashWith(packDemo([
+    "e = d['Expression_Settings']",
+    "e.loc[e.Pedal == '1', ['Min_ADC', 'Max_ADC', 'Output', 'Toe_Button', 'Heel_Button', 'Auto_Button']] = ['0', '4000', 'SysEx 3', '', '', '']",
+  ].join("\n"))));
+  sim.run(10000);
+  sim.usbIn([0xb0, 32, 8]);                 // the SYX bank
+  sim.run(300);
+  const hold = (sw) => {
+    const seen = watch(sim);
+    sim.footswitch(sw, true);
+    sim.run(1200);
+    sim.footswitch(sw, false);
+    sim.run(300);
+    sim.onOutput = null;
+    return seen.filter((m) => m.startsWith("DIN ")).map((m) => m.slice(4));
+  };
+  assert.deepEqual(hold(0), [katana(64)], "SX64: its own value");
+  assert.equal(katana(64), "f0 41 00 00 00 00 33 12 60 00 06 39 40 21 f7");
+  assert.deepEqual(hold(1), [katana(127)], "SX/T on: the CC's On value, and no CC");
+  assert.deepEqual(hold(1), [katana(0)], "SX/T off: its Off value");
+  assert.deepEqual(hold(2), [katana(16)], "SX+: a step up");
+  assert.deepEqual(hold(2), [katana(32)], "and another");
+
+  const seen = watch(sim);
+  sim.pedal(0, 0);
+  sim.run(300);
+  sim.pedal(0, 4095);
+  sim.run(300);
+  sim.onOutput = null;
+  const sent = seen.filter((m) => m.startsWith("DIN ")).map((m) => m.slice(4));
+  assert.ok(sent.length > 0 && sent.every((m) => m.startsWith("f0 41 ")), sent.join(", "));
+  assert.equal(sent.at(-1), katana(127), "pedal 1 at the toe");
+});

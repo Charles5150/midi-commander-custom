@@ -80,6 +80,16 @@ Elige qué envía con **Output** en la pestaña Expression (`Output`: `CC`, `Pit
 
 El pedal 2 de la demo envía una pareja de CC de 14 bits, CC 4 y 36.
 
+## Un parámetro por SysEx
+
+Para un equipo que recibe un parámetro solo por SysEx, como le pasa a un Boss Katana con muchos de los suyos, el pedal puede enviar uno de los [mensajes SysEx](06-commands.md#un-valor-dentro-del-mensaje-y-el-checksum-de-roland) guardados con su posición dentro. Escribe el mensaje con `VV` donde va el valor, y `CS` al final para un checksum de Roland, y pon el **Sends** del pedal en **SysEx** y el número del mensaje (`Output` `SysEx 3`, 0–15).
+
+- El valor es el que llevaría un CC, 0–127, después de la curva, el rango de salida e Invert, y solo sale cuando cambia, como un CC.
+- Como el Pitch Bend, sustituye solo al CC propio del pedal: un banco o un comando `Exp` que lleva el pedal a otro CC envía ese CC.
+- **Shows it moving** funciona igual que con un CC. Takeover no: el valor siempre salta a donde está el pedal.
+
+*Firmware 1.30 o posterior. Un firmware anterior envía en su lugar el CC del pedal.*
+
 *Firmware 0.44 o posterior; un firmware anterior ignora el ajuste y envía el CC.*
 
 ## Velocidad de los LFO y las secuencias
@@ -339,7 +349,7 @@ Opcional; dos filas, `Pedal` 1 y 2.
 | `Out_Min`, `Out_Max` | 0–127 | Valores que se envían en el talón y en la punta. Por defecto 0 y 127. |
 | `Auto_Button` | None o 1–4, A–D | Botón que se enciende cuando el pedal sale del talón y se apaga tras quedarse ahí (auto-engage). |
 | `Auto_Off_ms` | 10–2540 | Cuánto tiempo tiene que quedarse el pedal en el talón antes de que se apague ese botón. Por defecto 500. |
-| `Output` | CC, PitchBend, CC14, Speed, Wheel, Arrows o Switches | Qué envía el pedal: su CC con 7 bits, Pitch Bend, una pareja de CC de 14 bits, nada más que la [velocidad de los LFO y las secuencias](#velocidad-de-los-lfo-y-las-secuencias), o [scroll en el ordenador](#hacer-scroll-en-el-ordenador); Switches para una [caja de pulsadores](#una-caja-de-pulsadores-en-el-jack) en el jack. Por defecto CC. |
+| `Output` | CC, PitchBend, CC14, Speed, Wheel, Arrows, Switches o SysEx 0–15 | Qué envía el pedal: su CC con 7 bits, Pitch Bend, una pareja de CC de 14 bits, [un mensaje SysEx guardado](#un-parámetro-por-sysex) con su valor dentro, nada más que la [velocidad de los LFO y las secuencias](#velocidad-de-los-lfo-y-las-secuencias), o [scroll en el ordenador](#hacer-scroll-en-el-ordenador); Switches para una [caja de pulsadores](#una-caja-de-pulsadores-en-el-jack) en el jack. Por defecto CC. |
 | `Send_On_Bank` | Y / N | Enviar la posición del pedal al entrar en un banco, después de sus comandos de entrada. Por defecto N. Firmware 0.87. |
 | `Takeover` | Jump, CatchUp o Scaled | Qué hace el pedal con un CC que se dejó en un valor distinto del del pie: saltar al pie, esperar a que el pie llegue a él, o seguir desde él. Por defecto Jump. Firmware 1.18. |
 | `Display` | Off, Number o Bar | Qué muestra la pantalla mientras se mueve el pedal: nada, el valor enviado o una barra. Por defecto Off. Firmware 1.29. |

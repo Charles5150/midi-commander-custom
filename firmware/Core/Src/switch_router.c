@@ -377,6 +377,14 @@ static inline uint16_t media_usage_from_rom(const uint8_t *pRom){
 #define CCINC_SLOTS (3 * MIDI_NUM_BANKS * MIDI_NUM_SWITCHES * MIDI_NUM_COMMANDS_PER_SWITCH)
 static uint8_t ccinc_value[CCINC_SLOTS];
 
+/*
+ * An NRPN or RPN command (see CMD_PARAM_MODE), or a SysEx Value, right above
+ * the CC or CCInc being sent, set only while it sends: the CC's value then
+ * goes out as that parameter, or in that SysEx string.
+ */
+static const uint8_t *cc_param = NULL;
+static inline bool cmd_is_sysex_value(const uint8_t *pRom);
+
 static void ccinc_reset(void){
 	for(uint32_t i=0; i<CCINC_SLOTS; i++) ccinc_value[i] = 0xFF;
 }
@@ -418,6 +426,10 @@ static void send_ccinc(uint8_t *pRom, bool repeat){
 	if(repeat && next == current) return;
 
 	if(slot >= 0) ccinc_value[slot] = (uint8_t)next;
+	if(cmd_is_sysex_value(cc_param)){
+		sw_send_sysex(cc_param[1], (uint8_t)next);
+		return;
+	}
 	midiCmd_send_cc(channel, cc, (uint8_t)next);
 	display_show_cc(cc, (uint8_t)next);
 }
@@ -518,9 +530,13 @@ static void send_tap(const uint8_t *pRom){
 	display_show_tempo();
 }
 
-// A stored SysEx payload, wrapped in F0 ... F7 and sent to USB and DIN
-static void send_stored_sysex(const uint8_t *pRom){
-	uint8_t index = pRom[1];
+/*
+ * A stored SysEx payload, wrapped in F0 ... F7 and sent to USB and DIN. A
+ * SYSEX_VALUE byte takes the value; SYSEX_VALUE | n, the last byte, the Roland
+ * checksum of the bytes from the n-th on: what brings their sum to a multiple
+ * of 128.
+ */
+void sw_send_sysex(uint8_t index, uint8_t value){
 	if(index >= SYSEX_STRING_COUNT) return;
 	const uint8_t *entry = pSysExStrings + index * SYSEX_STRING_STRIDE;
 	uint8_t len = entry[0];
@@ -528,10 +544,29 @@ static void send_stored_sysex(const uint8_t *pRom){
 
 	uint8_t msg[SYSEX_STRING_MAX + 2];
 	msg[0] = SYSEX_START;
-	for(uint8_t i=0; i<len; i++) msg[1+i] = entry[1+i] & 0x7F;
+	for(uint8_t i=0; i<len; i++){
+		uint8_t b = entry[1+i];
+		if(b == SYSEX_VALUE) b = value & 0x7F;
+		else if(b > SYSEX_VALUE){
+			uint8_t sum = 0;
+			for(uint8_t k = b & 0x7F; k < i; k++) sum += msg[1+k];
+			b = (uint8_t)(-sum) & 0x7F;
+		}
+		msg[1+i] = b;
+	}
 	msg[1+len] = SYSEX_END;
 
 	midiCmd_send_sysex(msg, len + 2);
+}
+
+// A SysEx command whose string takes the values of the CC below it
+static inline bool cmd_is_sysex_value(const uint8_t *pRom){
+	return pRom != NULL && pRom[0] == (CMD_SYSEX_NIBBLE | SYSEX_MODE_VALUE);
+}
+
+static void send_stored_sysex(const uint8_t *pRom){
+	if(pRom[0] & 0x0F) return;	// a SysEx Value sends through the command below
+	sw_send_sysex(pRom[1], pRom[2]);
 }
 
 /*
@@ -1313,16 +1348,14 @@ void set_cmd_duration_delay(uint8_t *pRom){
 	}
 }
 
-/*
- * An NRPN or RPN command (see CMD_PARAM_MODE) right above the CC being sent,
- * set only while it sends: the CC's value then goes out as that parameter.
- */
-static const uint8_t *cc_param = NULL;
-
 static int8_t send_cc_rom(uint8_t *pRom, uint8_t on_off){
 	if(cc_param == NULL) return midiCmd_send_cc_command_from_rom(pRom, on_off);
 	uint8_t value = on_off ? pRom[2] : pRom[3];
 	if(value > 0x7F) return 0;	// no Off value
+	if(cmd_is_sysex_value(cc_param)){
+		sw_send_sysex(cc_param[1], value);
+		return 0;
+	}
 	return midiCmd_send_param(pRom[0], cc_param, value);
 }
 
@@ -2643,7 +2676,7 @@ static bool run_list_stack(frame_t *st, uint8_t depth, uint8_t toggle,
 			add = pRom;
 			continue;
 		}
-		if(cmd_is_nrpn(pRom)){
+		if(cmd_is_nrpn(pRom) || cmd_is_sysex_value(pRom)){
 			nrpn = pRom;
 			continue;
 		}
@@ -2807,7 +2840,7 @@ static void run_list_up(uint8_t *base, uint8_t first, uint8_t toggle, uint8_t fl
 		}
 		if(skip && !cmd_is_ramp(pRom) && !cmd_is_lfo(pRom) && !cmd_is_tapout(pRom)
 				&& !cmd_is_chan(pRom) && !cmd_is_seq(pRom) && !cmd_is_exp_add(pRom)
-				&& !cmd_is_nrpn(pRom)){
+				&& !cmd_is_nrpn(pRom) && !cmd_is_sysex_value(pRom)){
 			skip = false;		// the command it held back, and no Off for it
 			ramp = 0; lfo = false; tapout = false; seq = false; add = false; chan = NULL; nrpn = NULL;
 			continue;
@@ -2825,7 +2858,7 @@ static void run_list_up(uint8_t *base, uint8_t first, uint8_t toggle, uint8_t fl
 		seq = cmd_is_seq(pRom);
 		add = cmd_is_exp_add(pRom);
 		chan = cmd_is_chan(pRom) ? pRom : NULL;
-		nrpn = cmd_is_nrpn(pRom) ? pRom : NULL;
+		nrpn = (cmd_is_nrpn(pRom) || cmd_is_sysex_value(pRom)) ? pRom : NULL;
 		if(add_above && (*pRom & 0xF0) == CMD_CC_NIBBLE) continue;	// the pedal's, no Off
 		if(tapout_above && (*pRom & 0xF0) == CMD_CC_NIBBLE) continue;	// its taps go on
 		if(lfo_above && (*pRom & 0xF0) == CMD_CC_NIBBLE && !midiCmd_get_cmd_toggle(pRom)){
@@ -2915,7 +2948,10 @@ static void repeat_task(sw_t *sw, uint32_t now){
 		if(cmd_is_cycle(pRom)) break;
 		if(!cmd_repeats(pRom)) continue;
 		if((pRom[0] & 0xF0) == CMD_CCINC_NIBBLE){
+			// A SysEx Value right above it takes its values, as on the press
+			cc_param = (j > 0 && cmd_is_sysex_value(pRom - MIDI_ROM_CMD_SIZE)) ? pRom - MIDI_ROM_CMD_SIZE : NULL;
 			send_ccinc(pRom, true);
+			cc_param = NULL;
 		} else if((pRom[0] & 0xF0) == CMD_TAP_NIBBLE){
 			send_tap(pRom);
 		} else {

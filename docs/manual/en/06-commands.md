@@ -136,9 +136,32 @@ The same low nibble 15, kind 4 in bits 4–6 of byte 1, whose low nibble is the 
 
 ### Custom SysEx
 
-For a device that is only controllable through SysEx. `CommandType` `SysEx` sends one of the sixteen messages stored in the configuration's [`SysEx_Strings`](#sysex_strings); `Number` says which, 0 to 15, and nothing else in the command is used.
+For a device that is only controllable through SysEx. `CommandType` `SysEx` sends one of the sixteen messages stored in the configuration's [`SysEx_Strings`](#sysex_strings); `Number` says which, 0 to 15.
 
 *Firmware 0.13 or later.*
+
+#### A value in the message, and the Roland checksum
+
+Gear that takes most of its parameters only by SysEx, a Boss Katana, a Valeton GP-5, a Zoom, needs the value inside the message, and Roland and Boss gear a checksum after it that changes with the value. Write `VV` in the string where the value goes and `CS` as its last byte, and the pedal fills both in as it sends:
+
+```
+41 00 00 00 00 33 12 60 00 06 39 VV CS
+```
+
+- A `SysEx` command's `OnValue` is its value, 0–127 (empty for 0).
+- With `KeyMode` `Value`, the `SysEx` command takes the values of the `CC` or `CCInc` command right below it instead, like an [NRPN](#nrpn-and-rpn): the CC's `OnValue` on the press and its `OffValue` on the release or when a toggle goes off, a `CCInc`'s steps, held repeats included. The CC's own number and channel are not used, and no CC goes out.
+- An expression pedal can sweep it: set its **Output** to `SysEx` and the string's number, see [Expression pedals](08-expression.md#a-sysex-parameter).
+- `CS` is the Roland checksum: the sum of the address and data bytes, the bytes after the command byte `12` (DT1, or `11`, RQ1), brought to a multiple of 128. So the string must start `41`, Roland's maker ID.
+
+In the demo, bank 8 sends string 3 on long presses: SX64 on 1 with the value 64, SX/T on 2 toggling between 127 and 0 through a CC, and SX+ on 3 stepping it up 16 at a time through a CCInc.
+
+<details><summary>Under the hood</summary>
+
+`VV` is stored as the byte 0x80, and `CS` as 0x80 plus the place in the string where the sum starts, which the tools work out when packing; the firmware fills them in when it sends. A `SysEx` command keeps its value in byte 2, and `Value` is a low nibble of 1 in byte 0. Firmware before 1.30 sends 00 for `VV`, a wrong checksum, and a `Value` command as the string and the CC below as a CC, so update the firmware first.
+
+</details>
+
+*Firmware 1.30 or later.*
 
 ### SysEx_Strings
 
@@ -147,7 +170,7 @@ The messages themselves, edited in the configurator's **SysEx** tab, which shows
 - In the CSV the section is optional: sixteen rows, each with an `Index`, 0–15, and its `Bytes`.
 - Write the bytes in hexadecimal as the device's manual shows them, separated by spaces or commas, with or without a `0x` in front.
 - The leading `F0` and trailing `F7` are optional: they are added when sending.
-- Up to 23 data bytes, each `00`–`7F`.
+- Up to 23 data bytes, each `00`–`7F`, or `VV` where a value goes and `CS`, last, a Roland checksum: see [A value in the message](#a-value-in-the-message-and-the-roland-checksum).
 - A line that cannot be read is stored empty, and a command that points at it sends nothing, rather than a malformed message.
 
 ### Driving a recorder or a sequencer
@@ -631,14 +654,14 @@ The reference: every column of a command slot in the CSV, and what each command 
 | `CommandType` | | | | | | `PC`, `PCInc`, `CC`, `CCInc`, `Note`, `PB`, `Key`, `Media`, `Bank`, `SysEx`, `Tap`, `Start`, `Stop`, `MMC`, `Song`, `Panic`, `Scene`, `Wait`, `Ramp`, `LFO`, `Seq`, `Exp`, `Chan`, `Value`, `If`, `Macro`, `Button`, `Listen`, `NRPN`, `Pressure`, `Cycle` (short press only), `Leave` (a bank's enter list only), or empty for none |
 | `Channel_(PC/CC/Note/PB)` | ✓ | ✓ | ✓ | ✓ | | MIDI channel 1–16. Exp: empty for the pedal's own. Chan: the list of channels, `1 2 3` or `1-3` |
 | `Number_(PC/CC/Note)` | ✓ | ✓ | ✓ | | ✓ | PC: program 0–127. CC: controller number. Note: note number. Key: modifier mask. Exp: the CC the pedal sends. Value: which of the eight, 1–8. If: the button it looks at, `1`–`4` or `A`–`D`, or the value, 1–8. Macro and Button: the button, `1`–`4` or `A`–`D`. Listen: the CC it listens on. NRPN: the parameter, 0–16383. Wait `Bar` and `Count`: the beats in a bar, 1–32, empty for 4 Scene `Save`: the button whose scene it stores. |
-| `OnValue_(CC/PB)` | | ✓ | | ✓ | ✓ | CC: value on press (0–127). PB: −8192..8191. Key: key name. Media: media key name. Cycle: the state's label, up to 4 characters. Exp: the pedal, 1 or 2. MMC `Locate`: where to go, in seconds. Song: the song number 0–127, or the position in sixteenth notes. LFO: the length of a cycle, `1/16T` `1/16` `1/8T` `1/8` `1/4T` `1/8.` `1/4` `1/2T` `1/4.` `1/2` `1/2.` `1/1` `2/1` `4/1` (empty for `1/4`). Seq: its two steps, a value 0–127 or `-` for a silent one, `100 -`. Value: the amount. If: what the value is compared with, or the bank. Bank: the bank, or how many to move. Macro: the bank the button is in. Button: the same, or empty for the bank showing. Listen: the value meaning on, 127 when empty. Pressure: the value on press, 127 when empty |
+| `OnValue_(CC/PB)` | | ✓ | | ✓ | ✓ | CC: value on press (0–127). PB: −8192..8191. SysEx: the value where the string has `VV`, 0–127. Key: key name. Media: media key name. Cycle: the state's label, up to 4 characters. Exp: the pedal, 1 or 2. MMC `Locate`: where to go, in seconds. Song: the song number 0–127, or the position in sixteenth notes. LFO: the length of a cycle, `1/16T` `1/16` `1/8T` `1/8` `1/4T` `1/8.` `1/4` `1/2T` `1/4.` `1/2` `1/2.` `1/1` `2/1` `4/1` (empty for `1/4`). Seq: its two steps, a value 0–127 or `-` for a silent one, `100 -`. Value: the amount. If: what the value is compared with, or the bank. Bank: the bank, or how many to move. Macro: the bank the button is in. Button: the same, or empty for the bank showing. Listen: the value meaning on, 127 when empty. Pressure: the value on press, 127 when empty |
 | `OffValue_(CC)` | | ✓ | | | | CC: value on release / toggle off (0–127), empty for none. Value: the highest it goes, 127 when empty. Listen: the value meaning off, 0 when empty. Pressure: as a CC |
 | `BankSelect_(PC)` | ✓ | | | | | 0–16383, sent as CC#32 (LSB) before the PC |
 | `BankSelectHighByte_(PC)` | ✓ | | | | | Y: also send CC#0 (MSB) |
 | `Toggle_(CC/PB/Note)` | | ✓ | ✓ | ✓ | ✓ | Y: alternate on / off on successive presses. Key / Media: hold until the next press |
 | `Velocity_(Note)` | | | ✓ | | | 0–127 |
 | `Duration_(Note/PB)` | | | ✓ | ✓ | ✓ | In 10 ms steps, 0–127 (max 1.27 s). Media: same as Key. Wait: the pause in milliseconds, up to 2550. Ramp: its time in milliseconds, up to 655350 |
-| `KeyMode_(Key)` | | | | | ✓ | Normal / Down / Up. PC: `Y` for Force, sent even with `Skip_Same_PC` on. CCInc and PCInc: Up / Down / Up Repeat / Down Repeat. Tap: Tap / Clock / Set / Up / Down / Up Repeat / Down Repeat / Record / Playback / Erase / Out / Save. Listen: Steady / Slow / Fast / Dim. Exp: CC / Off / Own / Speed / Add / Wheel / Arrows. LFO: Sine / Triangle / SawUp / SawDown / Square / Random (empty for Sine). Seq: how long a step lasts, the same note divisions as the LFO (empty for `1/8`), read from the first command of the run. MMC: Play / Stop / Record / RecordExit / Pause / FastForward / Rewind / Locate / DeferredPlay / Chase / Eject / Reset (empty for Play). Song: Select / Position. Value: Set / Add / Sub (empty for Set). If: Button on / Button off / Value = / Value <> / Value < / Value >= / Bank is / Bank is not. Bank: GoTo / Up / Down / Back / Page / Config / NextConfig / Reveal / Direct / Lock. Macro: Short / Long / Double. Button: Press / On / Off / Set On / Set Off, then Long or Double for those lists. Wait: Time / Beat / Bar / Count (empty for Time). NRPN: NRPN / RPN / NRPN 14-bit / RPN 14-bit (empty for NRPN) Scene: `Recall` (or empty) or `Save`, `Save Long`, `Save Double`. |
+| `KeyMode_(Key)` | | | | | ✓ | Normal / Down / Up. PC: `Y` for Force, sent even with `Skip_Same_PC` on. CCInc and PCInc: Up / Down / Up Repeat / Down Repeat. SysEx: Send / Value (empty for Send). Tap: Tap / Clock / Set / Up / Down / Up Repeat / Down Repeat / Record / Playback / Erase / Out / Save. Listen: Steady / Slow / Fast / Dim. Exp: CC / Off / Own / Speed / Add / Wheel / Arrows. LFO: Sine / Triangle / SawUp / SawDown / Square / Random (empty for Sine). Seq: how long a step lasts, the same note divisions as the LFO (empty for `1/8`), read from the first command of the run. MMC: Play / Stop / Record / RecordExit / Pause / FastForward / Rewind / Locate / DeferredPlay / Chase / Eject / Reset (empty for Play). Song: Select / Position. Value: Set / Add / Sub (empty for Set). If: Button on / Button off / Value = / Value <> / Value < / Value >= / Bank is / Bank is not. Bank: GoTo / Up / Down / Back / Page / Config / NextConfig / Reveal / Direct / Lock. Macro: Short / Long / Double. Button: Press / On / Off / Set On / Set Off, then Long or Double for those lists. Wait: Time / Beat / Bar / Count (empty for Time). NRPN: NRPN / RPN / NRPN 14-bit / RPN 14-bit (empty for NRPN) Scene: `Recall` (or empty) or `Save`, `Save Long`, `Save Double`. |
 
 ---
 

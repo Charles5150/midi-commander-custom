@@ -103,5 +103,8 @@ uint8_t sw_get_program(uint8_t channel);
 #define LIVE_NUMBER		(1)
 #define LIVE_PROGRAM	(2)
 uint8_t sw_button_value(uint8_t bank, uint8_t sw, uint8_t *value);
+// Stored SysEx string `index` with `value` in its value bytes and its Roland
+// checksum worked out; nothing for an empty string
+void sw_send_sysex(uint8_t index, uint8_t value);
 
 #endif /* INC_SWITCH_ROUTER_H_ */

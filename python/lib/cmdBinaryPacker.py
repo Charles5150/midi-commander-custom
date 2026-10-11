@@ -19,6 +19,8 @@ CMD_BANK_NIBBLE = 0x40
 CMD_CCINC_NIBBLE = 0x50
 CMD_TAP_NIBBLE = 0x70
 CMD_SYSEX_NIBBLE = 0x60
+SYSEX_MODE_VALUE = 1   # low nibble: the CC or CCInc below sends through the string (1.30)
+SYSEX_MODES = ["Send", "Value"]
 CMD_PANIC_NIBBLE = 0x80
 CMD_SCENE_NIBBLE = 0xA0
 # A pause shares the empty command type, marked by its low nibble, so a command
@@ -565,9 +567,16 @@ def cmd_pcinc(cmd):
 
 
 def cmd_sysex(cmd):
-    """Send a stored SysEx string. Number selects the table entry."""
+    """Send a stored SysEx string. Number selects the table entry, OnValue goes
+    where the string has VV. KeyMode Value sends instead the values of the CC
+    or CCInc command right below, like an NRPN (firmware 1.30)."""
     index = ranged_int(cmd.get("Number_(PC/CC/Note)"), 0, 15, "SysEx Number", 0)
-    return [CMD_SYSEX_NIBBLE, index, 0, 0]
+    mode = str(cmd.get("KeyMode_(Key)", "") or "").strip().lower()
+    if mode in ("", "nan", "send"):
+        return [CMD_SYSEX_NIBBLE, index, ranged_int(cmd.get("OnValue_(CC/PB)"), 0, 127, "SysEx OnValue", 0), 0]
+    if mode == "value":
+        return [CMD_SYSEX_NIBBLE | SYSEX_MODE_VALUE, index, 0, 0]
+    raise ValueError(f"SysEx KeyMode must be Send or Value, not {cmd.get('KeyMode_(Key)')!r}")
 
 
 def cmd_bank(cmd):

@@ -746,7 +746,7 @@ function ensureRows(name, keyCol, count, extra = {}) {
 
 function renderSysex(main) {
   const sec = ensureRows("SysEx_Strings", "Index", 16, { Bytes: "" });
-  main.append(h("p", { class: "hint" }, "Up to 23 bytes each, in hex without F0 and F7, for example 41 10 42 12. A SysEx command sends one by its number."),
+  main.append(h("p", { class: "hint" }, "Up to 23 bytes each, in hex without F0 and F7, for example 41 10 42 12. VV is where a value goes, and CS, last, a Roland checksum. A SysEx command sends one by its number."),
     table(sec, "Index", "#", state.schema.sectionColumns.SysEx_Strings));
 }
 

@@ -13,7 +13,7 @@ import pandas as pd
 
 from lib.configPacker import (
     BANK_SWITCH_LABELED, COMBO_COLUMNS, MIDI_MAP_COLUMNS, MIDI_MAP_OUT_TYPES, MIDI_MAP_RUN, MIDI_MAP_TYPES,
-    PRESET_NAME_COLUMNS,
+    PRESET_NAME_COLUMNS, EXP_OUT_SYSEX, sysex_text,
 )
 from lib.flashLayout import (
     NUM_BANKS, BUTTON_IDS, default_int, EXP_BUTTON_IDS, BOX_SWITCH_IDS, LABEL_LEN, GLOBAL_SIZE, CMD_SIZE,
@@ -87,6 +87,7 @@ from lib.cmdBinaryPacker import (
     CMD_PC_NIBBLE,
     CMD_START_NIBBLE,
     CMD_SYSEX_NIBBLE,
+    SYSEX_MODE_VALUE,
     CMD_TAP_NIBBLE,
     CMD_STOP_NIBBLE,
     CMD_PANIC_NIBBLE,
@@ -468,6 +469,10 @@ def unpack_command(raw: bytes, cycle_labels=None) -> dict:
     elif cmd_type == CMD_SYSEX_NIBBLE:
         cmd["CommandType"] = "SysEx"
         cmd["Number_(PC/CC/Note)"] = str(b1)
+        if b0 & 0x0F == SYSEX_MODE_VALUE:
+            cmd["KeyMode_(Key)"] = "Value"
+        elif b2:
+            cmd["OnValue_(CC/PB)"] = str(b2 & 0x7F)
     elif cmd_type == CMD_BANK_NIBBLE:
         cmd["CommandType"] = "Bank"
         mode = b0 & 0x0F
@@ -664,7 +669,7 @@ def unpack_expression_settings(data: bytes) -> pd.DataFrame:
                 "Out_Max": str(out_max),
                 "Auto_Button": EXP_BUTTON_IDS[p[13] - 1] if 1 <= p[13] <= 8 else "None",
                 "Auto_Off_ms": str(p[14] * 10 if p[14] not in (0, 0xFF) else 500),
-                "Output": EXP_OUTPUT_NAMES.get(p[15], "CC"),
+                "Output": f"SysEx {p[15] & 0x0F}" if p[15] & 0xF0 == EXP_OUT_SYSEX else EXP_OUTPUT_NAMES.get(p[15], "CC"),
                 "Send_On_Bank": "Y" if data[35] != 0xFF and data[35] & (0x04 << i) else "N",
                 "Takeover": EXP_TAKEOVER_NAMES.get((takeover >> (2 * i)) & 3, "Jump"),
                 "Display": EXP_DISPLAY_NAMES.get((shows >> (2 * i)) & 3, "Off"),
@@ -818,9 +823,7 @@ def unpack_sysex_strings(data: bytes) -> pd.DataFrame:
     for i in range(SYSEX_STRING_COUNT):
         entry = data[SYSEX_OFFSET + i * SYSEX_STRING_STRIDE :][:SYSEX_STRING_STRIDE]
         length = entry[0]
-        payload = "" if length == 0 or length > SYSEX_STRING_MAX else " ".join(
-            f"{b:02X}" for b in entry[1 : 1 + length]
-        )
+        payload = "" if length == 0 or length > SYSEX_STRING_MAX else sysex_text(entry[1 : 1 + length])
         rows.append({"Index": str(i), "Bytes": payload})
     return pd.DataFrame(rows)
 

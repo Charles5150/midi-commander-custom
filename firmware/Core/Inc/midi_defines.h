@@ -316,6 +316,13 @@
 #define CMD_CCINC_NIBBLE	(0x50)	// Relative CC: byte1 = CC | wrap<<7, byte2 = step | repeat<<7, byte3 = down<<7 | start value
 #define CCINC_REPEAT_BIT	(0x80)	// In the step byte of CCInc: repeat while held
 #define CMD_SYSEX_NIBBLE	(0x60)	// Stored SysEx string: byte1 = index into the string table
+// A stored string can hold, among its 7-bit bytes, SYSEX_VALUE where a value
+// goes, and as its last byte SYSEX_VALUE | n, the Roland checksum of the bytes
+// from the n-th on (1.30). A plain SysEx command puts its byte 2 in the value;
+// with SYSEX_MODE_VALUE in the low nibble it works like an NRPN, the CC or
+// CCInc command right below it sending its values through the string.
+#define SYSEX_VALUE			(0x80)
+#define SYSEX_MODE_VALUE	(1)
 #define CMD_BANK_NIBBLE		(0x40)	// Bank change: low nibble = mode (0 go to, 1 up by, 2 down by), byte 1 = value
 #define CMD_MEDIA_NIBBLE	(0x30)	// Consumer control (media) key: bytes 1-2 = usage (10 bits), byte 3 = duration | toggle
 #define CMD_START_NIBBLE	(0x10)

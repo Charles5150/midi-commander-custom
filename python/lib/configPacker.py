@@ -49,6 +49,9 @@ EXP_CURVES = {"LINEAR": 0, "LOG": 1, "EXP": 2}
 # CC, LSB on CC + 32)
 EXP_OUTPUTS = {"CC": 0, "PITCHBEND": 1, "CC14": 2, "SPEED": 3, "WHEEL": 4, "ARROWS": 5, "SWITCHES": 6}
 EXP_OUT_SWITCHES = 6
+EXP_OUT_SYSEX = 0x10   # + the stored SysEx string (firmware 1.30)
+EXP_OUTPUT_CHOICES = (["CC", "PitchBend", "CC14", "Speed", "Wheel", "Arrows", "Switches"]
+                      + [f"SysEx {i}" for i in range(16)])
 # How a pedal takes over a CC left at another value (firmware 1.18)
 EXP_TAKEOVERS = {"JUMP": 0, "CATCHUP": 1, "SCALED": 2}
 # What the display shows while a pedal moves (firmware 1.29)
@@ -106,69 +109,83 @@ def empty_long_press_settings(num_banks=NUM_BANKS):
     return pd.DataFrame(rows)
 
 
-def parse_sysex_bytes(text) -> bytes:
-    """Parse "F0 41 10 42 F7" into the 7-bit data bytes to store.
-
-    Bytes are hexadecimal, the convention every device manual uses; an
-    optional 0x prefix is accepted. A leading F0 and trailing F7 are stripped
-    because they are added when sending. Everything else must be 0x00..0x7F;
-    anything invalid yields an empty string rather than a wrong message.
-    """
-    if text is None:
-        return b""
-    s = str(text).strip()
-    if s.lower() in ("", "nan"):
-        return b""
-    out = []
-    for token in s.replace(",", " ").split():
-        t = token.lower()
-        if t.startswith("0x"):
-            t = t[2:]
-        try:
-            v = int(t, 16)
-        except ValueError:
-            return b""
-        if v > 0xFF:
-            return b""
-        out.append(v)
-    while out and out[0] == 0xF0:
-        out.pop(0)
-    while out and out[-1] == 0xF7:
-        out.pop()
-    if any(v > 0x7F for v in out):
-        return b""
-    return bytes(out[:SYSEX_STRING_MAX])
+SYSEX_VALUE = 0x80          # where the value goes, stored in a string (firmware 1.30)
+SYSEX_VALUE_TOKEN = "VV"
+SYSEX_CHECKSUM_TOKEN = "CS"
+ROLAND_ID = 0x41
+ROLAND_COMMANDS = (0x11, 0x12)  # RQ1 and DT1: the address starts after either
 
 
-def sysex_problem(text) -> str:
-    """What parse_sysex_bytes would drop or cut in a SysEx string, or "".
-
-    The packer keeps its rule, an empty message rather than a wrong one; an
-    editor asks this first, so nothing is lost without a word."""
+def _sysex_bytes(text):
+    """(stored bytes, problem): a SysEx string as stored, F0 and F7 dropped,
+    VV as SYSEX_VALUE and CS as SYSEX_VALUE | the first byte it sums; or a
+    plain-word problem with no bytes."""
     s = "" if text is None else str(text).strip()
     if s.lower() in ("", "nan"):
-        return ""
+        return b"", ""
     out = []
     for token in s.replace(",", " ").split():
         t = token.lower()
+        if t == SYSEX_VALUE_TOKEN.lower():
+            out.append(SYSEX_VALUE_TOKEN)
+            continue
+        if t == SYSEX_CHECKSUM_TOKEN.lower():
+            out.append(None)
+            continue
         t = t[2:] if t.startswith("0x") else t
         try:
             v = int(t, 16)
         except ValueError:
-            return f"“{token}” is not a byte in hexadecimal"
+            return b"", f"“{token}” is not a byte in hexadecimal, VV or CS"
         if v > 0xFF:
-            return f"“{token}” is not a byte in hexadecimal"
+            return b"", f"“{token}” is not a byte in hexadecimal, VV or CS"
         out.append(v)
     while out and out[0] == 0xF0:
         out.pop(0)
     while out and out[-1] == 0xF7:
         out.pop()
-    high = next((v for v in out if v > 0x7F), None)
+    high = next((v for v in out if isinstance(v, int) and v > 0x7F), None)
     if high is not None:
-        return f"{high:02X} is over 7F; only F0 and F7 at the ends may be"
+        return b"", f"{high:02X} is over 7F; only F0 and F7 at the ends may be"
+    out = [SYSEX_VALUE if v == SYSEX_VALUE_TOKEN else v for v in out]
     if len(out) > SYSEX_STRING_MAX:
-        return f"{len(out)} bytes, more than the {SYSEX_STRING_MAX} a string holds"
-    return ""
+        # Cut to fit, as it always was, unless the checksum would go with it
+        kept = b"" if None in out else bytes(out[:SYSEX_STRING_MAX])
+        return kept, f"{len(out)} bytes, more than the {SYSEX_STRING_MAX} a string holds"
+    if None in out:
+        if out.index(None) != len(out) - 1:
+            return b"", "CS, the checksum, must be the last byte"
+        first = next((i + 1 for i in range(2, len(out) - 1) if out[i] in ROLAND_COMMANDS), None)
+        if out[0] != ROLAND_ID or first is None:
+            return b"", "CS is a Roland checksum: the message must start 41 and hold 12 (or 11) before the address"
+        out[-1] = SYSEX_VALUE | first
+    return bytes(out), ""
+
+
+def parse_sysex_bytes(text) -> bytes:
+    """Parse "F0 41 10 42 F7" into the bytes to store.
+
+    Bytes are hexadecimal, the convention every device manual uses; an
+    optional 0x prefix is accepted. A leading F0 and trailing F7 are stripped
+    because they are added when sending. Everything else must be 0x00..0x7F,
+    or VV where a value goes, or CS last for a Roland checksum; anything
+    invalid yields an empty string rather than a wrong message.
+    """
+    return _sysex_bytes(text)[0]
+
+
+def sysex_problem(text) -> str:
+    """What parse_sysex_bytes would drop in a SysEx string, or "".
+
+    The packer keeps its rule, an empty message rather than a wrong one; an
+    editor asks this first, so nothing is lost without a word."""
+    return _sysex_bytes(text)[1]
+
+
+def sysex_text(stored: bytes) -> str:
+    """A stored SysEx string as it is written: hex bytes, VV and CS."""
+    return " ".join(SYSEX_VALUE_TOKEN if b == SYSEX_VALUE else SYSEX_CHECKSUM_TOKEN if b > SYSEX_VALUE
+                    else f"{b:02X}" for b in stored)
 
 
 def empty_bank_switch_settings():
@@ -613,10 +630,14 @@ def pack_expression_settings(df) -> bytes:
             out_text = "PITCHBEND"
         if out_text in ("CC14BIT", "14BIT", "14BITCC"):
             out_text = "CC14"
-        if out_text not in EXP_OUTPUTS:
-            raise ValueError(f"Expression pedal {i + 1}: Output must be CC, PitchBend, CC14, Speed, Wheel, Arrows "
-                             f"or Switches, not {get('Output')!r}")
-        output = EXP_OUTPUTS[out_text]
+        sysex = out_text[5:] if out_text.startswith("SYSEX") else None
+        if sysex is not None and sysex.isdigit() and int(sysex) < SYSEX_STRING_COUNT:
+            output = EXP_OUT_SYSEX | int(sysex)
+        elif out_text in EXP_OUTPUTS:
+            output = EXP_OUTPUTS[out_text]
+        else:
+            raise ValueError(f"Expression pedal {i + 1}: Output must be CC, PitchBend, CC14, Speed, Wheel, Arrows, "
+                             f"Switches or SysEx 0-15, not {get('Output')!r}")
         if output == EXP_OUT_SWITCHES:
             box = []
             for col in BOX_COLUMNS:

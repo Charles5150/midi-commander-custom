@@ -519,6 +519,23 @@ def build() -> Demo:
     d.sysex_cmd(8, "2", "ROLD", 1)
     d.sysex_cmd(8, "3", "MAKR", 2)
     d.sysex_cmd(8, "4", "EMPT", 15)                    # empty entry: sends nothing
+    # A value inside a SysEx, and the Roland checksum worked out by the pedal
+    # (1.30): a Boss style parameter write, the address an example. Held, INQ
+    # sends it with 64; ROLD toggles it between 127 and 0 through a CC; MAKR
+    # steps it up 16 at a time through a CCInc
+    d.sysex.loc[3, "Bytes"] = "41 00 00 00 00 33 12 60 00 06 39 VV CS"
+    d.long_press(8, "1", CommandType="SysEx", **{"Number_(PC/CC/Note)": "3", "OnValue_(CC/PB)": "64"})
+    d.long_label(8, "1", "SX64")
+    d.long_press(8, "2", CommandType="SysEx", **{"Number_(PC/CC/Note)": "3", "KeyMode_(Key)": "Value"})
+    d.long_press(8, "2", slot="B", CommandType="CC",
+                 **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": "0", "OnValue_(CC/PB)": "127",
+                    "OffValue_(CC)": "0", "Toggle_(CC/PB/Note)": "Y"})
+    d.long_label(8, "2", "SX/T")
+    d.long_press(8, "3", CommandType="SysEx", **{"Number_(PC/CC/Note)": "3", "KeyMode_(Key)": "Value"})
+    d.long_press(8, "3", slot="B", CommandType="CCInc",
+                 **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": "0", "KeyMode_(Key)": "Up",
+                    "OffValue_(CC)": "16", "OnValue_(CC/PB)": "0", "Toggle_(CC/PB/Note)": "Y"})
+    d.long_label(8, "3", "SX+")
     d.cc(8, "A", "CC30", "30")
     # Exp commands: while VOL is on, pedal 1 is a volume pedal (CC 7) instead
     # of the wah, and switching it off gives the wah back; P2 X silences pedal 2

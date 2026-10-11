@@ -136,9 +136,32 @@ El mismo nibble bajo 15, tipo 4 en los bits 4–6 del byte 1, cuyo nibble bajo e
 
 ### SysEx propio
 
-Para un equipo que solo se controla por SysEx. `CommandType` `SysEx` envía uno de los dieciséis mensajes guardados en la sección [`SysEx_Strings`](#sysex_strings) de la configuración; `Number` dice cuál, de 0 a 15, y el resto del comando no se usa.
+Para un equipo que solo se controla por SysEx. `CommandType` `SysEx` envía uno de los dieciséis mensajes guardados en la sección [`SysEx_Strings`](#sysex_strings) de la configuración; `Number` dice cuál, de 0 a 15.
 
 *Firmware 0.13 o posterior.*
+
+#### Un valor dentro del mensaje, y el checksum de Roland
+
+Los equipos que reciben casi todos sus parámetros solo por SysEx, un Boss Katana, un Valeton GP-5, un Zoom, necesitan el valor dentro del mensaje, y los de Roland y Boss además un checksum detrás que cambia con el valor. Escribe `VV` en la cadena donde va el valor y `CS` como último byte, y la pedalera rellena los dos al enviar:
+
+```
+41 00 00 00 00 33 12 60 00 06 39 VV CS
+```
+
+- El `OnValue` de un comando `SysEx` es su valor, 0–127 (vacío es 0).
+- Con `KeyMode` `Value`, el comando `SysEx` toma en cambio los valores del comando `CC` o `CCInc` que tiene justo debajo, como un [NRPN](#nrpn-y-rpn): el `OnValue` del CC al pulsar y su `OffValue` al soltar o cuando un toggle se apaga, y los pasos de un `CCInc`, también al repetir mientras lo mantienes. El número y el canal del CC no se usan, y no sale ningún CC.
+- Un pedal de expresión puede barrerlo: pon su **Output** en `SysEx` y el número de la cadena, mira [Pedales de expresión](08-expression.md#un-parámetro-por-sysex).
+- `CS` es el checksum de Roland: la suma de los bytes de dirección y datos, los que van después del byte de comando `12` (DT1, o `11`, RQ1), llevada a un múltiplo de 128. Así que la cadena tiene que empezar por `41`, el código de fabricante de Roland.
+
+En la demo, el banco 8 envía la cadena 3 con pulsaciones largas: SX64 en el 1 con el valor 64, SX/T en el 2 alternando entre 127 y 0 a través de un CC, y SX+ en el 3 subiéndolo de 16 en 16 a través de un CCInc.
+
+<details><summary>Por dentro</summary>
+
+`VV` se guarda como el byte 0x80, y `CS` como 0x80 más la posición de la cadena donde empieza la suma, que calculan las herramientas al empaquetar; el firmware los rellena al enviar. Un comando `SysEx` guarda su valor en el byte 2, y `Value` es un nibble bajo de 1 en el byte 0. Un firmware anterior a la 1.30 envía 00 en lugar de `VV`, un checksum equivocado, y un comando `Value` como la cadena y el CC de debajo como un CC, así que actualiza antes el firmware.
+
+</details>
+
+*Firmware 1.30 o posterior.*
 
 ### SysEx_Strings
 
@@ -147,7 +170,7 @@ Los mensajes en sí, que se editan en la pestaña **SysEx** del configurador, qu
 - En el CSV la sección es opcional: dieciséis filas, cada una con un `Index`, 0–15, y sus `Bytes`.
 - Escribe los bytes en hexadecimal tal como vienen en el manual del equipo, separados por espacios o comas, con o sin `0x` delante.
 - El `F0` inicial y el `F7` final son opcionales: se añaden al enviar.
-- Hasta 23 bytes de datos, cada uno entre `00` y `7F`.
+- Hasta 23 bytes de datos, cada uno entre `00` y `7F`, o `VV` donde va un valor y `CS`, al final, un checksum de Roland: mira [Un valor dentro del mensaje](#un-valor-dentro-del-mensaje-y-el-checksum-de-roland).
 - Una línea que no se puede leer se guarda vacía, y un comando que apunte a ella no envía nada, en lugar de un mensaje mal formado.
 
 ### Controlar una grabadora o un secuenciador
@@ -631,14 +654,14 @@ La referencia: cada columna de una casilla de comando en el CSV, y qué hace con
 | `CommandType` | | | | | | `PC`, `PCInc`, `CC`, `CCInc`, `Note`, `PB`, `Key`, `Media`, `Bank`, `SysEx`, `Tap`, `Start`, `Stop`, `MMC`, `Song`, `Panic`, `Scene`, `Wait`, `Ramp`, `LFO`, `Seq`, `Exp`, `Chan`, `Value`, `If`, `Macro`, `Button`, `Listen`, `NRPN`, `Pressure`, `Cycle` (solo pulsación corta), `Leave` (solo en la lista de entrada de un banco), o vacío para ninguno |
 | `Channel_(PC/CC/Note/PB)` | ✓ | ✓ | ✓ | ✓ | | Canal MIDI 1–16. Exp: vacío para el propio del pedal. Chan: la lista de canales, `1 2 3` o `1-3` |
 | `Number_(PC/CC/Note)` | ✓ | ✓ | ✓ | | ✓ | PC: programa 0–127. CC: número de controlador. Note: número de nota. Key: máscara de modificadores. Exp: el CC que envía el pedal. Value: cuál de los ocho, 1–8. If: el botón al que mira, `1`–`4` o `A`–`D`, o el valor, 1–8. Macro y Button: el botón, `1`–`4` o `A`–`D`. Listen: el CC que escucha. NRPN: el parámetro, 0–16383. Wait `Bar` y `Count`: los tiempos de un compás, 1–32, vacío para 4 Scene `Save`: el botón cuya escena guarda. |
-| `OnValue_(CC/PB)` | | ✓ | | ✓ | ✓ | CC: valor al pisar (0–127). PB: −8192..8191. Key: nombre de la tecla. Media: nombre de la tecla multimedia. Cycle: la etiqueta del estado, hasta 4 caracteres. Exp: el pedal, 1 o 2. MMC `Locate`: adónde ir, en segundos. Song: el número de canción 0–127, o la posición en semicorcheas. LFO: la duración de un ciclo, `1/16T` `1/16` `1/8T` `1/8` `1/4T` `1/8.` `1/4` `1/2T` `1/4.` `1/2` `1/2.` `1/1` `2/1` `4/1` (vacío es `1/4`). Seq: sus dos pasos, un valor 0–127 o `-` para uno en silencio, `100 -`. Value: la cantidad. If: con qué se compara el valor, o el banco. Bank: el banco, o cuántos moverse. Macro: el banco en el que está el botón. Button: lo mismo, o vacío para el banco que se vea. Listen: el valor que significa encendido; 127 si está vacío. Pressure: el valor al pisar; 127 si está vacío |
+| `OnValue_(CC/PB)` | | ✓ | | ✓ | ✓ | CC: valor al pisar (0–127). PB: −8192..8191. SysEx: el valor donde la cadena tiene `VV`, 0–127. Key: nombre de la tecla. Media: nombre de la tecla multimedia. Cycle: la etiqueta del estado, hasta 4 caracteres. Exp: el pedal, 1 o 2. MMC `Locate`: adónde ir, en segundos. Song: el número de canción 0–127, o la posición en semicorcheas. LFO: la duración de un ciclo, `1/16T` `1/16` `1/8T` `1/8` `1/4T` `1/8.` `1/4` `1/2T` `1/4.` `1/2` `1/2.` `1/1` `2/1` `4/1` (vacío es `1/4`). Seq: sus dos pasos, un valor 0–127 o `-` para uno en silencio, `100 -`. Value: la cantidad. If: con qué se compara el valor, o el banco. Bank: el banco, o cuántos moverse. Macro: el banco en el que está el botón. Button: lo mismo, o vacío para el banco que se vea. Listen: el valor que significa encendido; 127 si está vacío. Pressure: el valor al pisar; 127 si está vacío |
 | `OffValue_(CC)` | | ✓ | | | | CC: valor al soltar / al apagar el toggle (0–127); vacío, ninguno. Value: hasta dónde llega como máximo; 127 si está vacío. Listen: el valor que significa apagado; 0 si está vacío. Pressure: como un CC |
 | `BankSelect_(PC)` | ✓ | | | | | 0–16383, enviado como CC#32 (LSB) antes del PC |
 | `BankSelectHighByte_(PC)` | ✓ | | | | | Y: envía también CC#0 (MSB) |
 | `Toggle_(CC/PB/Note)` | | ✓ | ✓ | ✓ | ✓ | Y: alterna on / off en pulsaciones sucesivas. Key / Media: mantener hasta la siguiente pulsación |
 | `Velocity_(Note)` | | | ✓ | | | 0–127 |
 | `Duration_(Note/PB)` | | | ✓ | ✓ | ✓ | En pasos de 10 ms, 0–127 (máx. 1,27 s). Media: igual que Key. Wait: la pausa en milisegundos, hasta 2550. Ramp: su tiempo en milisegundos, hasta 655350 |
-| `KeyMode_(Key)` | | | | | ✓ | Normal / Down / Up. PC: `Y` para Force, enviado aunque `Skip_Same_PC` esté activado. CCInc y PCInc: Up / Down / Up Repeat / Down Repeat. Tap: Tap / Clock / Set / Up / Down / Up Repeat / Down Repeat / Record / Playback / Erase / Out / Save. Listen: Steady / Slow / Fast / Dim. Exp: CC / Off / Own / Speed / Add / Wheel / Arrows. LFO: Sine / Triangle / SawUp / SawDown / Square / Random (vacío es Sine). Seq: cuánto dura un paso, las mismas divisiones que el LFO (vacío es `1/8`), leído del primer comando de la serie. MMC: Play / Stop / Record / RecordExit / Pause / FastForward / Rewind / Locate / DeferredPlay / Chase / Eject / Reset (vacío es Play). Song: Select / Position. Value: Set / Add / Sub (vacío es Set). If: Button on / Button off / Value = / Value <> / Value < / Value >= / Bank is / Bank is not. Bank: GoTo / Up / Down / Back / Page / Config / NextConfig / Reveal / Direct / Lock. Macro: Short / Long / Double. Button: Press / On / Off / Set On / Set Off, y detrás Long o Double para esas listas. Wait: Time / Beat / Bar / Count (vacío para Time). NRPN: NRPN / RPN / NRPN 14-bit / RPN 14-bit (vacío para NRPN) Scene: `Recall` (o vacío) o `Save`, `Save Long`, `Save Double`. |
+| `KeyMode_(Key)` | | | | | ✓ | Normal / Down / Up. PC: `Y` para Force, enviado aunque `Skip_Same_PC` esté activado. CCInc y PCInc: Up / Down / Up Repeat / Down Repeat. SysEx: Send / Value (vacío es Send). Tap: Tap / Clock / Set / Up / Down / Up Repeat / Down Repeat / Record / Playback / Erase / Out / Save. Listen: Steady / Slow / Fast / Dim. Exp: CC / Off / Own / Speed / Add / Wheel / Arrows. LFO: Sine / Triangle / SawUp / SawDown / Square / Random (vacío es Sine). Seq: cuánto dura un paso, las mismas divisiones que el LFO (vacío es `1/8`), leído del primer comando de la serie. MMC: Play / Stop / Record / RecordExit / Pause / FastForward / Rewind / Locate / DeferredPlay / Chase / Eject / Reset (vacío es Play). Song: Select / Position. Value: Set / Add / Sub (vacío es Set). If: Button on / Button off / Value = / Value <> / Value < / Value >= / Bank is / Bank is not. Bank: GoTo / Up / Down / Back / Page / Config / NextConfig / Reveal / Direct / Lock. Macro: Short / Long / Double. Button: Press / On / Off / Set On / Set Off, y detrás Long o Double para esas listas. Wait: Time / Beat / Bar / Count (vacío para Time). NRPN: NRPN / RPN / NRPN 14-bit / RPN 14-bit (vacío para NRPN) Scene: `Recall` (o vacío) o `Save`, `Save Long`, `Save Double`. |
 
 ---
 

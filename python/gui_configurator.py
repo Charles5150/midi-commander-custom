@@ -27,7 +27,7 @@ from lib.cmdBinaryPacker import (  # noqa: E402
     EXP_TARGETS, LFO_DIVISIONS, LFO_SHAPES, MEDIA_KEYS, RAMP_MAX_MS,
     MMC_COMMANDS, MMC_LOCATE_MAX, SONG_MODES, SONG_POSITION_MAX,
     VAR_MODES, VAR_COUNT, VAR_DEFAULT_TOP, IF_TESTS, IF_BUTTON_TESTS, IF_VALUE_TESTS,
-    SCENE_BUTTONS, SCENE_MODES, MACRO_LISTS, LISTEN_LOOKS, BUTTON_ACTIONS, CHAN_OUTPUTS, WAIT_BAR_MAX, NRPN_KINDS, NRPN_MAX, button_mode, command_type,
+    SCENE_BUTTONS, SCENE_MODES, MACRO_LISTS, LISTEN_LOOKS, BUTTON_ACTIONS, CHAN_OUTPUTS, WAIT_BAR_MAX, NRPN_KINDS, NRPN_MAX, SYSEX_MODES, button_mode, command_type,
 )
 from lib.configCsv import read_config_csv, write_config_csv  # noqa: E402
 from lib.displayText import display_text  # noqa: E402
@@ -61,6 +61,9 @@ from lib.configPacker import (  # noqa: E402
     PRESET_NAME_COLUMNS,
     empty_preset_names,
     parse_sysex_bytes,
+    sysex_problem,
+    EXP_OUTPUT_CHOICES,
+    SYSEX_VALUE,
 )
 from lib.configPacker import (  # noqa: E402
     EXPRESSION_SECTION,
@@ -774,13 +777,20 @@ class SlotEditor:
                     text_color=MUTED,
                 ).pack(side="left", padx=8)
         elif cmd_type == "SysEx":
+            mode = "Value" if clean(self.initial.get("KeyMode_(Key)")).lower() == "value" else "Send"
+            m = Option(self.params, SYSEX_MODES, mode, width=75, command=lambda v: self._remode("SysEx", v))
+            m.pack(side="left")
+            self.widgets["sysexmode"] = m
             self._label("String")
             w = Option(self.params, [str(i) for i in range(SYSEX_STRING_COUNT)],
                        self.initial.get("Number_(PC/CC/Note)"), width=70)
             w.pack(side="left")
             self.widgets["sysexindex"] = w
-            ctk.CTkLabel(self.params, text="(edit the bytes in the SysEx tab)",
-                         text_color=MUTED).pack(side="left", padx=8)
+            if mode == "Send":
+                self._int("sysexvalue", "Value", "OnValue_(CC/PB)", 0, 127, width=50)
+            hint = ("(the CC or CCInc below sends its values through it, at VV)" if mode == "Value"
+                    else "(edit the bytes in the SysEx tab; Value goes where they say VV)")
+            ctk.CTkLabel(self.params, text=hint, text_color=MUTED).pack(side="left", padx=8)
         elif cmd_type == "Bank":
             self._label("Action")
             w = Option(self.params, BANK_MODES, self.initial.get("KeyMode_(Key)"), width=80,
@@ -1145,6 +1155,9 @@ class SlotEditor:
             out["OffValue_(CC)"] = w["step"].value()
         if cmd_type == "SysEx":
             out["Number_(PC/CC/Note)"] = w["sysexindex"].value()
+            mode = w["sysexmode"].value()
+            out["KeyMode_(Key)"] = "" if mode == "Send" else mode
+            out["OnValue_(CC/PB)"] = w["sysexvalue"].value() if "sysexvalue" in w else ""
         if cmd_type == "Tap":
             out["KeyMode_(Key)"] = w["tapmode"].value()
             if "bpm" in w:
@@ -2405,7 +2418,7 @@ class MidiCommanderGUI(ctk.CTk):
             w["out_max"] = IntEntry(out, 0, 127, clean(r.get("Out_Max")) or "127", width=55)
             w["out_max"].pack(side="left", padx=(6, 2))
             ctk.CTkLabel(out, text="at the toe, as").pack(side="left", padx=(6, 2))
-            w["output"] = Option(out, ["CC", "PitchBend", "CC14", "Speed", "Wheel", "Arrows", "Switches"],
+            w["output"] = Option(out, EXP_OUTPUT_CHOICES,
                                  clean(r.get("Output")) or "CC", width=100)
             w["output"].pack(side="left", padx=(6, 2))
             w["send_on_bank"] = Check(out, text="Send on entering a bank", checked=is_yes(r.get("Send_On_Bank")), width=20)
@@ -3326,7 +3339,8 @@ class MidiCommanderGUI(ctk.CTk):
         tab = self.tabview.tab("SysEx")
         Help(
             tab,
-            "SysEx messages a SysEx command can send, in hexadecimal as the device manual shows them.",
+            "SysEx messages a SysEx command can send, in hexadecimal as the device manual shows them. "
+            "VV is where a value goes, and CS, last, a Roland checksum.",
             "A leading F0 and trailing F7 are optional and added when sending. Up to 23 data bytes, "
             "each 00-7F. A line that cannot be parsed is stored empty and nothing is sent.",
         ).pack(anchor="w", padx=10, pady=(10, 6))
@@ -3345,7 +3359,8 @@ class MidiCommanderGUI(ctk.CTk):
             src = rows.get(str(i))
             entry = TextEntry(line, 80, clean(src.get("Bytes")) if src is not None else "", width=430)
             entry.pack(side="left", padx=6)
-            status = ctk.CTkLabel(line, text="", text_color=MUTED, width=160, anchor="w")
+            status = ctk.CTkLabel(line, text="", text_color=MUTED, width=160, anchor="w", justify="left",
+                                  wraplength=360)
             status.pack(side="left")
             self.sysex_widgets[i] = (entry, status)
             entry.bind("<KeyRelease>", lambda _e, n=i: self._sysex_status(n))
@@ -3357,11 +3372,13 @@ class MidiCommanderGUI(ctk.CTk):
         if not text:
             status.configure(text="", text_color=MUTED)
             return
+        problem = sysex_problem(text)
+        if problem:
+            status.configure(text=problem, text_color=WARN)
+            return
         data = parse_sysex_bytes(text)
-        if data:
-            status.configure(text=f"{len(data)} bytes", text_color=MUTED)
-        else:
-            status.configure(text="cannot be parsed", text_color=WARN)
+        extras = (["a value"] if SYSEX_VALUE in data else []) + (["checksum"] if data[-1] > SYSEX_VALUE else [])
+        status.configure(text=f"{len(data)} bytes" + "".join(f", {e}" for e in extras), text_color=MUTED)
 
     def apply_sysex_changes(self):
         if self.df_sysex is None:

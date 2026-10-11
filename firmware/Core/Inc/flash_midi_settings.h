@@ -53,7 +53,8 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
  *   [11]   lowest value sent (0-127)          [12] highest value sent
  *   [13]   auto-engage button + 1 (0 none)    [14] auto-engage rest, 10 ms units
  *   [15]   what it sends: EXP_OUT_CC, EXP_OUT_PITCHBEND, EXP_OUT_CC14, EXP_OUT_SPEED,
- *          EXP_OUT_WHEEL, EXP_OUT_ARROWS or EXP_OUT_SWITCHES
+ *          EXP_OUT_WHEEL, EXP_OUT_ARROWS or EXP_OUT_SWITCHES, or EXP_OUT_SYSEX
+ *          plus the number of the stored SysEx string it sends (1.30)
  *   Blank flash (0xFF) means "not set" everywhere. The tools used to write
  *   zeros after byte 10, so a range of 0 to 0 means the full range too.
  *
@@ -73,6 +74,7 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
 #define EXP_OUT_WHEEL			(4)	// no MIDI: a mouse wheel turning as fast as the pedal says
 #define EXP_OUT_ARROWS			(5)	// no MIDI: the Down (or Up) arrow key, repeated as fast
 #define EXP_OUT_SWITCHES		(6)	// no MIDI: a box of up to three switches on the jack (1.10)
+#define EXP_OUT_SYSEX			(0x10)	// + 0-15: that stored SysEx string, the value in it (1.30)
 #define EXP_BOX_SWITCHES		(3)
 
 #define MIDI_NUM_BANKS			(32)

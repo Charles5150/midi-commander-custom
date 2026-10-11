@@ -80,6 +80,16 @@ Choose what it sends with **Output** in the Expression tab (`Output`: `CC`, `Pit
 
 The demo's pedal 2 sends a 14-bit CC pair, CC 4 and 36.
 
+## A SysEx parameter
+
+For gear that takes a parameter only by SysEx, as a Boss Katana does many of its own, the pedal can send one of the stored [SysEx messages](06-commands.md#a-value-in-the-message-and-the-roland-checksum) with its position in it. Write the message with `VV` where the value goes, and `CS` last for a Roland checksum, and set the pedal's **Sends** to **SysEx** and the message's number (`Output` `SysEx 3`, 0–15).
+
+- The value is the one a CC would carry, 0–127, after the curve, the output range and Invert, and it goes out only when it changes, as a CC would.
+- Like Pitch Bend, it replaces the pedal's own CC only: a bank or an `Exp` command that sends the pedal to another CC sends that CC.
+- **Shows it moving** works as for a CC. Takeover does not: the value always jumps to the pedal.
+
+*Firmware 1.30 or later. Older firmware sends the pedal's CC instead.*
+
 *Firmware 0.44 or later; older firmware ignores the setting and sends the CC.*
 
 ## Speed of the LFOs and sequences
@@ -339,7 +349,7 @@ Optional; two rows, `Pedal` 1 and 2.
 | `Out_Min`, `Out_Max` | 0–127 | Values sent at the heel and at the toe. Defaults 0 and 127. |
 | `Auto_Button` | None or 1–4, A–D | Button switched on as the pedal leaves the heel and off after resting there (auto-engage). |
 | `Auto_Off_ms` | 10–2540 | How long the pedal must rest at the heel before that button goes off. Default 500. |
-| `Output` | CC, PitchBend, CC14, Speed, Wheel, Arrows or Switches | What the pedal sends: its CC with 7 bits, Pitch Bend, a 14-bit CC pair, nothing but the [speed of the LFOs and sequences](#speed-of-the-lfos-and-sequences), or [scrolling on the computer](#scrolling-on-the-computer); Switches for a [box of switches](#a-box-of-switches-on-the-jack) in the jack. Default CC. |
+| `Output` | CC, PitchBend, CC14, Speed, Wheel, Arrows, Switches or SysEx 0–15 | What the pedal sends: its CC with 7 bits, Pitch Bend, a 14-bit CC pair, [a stored SysEx message](#a-sysex-parameter) with its value in it, nothing but the [speed of the LFOs and sequences](#speed-of-the-lfos-and-sequences), or [scrolling on the computer](#scrolling-on-the-computer); Switches for a [box of switches](#a-box-of-switches-on-the-jack) in the jack. Default CC. |
 | `Send_On_Bank` | Y / N | Send the pedal's position as a bank is entered, after its enter commands. Default N. Firmware 0.87. |
 | `Takeover` | Jump, CatchUp or Scaled | What the pedal does with a CC left at another value than the foot's: jump to the foot, wait for the foot to reach it, or go on from it. Default Jump. Firmware 1.18. |
 | `Display` | Off, Number or Bar | What the display shows while the pedal moves: nothing, the value sent, or a bar. Default Off. Firmware 1.29. |
