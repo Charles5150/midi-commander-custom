@@ -60,7 +60,10 @@ export function loadImage(data) {
   if (address !== APP_ADDRESS) {
     throw new UpdateError(`the image goes at 0x${address.toString(16).toUpperCase()}, not 0x08003000 behind the bootloader; build it with the midi_dfu environment`);
   }
-  if (payload.length < 8 || payload.length > APP_MAX_SIZE) {
+  if (payload.length < 8) {
+    throw new UpdateError(`the image is ${payload.length} bytes, too short to be a firmware`);
+  }
+  if (payload.length > APP_MAX_SIZE) {
     throw new UpdateError(`the image is ${payload.length} bytes, more than the ${APP_MAX_SIZE} there is room for`);
   }
   // The bootloader's own test: an image that fails it would leave the pedal starting in DFU for good

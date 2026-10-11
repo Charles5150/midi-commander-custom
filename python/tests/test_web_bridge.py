@@ -30,6 +30,14 @@ def read(path):
 
 
 class BridgeTest(unittest.TestCase):
+    def test_the_web_page_lists_every_template(self):
+        # templates/index.json is what the page's Template dialog offers: a
+        # web server lists no folder, so a template left out of it is not offered
+        with open(os.path.join(ROOT, "templates", "index.json")) as f:
+            listed = json.load(f)
+        self.assertEqual(listed, sorted(os.path.basename(p) for p in CSVS[1:]),
+                         "python/templates/index.json lists every template, sorted")
+
     def test_csv_packs_the_same_through_json(self):
         for path in CSVS:
             with self.subTest(os.path.basename(path)):

@@ -6,7 +6,7 @@ The web configurator does in a browser page what the desktop configurator and th
 
 **https://charles5150.github.io/midi-commander-custom/**
 
-It needs a browser with Web MIDI and WebUSB: **Chrome**, **Edge** or **Opera**, on a computer. Safari and Firefox have neither. The page runs the tools' own Python code inside the browser, with [Pyodide](https://pyodide.org), so a configuration is checked and packed exactly as the configurator packs it, and the CSV files are the same: a file saved in one opens in the other. The first visit loads about 20 MB, Python and pandas, which the browser then keeps; after that it opens in a few seconds.
+It needs a browser with Web MIDI and WebUSB: **Chrome**, **Edge** or **Opera**, on a computer. Safari has neither. Firefox has Web MIDI, through a site permission add-on it offers when the page first asks, but not WebUSB, so the firmware update needs Chrome, Edge or Opera. The page runs the tools' own Python code inside the browser, with [Pyodide](https://pyodide.org), so a configuration is checked and packed exactly as the configurator packs it, and the CSV files are the same: a file saved in one opens in the other. The first visit loads about 20 MB, Python and pandas, which the browser then keeps; after that it opens in a few seconds.
 
 ## Connecting
 
@@ -28,8 +28,11 @@ It keeps time as the pedal does, a millisecond at a time, but the browser runs i
 ## Opening a configuration
 
 - **Read from pedal** reads a slot, the running one or another.
-- **Open CSV** opens a configuration file, from the configurator, the command line tools or a template.
+- **Open CSV** opens a configuration file, from the configurator or the command line tools.
 - **Demo** opens the demo configuration, which uses every feature.
+- **Template** opens one of the templates that come with the tools, made for a device or a program: a Quad Cortex, a BigSky, Ableton Live and the rest of [the templates](11-devices.md). It opens with no file name, so **Save CSV** names it after the configuration.
+
+The start page has the same four, and none of them can be pressed while the pedal is being read or written.
 
 The name of the configuration is at the top, with **changed** after it until it is saved or written; a change made while the pedal is being written stays marked, since it is not on the pedal. Leaving the page with changes not saved, or while the pedal is being written or updated, asks first.
 
@@ -47,11 +50,11 @@ Every change is checked as it is made. When the configuration could not be packe
 
 - **Save CSV** downloads the configuration as a CSV file.
 - **Write to pedal** asks which slot to write, says what that slot holds now, writes it and restarts the pedal: about 12 seconds. As with the configurator, writing the slot the pedal is running pauses the pedal until the restart. If the pedal does not take the slot asked for, nothing is written; if a write fails after the slot was erased, the page says so, and the slot needs writing again. Firmware before 0.24 has a single configuration, so the page offers slot 1 only.
-- **Back up all slots** downloads every slot that holds a configuration, one CSV file each.
+- **Back up all slots** reads every slot that holds a configuration, then lists them, one CSV file each: **Save all** downloads them together, or click one to download it alone. The browser may ask once whether the page may download several files. With no slot holding a configuration it says so.
 
 ## Live pedal
 
-The pedal's display, its LEDs and its ten switches, as they are on the pedal, a few times a second. Press a switch on the screen, with the mouse or a finger, to press it on the pedal: it goes down while held, so long presses work too.
+The pedal's display, its LEDs and its ten switches, as they are on the pedal, a few times a second. It needs firmware 0.27 or later; with older firmware the tab says so. Press a switch on the screen, with the mouse or a finger, to press it on the pedal: it goes down while held, so long presses work too.
 
 ## Firmware
 
@@ -59,7 +62,7 @@ Choose a `.dfu` file from the [releases](https://github.com/Charles5150/midi-com
 
 1. It asks the pedal to restart in its update mode (firmware 0.58 or later).
 2. The first time, the browser asks which device the page may use: choose the one called **STM32 BOOTLOADER** or **DFU in FS Mode**.
-3. It erases the firmware's pages, writes the file, reads it all back to check it, and starts the pedal again. About 12 seconds.
+3. It erases the firmware's pages, writes the file, reads it all back to check it, and starts the pedal again. About 15 seconds.
 
 The bootloader and the configurations are never touched. A pedal with older firmware, or with the stock firmware, is put in update mode by hand: hold **Bank Down** and **D** while plugging it in, then click **Update** and choose it. This way the very first flash needs nothing installed either.
 
@@ -69,6 +72,8 @@ On Windows the bootloader needs the WinUSB driver, as it does for `dfu-util`: in
 
 - **The configurator's Python could not load.** The page reads, checks and packs configurations with the tools' own Python, which the browser fetches from cdn.jsdelivr.net the first time. Offline, or with that site blocked by an extension or a company network, the start page says so in red, with **Reload the page**. Live pedal and Firmware work without it; opening, reading and writing a configuration do not, and a simulated pedal starts empty.
 - **A file that is not a configuration** is refused with what it lacks, and the configuration open stays open.
+- **The demo or a template does not download**, offline for example: the page says so, and the configuration open stays open.
+- **Part of a configuration left out.** Firmware before 0.90 takes no MIDI map and no long press labels, and before 0.26 no double press: **Write to pedal** writes the rest, says what it left out, and keeps the configuration marked **changed**, since the pedal does not hold all of it.
 - **A SysEx string the pedal would not send as written**, a byte that is not hexadecimal, one over `7F`, or more than 23 bytes, is named in the red line under the toolbar, and the configuration can be neither saved nor written until it is fixed.
 - **The browser did not allow MIDI.** Chrome remembers a refusal. The page says how to allow it again: the icon left of the address bar, the site settings, **MIDI devices** (in Chrome "Control and reprogram your MIDI devices") to Allow, then reload.
 - **The pedal does not answer.** A Midi Commander found but silent most likely runs MeloAudio's own firmware: the page says so and opens the Firmware tab, where it is updated with the pedal put in update mode by hand.

@@ -628,6 +628,9 @@ class FirmwareUpdateTest(unittest.TestCase):
         for why, data in bad.items():
             with self.assertRaises(fu.UpdateError, msg=why):
                 self.check(data)
+        # Too short is not called too big (before, it was)
+        with self.assertRaisesRegex(fu.UpdateError, "4 bytes, too short"):
+            self.check(self.image(payload=bytes(4)))
 
     def test_dfu_listing(self):
         from lib import firmwareUpdate as fu

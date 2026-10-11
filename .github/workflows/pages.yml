@@ -45,7 +45,7 @@ jobs:
           cp web/*.html web/*.js web/*.css site/
           cp python/lib/*.py python/lib/devices.json site/lib/
           cp python/demo-all-features.csv site/
-          cp python/templates/*.csv site/templates/
+          cp python/templates/*.csv python/templates/index.json site/templates/
 
       - name: Build the simulated pedal
         run: |

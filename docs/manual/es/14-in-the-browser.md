@@ -6,7 +6,7 @@ El configurador web hace en una página del navegador lo mismo que el configurad
 
 **https://charles5150.github.io/midi-commander-custom/**
 
-Hace falta un navegador con Web MIDI y WebUSB: **Chrome**, **Edge** u **Opera**, en un ordenador. Safari y Firefox no tienen ninguno de los dos. La página ejecuta dentro del navegador el mismo código Python de las herramientas, con [Pyodide](https://pyodide.org), así que una configuración se comprueba y se empaqueta exactamente igual que en el configurador, y los ficheros CSV son los mismos: uno guardado en uno se abre en el otro. La primera visita descarga unos 20 MB, Python y pandas, que el navegador guarda; a partir de ahí abre en unos segundos.
+Hace falta un navegador con Web MIDI y WebUSB: **Chrome**, **Edge** u **Opera**, en un ordenador. Safari no tiene ninguno de los dos. Firefox tiene Web MIDI, mediante un complemento de permiso del sitio que ofrece la primera vez que la página lo pide, pero no WebUSB, así que la actualización del firmware necesita Chrome, Edge u Opera. La página ejecuta dentro del navegador el mismo código Python de las herramientas, con [Pyodide](https://pyodide.org), así que una configuración se comprueba y se empaqueta exactamente igual que en el configurador, y los ficheros CSV son los mismos: uno guardado en uno se abre en el otro. La primera visita descarga unos 20 MB, Python y pandas, que el navegador guarda; a partir de ahí abre en unos segundos.
 
 ## Conectar
 
@@ -28,8 +28,11 @@ Lleva el tiempo como la pedalera, milisegundo a milisegundo, pero la ejecuta el 
 ## Abrir una configuración
 
 - **Read from pedal** lee un slot, el que está en marcha u otro.
-- **Open CSV** abre un fichero de configuración, del configurador, de las herramientas de línea de comandos o una plantilla.
+- **Open CSV** abre un fichero de configuración, del configurador o de las herramientas de línea de comandos.
 - **Demo** abre la configuración de demostración, que usa todas las funciones.
+- **Template** abre una de las plantillas que vienen con las herramientas, hechas para un aparato o un programa: una Quad Cortex, un BigSky, Ableton Live y el resto de [las plantillas](11-devices.md). Se abre sin nombre de fichero, así que **Save CSV** le pone el de la configuración.
+
+La página de inicio tiene los mismos cuatro, y ninguno se puede pulsar mientras se lee o se escribe la pedalera.
 
 El nombre de la configuración está arriba, seguido de **changed** hasta que se guarda o se escribe; un cambio hecho mientras se escribe en la pedalera sigue marcado, porque no está en ella. Salir de la página con cambios sin guardar, o mientras se escribe o se actualiza la pedalera, pregunta antes.
 
@@ -47,11 +50,11 @@ Cada cambio se comprueba al hacerlo. Si la configuración no se puede empaquetar
 
 - **Save CSV** descarga la configuración como fichero CSV.
 - **Write to pedal** pregunta en qué slot escribir, dice qué tiene ahora ese slot, lo escribe y reinicia la pedalera: unos 12 segundos. Como con el configurador, escribir el slot que está en marcha pone la pedalera en pausa hasta el reinicio. Si la pedalera no acepta el slot pedido, no se escribe nada; si una escritura falla después de borrar el slot, la página lo dice, y hay que volver a escribirlo. El firmware anterior a 0.24 tiene una sola configuración, así que la página solo ofrece el slot 1.
-- **Back up all slots** descarga todos los slots que tienen configuración, un fichero CSV por slot.
+- **Back up all slots** lee todos los slots que tienen configuración y luego los lista, un fichero CSV por slot: **Save all** los descarga juntos, o haz clic en uno para descargarlo solo. Puede que el navegador pregunte una vez si la página puede descargar varios ficheros. Si ningún slot tiene configuración, lo dice.
 
 ## La pedalera en directo
 
-La pantalla de la pedalera, sus LEDs y sus diez interruptores, como están en la pedalera, varias veces por segundo. Pulsa un interruptor en la pantalla, con el ratón o con el dedo, para pulsarlo en la pedalera: queda pisado mientras lo mantienes, así que las pulsaciones largas también funcionan.
+La pantalla de la pedalera, sus LEDs y sus diez interruptores, como están en la pedalera, varias veces por segundo. Necesita firmware 0.27 o posterior; con uno más antiguo la pestaña lo dice. Pulsa un interruptor en la pantalla, con el ratón o con el dedo, para pulsarlo en la pedalera: queda pisado mientras lo mantienes, así que las pulsaciones largas también funcionan.
 
 ## Firmware
 
@@ -59,7 +62,7 @@ Elige un fichero `.dfu` de las [releases](https://github.com/Charles5150/midi-co
 
 1. Pide a la pedalera que se reinicie en su modo de actualización (firmware 0.58 o posterior).
 2. La primera vez, el navegador pregunta qué dispositivo puede usar la página: elige el que se llama **STM32 BOOTLOADER** o **DFU in FS Mode**.
-3. Borra las páginas del firmware, escribe el fichero, lo vuelve a leer entero para comprobarlo y arranca otra vez la pedalera. Unos 12 segundos.
+3. Borra las páginas del firmware, escribe el fichero, lo vuelve a leer entero para comprobarlo y arranca otra vez la pedalera. Unos 15 segundos.
 
 El bootloader y las configuraciones no se tocan nunca. Una pedalera con firmware más antiguo, o con el de fábrica, se pone en modo de actualización a mano: mantén **Bank Down** y **D** mientras la enchufas, pulsa **Update** y elígela. Así tampoco la primera grabación necesita tener nada instalado.
 
@@ -69,6 +72,8 @@ En Windows el bootloader necesita el controlador WinUSB, igual que para `dfu-uti
 
 - **No se pudo cargar el Python del configurador.** La página lee, comprueba y empaqueta las configuraciones con el mismo Python de las herramientas, que el navegador descarga de cdn.jsdelivr.net la primera vez. Sin conexión, o con ese sitio bloqueado por una extensión o una red de empresa, la página de inicio lo dice en rojo, con **Reload the page**. La pedalera en directo y el firmware funcionan sin él; abrir, leer y escribir una configuración no, y una pedalera simulada arranca vacía.
 - **Un archivo que no es una configuración** se rechaza diciendo lo que le falta, y la configuración abierta sigue abierta.
+- **La demo o una plantilla no se descarga**, sin conexión por ejemplo: la página lo dice, y la configuración abierta sigue abierta.
+- **Una parte de la configuración se queda fuera.** El firmware anterior a 0.90 no admite el mapa MIDI ni las etiquetas de pulsación larga, y el anterior a 0.26 no admite la doble pulsación: **Write to pedal** escribe el resto, dice qué ha dejado fuera y mantiene la configuración marcada como **changed**, porque la pedalera no la tiene entera.
 - **Una cadena SysEx que la pedalera no enviaría tal cual**, con un byte que no es hexadecimal, uno mayor que `7F` o más de 23 bytes, se señala en la línea roja bajo la barra de herramientas, y la configuración no se puede guardar ni escribir hasta corregirla.
 - **El navegador no permitió el MIDI.** Chrome recuerda la negativa. La página dice cómo volver a permitirlo: el icono a la izquierda de la barra de direcciones, la configuración del sitio, **Dispositivos MIDI** («Controlar y reprogramar tus dispositivos MIDI» en Chrome) en Permitir, y recargar.
 - **La pedalera no contesta.** Una Midi Commander que aparece pero no responde casi seguro lleva el firmware de MeloAudio: la página lo dice y abre la pestaña Firmware, donde se actualiza poniendo la pedalera en modo de actualización a mano.

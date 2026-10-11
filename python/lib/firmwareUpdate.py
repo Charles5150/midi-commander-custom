@@ -88,7 +88,9 @@ def load_image(path) -> bytes:
         raise UpdateError(
             f"the image goes at 0x{address:08X}, not 0x{APP_ADDRESS:08X} behind the "
             "bootloader; build it with the midi_dfu environment")
-    if not 8 <= len(payload) <= APP_MAX_SIZE:
+    if len(payload) < 8:
+        raise UpdateError(f"the image is {len(payload)} bytes, too short to be a firmware")
+    if len(payload) > APP_MAX_SIZE:
         raise UpdateError(f"the image is {len(payload)} bytes, more than the {APP_MAX_SIZE} there is room for")
     if not _stack_pointer_ok(struct.unpack("<I", payload[:4])[0]):
         raise UpdateError("the image does not start with a stack pointer, so the pedal would not run it")

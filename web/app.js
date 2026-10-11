@@ -511,6 +511,10 @@ function renderToolbar() {
   $("#btn-backup").disabled = !state.pedal || state.busy || !state.tools;
   $("#btn-open").disabled = !state.tools || state.busy;
   $("#btn-demo").disabled = !state.tools || state.busy;
+  $("#btn-template").disabled = !state.tools || state.busy;
+  // The start page's own buttons, as the toolbar's
+  const start = { "start-read": $("#btn-read").disabled, "start-open": $("#btn-open").disabled, "start-demo": $("#btn-demo").disabled, "start-template": $("#btn-template").disabled };
+  for (const [id, off] of Object.entries(start)) { const b = document.getElementById(id); if (b) b.disabled = off; }
 }
 
 function render() {
@@ -538,14 +542,15 @@ function render() {
 function welcome() {
   return h("section", { class: "welcome" },
     h("h2", {}, "Configure your Midi Commander in the browser"),
-    h("p", {}, "Nothing to install. Connect the pedal to read its configuration, open a CSV file made with the configurator, or start from the demo."),
+    h("p", {}, "Nothing to install. Connect the pedal to read its configuration, open a CSV file made with the configurator, or start from the demo or a device’s template."),
     state.toolsError ? toolsFailed() : state.tools ? null : h("p", { class: "hint" }, "Loading the configurator’s Python… the first time takes a few seconds."),
     h("div", { class: "buttons" },
-      h("button", { class: "primary", disabled: !state.pedal || !state.tools, onclick: readFromPedal }, "Read from the pedal"),
-      h("button", { disabled: !state.tools, onclick: openFile }, "Open a CSV file"),
-      h("button", { disabled: !state.tools, onclick: openDemo }, "Open the demo")),
+      h("button", { id: "start-read", class: "primary", disabled: !state.pedal || !state.tools || state.busy, onclick: readFromPedal }, "Read from the pedal"),
+      h("button", { id: "start-open", disabled: !state.tools || state.busy, onclick: openFile }, "Open a CSV file"),
+      h("button", { id: "start-demo", disabled: !state.tools || state.busy, onclick: openDemo }, "Open the demo"),
+      h("button", { id: "start-template", disabled: !state.tools || state.busy, onclick: openTemplate }, "Start from a template")),
     h("p", { class: "hint" }, "No pedal at hand? Try without a pedal: the pedal’s own firmware runs in the page, with the demo in it, and everything here works on it as on the real one."),
-    h("p", { class: "hint" }, "Chrome, Edge or Opera on a computer: they have Web MIDI and WebUSB. The page asks to use MIDI devices with SysEx when you connect."));
+    h("p", { class: "hint" }, "Chrome, Edge or Opera on a computer: they have Web MIDI and WebUSB. Firefox has Web MIDI, through a site permission add-on it offers when you connect, but no WebUSB, so no firmware update. The page asks to use MIDI devices with SysEx when you connect."));
 }
 
 function toolsFailed() {
@@ -712,12 +717,15 @@ function renderCombos(main) {
   const sec = section("Combo_Settings") || (state.config.Combo_Settings = { columns: [...state.schema.comboColumns], rows: [] });
   const fields = state.schema.sectionColumns.Combo_Settings;
   main.append(h("p", { class: "hint" }, "Two switches pressed together run another button's list. Switches: two of 1-4, A-D, e.g. 3+4. In bank: a number or All."),
-    sec.rows.length ? table(sec, "Switches", "", fields.slice(0)) : h("p", {}, "No combos yet."),
+    sec.rows.length ? h("table", { class: "grid" },
+      h("thead", {}, h("tr", {}, h("th", {}, "#"), fields.map((f) => h("th", {}, f.label)), h("th", {}))),
+      h("tbody", {}, sec.rows.map((row, i) => h("tr", {}, h("td", { class: "key" }, String(i + 1)),
+        fields.map((f) => h("td", {}, fieldControl(f, () => cell(sec, row, f.col), (v) => setCell(sec, row, f.col, v)))),
+        h("td", {}, h("button", { "aria-label": `Remove combo ${i + 1}`, onclick: () => { sec.rows.splice(i, 1); changed(); render(); } }, "Remove")))))) : h("p", {}, "No combos yet."),
     h("button", {
       disabled: sec.rows.length >= state.schema.comboCount,
       onclick: () => { sec.rows.push(sec.columns.map((c) => ({ Switches: "1+2", Bank: "All", Run_Bank: "0", Run_Button: "1", Run_List: "Short" }[c] ?? ""))); changed(); render(); },
-    }, "Add a combo"),
-    sec.rows.length ? h("button", { onclick: () => { sec.rows.pop(); changed(); render(); } }, "Remove the last") : null);
+    }, "Add a combo"));
 }
 
 // One card per entry: what it matches, then what it becomes. The fields shown
@@ -780,7 +788,7 @@ function renderPresetNames(main) {
 
 // --- Files -----------------------------------------------------------------
 async function openFile() {
-  if (!(await confirmDiscard())) return;
+  if (state.busy || !(await confirmDiscard())) return;
   const input = h("input", { type: "file", accept: ".csv,text/csv" });
   input.addEventListener("change", async () => {
     const file = input.files[0];
@@ -796,8 +804,35 @@ async function openFile() {
 }
 
 async function openDemo() {
-  if (!(await confirmDiscard())) return;
-  setConfig(state.tools.csvToSections(await state.tools.fetchFile("demo-all-features.csv")), "demo-all-features.csv");
+  if (state.busy || !(await confirmDiscard())) return;
+  try {
+    setConfig(state.tools.csvToSections(await state.tools.fetchFile("demo-all-features.csv")), "demo-all-features.csv");
+  } catch (e) {
+    toast(`Cannot open the demo: ${e.message}. Check the internet connection and try again.`, "error");
+  }
+}
+
+// The templates that come with the tools (python/templates), one per device:
+// templates/index.json lists them, since a web server lists no folder
+async function openTemplate() {
+  if (state.busy || !(await confirmDiscard())) return;
+  let names;
+  try {
+    names = JSON.parse(new TextDecoder().decode(await state.tools.fetchFile("templates/index.json")));
+  } catch (e) {
+    toast(`Cannot list the templates: ${e.message}. Check the internet connection and try again.`, "error");
+    return;
+  }
+  const sel = h("select", {}, names.map((n) => h("option", { value: n }, n.replace(/\.csv$/, "").replace(/_/g, " "))));
+  if (!(await confirmDialog("Start from a template", [labelled("Device", sel),
+    h("p", { class: "hint" }, "A configuration made for that device, to change as you like. Save it under your own name.")], "Open"))) return;
+  const name = sel.value;
+  try {
+    setConfig(state.tools.csvToSections(await state.tools.fetchFile(`templates/${name}`)), "");
+    toast(`Opened the ${name.replace(/\.csv$/, "").replace(/_/g, " ")} template`);
+  } catch (e) {
+    toast(`Cannot open the template ${name}: ${e.message}`, "error");
+  }
 }
 
 function saveCsv() {
@@ -831,9 +866,10 @@ async function connect() {
 
 async function attach(quiet) {
   if (state.pedal) return;
+  let pedal = null;
   try {
     const simulated = state.simulated;
-    const pedal = await Pedal.open(simulated ? state.sim.access : state.midiAccess);
+    pedal = await Pedal.open(simulated ? state.sim.access : state.midiAccess);
     if (simulated) pedal.pause = 0;
     else pedal.onMessage = (msg) => logMessage("USB", msg);
     state.version = await pedal.version();
@@ -845,6 +881,7 @@ async function attach(quiet) {
     if (!quiet) toast(simulated ? `Simulated pedal on: firmware ${state.version}` : `Connected: firmware ${state.version}`);
     render();
   } catch (e) {
+    if (pedal && state.pedal !== pedal) pedal.close();     // its ports and listeners, or they pile up at every try
     if (quiet) return;
     if (e instanceof Timeout && !state.simulated) {
       notice("The Midi Commander does not answer the configurator",
@@ -929,7 +966,7 @@ function slotChooser(label, withEmpty) {
 }
 
 async function readFromPedal() {
-  if (!(await confirmDiscard())) return;
+  if (state.busy || !state.pedal || !(await confirmDiscard())) return;
   const pick = slotChooser("Read", false);
   if (!(await confirmDialog("Read a configuration from the pedal", [pick.el], "Read"))) return;
   const slot = Number(pick.sel.value);
@@ -947,9 +984,14 @@ async function readFromPedal() {
   }
 }
 
+// Every slot read first, then saved from a click in a dialog: files downloaded
+// after a wait, with no click just before, the browser asks about or blocks
 async function backupSlots() {
+  if (state.busy || !state.pedal) return;
   const pedal = state.pedal;
   const valid = state.slots ? state.slots.valid : [0];
+  if (!valid.length) { toast("No slot holds a configuration: there is nothing to back up."); return; }
+  const files = [];
   try {
     for (const slot of valid) {
       setBusy(`Backing up slot ${slot + 1}`);
@@ -957,13 +999,19 @@ async function backupSlots() {
       const { data, image } = await pedal.readImage(state.version, state.tools.sizes, (d, t) => setBusy(`Backing up slot ${slot + 1}`, d, t));
       const sections = state.tools.imageToSections(data, image);
       const name = (sections.Global_Settings.rows.find((r) => r[0] === "ConfigName") || [, ""])[1].trim() || "configuration";
-      download(`slot${slot + 1}-${name.replace(/[^\w-]+/g, "_")}.csv`, "﻿" + state.tools.sectionsToCsv(sections));
+      files.push([`slot${slot + 1}-${name.replace(/[^\w-]+/g, "_")}.csv`, "﻿" + state.tools.sectionsToCsv(sections)]);
     }
-    toast(`Backed up ${valid.length} slot${valid.length === 1 ? "" : "s"} as CSV files`);
   } catch (e) {
     toast(`Backup failed: ${e.message}`, "error");
+    return;
   } finally {
     setBusy(null);
+  }
+  const links = h("ul", {}, files.map(([name, text]) => h("li", {}, h("a", { href: "#", onclick: (e) => { e.preventDefault(); download(name, text); } }, name))));
+  const many = files.length > 1;
+  if (await confirmDialog(`Back up ${files.length} slot${many ? "s" : ""}`, [links,
+    h("p", { class: "hint" }, many ? "Save them all, or one at a time from the list. The browser may ask once whether the page may download several files." : "Save it as a CSV file.")], many ? "Save all" : "Save")) {
+    files.forEach(([name, text]) => download(name, text));
   }
 }
 
@@ -1001,7 +1049,7 @@ async function writeToPedal() {
     const log = (m) => { console.log(m); if (m === "Erasing the slot") erased = true; if (m.startsWith("WARNING: ")) warning = m.slice(9); };
     await pedal.writeImage(state.version, packed.config, packed.image, log, (d, t) => setBusy(`Writing slot ${slot + 1}`, d, t), state.tools.sizes.ext2Offset);
     setBusy("Restarting the pedal");
-    state.dirty = state.edits !== edits;     // what changed during the write is not on the pedal
+    state.dirty = state.edits !== edits || warning !== "";     // what changed during the write, or was left out, is not on the pedal
     pedal.reset();
     toast(warning ? `Written to slot ${slot + 1}, but ${warning}` : `Written to slot ${slot + 1}; the pedal restarts`, warning ? "error" : undefined);
   } catch (e) {
@@ -1027,6 +1075,10 @@ function ledColor(level) {
 function renderLive(main) {
   if (!state.pedal) {
     main.append(h("p", {}, "Connect the pedal, or try without one, to see its display and LEDs, press its switches from here and see what it sends."));
+    return;
+  }
+  if (!versionAtLeast(state.version, 0, 27)) {
+    main.append(h("p", {}, `The live view needs firmware 0.27 or later; the pedal runs ${state.version}. Update it in the Firmware tab.`));
     return;
   }
   const canvas = h("canvas", { width: 128, height: 64, class: "screen" });
@@ -1296,6 +1348,7 @@ window.addEventListener("beforeunload", (e) => { if (state.dirty || state.busy) 
 document.addEventListener("DOMContentLoaded", async () => {
   $("#btn-open").addEventListener("click", openFile);
   $("#btn-demo").addEventListener("click", openDemo);
+  $("#btn-template").addEventListener("click", openTemplate);
   $("#btn-read").addEventListener("click", readFromPedal);
   $("#btn-save").addEventListener("click", saveCsv);
   $("#btn-write").addEventListener("click", writeToPedal);
