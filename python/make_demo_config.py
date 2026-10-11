@@ -428,6 +428,12 @@ def build() -> Demo:
 
     # --- bank 6: tap tempo and clock ---------------------------------------
     d.tap(6, "1", "TAP", "Tap")
+    # Held, it keeps the tempo for next time: entering the bank sets it again,
+    # from the Tap Set it writes into the bank's enter list. The tap goes out as
+    # the switch goes down, so holding it does not hold the tap back.
+    d.instant_press(6, "1")
+    d.long_press(6, "1", CommandType="Tap", **{"KeyMode_(Key)": "Save"})
+    d.long_label(6, "1", "SAVE")
     d.tap(6, "2", "CLK", "Clock")
     d.transport(6, "3", "STRT", "Start")
     d.transport(6, "4", "STOP", "Stop")

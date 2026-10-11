@@ -43,7 +43,7 @@ SHORT_COMMAND_TYPES = COMMAND_TYPES + ["Cycle"]
 # Leave splits a bank's enter list into the commands on entering and on leaving
 ENTER_COMMAND_TYPES = COMMAND_TYPES + ["Leave"]
 TAP_MODES = ["Tap", "Clock", "Set", "Up", "Down", "Up Repeat", "Down Repeat", "Record", "Playback", "Erase",
-             "Out"]
+             "Out", "Save"]
 WAIT_MODES = ["Time", "Beat", "Bar", "Count"]
 CCINC_DIRECTIONS = ["Up", "Down", "Up Repeat", "Down Repeat"]
 BANK_MODES = ["GoTo", "Up", "Down", "Config", "NextConfig", "Page", "Back", "Reveal", "Direct", "Lock"]
@@ -252,7 +252,9 @@ COMMAND_SPECS = {
                       "Playback": "switches playing back recorded presses off and on",
                       "Erase": "drops this bank's recorded presses",
                       "Out": "sends the CC below on the next Taps beats, and again after each change of "
-                             "tempo, until the bank changes (0: every beat), for a device with a tap CC"}},
+                             "tempo, until the bank changes (0: every beat), for a device with a tap CC",
+                      "Save": "keeps the tempo for next time: writes it into this bank's enter list, in its "
+                              "Tap Set or in an empty command"}},
     "SysEx": {"fields": [_f(NUM, "String", _choice([str(i) for i in range(SYSEX_STRING_COUNT)]))],
               "hint": "edit the bytes in SysEx strings"},
     "Bank": {"fields": [_f(MODE, "Action", _choice(BANK_MODES)),

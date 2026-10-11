@@ -937,6 +937,17 @@ void display_show_saved(void){
 	show_notice("SAVED", "SCENE");
 }
 
+// Tap Save, with the tempo kept, or 0 when the enter list had no room for it
+void display_show_tempo_saved(uint16_t bpm){
+	char line[16];
+	if(bpm == 0){
+		show_notice("NOT SAVED", "ENTER LIST FULL");
+		return;
+	}
+	snprintf(line, sizeof line, "TEMPO %u BPM", (unsigned)bpm);
+	show_notice("SAVED", line);
+}
+
 // Stays up: the pedal pauses until the tool restarts it
 void display_show_upload(void){
 	show_notice("RECEIVING", "CONFIGURATION");

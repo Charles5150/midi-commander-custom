@@ -38,6 +38,7 @@ void display_show_safe_mode(void);
 // After the watchdog restarted the pedal, see restart_state.c
 void display_show_restarted(void);
 void display_show_saved(void);
+void display_show_tempo_saved(uint16_t bpm);
 // The running configuration is being rewritten by the tools
 void display_show_upload(void);
 // A short message in the bank's info line, for a moment (8 characters fit)

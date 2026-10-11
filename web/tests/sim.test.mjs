@@ -1407,3 +1407,54 @@ test("Tap Out sends a device's tap CC on four beats after entering the bank and 
   run(3000);
   assert.deepEqual(seen, []);
 });
+
+test("Tap Save keeps the tapped tempo in the bank's enter list, set again on entering it and after a restart (before 1.26, it was lost)", async () => {
+  const sim = simWithDemo();
+  sim.run(10000);
+  const run = (s, ms) => { for (let t = 0; t < ms; t += 5) s.run(5); };
+  // Bank 6 taps CC 64 on channel 3 on four beats as it is entered: how far
+  // apart they are is the tempo it starts at
+  const tapsOnEntering = (s) => {
+    const seen = [];
+    s.onOutput = (port, msg) => {
+      if (port === "USB" && msg[0] === 0xb2 && msg[1] === 64) seen.push(s.e.sim_tick());
+    };
+    s.usbIn([0xb0, 32, 7]);
+    run(s, 200);
+    s.usbIn([0xb0, 32, 6]);
+    run(s, 3000);
+    s.onOutput = null;
+    return seen.slice(1).map((t, i) => t - seen[i]);
+  };
+  assert.ok(tapsOnEntering(sim).every((g) => Math.abs(g - 500) <= 2), "120 BPM before anything is saved");
+
+  for (let i = 0; i < 3; i++) {             // TAP three times, 600 ms apart: 100 BPM
+    sim.footswitch(0, true);
+    run(sim, 50);
+    sim.footswitch(0, false);
+    run(sim, 550);
+  }
+  run(sim, 3000);
+  sim.footswitch(0, true);                  // held: Save
+  run(sim, 1200);
+  sim.footswitch(0, false);
+  run(sim, 600);
+  sim.footswitch(6, true);                  // BPM+: 101, which is not kept
+  run(sim, 100);
+  sim.footswitch(6, false);
+  run(sim, 600);
+
+  const gaps = tapsOnEntering(sim);
+  assert.equal(gaps.length, 3);
+  assert.ok(gaps.every((g) => Math.abs(g - 600) <= 2), `back at 100 BPM on entering: ${gaps}`);
+
+  // In flash: a pedal started from it is at 120 until bank 6 sets the 100 kept
+  const again = new Simulator(module, { persist: false });
+  again.flash = sim.flashNow();
+  again.start();
+  clearInterval(again.timer);
+  clearInterval(again.saveTimer);
+  again.run(10000);
+  const after = tapsOnEntering(again);
+  assert.ok(after.length === 3 && after.every((g) => Math.abs(g - 600) <= 2), `100 BPM after a restart: ${after}`);
+});

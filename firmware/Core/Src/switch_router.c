@@ -33,6 +33,7 @@ static void settle_pending_presses(void);
 static inline bool cmd_is_leave(const uint8_t *pRom);
 static void apply_scene(uint8_t mask, uint8_t states);
 static void save_scene(uint8_t target);
+static void save_tempo(void);
 static void release_group(uint8_t i);
 uint8_t sw_button_is_toggle(uint8_t bank, uint8_t sw);
 static bool switch_down(GPIO_TypeDef *port, uint16_t pin);
@@ -476,6 +477,7 @@ static void send_tap(const uint8_t *pRom){
 	case TAP_MODE_PLAYBACK:	record_playback_toggle(); return;
 	case TAP_MODE_ERASE:	record_erase(); return;
 	case TAP_MODE_OUT:		return;	// with no CC below it, nothing to tap
+	case TAP_MODE_SAVE:		save_tempo(); return;
 	case TAP_MODE_CLOCK:
 		tempo_clock_toggle();
 		break;
@@ -3378,6 +3380,27 @@ static void save_scene(uint8_t target){
 		if(flash_settings_patch(p + 2, &states, 1)) display_show_saved();
 		return;
 	}
+}
+
+/*
+ * Tap Save: keep the tempo tapped at rehearsal for the next time this bank is
+ * entered. The first Tap Set among the commands it sends on entering takes the
+ * tempo now, written to flash as Scene Save does; without one, the first empty
+ * command among them becomes one. The display says which it was.
+ */
+static void save_tempo(void){
+	uint8_t *base = get_bank_enter_pointer(switch_current_page, 0);
+	uint8_t *dst = NULL;
+	for(uint8_t j=0; j<MIDI_NUM_COMMANDS_PER_SWITCH; j++){
+		uint8_t *p = base + j * MIDI_ROM_CMD_SIZE;
+		if(cmd_is_leave(p)) break;	// the commands below go out on leaving
+		if(p[0] == (CMD_TAP_NIBBLE | TAP_MODE_SET)){ dst = p; break; }
+		if(dst == NULL && !(p[0] | p[1] | p[2] | p[3])) dst = p;
+	}
+	uint16_t bpm = tempo_get_bpm();
+	const uint8_t cmd[MIDI_ROM_CMD_SIZE] = {CMD_TAP_NIBBLE | TAP_MODE_SET, 0,
+			(uint8_t)(bpm & 0x7F), (uint8_t)(bpm >> 7)};
+	display_show_tempo_saved(dst != NULL && flash_settings_patch(dst, cmd, MIDI_ROM_CMD_SIZE) ? bpm : 0);
 }
 
 /*

@@ -11,7 +11,7 @@ The pedal keeps a tempo of its own: tapped with your foot, set by a bank as you 
 - LFOs, which swing a CC up and down in time;
 - step sequences, which play a CC or a note a step at a time.
 
-Tempo commands are `Tap` commands, with an **Action** in the configurator (`KeyMode` in the CSV) saying which: `Tap`, `Clock`, `Set`, `Up`, `Down`, `Up Repeat` or `Down Repeat`, `Record`, `Playback` or `Erase` for [recorded presses](#recording-a-run-of-presses), or `Out` to [tap a device's tempo](#tapping-a-devices-tempo).
+Tempo commands are `Tap` commands, with an **Action** in the configurator (`KeyMode` in the CSV) saying which: `Tap`, `Clock`, `Set`, `Up`, `Down`, `Up Repeat` or `Down Repeat`, `Record`, `Playback` or `Erase` for [recorded presses](#recording-a-run-of-presses), `Out` to [tap a device's tempo](#tapping-a-devices-tempo), or `Save` to [keep the tempo you tapped](#keeping-the-tempo-you-tapped).
 
 ## Tap tempo
 
@@ -50,6 +50,25 @@ The demo's bank 6 has BPM+ and BPM- on C and D, and holding SYNC sets 120 BPM.
 <details><summary>Under the hood</summary>
 
 Stored in the low nibble of the `Tap` command: 2 for `Set`, with the BPM in bytes 2 (low 7 bits) and 3 (the rest); 3 for `Up` and 4 for `Down`, with the step in byte 2 and its top bit set to repeat. Firmware before 0.37 takes all three as a plain tap, so update the firmware first.
+
+</details>
+
+### Keeping the tempo you tapped
+
+A tempo tapped at rehearsal can stay with the song. A `Tap` command with **Action** `Save` writes the tempo the pedal is at into the bank's commands on entry, so the next time you step on that bank, or on that song of a setlist, it starts there: nothing to type into the configurator afterwards.
+
+- It changes the first `Set` among the bank's commands on entry. If there is none, the first empty command among them becomes one, so put a `Set` where you want it, or leave a slot free.
+- Only the commands above a `Leave` count, the ones sent on entering.
+- The display says `SAVED`, with the tempo. When there is neither a `Set` nor an empty command, it says `NOT SAVED` and nothing changes.
+- It is written to the flash of the configuration slot, as a [Scene Save](05-buttons.md#scenes) is, and kept after a power cycle. Reading the configuration back into a configurator shows it.
+
+A long press of the tap button is the natural place. In the demo, holding TAP in bank 6 saves the tempo; TAP has **Press at once** ticked, so the tap still goes out as the switch goes down.
+
+*Firmware 1.26 or later.*
+
+<details><summary>Under the hood</summary>
+
+Stored as low nibble 9 of the `Tap` command, the other bytes 0. It writes `72 00 <BPM low 7 bits> <BPM high bits>` over the `Set` or the empty command, in the active slot's flash. Firmware before 1.26 takes it as a plain tap.
 
 </details>
 

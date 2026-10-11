@@ -11,7 +11,7 @@ La pedalera lleva un tempo propio: marcado con el pie, fijado por un banco al en
 - los LFO, que mueven un CC arriba y abajo a tempo;
 - las secuencias por pasos, que tocan un CC o una nota paso a paso.
 
-Los comandos de tempo son comandos `Tap`, con una **Action** en el configurador (`KeyMode` en el CSV) que dice cuál: `Tap`, `Clock`, `Set`, `Up`, `Down`, `Up Repeat` o `Down Repeat`, `Record`, `Playback` o `Erase` para las [pulsaciones grabadas](#grabar-una-serie-de-pulsaciones), o `Out` para [marcar el tempo de un aparato](#marcar-el-tempo-de-un-aparato).
+Los comandos de tempo son comandos `Tap`, con una **Action** en el configurador (`KeyMode` en el CSV) que dice cuál: `Tap`, `Clock`, `Set`, `Up`, `Down`, `Up Repeat` o `Down Repeat`, `Record`, `Playback` o `Erase` para las [pulsaciones grabadas](#grabar-una-serie-de-pulsaciones), `Out` para [marcar el tempo de un aparato](#marcar-el-tempo-de-un-aparato), o `Save` para [guardar el tempo que has marcado](#guardar-el-tempo-que-has-marcado).
 
 ## Tap tempo
 
@@ -50,6 +50,25 @@ En la demo, el banco 6 tiene BPM+ y BPM- en C y D, y mantener SYNC fija 120 BPM.
 <details><summary>Por dentro</summary>
 
 Se guarda en el nibble bajo del comando `Tap`: 2 para `Set`, con los BPM en los bytes 2 (los 7 bits bajos) y 3 (el resto); 3 para `Up` y 4 para `Down`, con el paso en el byte 2 y su bit alto puesto para repetir. El firmware anterior a 0.37 toma los tres como un tap normal, así que actualiza antes el firmware.
+
+</details>
+
+### Guardar el tempo que has marcado
+
+Un tempo marcado en el ensayo puede quedarse en la canción. Un comando `Tap` con **Action** `Save` escribe el tempo en que está la pedalera en los comandos de entrada del banco, así que la próxima vez que pises ese banco, o esa canción de un setlist, empieza ahí: no hay que teclearlo luego en el configurador.
+
+- Cambia el primer `Set` de los comandos de entrada del banco. Si no hay ninguno, el primer comando vacío entre ellos pasa a ser uno, así que pon un `Set` donde lo quieras o deja un hueco libre.
+- Solo cuentan los comandos que están encima de un `Leave`, los que se envían al entrar.
+- La pantalla dice `SAVED`, con el tempo. Si no hay ni un `Set` ni un comando vacío, dice `NOT SAVED` y no cambia nada.
+- Se escribe en la flash del slot de configuración, como un [Scene Save](05-buttons.md#escenas), y se mantiene al apagar. Al leer la configuración en un configurador, aparece.
+
+El sitio natural es la pulsación larga del botón de tap. En la demo, mantener TAP en el banco 6 guarda el tempo; TAP tiene marcado **Press at once**, así que el tap sigue saliendo al bajar el pulsador.
+
+*Firmware 1.26 o posterior.*
+
+<details><summary>Por dentro</summary>
+
+Se guarda como nibble bajo 9 del comando `Tap`, con los demás bytes a 0. Escribe `72 00 <BPM, 7 bits bajos> <BPM, bits altos>` sobre el `Set` o el comando vacío, en la flash del slot activo. El firmware anterior a 1.26 lo toma como un tap normal.
 
 </details>
 

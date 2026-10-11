@@ -306,6 +306,10 @@
 // pedal's tempo, from the next beat on, and again after every change of tempo
 // until the bank is left. Byte 2 at 0 sends it on every beat. See tempo.c.
 #define TAP_MODE_OUT		(8)
+// Tap Save (1.26): keeps the tempo for the next time the bank is entered, in
+// the first Tap Set of its enter list, or in its first empty command when it
+// has none, above any Leave. The other bytes are 0. See save_tempo.
+#define TAP_MODE_SAVE		(9)
 #define TAP_REPEAT_BIT		(0x80)
 #define CMD_CCINC_NIBBLE	(0x50)	// Relative CC: byte1 = CC | wrap<<7, byte2 = step | repeat<<7, byte3 = down<<7 | start value
 #define CCINC_REPEAT_BIT	(0x80)	// In the step byte of CCInc: repeat while held

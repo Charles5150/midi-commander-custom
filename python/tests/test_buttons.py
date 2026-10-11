@@ -412,8 +412,8 @@ class InstantPressTest(unittest.TestCase):
         self.assertEqual(row["Instant_Press"].iloc[0], "Y")
         self.assertEqual(row["Label"].iloc[0], "REC")
         self.assertEqual(row["Reset_On_Bank"].iloc[0], "")
-        # and the global TAP, and STOP and UNDO in the 18 songs
-        self.assertEqual((decoded["Instant_Press"] == "Y").sum(), 2 + 2 * 18)
+        # and the global TAP, bank 6's TAP, and STOP and UNDO in the 18 songs
+        self.assertEqual((decoded["Instant_Press"] == "Y").sum(), 3 + 2 * 18)
 
     def test_both_bits_round_trip(self):
         sections = read_config_csv(DEMO_CSV)

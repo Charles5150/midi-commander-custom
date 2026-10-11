@@ -190,7 +190,12 @@ static const char *other_name(const uint8_t *c){
 	case CMD_PB_NIBBLE:		return "Bend";
 	case CMD_KEY_NIBBLE:	return "Key";
 	case CMD_BANK_NIBBLE:	return "Bank";
-	case CMD_TAP_NIBBLE:	return (c[0] & 0x0F) == TAP_MODE_OUT ? "Tap out" : "Tap";
+	case CMD_TAP_NIBBLE:
+		switch(c[0] & 0x0F){
+		case TAP_MODE_OUT:	return "Tap out";
+		case TAP_MODE_SAVE:	return "Tap save";
+		default:			return "Tap";
+		}
 	case CMD_PC_NIBBLE:		return "PC step";
 	default:				return "?";
 	}
