@@ -201,6 +201,8 @@ details.card[open] > summary { margin-bottom: 10px; }
 .command.empty { background: none; }
 .command .slot { font-weight: 700; width: 18px; padding-top: 6px; color: var(--muted); }
 .command select.type { width: 110px; }
+.command select.device { width: 92px; }
+.command .device-name { color: var(--ok); }
 .command .params { display: flex; flex-wrap: wrap; align-items: center; flex: 1; }
 .command .params .hint { margin-bottom: 6px; }
 

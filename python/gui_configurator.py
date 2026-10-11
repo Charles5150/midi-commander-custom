@@ -76,6 +76,7 @@ from lib.midiDevice import (  # noqa: E402
 )
 from lib import bankClipboard as bank_clipboard  # noqa: E402
 from lib import bankReorder as bank_reorder  # noqa: E402
+from lib import deviceDictionary as device_dict  # noqa: E402
 from lib import midiLearn as midi_learn  # noqa: E402
 from lib import midiMonitor as midi_monitor  # noqa: E402
 from lib.firmwareUpdate import UpdateError, check_image  # noqa: E402
@@ -435,6 +436,43 @@ class LearnSession:
 
 
 # --- Slot editor ------------------------------------------------------------
+class DeviceContext:
+    """Which device is on each channel, for the names the editors show: what
+    the configuration's commands point to (deviceDictionary.guess), or what
+    was picked from the dictionary in this session."""
+    here = {}           # {channel: device}
+    chosen = {}         # {channel: device} picked
+    global_channel = None
+
+    @classmethod
+    def update(cls, sections: dict):
+        settings = sections.get("Global_Settings")
+        cls.global_channel = None
+        if settings is not None:
+            rows = settings[settings["Label"] == "Global_Channel"]
+            if len(rows):
+                cls.global_channel = to_int(rows["Value"].iloc[0], None)
+        cls.here = device_dict.guess(
+            device_dict.config_commands({k: v for k, v in sections.items() if v is not None}), cls.chosen)
+
+    @classmethod
+    def channel(cls, text) -> int:
+        """The channel a command goes out on: Global_Channel, when set, carries them all."""
+        return cls.global_channel or to_int(text, None) or 1
+
+    @classmethod
+    def pick(cls, channel: int, device: str):
+        cls.chosen[channel] = device
+        cls.here[channel] = device
+
+    @classmethod
+    def forget(cls):
+        cls.here, cls.chosen = {}, {}
+
+
+NAMED_TYPES = ("CC", "PC", "Note")
+
+
 class SlotEditor:
     """One row of the button editor: command type plus the fields it needs."""
 
@@ -464,6 +502,12 @@ class SlotEditor:
             command=lambda: LearnSession.toggle(self),
         )
         self.learn_button.pack(side="left", padx=(0, 4))
+        if any(t in types for t in NAMED_TYPES):
+            self.device_button = ctk.CTkButton(
+                self.frame, text="Device", width=58, fg_color=FIELD, hover_color=FIELD_HOVER,
+                command=lambda: self._device_menu(types),
+            )
+            self.device_button.pack(side="left", padx=(0, 4))
 
         # A frame with no children keeps its configured size instead of
         # shrinking, so give it a small one for slots without parameters.
@@ -504,6 +548,65 @@ class SlotEditor:
         # The fields show the type and channel; say what arrived and where from
         self.learned_text(f"{midi_learn.describe(msg, channel=False)} from {port}")
 
+    # Device dictionary -----------------------------------------------------
+    def _device_menu(self, types):
+        """Every device's commands, the device on this channel first."""
+        menu = tk.Menu(self.frame, tearoff=0)
+        here = DeviceContext.here.get(DeviceContext.channel(self.values().get("Channel_(PC/CC/Note/PB)")))
+        for d in sorted(device_dict.DEVICES, key=lambda d: d["name"] != here):
+            entries = [e for e in d["commands"] if e["type"] in types]
+            if not entries:
+                continue
+            sub = tk.Menu(menu, tearoff=0)
+            for e in entries:
+                sub.add_command(label=e["name"], command=lambda d=d, e=e: self.pick(d, e))
+            menu.add_cascade(label=f"{d['maker']} {d['name']}", menu=sub)
+        b = self.device_button
+        menu.tk_popup(b.winfo_rootx(), b.winfo_rooty() + b.winfo_height())
+
+    def pick(self, device: dict, entry: dict):
+        """Fill the command from the dictionary: the type, number and values;
+        the channel stays, or on a new command is the one the device is on."""
+        values = self.values()
+        old_type = values["CommandType"]
+        values.update(device_dict.fields(entry))
+        if old_type not in NAMED_TYPES:
+            known = [ch for ch, name in DeviceContext.here.items() if name == device["name"]]
+            values["Channel_(PC/CC/Note/PB)"] = (str(known[0]) if known
+                                                 else values.get("Channel_(PC/CC/Note/PB)") or "1")
+        if entry["type"] == "PC" and old_type != "PC":
+            values["Number_(PC/CC/Note)"] = "0"
+        DeviceContext.pick(DeviceContext.channel(values["Channel_(PC/CC/Note/PB)"]), device["name"])
+        self.initial = values
+        self.type_menu.set(entry["type"])
+        self._rebuild(entry["type"])
+
+    def device_text(self) -> str:
+        """"HX Stomp: FS4" for the command as the fields have it, or ""."""
+        v = self.values()
+        if v["CommandType"] not in NAMED_TYPES:
+            return ""
+        return device_dict.describe(
+            DeviceContext.here, DeviceContext.channel(v["Channel_(PC/CC/Note/PB)"]), v["CommandType"],
+            v["Number_(PC/CC/Note)"], v["OnValue_(CC/PB)"], v["Toggle_(CC/PB/Note)"])
+
+    def _show_name(self, *_):
+        if getattr(self, "name_label", None) is not None and self.name_label.winfo_exists():
+            self.name_label.configure(text=self.device_text())
+
+    def _name_label(self):
+        """The device's name for the command, kept up to date as it is edited."""
+        self.name_label = ctk.CTkLabel(self.params, text="", text_color=SUCCESS)
+        self.name_label.pack(side="left", padx=8)
+        for key in ("number", "on"):
+            if key in self.widgets:
+                self.widgets[key].bind("<KeyRelease>", self._show_name, add="+")
+        if "channel" in self.widgets:
+            self.widgets["channel"].configure(command=self._show_name)
+        if "toggle" in self.widgets:
+            self.widgets["toggle"].configure(command=self._show_name)
+        self._show_name()
+
     # Small builders --------------------------------------------------------
     def _label(self, text):
         ctk.CTkLabel(self.params, text=text).pack(side="left", padx=(8, 2))
@@ -534,6 +637,12 @@ class SlotEditor:
         for w in self.params.winfo_children():
             w.destroy()
         self.widgets = {}
+        self.name_label = None
+        self._build(cmd_type)
+        if cmd_type in NAMED_TYPES:
+            self._name_label()
+
+    def _build(self, cmd_type: str):
 
         if cmd_type == "PC":
             self._channel()
@@ -1310,6 +1419,7 @@ class MidiCommanderGUI(ctk.CTk):
     def _load(self, data):
         self.editing_row = None
         self.slot_editors = []
+        DeviceContext.forget()
         self._show_file()
 
         if "Global_Settings" in data:
@@ -1944,8 +2054,15 @@ class MidiCommanderGUI(ctk.CTk):
         self.press_mode = mode
         self.load_button_commands(*self.editing_button)
 
+    def _command_sections(self) -> dict:
+        """The frames holding command lists, for the device names."""
+        return {"Global_Settings": self.df_global, "Button_Settings": self.df_buttons,
+                "LongPress_Settings": self.df_long, "DoublePress_Settings": self.df_double,
+                "BankEnter_Settings": self.df_enter, "BankSwitch_Settings": self.df_bank_switch}
+
     def load_button_commands(self, row_index, btn_id):
         self.apply_button_changes(silent=True)
+        DeviceContext.update(self._command_sections())
 
         for w in self.cmd_editor.winfo_children():
             w.destroy()
@@ -2740,6 +2857,7 @@ class MidiCommanderGUI(ctk.CTk):
 
     def _on_enter_bank_change(self, bank):
         self.apply_bank_enter_changes()
+        DeviceContext.update(self._command_sections())
         for w in self.enter_frame.winfo_children():
             w.destroy()
         self.enter_editors = []
@@ -2794,6 +2912,7 @@ class MidiCommanderGUI(ctk.CTk):
 
     def _on_bank_switch_change(self, choice):
         self.apply_bank_switch_changes()
+        DeviceContext.update(self._command_sections())
         for w in self.bank_switch_frame.winfo_children():
             w.destroy()
         self.bank_switch_editors = []

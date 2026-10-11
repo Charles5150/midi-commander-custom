@@ -37,7 +37,7 @@ The name of the configuration is at the top, with **changed** after it until it 
 
 The tabs follow the desktop configurator's:
 
-- **Banks**: the 32 banks on the left; a bank's name and info line; its eight buttons laid out as on the pedal, 1 to 4 on top and A to D below, each with its label and first command. Click a button to edit it: **Press**, **Long press** and **Double press** each hold ten commands, A to J, and **Press** also the label, the LED mode, the exclusive group and the button's flags. Each command shows the fields its type needs, as in the configurator, with a line saying what it does. Below the buttons, **On entering this bank** and **Expression pedals in this bank**.
+- **Banks**: the 32 banks on the left; a bank's name and info line; its eight buttons laid out as on the pedal, 1 to 4 on top and A to D below, each with its label and first command. Click a button to edit it: **Press**, **Long press** and **Double press** each hold ten commands, A to J, and **Press** also the label, the LED mode, the exclusive group and the button's flags. Each command shows the fields its type needs, as in the configurator, with a line saying what it does. **Device…** beside the type fills a command from a device's MIDI map, and a CC or Program Change shows the device's name for it, as [in the configurator](03-the-configurator.md#from-a-devices-midi-map). Below the buttons, **On entering this bank** and **Expression pedals in this bank**.
 - **Global**: every global setting, in the configurator's groups, with the same choices and ranges.
 - **Expression**, **Bank switches**, **SysEx**, **Setlist**, **Combos**, **MIDI map** and **Preset names**, as in the configurator.
 

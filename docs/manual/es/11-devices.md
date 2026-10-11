@@ -14,6 +14,8 @@ Hay configuraciones listas en `python/templates/` que ponen los controles princi
 
 Cada una la genera un script a partir del mapa MIDI del propio equipo, así que otro canal u otro CC es cambiar una constante y volver a ejecutar el script, como explica cada apartado. O cambia los botones en el configurador como en cualquier otra configuración.
 
+Los mismos mapas MIDI están en `python/lib/devices.json`, que leen los dos configuradores: **Device** en un comando elige uno de ellos por su nombre, y un CC ya escrito muestra su nombre, como explica [El configurador](03-the-configurator.md#desde-el-mapa-midi-de-un-equipo). Un equipo que aún no está son unas pocas líneas ahí.
+
 ## Plantilla para Fractal Audio FM3
 
 **`python/templates/FM3.csv`** está lista para grabar y manejar una Fractal Audio FM3 por la salida DIN, y debería valer también para una Axe-Fx III o una FM9, que se configuran igual. Conecta el MIDI OUT de la pedalera al MIDI IN de la FM3 y alimenta la pedalera por USB.

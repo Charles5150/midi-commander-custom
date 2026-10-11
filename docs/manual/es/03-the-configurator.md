@@ -56,6 +56,12 @@ En vez de buscar qué CC envía un mando, deja que el configurador lo oiga. Puls
 
 El configurador escucha todas las entradas MIDI del ordenador: un aparato conectado por USB, el puerto virtual de un DAW o la propia pedalera, cuyas pulsaciones también se pueden aprender. El reloj, el SysEx y parecidos se ignoran. Una casilla que ya es `CCInc` o `PCInc` conserva su tipo y toma el canal y el número de CC, y un [`Listen`](06-commands.md#escuchar-otro-cc) toma el CC y el valor que informa el equipo. Pulsa **Stop**, o espera 15 segundos, para dejarlo; aprender otra casilla para la primera. También funciona en las pestañas Bank Enter y Bank Switch.
 
+### Desde el mapa MIDI de un equipo
+
+O elige el comando por su nombre. **Device**, junto a **Learn**, abre un menú con los equipos para los que hay [plantilla](11-devices.md), cada uno con su mapa MIDI: **Line 6 HX Stomp > FS4**, **Eventide H90 > Perform 3**, **Strymon TimeLine > Looper record**. Lo elegido rellena el tipo, el número, los valores y el toggle como los quiere ese equipo; el canal se queda como estaba o, en una casilla vacía, pasa a ser el canal en que ya está ese equipo en esta configuración. Para el FM3, el H90 y la RC-600, que vienen sin ningún CC asignado, los números son los que usan sus plantillas y hay que asignarlos igual en el equipo.
+
+Un CC o un Program Change ya escrito muestra además, en verde, el nombre que le da el equipo: **HX Stomp: Snapshot 2**. El equipo de un canal es el que se eligió en él o, si no, aquel cuyo mapa tiene la mayoría de los CC que la configuración envía por ese canal, al menos tres y cuatro de cada cinco; una configuración hecha a partir de una plantilla sale con nombres desde el principio. Los nombres siguen al número y al valor según se escriben.
+
 <img src="../../images/gui_button_config.png" width="500">
 
 ## Banks

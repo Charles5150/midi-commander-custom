@@ -43,7 +43,7 @@ jobs:
         run: |
           mkdir -p site/lib site/templates
           cp web/*.html web/*.js web/*.css site/
-          cp python/lib/*.py site/lib/
+          cp python/lib/*.py python/lib/devices.json site/lib/
           cp python/demo-all-features.csv site/
           cp python/templates/*.csv site/templates/
 

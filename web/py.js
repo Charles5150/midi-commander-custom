@@ -6,7 +6,7 @@ const PYODIDE = "https://cdn.jsdelivr.net/pyodide/v314.0.7/full/";
 // Everything webBridge.py imports; tests/test_web_bridge.py keeps this complete
 const FILES = [
   "webBridge.py", "binaryUnpacker.py", "cmdBinaryPacker.py", "configCsv.py", "configPacker.py",
-  "configSchema.py", "displayText.py", "flashLayout.py", "settingsBinaryPacker.py",
+  "configSchema.py", "deviceDictionary.py", "devices.json", "displayText.py", "flashLayout.py", "settingsBinaryPacker.py",
 ];
 
 // Published, the tools' files sit next to the page; in the repository, in python/
@@ -90,6 +90,21 @@ export class Tools {
 
   imageToSections(data, image) {
     return JSON.parse(this._call(this.bridge.image_to_sections, data, image));
+  }
+
+  // The device dictionary (devices.json): [{name, maker, setup, commands: [{name, fields}]}]
+  devices() {
+    if (!this._devices) this._devices = JSON.parse(this.bridge.devices_json());
+    return this._devices;
+  }
+
+  // {channel: device} the configuration's commands point to, or the user chose
+  deviceGuess(sections, chosen) {
+    return JSON.parse(this._call(this.bridge.device_guess, JSON.stringify(sections), JSON.stringify(chosen)));
+  }
+
+  deviceName(device, type, number, on, toggle) {
+    return this.bridge.device_name(device, type, String(number), String(on), String(toggle));
   }
 
   shown(text, width) {

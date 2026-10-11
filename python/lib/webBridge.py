@@ -17,6 +17,7 @@ import lib.binaryUnpacker as unpacker
 from lib.configCsv import read_config_csv, write_config_csv
 from lib.configPacker import pack_config, pack_flash_image
 from lib.configSchema import schema
+import lib.deviceDictionary as devices
 from lib.displayText import display_text
 # The sizes the page needs to read a slot come from here too
 from lib.flashLayout import (  # noqa: F401
@@ -76,6 +77,26 @@ def shown(text: str, width: int) -> str:
 
 def schema_json() -> str:
     return json.dumps(schema())
+
+
+def devices_json() -> str:
+    """The device dictionary, each command with the CSV fields it fills."""
+    return json.dumps([
+        {"name": d["name"], "maker": d["maker"], "setup": d["setup"],
+         "commands": [{"name": e["name"], "fields": devices.fields(e)} for e in d["commands"]]}
+        for d in devices.DEVICES
+    ])
+
+
+def device_guess(text: str, chosen: str = "{}") -> str:
+    """{channel: device} for sections JSON; `chosen`, {channel: device} picked."""
+    found = devices.guess(devices.config_commands(_from_json(text)), json.loads(chosen))
+    return json.dumps({str(ch): name for ch, name in found.items()})
+
+
+def device_name(device: str, cmd_type: str, number: str, on: str, toggle: str) -> str:
+    """The dictionary's name for a command on `device`, or ""."""
+    return devices.entry_name(device, cmd_type, number, on, toggle) or ""
 
 
 def csv_to_sections(data: bytes) -> str:

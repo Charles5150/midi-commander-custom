@@ -14,6 +14,8 @@ Ready-made configurations under `python/templates/` put a device's main controls
 
 Each is built by a script from the device's own MIDI map, so a different channel or CC is a constant to change and the script to run again, as each section says. Or change the buttons in the configurator like any other configuration.
 
+The same MIDI maps are in `python/lib/devices.json`, which both configurators read: **Device** on a command picks one of them by name, and a CC already written shows its name, as [The configurator](03-the-configurator.md#from-a-devices-midi-map) explains. A device not listed yet is a few lines there.
+
 ## Fractal Audio FM3 template
 
 **`python/templates/FM3.csv`** is ready to flash for a Fractal Audio FM3 driven over the DIN output, and should suit an Axe-Fx III or FM9 too, which are set up the same way. Connect the pedal's MIDI OUT to the FM3's MIDI IN and power the pedal over USB.

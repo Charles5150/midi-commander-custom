@@ -47,6 +47,22 @@ class GuiTest(unittest.TestCase):
                 self.app.update()
                 self.assertEqual(self.app.tabview.get(), name)
 
+    def test_a_command_from_the_device_dictionary(self):
+        import lib.deviceDictionary as dd
+        self.app.load_csv(os.path.join(ROOT, "templates", "HX_Stomp.csv"))
+        self.app.load_button_commands(0, "1")
+        self.app.update()
+        editor = self.app.slot_editors[-1]
+        self.assertEqual(editor.values()["CommandType"], "")
+        hx = dd.BY_NAME["HX Stomp"]
+        editor.pick(hx, next(e for e in hx["commands"] if e["name"] == "FS4"))
+        self.app.update()
+        v = editor.values()
+        self.assertEqual((v["CommandType"], v["Channel_(PC/CC/Note/PB)"], v["Number_(PC/CC/Note)"],
+                          v["OnValue_(CC/PB)"], v["OffValue_(CC)"], v["Toggle_(CC/PB/Note)"]),
+                         ("CC", "1", "52", "127", "0", "Y"))
+        self.assertEqual(editor.name_label.cget("text"), "HX Stomp: FS4")
+
     def test_saved_as_loaded(self):
         for path in CSVS:
             with self.subTest(os.path.basename(path)):

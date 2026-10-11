@@ -54,6 +54,12 @@ Rather than look up which CC a knob sends, let the configurator hear it. Press *
 
 The configurator listens on every MIDI input the computer has: a device plugged in over USB, a DAW's virtual port, or the pedal itself, whose own presses can be learned too. Clock, SysEx and the like are passed over. A slot that is already a `CCInc` or a `PCInc` keeps its type and takes the channel and the CC number, and a [`Listen`](06-commands.md#listening-on-another-cc) takes the CC and the value the device reports. Press **Stop**, or wait 15 seconds, to give up; learning another slot stops the first. It also works in the Bank Enter and Bank Switch tabs.
 
+### From a device's MIDI map
+
+Or pick the command by name. **Device** beside **Learn** opens a menu of the devices the [templates](11-devices.md) are for, each with its MIDI map: **Line 6 HX Stomp > FS4**, **Eventide H90 > Perform 3**, **Strymon TimeLine > Looper record**. The pick fills the type, the number, the values and the toggle as that device wants them; the channel stays as it was, or on an empty slot becomes the channel the device is already on in this configuration. For the FM3, the H90 and the RC-600, which come with no CC assigned, the numbers are the ones their templates use and have to be assigned on the device the same way.
+
+A CC or a Program Change already written also shows the device's name for it, in green: **HX Stomp: Snapshot 2**. The device on a channel is the one picked there, or else the one whose map holds most of the CCs the configuration sends on that channel, at least three of them and four in five; a configuration made from a template is named from the start. The names follow the number and value as they are typed.
+
 <img src="../../images/gui_button_config.png" width="500">
 
 ## Banks

@@ -45,6 +45,7 @@ const state = {
   dfuPayload: null,
   dfuName: "",
   busy: false,
+  deviceChosen: {},    // {channel: device} picked from the dictionary in this session
 };
 
 // --- Messages -----------------------------------------------------------------
@@ -178,6 +179,7 @@ function setConfig(sections, fileName) {
   state.bank = 0;
   state.button = "1";
   state.press = "Short";
+  state.deviceChosen = {};
   if (state.tab === "welcome") state.tab = "banks";
   render();
   checkConfig();
@@ -302,6 +304,62 @@ function commandList(sec, row, types) {
   return wrap;
 }
 
+// --- Device dictionary -----------------------------------------------------------
+// Which device is on each channel: what the commands point to, or what was
+// picked; worked out again after a change
+let deviceCache = { edits: -1, config: null, map: {} };
+function deviceMap() {
+  if (deviceCache.edits !== state.edits || deviceCache.config !== state.config) {
+    let map = {};
+    try {
+      map = state.tools.deviceGuess(state.config, state.deviceChosen);
+    } catch (e) { /* a configuration that does not read yet names nothing */ }
+    deviceCache = { edits: state.edits, config: state.config, map };
+  }
+  return deviceCache.map;
+}
+
+// The channel a command goes out on: the Global channel, when set, carries them all
+function sentChannel(text) {
+  return int(globalValue("Global_Channel")) || int(text) || 1;
+}
+
+const NAMED_TYPES = ["CC", "PC", "Note"];
+
+// "HX Stomp: FS4" for a command, or ""
+function deviceText(type, get) {
+  if (!NAMED_TYPES.includes(type)) return "";
+  const device = deviceMap()[sentChannel(get("Channel_(PC/CC/Note/PB)"))];
+  const name = device ? state.tools.deviceName(device, type, get("Number_(PC/CC/Note)"), get("OnValue_(CC/PB)"), get("Toggle_(CC/PB/Note)")) : "";
+  return name ? `${device}: ${name}` : "";
+}
+
+// A menu of every device's commands; filled when opened, the device on this
+// channel first
+function devicePicker(types, channel, pick) {
+  const sel = h("select", { class: "device", title: "Fill this command from a device's MIDI map" }, h("option", { value: "" }, "Device…"));
+  const fill = () => {
+    if (sel.options.length > 1) return;
+    const devices = state.tools.devices();
+    const here = deviceMap()[channel()];
+    const order = devices.map((d, i) => i).sort((a, b) => (devices[b].name === here) - (devices[a].name === here));
+    for (const di of order) {
+      const d = devices[di];
+      const opts = d.commands.map((e, ci) => [e, ci]).filter(([e]) => types.includes(e.fields.CommandType));
+      if (opts.length) sel.append(h("optgroup", { label: `${d.maker} ${d.name}` }, opts.map(([e, ci]) => h("option", { value: `${di}:${ci}` }, e.name))));
+    }
+  };
+  sel.addEventListener("focus", fill);
+  sel.addEventListener("mousedown", fill);
+  sel.addEventListener("change", () => {
+    if (!sel.value) return;
+    const [di, ci] = sel.value.split(":").map(Number);
+    const d = state.tools.devices()[di];
+    pick(d, d.commands[ci]);
+  });
+  return sel;
+}
+
 function commandRow(sec, row, slot, types, redraw) {
   const { cmdFields, commandSpecs, noCommand } = state.schema;
   const get = (f) => cell(sec, row, `${slot}_${f}`);
@@ -357,12 +415,31 @@ function commandRow(sec, row, slot, types, redraw) {
     redraw();
   });
 
+  // From the dictionary: the type, number and values; the channel stays, or
+  // on a new command is the one the device is already on
+  const picker = types.some((t) => NAMED_TYPES.includes(t)) ? devicePicker(types, () => sentChannel(get("Channel_(PC/CC/Note/PB)")), (d, e) => {
+    const values = { ...e.fields };
+    if (!NAMED_TYPES.includes(type)) {
+      const known = Object.entries(deviceMap()).find(([, name]) => name === d.name);
+      values["Channel_(PC/CC/Note/PB)"] = known ? known[0] : get("Channel_(PC/CC/Note/PB)") || "1";
+    }
+    if (values.CommandType === "PC" && type !== "PC") values["Number_(PC/CC/Note)"] = "0";
+    const ch = sentChannel(values["Channel_(PC/CC/Note/PB)"] ?? get("Channel_(PC/CC/Note/PB)"));
+    state.deviceChosen[ch] = d.name;
+    deviceCache.edits = -1;
+    store(values.CommandType, values);
+    redraw();
+  }) : null;
+
+  const nameHint = h("span", { class: "hint device-name" });
+  const showName = () => { nameHint.textContent = deviceText(type, get); };
   const params = h("div", { class: "params" });
   for (const f of spec.fields) {
     if (!visible(f)) continue;
     const ctl = fieldControl(f, () => get(f.col), (v) => {
       store(type, { [f.col]: v });
       if (spec.fields.some((x) => x.when && f.col in x.when) || spec.hint_by === f.col) redraw();
+      else showName();
     });
     params.append(f.kind === "check" ? h("label", { class: "check" }, ctl, f.label) : labelled(f.label, ctl));
   }
@@ -374,7 +451,9 @@ function commandRow(sec, row, slot, types, redraw) {
     hint = (spec.hints || {})[v] ?? hint;
   }
   if (hint) params.append(h("span", { class: "hint" }, hint));
-  return h("div", { class: `command${type === noCommand ? " empty" : ""}` }, h("span", { class: "slot" }, slot), typeSel, params);
+  showName();
+  params.append(nameHint);
+  return h("div", { class: `command${type === noCommand ? " empty" : ""}` }, h("span", { class: "slot" }, slot), typeSel, picker, params);
 }
 
 function summary(sec, row) {
