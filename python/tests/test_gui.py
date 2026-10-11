@@ -47,6 +47,21 @@ class GuiTest(unittest.TestCase):
                 self.app.update()
                 self.assertEqual(self.app.tabview.get(), name)
 
+    def test_what_a_write_changes(self):
+        import subprocess
+        import types
+        out = lambda code, text: lambda script, *a: subprocess.CompletedProcess([], code, text, "")
+        fake = types.SimpleNamespace(CHANGES_SHOWN=2, _slot_args=lambda: [])
+        changes = self.app._changes_on_pedal.__func__
+        fake._run_tool = out(1, 'Slot 1 holds "X". Writing /tmp/a.csv to it changes:\nA\nB\nC\n3 changes\n')
+        self.assertEqual(changes(fake, "/tmp/a.csv"),
+                         'Slot 1 holds "X". Writing these settings to it changes:\n• A\n• B\n• … and 1 more\n3 changes')
+        fake._run_tool = out(0, 'Slot 1 holds "X", already exactly this configuration: writing changes nothing.\n')
+        self.assertTrue(changes(fake, "/tmp/a.csv").endswith("writing changes nothing."))
+        fake._run_tool = out(3, "No matching MIDI device found: none\n")
+        self.assertEqual(changes(fake, "/tmp/a.csv"),
+                         "Could not read the pedal to say what changes. No matching MIDI device found: none")
+
     def test_a_command_from_the_device_dictionary(self):
         import lib.deviceDictionary as dd
         self.app.load_csv(os.path.join(ROOT, "templates", "HX_Stomp.csv"))

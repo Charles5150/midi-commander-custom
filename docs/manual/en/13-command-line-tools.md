@@ -8,7 +8,7 @@ The tools find the pedal by its USB MIDI name, `MIDI Commander Custom`, and chec
 
 ## Choosing a configuration slot
 
-`CSV_to_Flash.py` and `Flash_to_CSV.py` act on one of the pedal's four [configuration slots](04-banks.md#four-configurations):
+`CSV_to_Flash.py`, `Flash_to_CSV.py` and `Diff_Config.py` act on one of the pedal's four [configuration slots](04-banks.md#four-configurations):
 
 - `--slot 1` to `--slot 4` chooses the slot;
 - left out, they use the slot the pedal is running.
@@ -32,6 +32,26 @@ It checks the CSV, says how big the configuration is and asks `Continue? (y/N)` 
 ```
 
 It writes what the pedal holds into a CSV you can open in the configurator, including any change made with the [on-pedal editor](10-editing-on-the-pedal.md).
+
+## Diff_Config: what changes
+
+```bash
+.venv/bin/python python/Diff_Config.py my-config.csv
+.venv/bin/python python/Diff_Config.py --slot 2 my-config.csv
+.venv/bin/python python/Diff_Config.py old.csv new.csv
+```
+
+Given one CSV, it reads the slot from the pedal and says what writing the CSV there would change; given two, what changes from the first to the second. Nothing is written. One line per change, in plain words, then how many:
+
+```text
+Slot 1 holds "DEMO ALL". Writing my-config.csv to it changes:
+Global: Don't resend the same PC: on -> off
+Bank 1 LOOP, button 4, long press: A CC: CC#: 5 -> 21, Toggle: off -> on
+Bank 5 MEDI, button 2: B: CC Ch 2, CC# 7, On 127 added
+3 changes
+```
+
+It catches the wrong slot or an old file before a gig, and shows what a configuration someone sent you does differently from yours. Both sides are packed as the pedal holds them first, so only what reaches the pedal counts: not the order of the CSV's columns, its comments, or a field the command does not use. A command that moves to another letter shows as changed in both. Reading the slot takes about 7 seconds. It ends with 0 when nothing changes, 1 when something does, 2 when a CSV has a mistake and 3 when the pedal could not be read, as `diff` does. Both configurators show the same list before they write: see [Flash to Device](03-the-configurator.md#sidebar) and [Write to pedal](14-in-the-browser.md#saving-and-writing).
 
 ## Backups
 

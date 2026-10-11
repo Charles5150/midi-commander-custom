@@ -1067,21 +1067,38 @@ async function writeToPedal() {
   const pedal = state.pedal;
   const pick = slotChooser("Write to", true);
   const note = h("p", { class: "hint" }, "");
-  // One look at a time, and over before the write: each selects a slot
+  const changes = h("ul", { class: "changes" });
+  // One look at a time, and over before the write: each selects a slot. A
+  // look is the whole slot read and compared, so a newer one stops it
   let looking = Promise.resolve();
-  const look = async () => {
+  let lookId = 0;
+  const look = async (id) => {
     const s = Number(pick.sel.value);
-    note.textContent = state.slots && !state.slots.valid.includes(s) ? "The slot is empty." : "Looking at what the slot holds…";
-    if (state.slots && state.slots.valid.includes(s)) {
-      try { note.textContent = `It holds “${await slotName(pedal, s)}”, which this replaces.`; } catch (e) { note.textContent = ""; }
+    changes.replaceChildren();
+    if (state.slots && !state.slots.valid.includes(s)) { note.textContent = "The slot is empty: all of it goes in."; return; }
+    const reading = (d, t) => {
+      if (id !== lookId) throw new Error("stale");
+      note.textContent = `Reading slot ${s + 1} to say what changes… ${Math.round((100 * d) / t)}%`;
+    };
+    try {
+      reading(0, 1);
+      await pedal.useSlot(s);
+      const { data, image } = await pedal.readImage(state.version, state.tools.sizes, reading);
+      const lines = state.tools.changes(data, image, state.config);
+      const name = String.fromCharCode(...data.slice(16, 32).map((b) => (b >= 32 && b < 127 ? b : 32))).trim();
+      note.textContent = lines.length ? `It holds “${name}”. Writing changes ${lines.length === 1 ? "this" : `these ${lines.length} things`}:` : `It holds “${name}”, already exactly this configuration.`;
+      changes.replaceChildren(...lines.map((l) => h("li", {}, l)));
+    } catch (e) {
+      if (id === lookId) note.textContent = `Could not read the slot to say what changes: ${e.message}`;
     }
   };
-  const showNow = () => { looking = looking.then(look); };
+  const showNow = () => { const id = ++lookId; looking = looking.then(() => look(id)); };
   pick.sel.addEventListener("change", showNow);
   showNow();
   const ok = await confirmDialog(`Write “${configName()}” to the pedal`,
-    [pick.el, note, h("p", {}, `${packed.image.length} bytes. The pedal restarts when it is written.`)], "Write");
-  if (!ok) return;
+    [pick.el, note, changes, h("p", {}, `${packed.image.length} bytes. The pedal restarts when it is written.`)], "Write");
+  if (!ok) { lookId++; return; }
+  lookId++;     // a look still reading stops: the write goes on at once
   const slot = Number(pick.sel.value);
   let erased = false;     // from the erase on, the slot is no longer what it was
   try {

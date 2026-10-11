@@ -81,27 +81,26 @@ def read_image(dev, version, progress=None):
 
 def save_csv(path, data, image, note="Read from device"):
     """Write a slot read with read_image as a configuration CSV. Returns its name."""
-    (df_global, df_banks, df_buttons, _, df_exp,
-     df_enter, df_sysex, _, df_setlist) = unpacker.unpack_config(image)   # Takeover is in the image
-    df_bank_switch = unpacker.unpack_bank_switch_settings(image)   # its labels are in the image
+    s = unpacker.unpack_sections(data, image)
     write_config_csv(
         path,
-        df_global,
-        df_banks,
-        df_buttons,
+        s["Global_Settings"],
+        s["Bank_Naming"],
+        s["Button_Settings"],
         note=note,
-        df_long_press=unpacker.unpack_long_press_settings(image),
-        df_double_press=unpacker.unpack_double_press_settings(image),
-        df_expression=df_exp,
-        df_bank_enter=df_enter,
-        df_sysex=df_sysex,
-        df_bank_switch=df_bank_switch,
-        df_setlist=df_setlist,
-        df_bank_expression=unpacker.unpack_bank_expression_settings(data),
-        df_combos=unpacker.unpack_combos(data),
-        df_midi_map=unpacker.unpack_midi_map(image),
-        df_preset_names=unpacker.unpack_preset_names(image),
+        df_long_press=s["LongPress_Settings"],
+        df_double_press=s["DoublePress_Settings"],
+        df_expression=s["Expression_Settings"],
+        df_bank_enter=s["BankEnter_Settings"],
+        df_sysex=s["SysEx_Strings"],
+        df_bank_switch=s["BankSwitch_Settings"],
+        df_setlist=s["Setlist"],
+        df_bank_expression=s["BankExpression_Settings"],
+        df_combos=s["Combo_Settings"],
+        df_midi_map=s["MidiMap_Settings"],
+        df_preset_names=s["Preset_Names"],
     )
+    df_global = s["Global_Settings"]
     return df_global.loc[df_global["Label"] == "ConfigName", "Value"].iloc[0]
 
 

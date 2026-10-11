@@ -15,6 +15,7 @@ import pandas as pd
 
 import lib.binaryUnpacker as unpacker
 from lib.configCsv import read_config_csv, write_config_csv
+from lib.configDiff import config_sections, diff, image_sections
 from lib.configPacker import pack_config, pack_flash_image, sysex_problem
 from lib.configSchema import schema
 import lib.deviceDictionary as devices
@@ -165,26 +166,15 @@ def image_to_sections(data: bytes, image: bytes) -> str:
     """Sections JSON for a slot read from the pedal: its configuration, and the
     same followed by the extension areas it has (see slotIO.read_image)."""
     data, image = _bytes(data), _bytes(image)
-    (df_global, df_banks, df_buttons, _, df_exp,
-     df_enter, df_sysex, _, df_setlist) = unpacker.unpack_config(image)   # Takeover is in the image
-    df_bank_switch = unpacker.unpack_bank_switch_settings(image)   # its labels are in the image
-    sections = {
-        "Global_Settings": df_global,
-        "Bank_Naming": df_banks,
-        "Button_Settings": df_buttons,
-        "LongPress_Settings": unpacker.unpack_long_press_settings(image),
-        "DoublePress_Settings": unpacker.unpack_double_press_settings(image),
-        "Expression_Settings": df_exp,
-        "BankEnter_Settings": df_enter,
-        "SysEx_Strings": df_sysex,
-        "BankSwitch_Settings": df_bank_switch,
-        "Setlist": df_setlist,
-        "BankExpression_Settings": unpacker.unpack_bank_expression_settings(data),
-        "Combo_Settings": unpacker.unpack_combos(data),
-        "MidiMap_Settings": unpacker.unpack_midi_map(image),
-        "Preset_Names": unpacker.unpack_preset_names(image),
-    }
+    sections = unpacker.unpack_sections(data, image)
     # Through a CSV and back, so the cells are the text a CSV file holds
     csv = sections_to_csv(_to_json({k: v for k, v in sections.items() if v is not None}))
     return csv_to_sections(csv.encode("utf-8"))
 
+
+
+def changes(data: bytes, image: bytes, text: str) -> str:
+    """What writing sections JSON over a slot read from the pedal changes, as
+    a JSON list of lines; [] when the slot already holds it."""
+    pack(text)   # says what is wrong, where, as a write would
+    return json.dumps(diff(image_sections(_bytes(data), _bytes(image)), config_sections(_from_json(text))))

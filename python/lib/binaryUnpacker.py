@@ -839,3 +839,26 @@ def unpack_config(data: bytes):
         unpack_bank_switch_settings(data),
         unpack_setlist(data),
     )
+
+
+def unpack_sections(data: bytes, image: bytes) -> dict:
+    """Every section of a slot read with slotIO.read_image, by its CSV name: the
+    configuration proper, and the same followed by the extension areas it has."""
+    (df_global, df_banks, df_buttons, _, df_exp,
+     df_enter, df_sysex, _, df_setlist) = unpack_config(image)   # Takeover is in the image
+    return {
+        "Global_Settings": df_global,
+        "Bank_Naming": df_banks,
+        "Button_Settings": df_buttons,
+        "LongPress_Settings": unpack_long_press_settings(image),
+        "DoublePress_Settings": unpack_double_press_settings(image),
+        "Expression_Settings": df_exp,
+        "BankEnter_Settings": df_enter,
+        "SysEx_Strings": df_sysex,
+        "BankSwitch_Settings": unpack_bank_switch_settings(image),   # its labels are in the image
+        "Setlist": df_setlist,
+        "BankExpression_Settings": unpack_bank_expression_settings(data),
+        "Combo_Settings": unpack_combos(data),
+        "MidiMap_Settings": unpack_midi_map(image),
+        "Preset_Names": unpack_preset_names(image),
+    }

@@ -8,7 +8,7 @@ Las herramientas encuentran la pedalera por su nombre MIDI USB, `MIDI Commander 
 
 ## Elegir una ranura de configuración
 
-`CSV_to_Flash.py` y `Flash_to_CSV.py` trabajan sobre una de las cuatro [ranuras de configuración](04-banks.md#cuatro-configuraciones) de la pedalera:
+`CSV_to_Flash.py`, `Flash_to_CSV.py` y `Diff_Config.py` trabajan sobre una de las cuatro [ranuras de configuración](04-banks.md#cuatro-configuraciones) de la pedalera:
 
 - `--slot 1` a `--slot 4` elige la ranura;
 - si no lo pones, usan la ranura que está usando la pedalera.
@@ -32,6 +32,26 @@ Comprueba el CSV, dice cuánto ocupa la configuración y pregunta `Continue? (y/
 ```
 
 Escribe lo que tiene la pedalera en un CSV que puedes abrir en el configurador, incluido cualquier cambio hecho con el [editor de la pedalera](10-editing-on-the-pedal.md).
+
+## Diff_Config: qué cambia
+
+```bash
+.venv/bin/python python/Diff_Config.py my-config.csv
+.venv/bin/python python/Diff_Config.py --slot 2 my-config.csv
+.venv/bin/python python/Diff_Config.py old.csv new.csv
+```
+
+Con un CSV, lee la ranura de la pedalera y dice qué cambiaría escribir ahí el CSV; con dos, qué cambia del primero al segundo. No escribe nada. Una línea por cambio, en palabras normales, y al final cuántos:
+
+```text
+Slot 1 holds "DEMO ALL". Writing my-config.csv to it changes:
+Global: Don't resend the same PC: on -> off
+Bank 1 LOOP, button 4, long press: A CC: CC#: 5 -> 21, Toggle: off -> on
+Bank 5 MEDI, button 2: B: CC Ch 2, CC# 7, On 127 added
+3 changes
+```
+
+Así pillas la ranura equivocada o un archivo viejo antes de un concierto, y ves qué hace distinto de la tuya una configuración que te han pasado. Los dos lados se empaquetan primero tal como los guarda la pedalera, así que solo cuenta lo que llega a ella: no el orden de las columnas del CSV, sus comentarios ni un campo que el comando no usa. Un comando que pasa a otra letra aparece como cambiado en las dos. Leer la ranura tarda unos 7 segundos. Termina con 0 si no cambia nada, 1 si cambia algo, 2 si un CSV tiene un error y 3 si no se pudo leer la pedalera, como `diff`. Los dos configuradores enseñan la misma lista antes de escribir: mira [Flash to Device](03-the-configurator.md#barra-lateral) y [Write to pedal](14-in-the-browser.md#guardar-y-escribir).
 
 ## Copias de seguridad
 

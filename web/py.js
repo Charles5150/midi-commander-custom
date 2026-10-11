@@ -5,7 +5,7 @@ const PYODIDE = "https://cdn.jsdelivr.net/pyodide/v314.0.7/full/";
 
 // Everything webBridge.py imports; tests/test_web_bridge.py keeps this complete
 const FILES = [
-  "webBridge.py", "binaryUnpacker.py", "cmdBinaryPacker.py", "configCsv.py", "configPacker.py",
+  "webBridge.py", "binaryUnpacker.py", "cmdBinaryPacker.py", "configCsv.py", "configDiff.py", "configPacker.py",
   "configSchema.py", "deviceDictionary.py", "devices.json", "displayText.py", "flashLayout.py", "settingsBinaryPacker.py",
 ];
 
@@ -90,6 +90,11 @@ export class Tools {
 
   imageToSections(data, image) {
     return JSON.parse(this._call(this.bridge.image_to_sections, data, image));
+  }
+
+  // What writing the configuration over a slot read from the pedal changes: lines of text
+  changes(data, image, sections) {
+    return JSON.parse(this._call(this.bridge.changes, data, image, JSON.stringify(sections)));
   }
 
   // The device dictionary (devices.json): [{name, maker, setup, commands: [{name, fields}]}]

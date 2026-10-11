@@ -3468,6 +3468,27 @@ class MidiCommanderGUI(ctk.CTk):
             return str(e)
         return None
 
+    # Lines of changes shown before a write; the rest are counted
+    CHANGES_SHOWN = 20
+
+    def _changes_on_pedal(self, path):
+        """What writing the CSV at ``path`` changes in the slot, read from the
+        pedal: Diff_Config.py's lines, or why the pedal could not be read."""
+        try:
+            p = self._run_tool("Diff_Config.py", path, *self._slot_args())
+        except Exception as e:  # noqa: BLE001
+            return f"Could not compare with the pedal: {e}"
+        lines = p.stdout.strip().splitlines()
+        if p.returncode not in (0, 1) or not lines:
+            return "Could not read the pedal to say what changes. " + " ".join(lines)
+        if len(lines) == 1:
+            return lines[0]
+        head, changes = lines[0].replace(path, "these settings"), lines[1:-1]
+        if len(changes) > self.CHANGES_SHOWN:
+            more = len(changes) - self.CHANGES_SHOWN
+            changes = changes[:self.CHANGES_SHOWN] + [f"… and {more} more"]
+        return "\n".join([head] + [f"• {c}" for c in changes] + [lines[-1]])
+
     def save_csv_as(self):
         path = self._ask_save_path()
         if path:
@@ -3648,42 +3669,44 @@ class MidiCommanderGUI(ctk.CTk):
         if self.df_global is None:
             messagebox.showwarning("Warning", "Please load a CSV file first.")
             return
+        self._collect()
+        fd, tmp = tempfile.mkstemp(suffix=".csv")
+        os.close(fd)
+        try:
+            self._write_csv(tmp)
+        except Exception as e:  # noqa: BLE001
+            os.remove(tmp)
+            messagebox.showerror("Error", f"Could not save CSV before flashing: {e}")
+            return
+
+        # Packed here first, so a mistake in the configuration is shown as
+        # such and not as a problem with the MIDI port
+        problem = self._pack_problem(tmp)
+        if problem:
+            os.remove(tmp)
+            messagebox.showerror("Flash Device", f"Nothing was flashed: the configuration has a mistake.\n\n{problem}")
+            return
+
+        changes = self._changes_on_pedal(tmp)
         if self.current_csv_path:
             question = (f"Save the current settings to {os.path.basename(self.current_csv_path)} "
                         "and flash them?")
         else:
             question = ("Flash the current settings? They are not saved to a file: "
                         f"{self.loaded_name or 'this file'} comes with the tools and stays as it is.")
-        if not messagebox.askyesno(
-            "Flash Device",
-            question + " Ensure the Midi Commander is connected via USB.\n(This will take a few seconds)",
-        ):
+        if not messagebox.askyesno("Flash Device", f"{changes}\n\n{question}"):
+            os.remove(tmp)
             return
 
-        self._collect()
-        tmp = None
-        try:
-            if self.current_csv_path:
+        path = tmp
+        if self.current_csv_path:
+            try:
                 self._write_csv(self.current_csv_path)
-                self.saved_text = self._config_text()
-                path = self.current_csv_path
-            else:
-                fd, tmp = tempfile.mkstemp(suffix=".csv")
-                os.close(fd)
-                self._write_csv(tmp)
-                path = tmp
-        except Exception as e:  # noqa: BLE001
-            messagebox.showerror("Error", f"Could not save CSV before flashing: {e}")
-            return
-
-        # Packed here first, so a mistake in the configuration is shown as
-        # such and not as a problem with the MIDI port
-        problem = self._pack_problem(path)
-        if problem:
-            if tmp:
+            except Exception as e:  # noqa: BLE001
                 os.remove(tmp)
-            messagebox.showerror("Flash Device", f"Nothing was flashed: the configuration has a mistake.\n\n{problem}")
-            return
+                messagebox.showerror("Error", f"Could not save CSV before flashing: {e}")
+                return
+            self.saved_text = self._config_text()
 
         try:
             p = self._run_tool("CSV_to_Flash.py", path, "--yes", *self._slot_args())
