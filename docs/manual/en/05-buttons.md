@@ -6,7 +6,7 @@ Every button has three command lists, a short, a long and a double press, a labe
 
 ![When the short, long, double press and combination lists go out](../images/press-types-en.svg)
 
-In the configurator all of this is the **Buttons** tab: pick a bank, then a button from the eight laid out as on the pedal. At the top of the editor are its **display label**, **LED light mode** and **exclusive group**, and the **Momentary when held**, **Flash at the tempo**, **Global**, **Reset on bank change** and **Press at once** boxes; below them, ten command slots, and **Short press / Long press / Double press** to switch between the three lists.
+In the configurator all of this is the **Buttons** tab: pick a bank, then a button from the eight laid out as on the pedal. At the top of the editor are its **display label**, **LED light mode** and **exclusive group**, and the **Momentary when held**, **Flash at the tempo**, **Global**, **Reset on bank change**, **Press at once** and **Reload when lit** boxes; below them, ten command slots, and **Short press / Long press / Double press** to switch between the three lists.
 
 ## Short, long and double press
 
@@ -176,19 +176,39 @@ Choose the **exclusive group** (`Group`, 1 to 4) beside the LED mode. Buttons of
 
 - Switching one on switches off every other one of the group that is on, as if pressed by foot, so their off commands go out and their LEDs and display cells follow.
 - They are switched off before the pressed button sends anything, so when the whole group drives one parameter, an amp channel CC for instance, the device ends up where the pressed button says.
-- Pressing the lit button switches it off like any toggle, leaving the group all off.
+- Pressing the lit button switches it off like any toggle, leaving the group all off, unless it has **Reload when lit** (see [Reload when lit](#reload-when-lit)).
 - Only buttons with a toggle command take part, and only their short press.
 - A button switched off by its group cannot change the bank: `Bank` commands in its list are passed over, so the pressed button always sends from the bank you pressed it in.
 - Groups are per bank: group 1 in one bank has nothing to do with group 1 in another.
 - A scene can switch on two buttons of a group, and the last one wins.
 
-The demo groups the four track buttons of the looper bank. Copy / Paste bank carries the groups.
+The demo groups the four track buttons of the looper bank, each with **Reload when lit**. Copy / Paste bank carries the groups.
 
 *Firmware 0.32 or later.*
 
 <details><summary>Under the hood</summary>
 
 The group lives in the top bits of the button's LED mode byte, which configurations have always left at zero, so the layout is unchanged. Firmware before 0.32 reads a button with a group as `Normal` LED mode.
+
+</details>
+
+## Reload when lit
+
+You tweak a knob on the amp in the middle of a song and want the preset back as it was stored. Pressing its lit button switched it off, or sent nothing, so you had to go to another preset and back. Tick **Reload when lit** (`Reload_When_Lit` `Y`) and pressing the button while it is lit sends its list again and leaves it lit:
+
+- Its on commands go out as on the first press: a CC its on value, a PC its program.
+- Its PCs go out even with **Don't resend the same PC** (`Skip_Same_PC`) on, as if each had **Force**: the point is to reload the preset (see [Not reloading the preset you are on](06-commands.md#not-reloading-the-preset-you-are-on)).
+- It stays on: its LED, its display cell and its group do not change.
+- Only a press by foot, or from the configurator's Live pedal, reloads. A scene, its exclusive group, a momentary hold let go and the expression pedal's auto buttons still switch it off.
+- Only buttons with a toggle command take part, since only they are lit or not, and not cycle buttons, which go on to their next state.
+
+A preset button that lights is a toggle: a PC, and a CC with **Toggle** and **Off** left empty, so nothing goes out when it is switched off. Put the preset buttons of a bank in one exclusive group and give each **Reload when lit**: pressing another switches to that preset, pressing the lit one reloads it.
+
+*Firmware 1.28 or later.*
+
+<details><summary>Under the hood</summary>
+
+Kept in bit 7 of the label's third character, free since labels are ASCII, as **Reset on bank change** is in the first's and **Press at once** in the second's, so a configuration takes no more room. Firmware before 1.28 ignores it, and the on-pedal editor keeps it when it changes the label.
 
 </details>
 
@@ -303,6 +323,7 @@ One row per button, 256 rows in bank order and, within a bank, in the order `1, 
 - `Global`: `Y` for a button that takes everything from the same button of `Global_Bank` (see [Global buttons](#global-buttons)); empty or `N` otherwise.
 - `Reset_On_Bank`: `Y` for a button that goes back to off when its bank is left (see [Reset on bank change](#reset-on-bank-change)); empty or `N` otherwise.
 - `Instant_Press`: `Y` for a button whose short press goes out as it is pressed even with a long or double press list (see [Press at once](#press-at-once)); empty or `N` otherwise. Kept in bit 7 of the label's second character.
+- `Reload_When_Lit`: `Y` for a toggle button that, pressed while lit, sends its list again and stays lit (see [Reload when lit](#reload-when-lit)); empty or `N` otherwise. Kept in bit 7 of the label's third character.
 - Ten command slots, prefixed `A_` to `J_`, each with the fields in [Commands](06-commands.md#command-fields).
 
 Rows are optional here and in `Bank_Naming`: a configuration that only defines the first few banks, including one written for the 8 bank firmware, flashes unchanged and leaves the rest empty. The configurator always shows all 32 banks and writes them all when you save.

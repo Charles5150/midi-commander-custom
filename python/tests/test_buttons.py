@@ -450,6 +450,72 @@ class InstantPressTest(unittest.TestCase):
         m = re.search(r"#define\s+LABEL_INSTANT_BIT\s+\((0x[0-9A-Fa-f]+)\)", header)
         self.assertEqual(int(m.group(1), 16), packer.LABEL_INSTANT_BIT)
 
+class ReloadWhenLitTest(unittest.TestCase):
+    """Reload when lit, bit 7 of the third character of a button's label (1.28)."""
+
+    def _index(self, df, bank, btn):
+        return df.index[(df["Bank_Number"].astype(str) == str(bank))
+                        & (df["Button_Identifier"] == btn)][0]
+
+    def test_packs_in_the_label(self):
+        sections = read_config_csv(DEMO_CSV)
+        df = sections["Button_Settings"].copy()
+        df["Reload_When_Lit"] = ""
+        i = self._index(df, 5, "B")
+        base = pack_config({**sections, "Button_Settings": df})
+        df.at[i, "Reload_When_Lit"] = "Y"
+        packed = pack_config({**sections, "Button_Settings": df})
+        at = layout.LABELS_OFFSET + (5 * 8 + layout.BUTTON_IDS.index("B")) * layout.LABEL_LEN + 2
+        self.assertEqual(packed[at], base[at] | packer.LABEL_RELOAD_BIT)
+        self.assertEqual(packed[:at] + packed[at + 1:], base[:at] + base[at + 1:])
+
+    def test_with_the_other_bits_and_short_labels(self):
+        self.assertEqual(packer.pack_label("", reload=True), b"  \xa0 ")
+        self.assertEqual(packer.pack_label("TRK1", reset=True, instant=True, reload=True), b"\xd4\xd2\xcb1")
+
+    def test_round_trip(self):
+        sections = read_config_csv(DEMO_CSV)
+        _, _, decoded, *_ = unpacker.unpack_config(pack_config(sections))
+        lit = decoded[decoded["Reload_When_Lit"] == "Y"]
+        self.assertEqual(list(zip(lit["Bank_Number"], lit["Button_Identifier"], lit["Label"])),
+                         [("1", b, f"TRK{n}") for n, b in enumerate("ABCD", 1)])
+        self.assertTrue((lit["Group"] == "1").all())
+
+    def test_all_three_bits_round_trip(self):
+        sections = read_config_csv(DEMO_CSV)
+        df = sections["Button_Settings"].copy()
+        i = self._index(df, 11, "4")             # BOST, reset on bank change
+        df.at[i, "Instant_Press"] = "Y"
+        df.at[i, "Reload_When_Lit"] = "Y"
+        _, _, decoded, *_ = unpacker.unpack_config(pack_config({**sections, "Button_Settings": df}))
+        row = decoded[(decoded["Bank_Number"] == "11") & (decoded["Button_Identifier"] == "4")]
+        self.assertEqual(row["Label"].iloc[0], "BOST")
+        for col in ("Reset_On_Bank", "Instant_Press", "Reload_When_Lit"):
+            self.assertEqual(row[col].iloc[0], "Y", col)
+
+    def test_older_configurations_and_erased_flash_have_none(self):
+        sections = read_config_csv(SAMPLE_CSV)
+        self.assertNotIn("Reload_When_Lit", sections["Button_Settings"].columns)
+        _, _, decoded, *_ = unpacker.unpack_config(pack_config(sections))
+        self.assertTrue((decoded["Reload_When_Lit"] == "").all())
+        _, _, df, *_ = unpacker.unpack_config(bytes([0xFF]) * layout.CONFIG_SIZE)
+        self.assertTrue((df["Reload_When_Lit"] == "").all())
+
+    def test_values(self):
+        for cell, want in (("", False), (float("nan"), False), ("N", False), ("Y", True), ("yes", True)):
+            self.assertEqual(cbp.reload_when_lit_value(cell), want, cell)
+        with self.assertRaises(ValueError):
+            cbp.reload_when_lit_value("maybe")
+
+    def test_firmware_bit_matches(self):
+        import re
+        path = os.path.join(os.path.dirname(__file__), "..", "..", "firmware", "Core", "Inc",
+                            "flash_midi_settings.h")
+        with open(path) as handle:
+            header = handle.read()
+        m = re.search(r"#define\s+LABEL_RELOAD_BIT\s+\((0x[0-9A-Fa-f]+)\)", header)
+        self.assertEqual(int(m.group(1), 16), packer.LABEL_RELOAD_BIT)
+
 class TempoFlashTest(unittest.TestCase):
     """Flashing at the tempo, bit 2 of each button's LED mode byte."""
 

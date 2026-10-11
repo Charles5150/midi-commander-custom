@@ -6,7 +6,7 @@ Cada botón tiene tres listas de comandos (pulsación corta, larga y doble), una
 
 ![Cuándo salen las listas de pulsación corta, larga, doble y de combinación](../images/press-types-es.svg)
 
-En el configurador todo esto está en la pestaña **Buttons**: eliges un banco y luego uno de los ocho botones, colocados como en la pedalera. Arriba del editor están su **display label** (etiqueta), su **LED light mode** (modo del LED) y su **exclusive group** (grupo exclusivo), y las casillas **Momentary when held**, **Flash at the tempo**, **Global**, **Reset on bank change** y **Press at once**. Debajo, las diez casillas de comandos, y **Short press / Long press / Double press** para cambiar entre las tres listas.
+En el configurador todo esto está en la pestaña **Buttons**: eliges un banco y luego uno de los ocho botones, colocados como en la pedalera. Arriba del editor están su **display label** (etiqueta), su **LED light mode** (modo del LED) y su **exclusive group** (grupo exclusivo), y las casillas **Momentary when held**, **Flash at the tempo**, **Global**, **Reset on bank change**, **Press at once** y **Reload when lit**. Debajo, las diez casillas de comandos, y **Short press / Long press / Double press** para cambiar entre las tres listas.
 
 ## Pulsación corta, larga y doble
 
@@ -176,19 +176,39 @@ Elige el **exclusive group** (`Group`, del 1 al 4) junto al modo del LED. Los bo
 
 - Encender uno apaga cualquier otro del grupo que esté encendido, como si lo pisaras, así que salen sus comandos de «off» y su LED y su casilla de la pantalla lo siguen.
 - Se apagan antes de que el botón pisado envíe nada, así que cuando todo el grupo controla un mismo parámetro, un CC de canal del ampli por ejemplo, el aparato acaba donde dice el botón pisado.
-- Pisar el botón encendido lo apaga como cualquier toggle y deja el grupo entero apagado.
+- Pisar el botón encendido lo apaga como cualquier toggle y deja el grupo entero apagado, salvo que tenga **Reload when lit** (mira [Recargar al pisarlo encendido](#recargar-al-pisarlo-encendido)).
 - Solo participan los botones con un comando toggle, y solo su pulsación corta.
 - Un botón que apaga su grupo no puede cambiar de banco: los comandos `Bank` de su lista se saltan, así que el botón pisado siempre envía desde el banco en que lo pisaste.
 - Los grupos son por banco: el grupo 1 de un banco no tiene nada que ver con el grupo 1 de otro.
 - Una escena puede encender dos botones de un grupo, y gana el último.
 
-La demo agrupa los cuatro botones de pista del banco del looper. Copy / Paste bank copia los grupos.
+La demo agrupa los cuatro botones de pista del banco del looper, cada uno con **Reload when lit**. Copy / Paste bank copia los grupos.
 
 *Firmware 0.32 o posterior.*
 
 <details><summary>Por dentro</summary>
 
 El grupo vive en los bits altos del byte de modo de LED del botón, que las configuraciones siempre han dejado a cero, así que el formato no cambia. Un firmware anterior a 0.32 lee un botón con grupo como modo de LED `Normal`.
+
+</details>
+
+## Recargar al pisarlo encendido
+
+Tocas un mando del ampli en mitad de una canción y quieres volver al preset tal como lo guardaste. Pisar su botón encendido lo apagaba, o no enviaba nada, así que tenías que ir a otro preset y volver. Marca **Reload when lit** (`Reload_When_Lit` `Y`) y pisar el botón mientras está encendido vuelve a enviar su lista y lo deja encendido:
+
+- Salen sus comandos de «on» como en la primera pulsación: un CC su valor de «on», un PC su programa.
+- Sus PC salen aunque **Don't resend the same PC** (`Skip_Same_PC`) esté activado, como si cada uno tuviera **Force**: se trata de recargar el preset (mira [No recargar el preset en el que estás](06-commands.md#no-recargar-el-preset-en-el-que-estás)).
+- Sigue encendido: su LED, su casilla de la pantalla y su grupo no cambian.
+- Solo recarga una pulsación con el pie, o desde la pedalera en vivo del configurador. Una escena, su grupo exclusivo, soltar un botón momentáneo al mantenerlo y los botones automáticos del pedal de expresión lo siguen apagando.
+- Solo participan los botones con un comando toggle, porque solo ellos están encendidos o no, y no los botones de ciclo, que pasan a su siguiente estado.
+
+Un botón de preset que se enciende es un toggle: un PC, y un CC con **Toggle** y el **Off** vacío, para que no salga nada al apagarlo. Pon los botones de preset de un banco en un grupo exclusivo y dale a cada uno **Reload when lit**: pisar otro cambia a ese preset, pisar el encendido lo recarga.
+
+*Firmware 1.28 o posterior.*
+
+<details><summary>Por dentro</summary>
+
+Se guarda en el bit 7 del tercer carácter de la etiqueta, libre porque las etiquetas son ASCII, como **Reset on bank change** en el del primero y **Press at once** en el del segundo, así que la configuración no ocupa más. Un firmware anterior a 1.28 lo ignora, y el editor de la pedalera lo conserva cuando cambia la etiqueta.
 
 </details>
 
@@ -303,6 +323,7 @@ Una fila por botón, 256 filas en orden de banco y, dentro de cada banco, en el 
 - `Global`: `Y` para un botón que lo toma todo del mismo botón de `Global_Bank` (mira [Botones globales](#botones-globales)); vacío o `N` si no.
 - `Reset_On_Bank`: `Y` para un botón que vuelve a apagado al salir de su banco (mira [Reiniciar al cambiar de banco](#reiniciar-al-cambiar-de-banco)); vacío o `N` si no.
 - `Instant_Press`: `Y` para un botón cuya pulsación corta sale al pisarlo aunque tenga lista de pulsación larga o doble (mira [Pulsación al instante](#pulsación-al-instante)); vacío o `N` si no. Se guarda en el bit 7 del segundo carácter de la etiqueta.
+- `Reload_When_Lit`: `Y` para un botón toggle que, pisado mientras está encendido, vuelve a enviar su lista y sigue encendido (mira [Recargar al pisarlo encendido](#recargar-al-pisarlo-encendido)); vacío o `N` si no. Se guarda en el bit 7 del tercer carácter de la etiqueta.
 - Diez casillas de comandos, con los prefijos `A_` a `J_`, cada una con los campos de [Comandos](06-commands.md#campos-de-un-comando).
 
 Las filas son opcionales aquí y en `Bank_Naming`: una configuración que solo define los primeros bancos, incluida una escrita para el firmware de 8 bancos, se flashea tal cual y deja vacíos los demás. El configurador siempre muestra los 32 bancos y los escribe todos al guardar.

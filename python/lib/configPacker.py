@@ -617,12 +617,16 @@ LABEL_RESET_BIT = 0x80
 # And of its second (1.17): the short list goes out as the button is pressed,
 # even when it has a long or double press list.
 LABEL_INSTANT_BIT = 0x80
+# And of its third (1.28): the lit toggle button sends its list again when
+# pressed, and stays on, rather than switch off.
+LABEL_RELOAD_BIT = 0x80
 
 
-def pack_label(value, reset=False, instant=False) -> bytes:
+def pack_label(value, reset=False, instant=False, reload=False) -> bytes:
     """Label cell -> LABEL_LEN display bytes (see display_text), space padded,
     with LABEL_RESET_BIT set in the first one when ``reset`` is true and
-    LABEL_INSTANT_BIT in the second when ``instant`` is."""
+    LABEL_INSTANT_BIT in the second when ``instant`` is, and LABEL_RELOAD_BIT
+    in the third when ``reload`` is."""
     text = "" if value is None else str(value)
     if text.strip().lower() == "nan":
         text = ""
@@ -631,6 +635,8 @@ def pack_label(value, reset=False, instant=False) -> bytes:
         out[0] |= LABEL_RESET_BIT
     if instant:
         out[1] |= LABEL_INSTANT_BIT
+    if reload:
+        out[2] |= LABEL_RELOAD_BIT
     return bytes(out)
 
 
@@ -830,7 +836,8 @@ def pack_config(sections: dict, has_double=None) -> bytes:
                                               flashes[-1:], globals_[-1:])
                     labels += pack_label(row.get("Label", ""),
                                          cbp.reset_on_bank_value(row.get("Reset_On_Bank", "")),
-                                         cbp.instant_press_value(row.get("Instant_Press", "")))
+                                         cbp.instant_press_value(row.get("Instant_Press", "")),
+                                         cbp.reload_when_lit_value(row.get("Reload_When_Lit", "")))
     out += cbp.pack_button_led_modes(light_modes, groups, holds, flashes, globals_)
     out += list(labels)
 

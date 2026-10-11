@@ -180,6 +180,7 @@ BUTTON_FIELDS = [
     {"col": "Global", "label": "Global", "kind": "check", "off": ""},
     {"col": "Reset_On_Bank", "label": "Reset on bank change", "kind": "check", "off": ""},
     {"col": "Instant_Press", "label": "Press at once", "kind": "check", "off": ""},
+    {"col": "Reload_When_Lit", "label": "Reload when lit", "kind": "check", "off": ""},
 ]
 
 CH = "Channel_(PC/CC/Note/PB)"

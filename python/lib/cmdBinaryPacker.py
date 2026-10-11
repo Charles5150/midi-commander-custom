@@ -1248,6 +1248,12 @@ def instant_press_value(value) -> bool:
     return _yes_no(value, "Instant_Press")
 
 
+def reload_when_lit_value(value) -> bool:
+    """Reload_When_Lit cell: Y/Yes/1/True is on, empty, N or None is off. Kept
+    in the button's label, see configPacker.LABEL_RELOAD_BIT."""
+    return _yes_no(value, "Reload_When_Lit")
+
+
 def pack_button_led_modes(light_modes, groups=None, holds=None, flashes=None,
                           globals_=None) -> list:
     """Pack one LED mode byte per button from an iterable of mode names, with

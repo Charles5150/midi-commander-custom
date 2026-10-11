@@ -45,6 +45,7 @@ static bool switch_down(GPIO_TypeDef *port, uint16_t pin);
 #define LIST_UP_AFTER		(0x02)	// the release pass follows the press pass
 #define LIST_KEY_WAITED		(0x04)	// resumed at a Key whose delay is already over
 #define LIST_NO_BUTTON		(0x08)	// Button commands are passed over, see run_button_cmd
+#define LIST_FORCE_PC		(0x10)	// its PCs go out even when Skip_Same_PC would drop them
 /*
  * A list being run. A Macro command runs another button's list in place, so
  * one is a stack of these: the frame at the top is the list running now, the
@@ -103,6 +104,7 @@ typedef struct {
 	uint8_t press_state;         // PRESS_IDLE / PRESS_PENDING / PRESS_SHORT / PRESS_LONG
 	uint8_t press_bank;          // Bank showing when its list fired, whose release it sends
 	bool instant_fired;          // Its short list went out at once, still telling it apart
+	bool reloaded;               // The press sent the lit button's list again, see button_reloads
 	// Auto-repeat of the CCInc / PCInc commands marked Repeat while held
 	uint8_t *repeat_list;        // List that fired and holds such commands, NULL for none
 	uint8_t repeat_first;        // First command of the part of it that fired (a cycle state)
@@ -439,9 +441,11 @@ void sw_note_program(uint8_t channel, uint8_t program){
  * so re-entering a bank or a scene does not reload the preset and cut the
  * sound. A PC marked Force goes out all the same.
  */
+static bool force_pc = false;	// the list running is a reload, see button_reloads
+
 static bool pc_already_on(const uint8_t *pRom){
 	uint8_t g = pGlobalSettings[GLOBAL_SETTINGS_USB_THRU];
-	if(g == 0xFF || !(g & PC_SKIP_SAME) || pRom[2] == PC_FORCE) return false;
+	if(g == 0xFF || !(g & PC_SKIP_SAME) || pRom[2] == PC_FORCE || force_pc) return false;
 	uint8_t channel = midiCmd_channel(pRom[0]);
 	if(pc_current[channel] != (pRom[1] & 0x7F)) return false;
 	if(pRom[2] < 0x80 && midiCmd_cc_sent(channel, MIDI_PC_BANK_SELECT_MSB) != pRom[2]) return false;
@@ -2740,7 +2744,9 @@ static bool run_list_stack(frame_t *st, uint8_t depth, uint8_t toggle,
 			seq_stop(pRom[0] & 0x0F, pRom[1] & 0x7F);	// switched off: then its Off value
 		}
 		cc_param = nrpn_cmd;
+		force_pc = (flags & LIST_FORCE_PC) != 0;
 		send_on_channels(chan_cmd, pRom, toggle, false);
+		force_pc = false;
 		cc_param = NULL;
 	}
 
@@ -2956,11 +2962,35 @@ static void release_group(uint8_t i){
 	pending_page = saved_page;
 }
 
+/*
+ * Reload when lit: a toggle button whose label carries LABEL_RELOAD_BIT,
+ * pressed while it is on, stays on and sends its list again, its PCs even
+ * where Skip_Same_PC would drop them, so the device goes back to the preset
+ * as it was stored. Only a press by foot does: a scene, an exclusive group or
+ * a momentary hold switching it off presses it with sw_trigger_button, which
+ * still switches it off. A cycle button has its own next state to go to.
+ */
+static bool exact_press = false;	// sw_trigger_button's: on or off, never a reload
+
+static bool button_reloads(uint8_t i){
+	if(exact_press || !get_sw_toggle_state(&a_sw_obj[i])) return false;
+	uint8_t c = pButtonLabels[(uint16_t)(sw_bank(i) * MIDI_NUM_SWITCHES + i) * BUTTON_LABEL_LEN + 2];
+	if(c == 0xFF || !(c & LABEL_RELOAD_BIT)) return false;
+	if(!sw_button_is_toggle(switch_current_page, i)) return false;
+	return cycle_states(get_rom_pointer(switch_current_page, i, 0)) == 1;
+}
+
 static void fire_short_down(uint8_t i){
 	sw_t *sw = &a_sw_obj[i];
+	uint8_t flags = trigger_flags;
 	pending_flush_owner(i);
-	release_group(i);
-	toggle_sw_state(sw);
+	sw->reloaded = button_reloads(i);
+	if(sw->reloaded){
+		flags |= LIST_FORCE_PC;
+	} else {
+		release_group(i);
+		toggle_sw_state(sw);
+	}
 
 	// Either toggle the LED, or set it if not toggling
 	if(sw->led_cmd_toggle & (1UL<<switch_current_page)){
@@ -2975,7 +3005,7 @@ static void fire_short_down(uint8_t i){
 	uint8_t first = cycle_advance(switch_current_page, i);
 	sw->press_bank = switch_current_page;
 	repeat_arm(sw, get_rom_pointer(switch_current_page, i, 0), first);
-	run_cmd_list(get_rom_pointer(switch_current_page, i, 0), first, first, get_sw_toggle_state(sw), i, trigger_flags, true);
+	run_cmd_list(get_rom_pointer(switch_current_page, i, 0), first, first, get_sw_toggle_state(sw), i, flags, true);
 }
 
 /*
@@ -3335,8 +3365,11 @@ static void switch_config(uint8_t target){
 void sw_trigger_button(uint8_t sw){
 	if(sw >= MIDI_NUM_SWITCHES || editor_is_open()) return;	// the editor sends nothing
 	// A quick tap: the down list, then the up list, exactly like a foot press
+	bool saved = exact_press;
+	exact_press = true;
 	fire_short_down(sw);
 	fire_short_up(sw);
+	exact_press = saved;
 }
 
 /*
@@ -4223,7 +4256,7 @@ void handle_switches(void){
 				case PRESS_SHORT:
 					fire_short_up(i);
 					// Not after a bank change: the button now there is another one
-					if(sw->press_bank == switch_current_page && button_momentary_hold(i)
+					if(sw->press_bank == switch_current_page && button_momentary_hold(i) && !sw->reloaded
 							&& (now - sw->press_tick) >= long_press_threshold_ms()){
 						sw_trigger_button(i);	// held: back to the state before the press
 					}

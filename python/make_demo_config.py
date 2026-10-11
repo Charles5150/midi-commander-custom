@@ -96,7 +96,7 @@ def blank_button_rows():
     for slot in SLOT_NAMES:
         columns += [f"{slot}_{f}" for f in CMD_FIELDS]
     columns += ["Light_Mode", "Group", "Momentary_Hold", "Tempo_Flash", "Global",
-                "Reset_On_Bank", "Instant_Press"]
+                "Reset_On_Bank", "Instant_Press", "Reload_When_Lit"]
     columns += [f"{slot}_KeyMode_(Key)" for slot in SLOT_NAMES]
 
     rows = []
@@ -202,6 +202,9 @@ class Demo:
 
     def instant_press(self, bank, btn):
         self.buttons.at[self._index(self.buttons, bank, btn), "Instant_Press"] = "Y"
+
+    def reload_when_lit(self, bank, btn):
+        self.buttons.at[self._index(self.buttons, bank, btn), "Reload_When_Lit"] = "Y"
 
     def cc(self, bank, btn, label, number, on="127", off="0", toggle="N", ch="1", light=None, slot="A"):
         self.button(bank, btn, label, light, slot, CommandType="CC",
@@ -321,8 +324,10 @@ def build() -> Demo:
     for btn, number, label in (("A", 6, "TRK1"), ("B", 7, "TRK2"), ("C", 8, "TRK3"), ("D", 9, "TRK4")):
         d.cc(1, btn, label, str(number), toggle="Y")
         # One track at a time: an exclusive group, so selecting a track
-        # switches the previous one off
+        # switches the previous one off. Pressing the lit one selects it
+        # again rather than leaving no track selected
         d.group(1, btn, 1)
+        d.reload_when_lit(1, btn)
 
     # --- bank 2: the three LED modes, side by side -----------------------
     d.cc(2, "1", "NORM", "10", toggle="Y", light="Normal")

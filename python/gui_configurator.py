@@ -1502,6 +1502,10 @@ class MidiCommanderGUI(ctk.CTk):
                 df.insert(df.columns.get_loc("Reset_On_Bank") + 1, "Instant_Press", "")
             else:
                 df["Instant_Press"] = df["Instant_Press"].fillna("")
+            if "Reload_When_Lit" not in df.columns:
+                df.insert(df.columns.get_loc("Instant_Press") + 1, "Reload_When_Lit", "")
+            else:
+                df["Reload_When_Lit"] = df["Reload_When_Lit"].fillna("")
             missing = [
                 f"{slot}_{field}"
                 for slot in SLOTS
@@ -1688,7 +1692,7 @@ class MidiCommanderGUI(ctk.CTk):
             columns += [f"{slot}_{f}" for f in CMD_FIELDS]
         if with_extras:
             columns += ["Light_Mode", "Group", "Momentary_Hold", "Tempo_Flash", "Global",
-                        "Reset_On_Bank", "Instant_Press"]
+                        "Reset_On_Bank", "Instant_Press", "Reload_When_Lit"]
 
         out = []
         for b in range(NUM_BANKS):
@@ -1707,6 +1711,7 @@ class MidiCommanderGUI(ctk.CTk):
                     row["Global"] = ""
                     row["Reset_On_Bank"] = ""
                     row["Instant_Press"] = ""
+                    row["Reload_When_Lit"] = ""
                 if src is not None:
                     for c in columns:
                         if c in src.index and c not in ("Bank_Number", "Button_Identifier"):
@@ -2103,6 +2108,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.button_global = None
         self.reset_on_bank = None
         self.instant_press = None
+        self.reload_when_lit = None
         long_mode = self.press_mode == "Long press"
         double_mode = self.press_mode == "Double press"
 
@@ -2145,13 +2151,17 @@ class MidiCommanderGUI(ctk.CTk):
             self.instant_press = Check(flags_frame, text="Press at once",
                                        checked=is_yes(current.get("Instant_Press")))
             self.instant_press.pack(side="left", padx=(12, 0))
+            self.reload_when_lit = Check(flags_frame, text="Reload when lit",
+                                         checked=is_yes(current.get("Reload_When_Lit")))
+            self.reload_when_lit.pack(side="left", padx=(12, 0))
             Help(
                 self.cmd_editor,
                 "Exclusive group: switching this button on switches off the others of its group "
                 "in this bank.",
                 "They are pressed for you, so they send their off commands and their LEDs go out, "
                 "like the radio buttons of an amp's channels. Pressing the lit one switches it off "
-                "as usual. Only buttons with a toggle command take part.",
+                "as usual, or, with Reload when lit, sends its commands again and stays on: the "
+                "preset comes back as stored. Only buttons with a toggle command take part.",
                 wraplength=720,
             ).pack(anchor="w", padx=10, pady=(0, 4))
             Help(
@@ -2289,6 +2299,8 @@ class MidiCommanderGUI(ctk.CTk):
             self.df_buttons.at[idx, "Reset_On_Bank"] = "Y" if self.reset_on_bank.value() == "Y" else ""
         if self.instant_press is not None:
             self.df_buttons.at[idx, "Instant_Press"] = "Y" if self.instant_press.value() == "Y" else ""
+        if self.reload_when_lit is not None:
+            self.df_buttons.at[idx, "Reload_When_Lit"] = "Y" if self.reload_when_lit.value() == "Y" else ""
         if self.label_entry is not None:
             df.at[idx, "Long_Label" if df is self.df_long else "Label"] = self.label_entry.value().strip()
 

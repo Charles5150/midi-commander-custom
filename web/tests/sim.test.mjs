@@ -1486,3 +1486,50 @@ test("Skip_Same_PC drops a PC the channel is already on, bank included, and Forc
   run(100);
   assert.deepEqual(sent(() => { press(1); press(4); }), ["176 32 3", "192 3"], "P 1 is where the host left it, BS 3 is not");
 });
+
+test("reload when lit: the lit button of a group sends its list again and stays on, its PC past Skip_Same_PC (before 1.28, it switched off)", async () => {
+  // TRK1 also selects program 5, as a preset button would
+  const withPc = [
+    "b = d['Button_Settings']",
+    "i = (b.Bank_Number == '1') & (b.Button_Identifier == 'A')",
+    "b.loc[i, 'B_CommandType'] = 'PC'",
+    "b.loc[i, 'B_Channel_(PC/CC/Note/PB)'] = '1'",
+    "b.loc[i, 'B_Number_(PC/CC/Note)'] = '5'",
+  ];
+  const run = (sim, ms) => { for (let t = 0; t < ms; t += 5) sim.run(5); };
+  // The PCs and the track CCs 6 and 7 out on USB meanwhile
+  const sent = (sim, work) => {
+    const seen = [];
+    sim.onOutput = (port, msg) => {
+      if (port === "USB" && (msg[0] === 0xc0 || (msg[0] === 0xb0 && (msg[1] === 6 || msg[1] === 7)))) {
+        seen.push(msg.slice(0, msg[0] === 0xc0 ? 2 : 3).join(" "));
+      }
+    };
+    work();
+    sim.onOutput = null;
+    return seen;
+  };
+  const press = (sim, sw) => { sim.footswitch(sw, true); run(sim, 60); sim.footswitch(sw, false); run(sim, 200); };
+  const start = async (tweak) => {
+    const sim = simWithDemo(await flashWith(packDemo(tweak.join("\n"))));
+    sim.run(10000);
+    sim.usbIn([0xb0, 32, 1]);                  // to LOOP
+    run(sim, 300);
+    return sim;
+  };
+
+  const sim = await start(withPc);
+  assert.deepEqual(sent(sim, () => press(sim, 4)), ["176 6 127", "192 5"], "TRK1 on");
+  assert.deepEqual(sent(sim, () => press(sim, 4)), ["176 6 127", "192 5"], "pressed lit: again, PC 5 included");
+  assert.equal(sim.leds()[4] > 0, true, "and still lit");
+  assert.deepEqual(sent(sim, () => press(sim, 5)), ["176 6 0", "176 7 127"], "TRK2 switches it off as before");
+  assert.equal(sim.leds()[4], 0, "TRK1 dark");
+  assert.deepEqual(sent(sim, () => press(sim, 5)), ["176 7 127"], "TRK2 again");
+
+  // Unmarked, as before: the lit button switches off, and PC 5 stays dropped
+  const plain = await start([...withPc, "b['Reload_When_Lit'] = ''"]);
+  assert.deepEqual(sent(plain, () => press(plain, 4)), ["176 6 127", "192 5"]);
+  const off = sent(plain, () => press(plain, 4));
+  assert.deepEqual(off.filter((m) => m.startsWith("176")), ["176 6 0"], "switched off");
+  assert.deepEqual(off.filter((m) => m.startsWith("192")), [], "the channel is on program 5 already");
+});
