@@ -13,6 +13,7 @@ from lib.flashLayout import (
     NUM_BANKS, BUTTON_IDS, EXP_BUTTON_IDS, BOX_SWITCH_IDS, LABEL_LEN, EXP_STRIDE,
     SYSEX_STRING_COUNT, SYSEX_STRING_MAX, BANK_SWITCH_LISTS, SETLIST_MAX, COMBO_COUNT,
     DOUBLE_PRESS_OFFSET, EXT2_OFFSET, EXT2_MARKER, EXT2_MAP_OFFSET, MIDI_MAP_COUNT, MIDI_MAP_STRIDE,
+    EXT2_TAKEOVER_OFFSET,
     EXT2_BANK_SWITCH_LABELS_SIZE,
 )
 
@@ -45,11 +46,13 @@ EXP_CURVES = {"LINEAR": 0, "LOG": 1, "EXP": 2}
 # CC, LSB on CC + 32)
 EXP_OUTPUTS = {"CC": 0, "PITCHBEND": 1, "CC14": 2, "SPEED": 3, "WHEEL": 4, "ARROWS": 5, "SWITCHES": 6}
 EXP_OUT_SWITCHES = 6
+# How a pedal takes over a CC left at another value (firmware 1.18)
+EXP_TAKEOVERS = {"JUMP": 0, "CATCHUP": 1, "SCALED": 2}
 EXP_DEFAULTS = {
     "Min_ADC": "80", "Max_ADC": "3900", "Curve": "Linear", "Invert": "N",
     "Channel": "Global", "Toe_Button": "None", "Heel_Button": "None",
     "Toe_Level": "120", "Heel_Level": "7", "Out_Min": "0", "Out_Max": "127",
-    "Auto_Button": "None", "Auto_Off_ms": "500", "Output": "CC", "Send_On_Bank": "N",
+    "Auto_Button": "None", "Auto_Off_ms": "500", "Output": "CC", "Send_On_Bank": "N", "Takeover": "Jump",
     "Box_1": "None", "Box_2": "None", "Box_3": "None",
 }
 BOX_COLUMNS = ["Box_1", "Box_2", "Box_3"]
@@ -363,9 +366,12 @@ def pack_ext2(sections: dict):
     parts = [pack_midi_map(sections.get(MIDI_MAP_SECTION)),
              pack_long_labels(sections.get(LONG_PRESS_SECTION)),
              pack_bank_switch_labels(sections.get(BANK_SWITCH_SECTION))]
-    if all(p.count(0xFF) == len(p) for p in parts):
+    takeover = expression_takeover(sections.get(EXPRESSION_SECTION))
+    if takeover == 0xFF and all(p.count(0xFF) == len(p) for p in parts):
         return None
-    return EXT2_MARKER.ljust(EXT2_MAP_OFFSET, b"\xff") + b"".join(parts)
+    header = bytearray(EXT2_MARKER.ljust(EXT2_MAP_OFFSET, b"\xff"))
+    header[EXT2_TAKEOVER_OFFSET] = takeover
+    return bytes(header) + b"".join(parts)
 
 
 def empty_sysex_strings():
@@ -434,6 +440,32 @@ def expression_send_on_bank(df) -> int:
             if pedal in ("1", "2") and str(row.get("Send_On_Bank", "")).strip().upper().startswith("Y"):
                 bits |= sbp.EXP_SEND_ON_BANK << (int(pedal) - 1)
     return bits
+
+
+def expression_takeover(df) -> int:
+    """The Takeover of both pedals, two bits each in byte 4 of the second
+    extension area (firmware 1.18), pedal 1 in the low ones; 0xFF when both
+    jump, as erased flash does."""
+    modes = [0, 0]
+    if df is not None and "Takeover" in df.columns:
+        for _, row in df.iterrows():
+            pedal = _pedal(row)
+            if pedal not in ("1", "2"):
+                continue
+            text = str(row.get("Takeover", "")).strip().upper().replace(" ", "").replace("-", "").replace("_", "")
+            if text in ("", "NAN", "NONE"):
+                text = "JUMP"
+            if text == "CATCH":
+                text = "CATCHUP"
+            if text in ("SCALE", "SCALING"):
+                text = "SCALED"
+            if text not in EXP_TAKEOVERS:
+                raise ValueError(f"Expression pedal {pedal}: Takeover must be Jump, CatchUp or Scaled, "
+                                 f"not {row.get('Takeover')!r}")
+            modes[int(pedal) - 1] = EXP_TAKEOVERS[text]
+    if modes == [0, 0]:
+        return 0xFF
+    return 0xF0 | modes[0] | modes[1] << 2
 
 
 def pack_expression_settings(df) -> bytes:

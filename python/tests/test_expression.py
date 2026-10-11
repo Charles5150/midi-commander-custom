@@ -452,3 +452,69 @@ class ExpCommandTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TakeoverTest(unittest.TestCase):
+    """Takeover of each pedal, two bits each in byte 4 of the second extension
+    area (firmware 1.18)."""
+
+    def setUp(self):
+        self.sections = read_config_csv(DEMO_CSV)
+
+    def pack_with(self, one, two, sections=None):
+        sections = sections or self.sections
+        df = sections[packer.EXPRESSION_SECTION].copy()
+        df.loc[0, "Takeover"] = one
+        df.loc[1, "Takeover"] = two
+        return packer.pack_flash_image({**sections, packer.EXPRESSION_SECTION: df})
+
+    def byte(self, packed):
+        return packed[layout.EXT2_OFFSET + layout.EXT2_TAKEOVER_OFFSET]
+
+    def test_demo(self):
+        packed = packer.pack_flash_image(self.sections)
+        self.assertEqual(self.byte(packed), 0xF0 | 1 | 2 << 2)
+        exp = unpacker.unpack_config(packed)[4]
+        self.assertEqual(list(exp["Takeover"]), ["CatchUp", "Scaled"])
+
+    def test_every_pair_round_trips(self):
+        names = ["Jump", "CatchUp", "Scaled"]
+        for a, one in enumerate(names):
+            for b, two in enumerate(names):
+                packed = self.pack_with(one, two)
+                self.assertEqual(self.byte(packed), 0xFF if a == b == 0 else 0xF0 | a | b << 2, (one, two))
+                exp = unpacker.unpack_config(packed)[4]
+                self.assertEqual(list(exp["Takeover"]), [one, two])
+
+    def test_spellings(self):
+        packed = self.pack_with("catch up", "scale")
+        self.assertEqual(self.byte(packed), 0xF0 | 1 | 2 << 2)
+        packed = self.pack_with("", "nan")
+        self.assertEqual(self.byte(packed), 0xFF)
+        with self.assertRaises(ValueError):
+            self.pack_with("Smooth", "Jump")
+
+    def test_written_alone_when_nothing_else_needs_the_area(self):
+        # A configuration with no MIDI map, long press or bank switch labels
+        # gets the area for Takeover alone, and none without it
+        sections = {k: v for k, v in self.sections.items()
+                    if k not in (packer.MIDI_MAP_SECTION, packer.LONG_PRESS_SECTION, packer.BANK_SWITCH_SECTION)}
+        plain = self.pack_with("Jump", "Jump", sections)
+        self.assertLessEqual(len(plain), layout.EXT2_OFFSET)
+        packed = self.pack_with("Jump", "CatchUp", sections)
+        self.assertEqual(packed[layout.EXT2_OFFSET:layout.EXT2_OFFSET + 4], layout.EXT2_MARKER)
+        self.assertEqual(self.byte(packed), 0xF0 | 1 << 2)
+        self.assertEqual(list(unpacker.unpack_config(packed)[4]["Takeover"]), ["Jump", "CatchUp"])
+
+    def test_missing_column_and_area_read_jump(self):
+        df = self.sections[packer.EXPRESSION_SECTION].drop(columns=["Takeover"])
+        packed = packer.pack_flash_image({**self.sections, packer.EXPRESSION_SECTION: df})
+        self.assertEqual(self.byte(packed), 0xFF)
+        image = packer.pack_flash_image(self.sections)[:layout.EXT2_OFFSET]
+        self.assertEqual(list(unpacker.unpack_config(image)[4]["Takeover"]), ["Jump", "Jump"])
+
+    def test_matches_firmware(self):
+        text = open(os.path.join(FIRMWARE, "Core", "Inc", "flash_midi_settings.h")).read()
+        self.assertIn(f"#define EXT2_TAKEOVER_OFF		({layout.EXT2_TAKEOVER_OFFSET})", text)
+        for name, value in (("JUMP", 0), ("CATCH", 1), ("SCALE", 2)):
+            self.assertRegex(text, rf"#define EXP_TAKEOVER_{name}\s+\({value}\)")

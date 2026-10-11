@@ -348,6 +348,7 @@ EXPRESSION_FIELDS = [
     {"col": "Auto_Button", "label": "Auto-engage", **_choice(["None"] + BUTTON_IDS, blank="None")},
     {"col": "Auto_Off_ms", "label": "\u2026 off after ms", **_int(10, 2540), "default": "500"},
     {"col": "Send_On_Bank", "label": "Send on entering a bank", **CHECK},
+    {"col": "Takeover", "label": "Takes a CC over", **_choice(["Jump", "CatchUp", "Scaled"]), "default": "Jump"},
     # Sends Switches: a box of switches on the jack, see the manual
     {"col": "Box_1", "label": "Box switch 1 holds", **_choice(["None"] + BUTTON_IDS + ["Down", "Up"], blank="None")},
     {"col": "Box_2", "label": "Box switch 2 holds", **_choice(["None"] + BUTTON_IDS + ["Down", "Up"], blank="None")},

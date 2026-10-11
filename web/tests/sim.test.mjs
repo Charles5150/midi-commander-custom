@@ -827,3 +827,57 @@ test("a line the display does not take is sent again, and the screen catches up 
   sim.run(500);
   assert.ok(shows(), "the screen is back, bank 3 on it");
 });
+
+test("takeover: back on a CC it left at another value, the pedal catches up with it or scales from it (before 1.18, it jumped)", async () => {
+  // Pedal 1 on its own CC 11, but on CC 1 in FX; a plain sweep, nothing else
+  const withTakeover = async (mode) => simWithDemo(await flashWith(packDemo([
+    "e = d['Expression_Settings']",
+    "e.loc[e.Pedal == '1', ['Min_ADC', 'Max_ADC', 'Toe_Button', 'Auto_Button', 'Takeover']] = ['0', '4000', '', '', '" + mode + "']",
+  ].join("\n"))));
+  const cc11 = (seen) => seen.splice(0).filter((m) => m.startsWith("USB b0 0b ")).map((m) => parseInt(m.slice(-2), 16));
+  const move = (sim, value) => { sim.pedal(0, value); sim.run(400); };
+
+  // CC 11 left at about 32 in HOME, then FX takes the pedal to CC 1, and the
+  // foot towards the toe; Bank Down back to HOME gives it CC 11 again
+  async function leave(mode) {
+    const sim = await withTakeover(mode);
+    const pedal = await Pedal.open(sim.access);
+    const seen = watch(sim);
+    move(sim, 0);
+    move(sim, 2048);
+    move(sim, 1024);
+    const left = cc11(seen).at(-1);
+    assert.ok(Math.abs(left - 32) <= 1, `CC 11 left at ${left}`);
+    tap(sim, 1);
+    assert.equal((await running(sim, () => pedal.getState())).bankName, "FX");
+    move(sim, 3600);
+    assert.deepEqual(cc11(seen), [], "in FX the pedal is on CC 1");
+    tap(sim, 9);
+    assert.equal((await running(sim, () => pedal.getState())).bankName, "HOME");
+    assert.deepEqual(cc11(seen), [], "nothing sent on the way back");
+    return { sim, seen, left };
+  }
+
+  const jump = await leave("Jump");
+  move(jump.sim, 3000);
+  assert.ok(cc11(jump.seen).at(-1) > 85, "Jump: to where the foot is");
+
+  const catchUp = await leave("CatchUp");
+  move(catchUp.sim, 3000);
+  move(catchUp.sim, 2000);
+  assert.deepEqual(cc11(catchUp.seen), [], "Catch-up: nothing above the value it was left at");
+  move(catchUp.sim, 900);
+  let sent = cc11(catchUp.seen);
+  assert.ok(sent.length > 0 && sent.at(-1) <= catchUp.left, `crossing it, the foot's own: ${sent}`);
+  move(catchUp.sim, 2048);
+  assert.ok(Math.abs(cc11(catchUp.seen).at(-1) - 64) <= 1, "and follows it from there");
+
+  const scaled = await leave("Scaled");
+  move(scaled.sim, 3850);
+  sent = cc11(scaled.seen);
+  assert.ok(sent.length > 0 && sent.every((v) => v > scaled.left && v < 110), `Scaled: from the value up, not to the foot: ${sent}`);
+  move(scaled.sim, 4095);
+  assert.equal(cc11(scaled.seen).at(-1), 127, "at the toe with the foot");
+  move(scaled.sim, 2048);
+  assert.ok(Math.abs(cc11(scaled.seen).at(-1) - 64) <= 1, "the foot's own from there");
+});

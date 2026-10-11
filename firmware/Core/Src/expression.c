@@ -55,6 +55,10 @@
  * Or the jack holds no pedal at all but a small box of switches, each putting
  * the jack at its own level, and each level holds down a switch of the pedal.
  * See switch_box.
+ *
+ * When a bank, an Exp command or a button leaves a CC at a value the pedal
+ * does not stand at, the pedal can pick it up from there instead of jumping
+ * to where the foot is. See takeover.
  */
 
 #include "expression.h"
@@ -161,6 +165,9 @@ typedef struct {
   uint32_t scroll_tick;
   uint8_t box_down;      // switch box: the level held down, 0 for none
   uint8_t box_seen;      // the level of the last reading
+  bool pickup;           // taking a value over, see takeover
+  uint16_t pickup_value; // the value it takes over, in the resolution of target_kind
+  uint16_t pickup_from;  // the pedal's own value when it started
 } exp_pedal_t;
 
 static exp_pedal_t pedals[EXP_PEDAL_COUNT];
@@ -637,6 +644,63 @@ static void switch_box(exp_pedal_t *p, uint32_t sample)
   p->box_down = level;
 }
 
+/*
+ * Takeover, set per pedal (Takeover): what happens when the pedal's CC holds a
+ * value other than the one the pedal last sent it. A bank or an Exp command
+ * moved the pedal to a CC it left elsewhere, or a button sent that CC. The
+ * value it holds is the last the pedal sent it (see midiCmd_cc_sent); a CC
+ * the pedal has not sent since power on has none, and the pedal takes it as
+ * ever.
+ *
+ *   Jump      the pedal sends where the foot is, from its next movement
+ *   Catch-up  it sends nothing until the foot reaches the value, or crosses
+ *             it, and follows the foot from there
+ *   Scaled    it goes from the value to the end the foot heads for, the
+ *             travel left shared out, and is the foot's own again at that end
+ *
+ * Only 7-bit and 14-bit CCs; Pitch Bend, Speed and the wheel always jump, and
+ * so does a pedal sending its position on entering a bank. Returns false while
+ * nothing is to be sent, and puts what is in *send.
+ */
+static bool takeover(exp_pedal_t *p, uint32_t i, send_kind_t kind, uint8_t cc,
+                     uint8_t channel, uint8_t lo, uint8_t hi, uint16_t out, uint16_t *send)
+{
+  uint8_t mode = flash_settings_exp_takeover((uint8_t)i);
+  if (mode == EXP_TAKEOVER_JUMP || (kind != SEND_CC7 && kind != SEND_CC14)) {
+      p->pickup = false;
+      return true;
+  }
+  bool seven = (kind == SEND_CC7);
+  if (!p->pickup) {
+      uint8_t had = midiCmd_cc_sent(midiCmd_channel(channel), cc);
+      if (had == 0xFFU || p->last_sent_midi == 0xFFU || had == p->last_sent_midi) return true;
+      p->pickup = true;
+      p->pickup_value = seven ? had : (uint16_t)had << 7;
+      p->pickup_from = out;
+  }
+  int32_t v = p->pickup_value, from = p->pickup_from, o = out;
+
+  if (mode == EXP_TAKEOVER_CATCH) {
+      if (o == v || from == v || (o > v) != (from > v)) {
+          p->pickup = false;
+          return true;
+      }
+      return false;
+  }
+
+  if (o == from) {
+      *send = (uint16_t)v;
+      return true;
+  }
+  int32_t a = seven ? lo : fine_end(lo);
+  int32_t b = seven ? hi : fine_end(hi);
+  int32_t end = (o > from) ? (a > b ? a : b) : (a < b ? a : b);
+  int32_t s = v + (o - from) * (end - v) / (end - from);
+  if (o == end || s == o) p->pickup = false;
+  *send = (uint16_t)s;
+  return true;
+}
+
 // --- Public API --------------------------------------------------------------
 void expression_init(void)
 {
@@ -664,6 +728,7 @@ void expression_init(void)
     pedals[i].target_max = 0xFFU;
     pedals[i].auto_primed = false;
     pedals[i].bank = 0xFFU;
+    pedals[i].pickup = false;
     set_pin_pulldown(kExpChannels[i]);   // never leave the pin floating
   }
   settling = EXP_PEDAL_COUNT;
@@ -830,6 +895,7 @@ static void process_pedal(uint32_t i)
           p->last_sent_value = out_value;
           p->last_sent_midi = out_midi;
       }
+      p->pickup = false;
       p->target_cc = target;
       p->target_channel = channel;
       p->target_min = lo;
@@ -847,16 +913,23 @@ static void process_pedal(uint32_t i)
   // global ones, which older firmware leaves alone, and is read here so the
   // on-pedal editor changes it at once.
   uint8_t bank = sw_get_home_bank();
+  bool forced = false;
   if (bank != p->bank) {
       uint8_t flags = pGlobalSettings[GLOBAL_SETTINGS_LED_FEEDBACK];
       if (p->bank != 0xFFU && flags != 0xFFU && (flags & EXP_SEND_ON_BANK(i))) {
           p->last_sent_value = 0xFFFFU;
           for (uint32_t k = 0; k < EXP_EXTRA_CCS; k++) extras[i][k].last = 0x80U;
+          forced = true;
       }
       p->bank = bank;
   }
 
-  if (p->last_sent_value != out_value) {
+  uint16_t send_value = out_value;
+  bool hold = false;
+  if (forced) p->pickup = false;
+  else if (enabled) hold = !takeover(p, i, kind, cc, channel, lo, hi, out_value, &send_value);
+
+  if (p->last_sent_value != out_value && !hold) {
       int8_t sent = 0;
       if (enabled && kind != SEND_SCROLL) { // else silent in this bank, or a wheel
           if (kind == SEND_SPEED) {
@@ -864,12 +937,12 @@ static void process_pedal(uint32_t i)
               sw_set_mod_speed(speed_index((uint8_t)out_value));
           }
           else if (kind == SEND_PB) sent = midiCmd_send_pb(channel, out_value);
-          else if (kind == SEND_CC14) sent = midiCmd_send_cc14(channel, cc, out_value);
-          else sent = midiCmd_send_cc(channel, cc, (uint8_t)out_value);
+          else if (kind == SEND_CC14) sent = midiCmd_send_cc14(channel, cc, send_value);
+          else sent = midiCmd_send_cc(channel, cc, (uint8_t)send_value);
       }
       if (sent != ERROR_BUFFERS_FULL) {
           p->last_sent_value = out_value;
-          p->last_sent_midi = out_midi;
+          p->last_sent_midi = seven ? (uint8_t)send_value : (uint8_t)(send_value >> 7);
       }
   }
   send_extras(i, midi_value);

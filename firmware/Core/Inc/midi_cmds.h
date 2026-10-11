@@ -39,6 +39,7 @@ uint8_t midiCmd_forced_channel(void);	// the channel being forced, 0 for none
 void midiCmd_limit_outputs(uint8_t off);	// CHAN_NO_USB | CHAN_NO_DIN while a Chan command sends, 0 after
 uint8_t midiCmd_outputs_off(void);	// the outputs a Chan command turned off
 uint8_t midiCmd_channel(uint8_t stored);	// the channel a command really goes out on
+uint8_t midiCmd_cc_sent(uint8_t channel, uint8_t cc);	// the last value sent on CC cc, channel 0-15; 0xFF none yet
 uint8_t midiCmd_get_cmd_toggle(uint8_t *pRom);
 uint32_t midiCmd_get_delay(uint8_t *pRom);
 

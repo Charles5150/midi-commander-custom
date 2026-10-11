@@ -696,6 +696,11 @@ def build() -> Demo:
     # and 36 (CC 7 and 39 in bank 7)
     d.exp.loc[0, "Output"] = "CC"
     d.exp.loc[1, "Output"] = "CC14"
+    # A CC left at another value: pedal 1 waits for the foot to reach it (VOL
+    # in bank 8 takes it to CC 7 and back to the wah), pedal 2 goes from it to
+    # the end the foot heads for
+    d.exp.loc[0, "Takeover"] = "CatchUp"
+    d.exp.loc[1, "Takeover"] = "Scaled"
 
     # The Bank Down/Up switches send MIDI of their own as well as changing
     # bank, which is what Bank_Switch_Mode = Bank+MIDI means. A host can use

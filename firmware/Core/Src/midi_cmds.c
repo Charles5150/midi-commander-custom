@@ -170,6 +170,20 @@ static int8_t din_bytes(const uint8_t *data, uint8_t len){
 }
 
 /*
+ * The last value the pedal sent on each CC and channel, plus one, 0 for none
+ * yet: where an expression pedal taking a CC over picks it up (see takeover
+ * in expression.c). Only what the pedal sends counts. A host echoing it back
+ * late would leave an old value here, and a pedal waiting to catch up with
+ * a value already behind it would wait for ever.
+ */
+static uint8_t cc_sent[16][128];
+
+uint8_t midiCmd_cc_sent(uint8_t channel, uint8_t cc){
+	uint8_t v = cc_sent[channel & 0x0F][cc & 0x7F];
+	return v ? v - 1U : 0xFFU;
+}
+
+/*
  * USB events, four bytes each, to USB and their MIDI bytes to DIN, each output
  * if it is on. Returns ERROR_BUFFERS_FULL when DIN had no room for them; USB
  * has them all the same.
@@ -179,6 +193,9 @@ static int8_t send_events(uint8_t *events, uint8_t len){
 	usb_tx(events, len);
 	for(uint8_t i = 0; i + 3 < len; i += 4){
 		uint8_t cin = events[i] & 0x0F;
+		if(cin == CIN_CONTROL_CHANGE){
+			cc_sent[events[i + 1] & 0x0F][events[i + 2] & 0x7F] = (events[i + 3] & 0x7F) + 1U;
+		}
 		uint8_t k = (cin == CIN_PROGRAM_CHANGE || cin == CIN_CHANNEL_PRESSURE) ? 2
 				: (cin == CIN_SINGLE_BYTE) ? 1 : 3;
 		memcpy(&din[n], &events[i + 1], k);

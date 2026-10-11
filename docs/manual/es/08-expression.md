@@ -223,7 +223,7 @@ En la pestaña **Banks** del configurador, cada banco tiene por pedal un CC y un
 
 - Una casilla vacía mantiene el ajuste del propio pedal; cada extremo del rango se toma por separado.
 - Un pedal silenciado sigue funcionando como pulsador: sus botones de punta y talón siguen funcionando.
-- Tras un cambio de banco, el pedal no se envía a su nuevo CC, canal o rango en la posición en la que esté parado; sigue al siguiente movimiento, salvo que [envíe al entrar en un banco](#enviar-la-posición-al-entrar-en-un-banco).
+- Tras un cambio de banco, el pedal no se envía a su nuevo CC, canal o rango en la posición en la que esté parado; sigue al siguiente movimiento, salvo que [envíe al entrar en un banco](#enviar-la-posición-al-entrar-en-un-banco), o [recoja el CC](#recoger-un-cc-sin-saltos) donde se dejó.
 - Un [comando `Exp`](06-commands.md) en un botón puede volver a cambiar el destino hasta el siguiente cambio de banco.
 - Un `Exp` en modo `Add` hace que un pedal envíe [varios CC a la vez](06-commands.md#un-pedal-a-varios-cc), cada uno con su rango y su sentido.
 
@@ -258,6 +258,31 @@ Como los bytes globales y los registros de los pedales están todos ocupados, se
 
 </details>
 
+## Recoger un CC sin saltos
+
+Tu pedal es el wah en una canción y el volumen en la siguiente. Dejaste el volumen a un tercio, llevaste el wah a la punta y ahora el volumen vuelve al pedal: al primer toque lo manda de un tercio a la punta de golpe. **Takes a CC over** en la pestaña Expression (`Takeover`) dice qué hace el pedal cuando el CC que envía tiene un valor distinto de donde está el pie:
+
+- **Jump**, como siempre: el pedal envía dónde está el pie desde su siguiente movimiento.
+- **CatchUp**: no envía nada hasta que el pie llega al valor en que se dejó el CC, o lo pasa, y a partir de ahí sigue al pie. No salta nada, pero el pedal no hace nada hasta llegar.
+- **Scaled**: sigue desde el valor en que se dejó el CC hacia el extremo al que va el pie, repartiendo el recorrido que queda, y vuelve a ser el del pie en ese extremo. Responde al momento, algo más o algo menos de lo que se movió el pie.
+
+Cuenta cualquier cosa que haya dejado el CC en otro valor: un banco o una página que le dé al pedal otro CC, un [comando `Exp`](06-commands.md#cambiar-el-destino-de-un-pedal-de-expresión), o un botón que envíe el mismo CC, como un mute que manda el CC 7 a 0.
+
+- El valor de un CC es el último que le envió la propia pedalera, en ese canal, desde que se encendió. Un CC que la pedalera aún no ha enviado no tiene ninguno, y el pedal salta al pie.
+- Lo que llega por USB no cuenta: un ordenador que devolviera tarde lo que envía la pedalera dejaría un valor viejo, y un pedal que esperase a un valor que ya quedó atrás esperaría para siempre.
+- Solo CC de 7 y de 14 bits; Pitch Bend, Speed y el scroll siempre saltan. Los CC que le da al pedal un `Exp` en modo `Add` lo siguen como siempre.
+- [Enviar la posición al entrar en un banco](#enviar-la-posición-al-entrar-en-un-banco) manda: la posición sale al entrar en el banco.
+
+En la demo el pedal 1 recoge (CatchUp) y el pedal 2 escala (Scaled): VOL en el banco 8 pasa el pedal 1 del wah al CC 7 y lo devuelve, y KNOB lleva el pedal 2 a los CC 7 y 39 en el canal 2.
+
+*Firmware 1.18 o posterior.*
+
+<details><summary>Por dentro</summary>
+
+Se guarda en el byte 4 de la cabecera de la segunda área de extensión, dos bits por pedal, el pedal 1 en los bajos: 0 Jump, 1 CatchUp, 2 Scaled, y 3, flash borrada, Jump. Las herramientas escriben el área para él aunque nada más la necesite. El firmware anterior no lee ese byte y salta. Los valores enviados se guardan en RAM, un byte por CC y canal, y se pierden al apagar la pedalera.
+
+</details>
+
 ## En el CSV
 
 ### Expression_Settings
@@ -279,6 +304,7 @@ Opcional; dos filas, `Pedal` 1 y 2.
 | `Auto_Off_ms` | 10–2540 | Cuánto tiempo tiene que quedarse el pedal en el talón antes de que se apague ese botón. Por defecto 500. |
 | `Output` | CC, PitchBend, CC14, Speed, Wheel, Arrows o Switches | Qué envía el pedal: su CC con 7 bits, Pitch Bend, una pareja de CC de 14 bits, nada más que la [velocidad de los LFO y las secuencias](#velocidad-de-los-lfo-y-las-secuencias), o [scroll en el ordenador](#hacer-scroll-en-el-ordenador); Switches para una [caja de pulsadores](#una-caja-de-pulsadores-en-el-jack) en el jack. Por defecto CC. |
 | `Send_On_Bank` | Y / N | Enviar la posición del pedal al entrar en un banco, después de sus comandos de entrada. Por defecto N. Firmware 0.87. |
+| `Takeover` | Jump, CatchUp o Scaled | Qué hace el pedal con un CC que se dejó en un valor distinto del del pie: saltar al pie, esperar a que el pie llegue a él, o seguir desde él. Por defecto Jump. Firmware 1.18. |
 | `Box_1`, `Box_2`, `Box_3` | None, 1–4, A–D, Down o Up | Con `Output` Switches, el pulsador que mantiene pisado cada pulsador de la caja. Por defecto None. Firmware 1.10. |
 
 ### BankExpression_Settings

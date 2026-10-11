@@ -129,6 +129,12 @@ const uint8_t *flash_settings_bank_switch_labels(void){
 	return ext2_part(EXT2_BANK_SW_LABELS_OFF);
 }
 
+uint8_t flash_settings_exp_takeover(uint8_t pedal){
+	const uint8_t *t = ext2_part(EXT2_TAKEOVER_OFF);
+	uint8_t mode = t ? (*t >> (2U * pedal)) & 3U : EXP_TAKEOVER_JUMP;
+	return mode <= EXP_TAKEOVER_SCALE ? mode : EXP_TAKEOVER_JUMP;
+}
+
 /*
  * Where 16 bytes at a tools offset live: the slot's own pages, or past them the
  * slot's extension areas. 0 when the chunk is outside all of them.

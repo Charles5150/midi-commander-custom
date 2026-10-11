@@ -130,7 +130,7 @@ def image_to_sections(data: bytes, image: bytes) -> str:
     same followed by the extension areas it has (see slotIO.read_image)."""
     data, image = _bytes(data), _bytes(image)
     (df_global, df_banks, df_buttons, _, df_exp,
-     df_enter, df_sysex, _, df_setlist) = unpacker.unpack_config(data)
+     df_enter, df_sysex, _, df_setlist) = unpacker.unpack_config(image)   # Takeover is in the image
     df_bank_switch = unpacker.unpack_bank_switch_settings(image)   # its labels are in the image
     sections = {
         "Global_Settings": df_global,

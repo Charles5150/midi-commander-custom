@@ -21,7 +21,7 @@ from lib.flashLayout import (
     SYSEX_STRING_STRIDE, BANK_SWITCH_OFFSET, BANK_SWITCH_LISTS, SETLIST_OFFSET, SETLIST_MAX,
     BANK_EXP_OFFSET, BANK_EXP_STRIDE, BANK_EXP_RANGE_OFFSET, BANK_EXP_RANGE_STRIDE,
     CYCLE_LABELS_OFFSET, COMBOS_OFFSET, COMBO_COUNT, COMBO_STRIDE, CONFIG_SIZE, DOUBLE_PRESS_OFFSET,
-    DOUBLE_PRESS_SIZE, EXT2_OFFSET, EXT2_MARKER, EXT2_MAP_OFFSET, MIDI_MAP_COUNT,
+    DOUBLE_PRESS_SIZE, EXT2_OFFSET, EXT2_MARKER, EXT2_MAP_OFFSET, MIDI_MAP_COUNT, EXT2_TAKEOVER_OFFSET,
     MIDI_MAP_STRIDE, EXT2_LONG_LABELS_OFFSET, EXT2_BANK_SWITCH_LABELS_OFFSET, EXT2_SIZE,
 )
 
@@ -98,6 +98,7 @@ from lib.cmdBinaryPacker import (
 
 EXP_CURVE_NAMES = {0: "Linear", 1: "Log", 2: "Exp"}
 EXP_OUTPUT_NAMES = {0: "CC", 1: "PitchBend", 2: "CC14", 3: "Speed", 4: "Wheel", 5: "Arrows", 6: "Switches"}
+EXP_TAKEOVER_NAMES = {0: "Jump", 1: "CatchUp", 2: "Scaled"}
 EXP_OUT_SWITCHES = 6
 
 SLOT_NAMES = [chr(ord("A") + i) for i in range(MIDI_NUM_COMMANDS_PER_SWITCH)]
@@ -610,6 +611,9 @@ def unpack_bank_expression_settings(data: bytes) -> pd.DataFrame:
 
 
 def unpack_expression_settings(data: bytes) -> pd.DataFrame:
+    # Takeover (firmware 1.18) lives in the second extension area's header
+    ext = bytes(data[EXT2_OFFSET:EXT2_OFFSET + EXT2_MAP_OFFSET])
+    takeover = ext[EXT2_TAKEOVER_OFFSET] if ext.startswith(EXT2_MARKER) else 0xFF
     rows = []
     for i in range(2):
         p = data[EXP_OFFSET + i * EXP_STRIDE : EXP_OFFSET + (i + 1) * EXP_STRIDE]
@@ -646,6 +650,7 @@ def unpack_expression_settings(data: bytes) -> pd.DataFrame:
                 "Auto_Off_ms": str(p[14] * 10 if p[14] not in (0, 0xFF) else 500),
                 "Output": EXP_OUTPUT_NAMES.get(p[15], "CC"),
                 "Send_On_Bank": "Y" if data[35] != 0xFF and data[35] & (0x04 << i) else "N",
+                "Takeover": EXP_TAKEOVER_NAMES.get((takeover >> (2 * i)) & 3, "Jump"),
                 **{f"Box_{k + 1}": BOX_SWITCH_IDS[b] if b < len(BOX_SWITCH_IDS) else "None"
                    for k, b in enumerate(box)},
             }

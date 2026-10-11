@@ -787,7 +787,7 @@ class MidiMapTest(unittest.TestCase):
             {"In_Type": "Note", "In_Number": "60", "Out_Type": "", "Out_Channel": "3"},   # same type
             {"In_Type": "", "Out_Type": "CC"},                                           # left out
         ])
-        self.assertEqual(ext[:16], b"EXT2" + b"\xff" * 12)
+        self.assertEqual(ext[:4] + ext[5:16], b"EXT2" + b"\xff" * 11)   # [4] is Takeover
         table = ext[16:]
         self.assertEqual(table[:60], bytes([
             0xC0, 15, 0xFF, 0, 127, 0xB0, 2, 20, 127, 127, 0, 0xFF,

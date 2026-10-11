@@ -294,7 +294,10 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
  *   0x0803D800  slot 3
  *   0x0803E800  free      3 pages
  *
- *   [0..3]    EXT2_MARKER             [4..15] 0xFF
+ *   [0..3]    EXT2_MARKER
+ *   [4]       how each pedal takes over a value it does not hold (1.18), two
+ *             bits per pedal, pedal 1 in the low ones: EXP_TAKEOVER_
+ *   [5..15]   0xFF
  *   [16..]    the MIDI map, MIDI_MAP_COUNT entries of MIDI_MAP_STRIDE bytes
  *   [400..]   long press labels, BUTTON_LABEL_LEN chars per button, as the
  *             labels in the slot; erased flash is no label
@@ -309,6 +312,10 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
 #define PATCH_LOG_ADDR			(PATCH_COPY_ADDR + FLASH_PAGE_SIZE)
 #define FLASH_IMAGE2_SIZE		(CFG_EXT2_OFF + FLASH_EXT2_PAGES * CFG_PAGE_SIZE)
 #define EXT2_MARKER				(0x32545845U)	// "EXT2", little endian
+#define EXT2_TAKEOVER_OFF		(4)
+#define EXP_TAKEOVER_JUMP		(0)	// to where the foot is; also erased flash (3)
+#define EXP_TAKEOVER_CATCH		(1)	// nothing until the foot crosses the value
+#define EXP_TAKEOVER_SCALE		(2)	// from the value to the end it heads for
 #define EXT2_MAP_OFF			(16)
 #define EXT2_LONG_LABELS_OFF	(EXT2_MAP_OFF + MIDI_MAP_COUNT * MIDI_MAP_STRIDE)
 #define EXT2_BANK_SW_LABELS_OFF	(EXT2_LONG_LABELS_OFF + CFG_BUTTONS * BUTTON_LABEL_LEN)
@@ -348,6 +355,8 @@ const uint8_t *flash_settings_midi_map(void);
 const uint8_t *flash_settings_long_labels(void);
 // The active slot's Bank Down and Bank Up labels, in that order, or NULL
 const uint8_t *flash_settings_bank_switch_labels(void);
+// How pedal 0 or 1 takes over a value it does not hold: EXP_TAKEOVER_
+uint8_t flash_settings_exp_takeover(uint8_t pedal);
 
 // Erase and write act on the target slot, see flash_settings_set_target()
 bool flash_settings_erase(void);
