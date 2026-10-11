@@ -115,6 +115,28 @@ FONT_SMALL = ("", 12)
 FONT_SECTION = ("", 11, "bold")
 
 
+def _draw_without_flush(cls):
+    """customtkinter's option menus and scrollbars end each draw with
+    update_idletasks(), which lays out and redraws the whole window there and
+    then. Filling a tab of two hundred menus, or the first redraw of a full
+    scrollable frame, took half a minute; Tk draws them anyway as soon as the
+    main loop runs again."""
+    draw = cls._draw
+
+    def _draw(self, *args, **kwargs):
+        self._canvas.update_idletasks = lambda: None
+        try:
+            return draw(self, *args, **kwargs)
+        finally:
+            del self._canvas.update_idletasks
+
+    cls._draw = _draw
+
+
+_draw_without_flush(ctk.CTkOptionMenu)
+_draw_without_flush(ctk.CTkScrollbar)
+
+
 def _apply_theme():
     t = ctk.ThemeManager.theme
 
