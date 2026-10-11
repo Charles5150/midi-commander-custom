@@ -54,6 +54,7 @@ typedef struct { volatile uint32_t ICSR; } SCB_Type;
 extern SCB_Type sim_scb;
 #define SCB					(&sim_scb)
 #define SCB_ICSR_PENDSTSET_Msk		(1U << 26)
+#define SCB_ICSR_VECTACTIVE_Msk		(0x1FFU)
 
 typedef enum { TIM2_IRQn = 28, USART2_IRQn = 38 } IRQn_Type;
 static inline void HAL_NVIC_SetPriority(IRQn_Type irq, uint32_t pre, uint32_t sub){ (void)irq; (void)pre; (void)sub; }

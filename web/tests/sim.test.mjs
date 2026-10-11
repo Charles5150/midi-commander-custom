@@ -705,3 +705,33 @@ test("with the bank switches at MIDI only and labelled, the screen shows ten cel
   assert.equal(cellRows(await demoWith("Bank+MIDI", "PREV", "NEXT")), plain, "the switches change bank: no labels for them");
   assert.equal(cellRows(await demoWith("MIDI only", "", "")), plain, "no labels: the screen as it always was");
 });
+
+test("a line the display does not take is sent again, and the screen catches up (before 1.14, it froze)", async () => {
+  const sim = simWithDemo();
+  sim.run(10000);                           // the demo's power on banner goes by first
+  const panel = () => sim.memory.slice(sim.e.sim_panel(), sim.e.sim_panel() + 130 * 8);
+  const shows = () => Buffer.compare(panel(), sim.screen()) === 0;
+  assert.ok(shows(), "the panel shows the screen");
+
+  // The first line of the next update fails before its DMA starts, as on a
+  // NACK of the address: the pedal goes to bank 7 and the panel follows
+  const home = panel();
+  sim.e.sim_i2c_fail(1);
+  sim.usbIn([0xb0, 32, 7]);                 // the demo's Bank_Change_CC
+  sim.run(500);
+  const pedal = await Pedal.open(sim.access);
+  assert.equal((await running(sim, () => pedal.getState())).bank, 7);
+  assert.ok(shows(), "the panel caught up with the screen");
+  assert.notEqual(Buffer.compare(panel(), home), 0);
+
+  // A display that answers nothing for a while: the pedal carries on, and
+  // the screen comes back with it
+  sim.e.sim_i2c_fail(1000000);
+  sim.usbIn([0xb0, 32, 3]);
+  sim.run(1000);
+  assert.equal((await running(sim, () => pedal.getState())).bank, 3);
+  assert.ok(!shows(), "nothing reached the panel");
+  sim.e.sim_i2c_fail(0);
+  sim.run(500);
+  assert.ok(shows(), "the screen is back, bank 3 on it");
+});

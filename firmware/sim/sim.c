@@ -112,9 +112,22 @@ HAL_StatusTypeDef HAL_I2C_Init(I2C_HandleTypeDef *h){ h->State = HAL_I2C_STATE_R
 HAL_I2C_StateTypeDef HAL_I2C_GetState(I2C_HandleTypeDef *h){ return h->State; }
 HAL_StatusTypeDef HAL_DMA_Abort(DMA_HandleTypeDef *h){ (void)h; return HAL_OK; }
 
+// What the panel shows: each page as the last line sent for it left it
+static uint8_t panel[SSD1306_WIDTH * 8];
+// Transfers still to fail before the DMA starts, as on a NACK of the address
+static uint32_t i2c_fails = 0;
+
 HAL_StatusTypeDef HAL_I2C_Mem_Write_DMA(I2C_HandleTypeDef *h, uint16_t dev, uint16_t reg,
 		uint16_t reg_size, uint8_t *data, uint16_t size){
-	(void)dev; (void)reg; (void)reg_size; (void)data; (void)size;
+	(void)dev; (void)reg_size;
+	if(i2c_fails){
+		i2c_fails--;
+		return HAL_ERROR;
+	}
+	// A line: page address, two column commands, then the page's data
+	if(reg == 0x80 && size == SSD1306_WIDTH + 6 && (data[0] & 0xF8) == 0xB0){
+		memcpy(&panel[SSD1306_WIDTH * (data[0] & 7)], data + 6, SSD1306_WIDTH);
+	}
 	uint32_t ipsr = sim_ipsr;
 	sim_ipsr = IRQ_DMA;
 	HAL_I2C_MemTxCpltCallback(h);
@@ -367,6 +380,8 @@ EXPORT(sim_out_clear) void sim_out_clear(void){ out_len = 0; }
 // The screen as the pedal holds it, 130 x 64: a byte per column per 8 rows
 EXPORT(sim_screen) const uint8_t *sim_screen(void){ return ssd1306_GetBuffer(); }
 EXPORT(sim_screen_on) bool sim_screen_on(void){ return ssd1306_GetDisplayOn(); }
+EXPORT(sim_panel) const uint8_t *sim_panel(void){ return panel; }
+EXPORT(sim_i2c_fail) void sim_i2c_fail(uint32_t n){ i2c_fails = n; }
 
 // The ten LEDs, 0..16, in the order of the switches
 static uint8_t led_out[10];

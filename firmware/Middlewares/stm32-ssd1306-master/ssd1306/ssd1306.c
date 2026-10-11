@@ -2,6 +2,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>  // For memcpy
+#include <stdbool.h>
 
 
 volatile uint8_t display_transmit_line = 0; // The next line to be transmitted to the display via DMA.  0 indicates that it is idle.
@@ -13,9 +14,18 @@ static volatile uint8_t display_last_line = 7; // the last line of the update go
 // each page is copied out of it only when its turn comes.
 static volatile uint8_t display_pending_first = 0xFF;
 static volatile uint8_t display_pending_last = 0;
+// A transfer that failed: the whole screen goes out again once
+// SSD1306_RETRY_MS have gone by. Not busy meanwhile, so nothing waits on a
+// display that is not answering.
+#define SSD1306_RETRY_MS	(100U)
+static volatile uint8_t display_resend = 0;
+static volatile uint32_t display_retry_at = 0;
+// Set while the HAL starts a transfer from SysTick, where HAL_GetTick stands
+// still: HAL_GetTick (main.c) then lets its timeouts run out
+volatile uint8_t ssd1306_hal_in_tick = 0;
 
 
-void ssd1306_DMATxLine(uint8_t line);
+static bool ssd1306_DMATxLine(uint8_t line);
 uint8_t line_tx_buffer[SSD1306_WIDTH+6];
 
 // No wait here is endless: a display that stops answering (static, a loose
@@ -23,13 +33,20 @@ uint8_t line_tx_buffer[SSD1306_WIDTH+6];
 // in SysTick at that. About 50 ms at 72 MHz, where a whole screen takes 30.
 #define SSD1306_SPIN_MAX	(400000U)
 
+// What went out is lost: send the whole screen again in a while
+static void ssd1306_Failed(void){
+	display_line_transmitting_flag = 0;
+	display_transmit_line = 0;
+	display_pending_first = 0xFF;
+	display_retry_at = HAL_GetTick() + SSD1306_RETRY_MS;
+	display_resend = 1;
+}
+
 // Drop whatever was going out and start the I2C again
 static void ssd1306_Recover(void){
 	HAL_DMA_Abort(SSD1306_I2C_PORT.hdmatx);
 	HAL_I2C_Init(&SSD1306_I2C_PORT);
-	display_line_transmitting_flag = 0;
-	display_transmit_line = 0;
-	display_pending_first = 0xFF;
+	ssd1306_Failed();
 }
 
 static void ssd1306_WaitI2C(void){
@@ -72,18 +89,21 @@ void ssd1306_tick(void){
 	}
 
 	if(display_transmit_line != 0){
-		ssd1306_DMATxLine(display_transmit_line);
-		display_transmit_line++;
-		if(display_transmit_line > display_last_line){
-			display_transmit_line = 0;
-		}
+		uint8_t line = display_transmit_line;
+		if(!ssd1306_DMATxLine(line)) return;
+		display_transmit_line = (line < display_last_line) ? line + 1 : 0;
 	} else if(display_pending_first != 0xFF){
 		// The update asked for while the last one was going out
 		uint8_t first = display_pending_first;
 		display_last_line = display_pending_last;
 		display_pending_first = 0xFF;
-		ssd1306_DMATxLine(first);
+		if(!ssd1306_DMATxLine(first)) return;
 		display_transmit_line = (first < display_last_line) ? first + 1 : 0;
+	} else if(display_resend && (int32_t)(HAL_GetTick() - display_retry_at) >= 0){
+		display_resend = 0;
+		display_last_line = 7;
+		if(!ssd1306_DMATxLine(0)) return;
+		display_transmit_line = 1;
 	}
 }
 
@@ -121,11 +141,7 @@ void ssd1306_WriteData(uint8_t* buffer, size_t buff_size)
 // whole screen again after it
 void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c){
 	if(hi2c->Instance == SSD1306_I2C_PORT.Instance){
-		display_line_transmitting_flag = 0;
-		display_transmit_line = 0;
-		display_last_line = 7;
-		display_pending_first = 0;
-		display_pending_last = 7;
+		ssd1306_Failed();
 	}
 }
 
@@ -249,7 +265,8 @@ void ssd1306_Fill(SSD1306_COLOR color) {
 }
 
 
-void ssd1306_DMATxLine(uint8_t line){
+// False when the transfer could not start, which ssd1306_Failed has seen to
+static bool ssd1306_DMATxLine(uint8_t line){
 
 	// Loading the front of the buffer with the page and column address commands
 	// So the commands get transfered by DMA in the one go with the page of data.
@@ -268,8 +285,16 @@ void ssd1306_DMATxLine(uint8_t line){
 	ssd1306_WaitI2C();
 	display_line_transmitting_flag = 1;
 	display_transmit_data_flag = 1;
-	HAL_I2C_Mem_Write_DMA(&SSD1306_I2C_PORT, SSD1306_I2C_ADDR, 0x80, 1, line_tx_buffer, SSD1306_WIDTH+6);
-
+	// A NACK or a busy bus before the DMA starts comes back here, with no
+	// callback to clear the flag: the screen stayed as it was for good
+	ssd1306_hal_in_tick = ((SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) == 15U);
+	HAL_StatusTypeDef st = HAL_I2C_Mem_Write_DMA(&SSD1306_I2C_PORT, SSD1306_I2C_ADDR, 0x80, 1, line_tx_buffer, SSD1306_WIDTH+6);
+	ssd1306_hal_in_tick = 0;
+	if(st != HAL_OK){
+		ssd1306_Recover();
+		return false;
+	}
+	return true;
 }
 
 // Write the screenbuffer with changed to the screen
@@ -310,8 +335,14 @@ void ssd1306_UpdateLines(uint8_t first, uint8_t last) {
 	display_line_transmitting_flag = 1;	// ours: ssd1306_tick leaves it alone
 	__enable_irq();
 
+	if(display_resend){
+		// The screen was lost: this update sends all of it
+		display_resend = 0;
+		first = 0;
+		last = 7;
+	}
 	display_last_line = last;
-	ssd1306_DMATxLine(first);
+	if(!ssd1306_DMATxLine(first)) return;
 	// 0 means idle, so the line after the last one is never 0 here
 	display_transmit_line = (first < last) ? first + 1 : 0;
 }

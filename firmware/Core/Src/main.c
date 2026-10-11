@@ -88,6 +88,23 @@ static void MX_ADC1_Init(void);
 /* USER CODE BEGIN 0 */
 extern const uint32_t g_pfnVectors[];
 
+/*
+ * The HAL's I2C waits give up after so many ms of HAL_GetTick, which stands
+ * still in SysTick, where the display's lines are started: a bus that hung
+ * there waited for ever, and the watchdog restarted the pedal. While the
+ * display starts a transfer from SysTick its clock moves a ms each 256 reads,
+ * so the wait ends, in well under its real time, and the pedal carries on
+ * without a screen.
+ */
+uint32_t HAL_GetTick(void)
+{
+  if(ssd1306_hal_in_tick && (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) == 15U){
+    static uint32_t reads;
+    return uwTick + (++reads >> 8);
+  }
+  return uwTick;
+}
+
 // The table is wherever the linker put it: 0x08003000 behind the DFU
 // bootloader, 0x08000000 in the ST-Link build.
 static inline void RelocateVectorTable(void)
