@@ -80,13 +80,24 @@ def schema_json() -> str:
     return json.dumps(schema())
 
 
+def _devices_json(found) -> str:
+    return json.dumps([
+        {"name": d["name"], "maker": d["maker"], "model": d.get("model", d["name"]),
+         "setup": d.get("setup", ""), "community": d.get("community", False),
+         "commands": [{"name": e["name"], "fields": devices.fields(e)} for e in d["commands"]]}
+        for d in found
+    ])
+
+
 def devices_json() -> str:
     """The device dictionary, each command with the CSV fields it fills."""
-    return json.dumps([
-        {"name": d["name"], "maker": d["maker"], "setup": d["setup"],
-         "commands": [{"name": e["name"], "fields": devices.fields(e)} for e in d["commands"]]}
-        for d in devices.DEVICES
-    ])
+    return _devices_json(devices.DEVICES)
+
+
+def community_json() -> str:
+    """The community devices, as devices_json gives them; the page puts
+    lib/openmidi.json in place first, when they are asked for."""
+    return _devices_json(devices.community())
 
 
 def device_guess(text: str, chosen: str = "{}") -> str:

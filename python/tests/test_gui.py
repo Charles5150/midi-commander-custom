@@ -97,6 +97,20 @@ class GuiTest(unittest.TestCase):
                          ("CC", "1", "52", "127", "0", "Y"))
         self.assertEqual(editor.name_label.cget("text"), "HX Stomp: FS4")
 
+    def test_a_command_from_a_community_device(self):
+        import lib.deviceDictionary as dd
+        self.app.load_csv(os.path.join(ROOT, "templates", "HX_Stomp.csv"))
+        self.app.load_button_commands(0, "2")
+        self.app.update()
+        editor = self.app.slot_editors[-1]
+        tmp = dd.find("Fender Tone Master Pro")
+        editor.pick(tmp, next(e for e in tmp["commands"] if e["name"] == "Looper PLAY/STOP"))
+        self.app.update()
+        v = editor.values()
+        self.assertEqual((v["CommandType"], v["Number_(PC/CC/Note)"], v["OnValue_(CC/PB)"], v["OffValue_(CC)"]),
+                         ("CC", "104", "127", ""))
+        self.assertEqual(editor.name_label.cget("text"), "Fender Tone Master Pro: Looper PLAY/STOP")
+
     def test_saved_as_loaded(self):
         for path in CSVS:
             with self.subTest(os.path.basename(path)):

@@ -46,6 +46,7 @@ const state = {
   dfuName: "",
   busy: false,
   deviceChosen: {},    // {channel: device} picked from the dictionary in this session
+  communityUsed: [],   // the community devices picked in this session, for the menus
   toolsError: "",      // why the configurator's Python did not load
   expHeld: [null, null],   // what Live holds each expression pedal at, null: let go
   expPedal: null,      // the pedal expHeld is about
@@ -380,29 +381,77 @@ function deviceText(type, get) {
 }
 
 // A menu of every device's commands; filled when opened, the device on this
-// channel first
+// channel first. The community devices are too many for it: "More devices…"
+// finds one by name, and the ones picked join the menu
 function devicePicker(types, channel, pick, label) {
   const sel = h("select", { class: "device", title: "Fill this command from a device's MIDI map", "aria-label": label }, h("option", { value: "" }, "Device…"));
+  let shown = [];
   const fill = () => {
     if (sel.options.length > 1) return;
-    const devices = state.tools.devices();
+    const devices = state.tools.devices().concat(state.communityUsed);
     const here = deviceMap()[channel()];
-    const order = devices.map((d, i) => i).sort((a, b) => (devices[b].name === here) - (devices[a].name === here));
-    for (const di of order) {
-      const d = devices[di];
+    shown = devices.slice().sort((a, b) => (b.name === here) - (a.name === here));
+    shown.forEach((d, di) => {
       const opts = d.commands.map((e, ci) => [e, ci]).filter(([e]) => types.includes(e.fields.CommandType));
-      if (opts.length) sel.append(h("optgroup", { label: `${d.maker} ${d.name}` }, opts.map(([e, ci]) => h("option", { value: `${di}:${ci}` }, e.name))));
-    }
+      if (opts.length) sel.append(h("optgroup", { label: d.community ? `${d.name} (OpenMIDI)` : `${d.maker} ${d.name}` }, opts.map(([e, ci]) => h("option", { value: `${di}:${ci}` }, e.name))));
+    });
+    sel.append(h("option", { value: "more" }, "More devices…"));
   };
   sel.addEventListener("focus", fill);
   sel.addEventListener("mousedown", fill);
-  sel.addEventListener("change", () => {
-    if (!sel.value) return;
-    const [di, ci] = sel.value.split(":").map(Number);
-    const d = state.tools.devices()[di];
-    pick(d, d.commands[ci]);
+  sel.addEventListener("change", async () => {
+    const value = sel.value;
+    sel.value = "";
+    if (!value) return;
+    if (value === "more") {
+      const found = await findCommunityCommand(types);
+      if (!found) return;
+      if (!state.communityUsed.includes(found.device)) state.communityUsed.push(found.device);
+      sel.replaceChildren(h("option", { value: "" }, "Device…"));
+      pick(found.device, found.command);
+      return;
+    }
+    const [di, ci] = value.split(":").map(Number);
+    pick(shown[di], shown[di].commands[ci]);
   });
   return sel;
+}
+
+// The community devices (OpenMIDI): a search by maker and model, then the
+// device's commands; {device, command} or null
+async function findCommunityCommand(types) {
+  let devices;
+  try {
+    devices = await state.tools.communityDevices();
+  } catch (e) {
+    toast(`Cannot load the community devices: ${e.message}. Check the internet connection and try again.`, "error");
+    return null;
+  }
+  const search = h("input", { type: "search", placeholder: "Maker or model", "aria-label": "Search devices" });
+  const list = h("select", { size: 10, class: "community-devices", "aria-label": "Devices" });
+  const commands = h("select", { "aria-label": "Command" });
+  let matches = [];
+  const showCommands = () => {
+    const d = matches[list.selectedIndex];
+    const opts = d ? d.commands.map((e, ci) => [e, ci]).filter(([e]) => types.includes(e.fields.CommandType)) : [];
+    commands.replaceChildren(...opts.map(([e, ci]) => h("option", { value: ci }, e.name)));
+  };
+  const filter = () => {
+    const words = search.value.toLowerCase().split(/\s+/).filter(Boolean);
+    matches = devices.filter((d) => words.every((w) => d.name.toLowerCase().includes(w)));
+    list.replaceChildren(...matches.map((d) => h("option", {}, d.name)));
+    if (matches.length) list.selectedIndex = 0;
+    showCommands();
+  };
+  search.addEventListener("input", filter);
+  list.addEventListener("change", showCommands);
+  filter();
+  const body = [labelled("Search", search), list, labelled("Command", commands),
+    h("p", { class: "hint" }, `${devices.length} devices from OpenMIDI, written down by its community and not checked here: check the numbers and values against the device's manual.`)];
+  if (!(await confirmDialog("More devices", body, "Fill"))) return null;
+  const device = matches[list.selectedIndex];
+  if (!device || commands.value === "") return null;
+  return { device, command: device.commands[Number(commands.value)] };
 }
 
 function commandRow(sec, row, slot, types, redraw) {

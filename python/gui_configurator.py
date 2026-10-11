@@ -577,19 +577,39 @@ class SlotEditor:
 
     # Device dictionary -----------------------------------------------------
     def _device_menu(self, types):
-        """Every device's commands, the device on this channel first."""
+        """Every device's commands, the device on this channel first; the
+        community devices, many more, by maker below them."""
         menu = tk.Menu(self.frame, tearoff=0)
         here = DeviceContext.here.get(DeviceContext.channel(self.values().get("Channel_(PC/CC/Note/PB)")))
-        for d in sorted(device_dict.DEVICES, key=lambda d: d["name"] != here):
-            entries = [e for e in d["commands"] if e["type"] in types]
-            if not entries:
-                continue
-            sub = tk.Menu(menu, tearoff=0)
-            for e in entries:
-                sub.add_command(label=e["name"], command=lambda d=d, e=e: self.pick(d, e))
-            menu.add_cascade(label=f"{d['maker']} {d['name']}", menu=sub)
+        # The community devices in use show with the hand-checked ones
+        used = [device_dict.find(n) for n in sorted(set(DeviceContext.here.values()))]
+        used = [d for d in used if d is not None and d.get("community")]
+        for d in sorted(device_dict.DEVICES + used, key=lambda d: d["name"] != here):
+            self._device_cascade(menu, d, types, d["name"] if d.get("community") else f"{d['maker']} {d['name']}")
+        community = device_dict.community()
+        if community:
+            more = tk.Menu(menu, tearoff=0)
+            makers = {}
+            for d in community:
+                makers.setdefault(d["maker"], []).append(d)
+            for maker, found in makers.items():
+                sub = tk.Menu(more, tearoff=0)
+                for d in found:
+                    self._device_cascade(sub, d, types, d["model"])
+                more.add_cascade(label=maker, menu=sub)
+            menu.add_separator()
+            menu.add_cascade(label=f"More devices, from OpenMIDI ({len(community)}, unchecked)", menu=more)
         b = self.device_button
         menu.tk_popup(b.winfo_rootx(), b.winfo_rooty() + b.winfo_height())
+
+    def _device_cascade(self, menu, d, types, label):
+        entries = [e for e in d["commands"] if e["type"] in types]
+        if not entries:
+            return
+        sub = tk.Menu(menu, tearoff=0)
+        for e in entries:
+            sub.add_command(label=e["name"], command=lambda d=d, e=e: self.pick(d, e))
+        menu.add_cascade(label=label, menu=sub)
 
     def pick(self, device: dict, entry: dict):
         """Fill the command from the dictionary: the type, number and values;

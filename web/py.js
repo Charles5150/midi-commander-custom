@@ -103,6 +103,16 @@ export class Tools {
     return this._devices;
   }
 
+  // The community devices (openmidi.json, ~2 MB), fetched the first time
+  // they are asked for; as devices() gives them
+  async communityDevices() {
+    if (!this._community) {
+      this.py.FS.writeFile("/tools/lib/openmidi.json", await this.fetchFile("lib/openmidi.json"));
+      this._community = JSON.parse(this.bridge.community_json());
+    }
+    return this._community;
+  }
+
   // {channel: device} the configuration's commands point to, or the user chose
   deviceGuess(sections, chosen) {
     return JSON.parse(this._call(this.bridge.device_guess, JSON.stringify(sections), JSON.stringify(chosen)));

@@ -453,7 +453,7 @@ To use another channel, change `CHANNEL` at the top of `python/make_kemper_playe
 ## No template yet: Boss GX-100 and Fender Tone Master Pro
 
 - **Boss GX-100 and GX-10.** They answer Program Changes, but none of their controls has a CC of its own: each CC has to be set as the SOURCE of an ASSIGN, in each memory, as on the [RC-600](#boss-rc-600-template). The GX-10 has no MIDI socket at all, only USB and Bluetooth, so it needs a USB MIDI host box, as the [POD Go](#line-6-pod-go-template) does. A Program Change selects a memory as the GX's PROGRAM MAP says; with MAP SELECT on FIX, CC#0 0, 1 or 2 before it reaches the 300 memories.
-- **Fender Tone Master Pro.** It has DIN MIDI, and a preset is CC#0 0–3 then a Program Change, 128 presets to a bank. Its CC chart has been corrected more than once since the first manual, and the current one could not be checked, so there is no template yet: its MIDI chapter, under **Settings > I/O > MIDI**, says which CC does what.
+- **Fender Tone Master Pro.** It has DIN MIDI, and a preset is CC#0 0–3 then a Program Change, 128 presets to a bank. Its CC chart has been corrected more than once since the first manual, and the current one could not be checked, so there is no template yet: its MIDI chapter, under **Settings > I/O > MIDI**, says which CC does what. Its map from the OpenMIDI community is in the configurator's **Device** menu, under [More devices](03-the-configurator.md#from-a-devices-midi-map).
 
 ## Templates for programs on the computer
 

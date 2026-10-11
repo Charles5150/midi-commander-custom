@@ -5,9 +5,15 @@ templates, so a configurator can offer "HX Stomp > FS4" instead of a type,
 a number and values, and name a CC already written. The desktop and the web
 configurators both read it through here.
 
+openmidi.json is the community part: hundreds more devices imported from
+OpenMIDI (python/import_openmidi.py), as their contributors wrote them down
+and unchecked, read only when first asked for. Its names are maker and
+model, so none is taken by a hand-checked device.
+
 A command is (channel, type, number, on, toggle) as text, the way the CSV
 holds them; which device sits on a channel is guessed from the commands the
-configuration already sends there, unless the user picked one.
+configuration already sends there, among the hand-checked devices only,
+unless the user picked one.
 """
 
 import json
@@ -15,11 +21,38 @@ import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEVICES_JSON = os.path.join(HERE, "devices.json")
+COMMUNITY_JSON = os.path.join(HERE, "openmidi.json")
 
 with open(DEVICES_JSON, encoding="utf-8") as f:
     DEVICES = json.load(f)["devices"]
 
 BY_NAME = {d["name"]: d for d in DEVICES}
+
+_community = None
+_community_by_name = {}
+
+
+def community() -> list:
+    """The community devices of openmidi.json, [] when it is not there."""
+    global _community
+    if _community is None:
+        try:
+            with open(COMMUNITY_JSON, encoding="utf-8") as f:
+                _community = json.load(f)["devices"]
+        except FileNotFoundError:
+            return []
+        for d in _community:
+            d["community"] = True
+            _community_by_name[d["name"]] = d
+    return _community
+
+
+def find(name):
+    """A device by its name, hand-checked or from the community, or None."""
+    if name in BY_NAME:
+        return BY_NAME[name]
+    community()
+    return _community_by_name.get(name)
 
 # How many of a channel's CC numbers a device must know before it is taken
 # for the device there, and what share of them
@@ -56,7 +89,7 @@ def fields(entry: dict) -> dict:
 
 def entry_name(device: str, cmd_type, number=None, on=None, toggle=None):
     """The dictionary's name for a command on `device`, or None."""
-    d = BY_NAME.get(device)
+    d = find(device)
     if d is None:
         return None
     cmd_type = str(cmd_type or "").strip()
@@ -105,7 +138,7 @@ def guess(commands, chosen=None) -> dict:
         if best:
             out[ch] = best[1]
     for ch, name in (chosen or {}).items():
-        if name in BY_NAME:
+        if find(name) is not None:
             out[_int(ch) or 1] = name
     return out
 

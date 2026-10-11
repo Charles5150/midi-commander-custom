@@ -10,6 +10,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
+import import_openmidi as openmidi  # noqa: E402
 import lib.deviceDictionary as dd  # noqa: E402
 import lib.webBridge as bridge  # noqa: E402
 from lib.cmdBinaryPacker import CC_NO_OFF, cmd_cc, cmd_pc  # noqa: E402
@@ -143,6 +144,72 @@ class BridgeTest(unittest.TestCase):
         self.assertEqual(json.loads(bridge.device_guess(text, '{"2": "H90"}')), {"1": "Quad Cortex", "2": "H90"})
         self.assertEqual(bridge.device_name("Quad Cortex", "CC", "43", "4", "Y"), "Scene E")
         self.assertEqual(bridge.device_name("Quad Cortex", "CC", "99", "4", "Y"), "")
+
+
+class CommunityTest(unittest.TestCase):
+    """openmidi.json, the devices imported from OpenMIDI."""
+
+    def test_entries_are_well_formed_and_pack(self):
+        devices = dd.community()
+        self.assertGreater(len(devices), 500)
+        for d in devices:
+            with self.subTest(d["name"]):
+                self.assertEqual(d["name"], f"{d['maker']} {d['model']}")
+                self.assertTrue(d["community"])
+                names = [e["name"] for e in d["commands"]]
+                self.assertEqual(len(names), len(set(names)), "a name twice")
+                for e in d["commands"]:
+                    cmd = {f: "" for f in CMD_FIELDS}
+                    cmd["Channel_(PC/CC/Note/PB)"] = "3"
+                    cmd.update(dd.fields(e))
+                    if e["type"] == "PC":
+                        cmd_pc(cmd)
+                        continue
+                    packed = cmd_cc(cmd)
+                    self.assertEqual(packed[1] & 0x7F, e["number"])
+                    self.assertEqual(packed[3], e.get("off", CC_NO_OFF))
+                    self.assertIsNotNone(dd.entry_name(d["name"], "CC", e["number"], e["on"], e.get("toggle")))
+
+    def test_no_device_twice(self):
+        names = [d["name"] for d in dd.community()]
+        self.assertEqual(len(names), len(set(names)))
+        self.assertEqual(set(names) & set(dd.BY_NAME), set())
+        # The hand-checked ones are left out, and are in devices.json
+        self.assertLessEqual(set(openmidi.REPLACED.values()), set(dd.BY_NAME))
+
+    def test_a_pick_names_its_commands(self):
+        tmp = "Fender Tone Master Pro"
+        self.assertEqual(dd.find(tmp)["maker"], "Fender")
+        self.assertIsNone(dd.find("Nothing Such"))
+        self.assertEqual(dd.describe(dd.guess([], {"2": tmp}), "2", "CC", "104", "127", "N"),
+                         f"{tmp}: Looper PLAY/STOP")
+
+    def test_they_are_never_guessed(self):
+        """Hundreds of maps, many of them every CC: they would match anything."""
+        commands = [("1", "CC", str(n), "127", "Y") for n in (1, 2, 3, 4, 5, 6, 7)]
+        self.assertEqual(dd.guess(commands), {})
+
+    def test_the_conversion(self):
+        cc = lambda v, lo, hi: openmidi.command({"name": "X", "value": v, "min": lo, "max": hi})  # noqa: E731
+        self.assertEqual(cc("12", 0, "127"), {"name": "X", "type": "CC", "number": 12, "on": 127, "off": 0,
+                                              "toggle": True})
+        self.assertEqual(cc(69, 2, 2), {"name": "X", "type": "CC", "number": 69, "on": 2})
+        # 64-127: any of them does it
+        self.assertEqual(cc(64, 64, 127), {"name": "X", "type": "CC", "number": 64, "on": 127})
+        self.assertEqual(cc(7, None, None)["off"], 0)
+        self.assertEqual(cc(7, "0-127", "Max")["on"], 127)
+        self.assertIsNone(cc("User-defined", 0, 127))
+        self.assertIsNone(cc(128, 0, 127))
+        d = openmidi.device("M", "D", {"cc": [{"name": "A", "value": 1, "min": 0, "max": 127},
+                                              {"name": "A", "value": 1, "min": 0, "max": 127},
+                                              {"name": "A", "value": 2, "min": 0, "max": 127}]})
+        self.assertEqual([e["name"] for e in d["commands"]], ["Program", "A", "A (CC2)"])
+
+    def test_the_page_gets_them(self):
+        devices = json.loads(bridge.community_json())
+        self.assertEqual(len(devices), len(dd.community()))
+        self.assertTrue(all(d["community"] for d in devices))
+        self.assertFalse(json.loads(bridge.devices_json())[0]["community"])
 
 
 if __name__ == "__main__":
