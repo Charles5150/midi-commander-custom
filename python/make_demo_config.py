@@ -747,6 +747,10 @@ def build() -> Demo:
     # the end the foot heads for
     d.exp.loc[0, "Takeover"] = "CatchUp"
     d.exp.loc[1, "Takeover"] = "Scaled"
+    # While it moves, pedal 1 shows its value as a bar in the info line and
+    # pedal 2 as a number, "EXP2 64"
+    d.exp.loc[0, "Display"] = "Bar"
+    d.exp.loc[1, "Display"] = "Number"
 
     # The Bank Down/Up switches send MIDI of their own as well as changing
     # bank, which is what Bank_Switch_Mode = Bank+MIDI means. A host can use

@@ -29,6 +29,7 @@ Some things take the screen, or part of it, for a moment and then give the bank 
 | A clock running, with `Beat_Counter` on | the bar, the beat and the tempo in place of the info line, `12.3 120`, for as long as it runs ([Bar and beat on the display](07-tempo.md#bar-and-beat-on-the-display)) |
 | A count-in (`Wait` `Count`) | the beats left in place of the bank's name, `IN 4` to `IN 1`, until the list goes ([On the beat](06-commands.md#on-the-beat)) |
 | A relative CC button | the CC number and the value just sent, in place of the info line for 1.5 seconds: `CC7=69`, or `C120=127` for three digit CC numbers |
+| An expression pedal moving, with `Display` on | the value it sends, `EXP1 64`, or the pedal's number and a bar, in place of the info line until 1.5 seconds after it stops ([Its value on the display](08-expression.md#its-value-on-the-display)) |
 | A next or previous preset button | the new program's [name](#preset-names), or its number, as `PC 6` |
 | Switching configuration | the new configuration's number and name, full screen; a short notice when the slot asked for is empty |
 | Bank Up / Down with `Bank_Preview` on | the bank they would go to, its name inverted, white with black letters, over its labels ([Bank preview](04-banks.md#bank-preview)) |

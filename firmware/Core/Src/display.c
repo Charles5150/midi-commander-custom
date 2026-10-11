@@ -58,6 +58,7 @@
 #define SCREEN_SHOWN_W	(128)	// the buffer is 130 wide, the glass shows 128
 #define NAME_W		(44)	// 4 large chars
 #define INFO_X		(50)
+#define PEDAL_BAR_X	(60)	// an expression pedal's bar, after its number
 #define CELL10_W	(25)	// five cells to a row
 #define CELL10_X	(1)	// the 125 px they take, in the middle
 #define LABEL10_FONT	Font_6x8
@@ -75,6 +76,13 @@ static uint32_t overlay_until = 0;
 // The readout shown over the info line until overlay_until; empty while a
 // notice that is not over the bank screen has it
 static char overlay_msg[13];
+// An expression pedal's value as a bar after overlay_msg, 0xFF for none
+static uint8_t overlay_bar = 0xFF;
+// A pedal's value waiting for the screen to be free (1.29): pedal + 1, 0 none
+static uint8_t pedal_pending = 0;
+static uint8_t pedal_value;
+static bool pedal_bar;
+static uint32_t pedal_tick;
 
 /*
  * Host text, one per place; an empty string means the bank's own text. Written
@@ -836,18 +844,29 @@ static void draw_overlay(void){
 	fill_rect(50, 6, SSD1306_WIDTH - 50, 10, Black);
 	ssd1306_SetCursor(50, 6);
 	ssd1306_WriteString(overlay_msg, Font_7x10, White);
+	if(overlay_bar != 0xFF){
+		// A frame from the pedal's number to the edge, filled up to the value
+		ssd1306_DrawRectangle(PEDAL_BAR_X, 7, SCREEN_SHOWN_W - 1, 15, White);
+		fill_rect(PEDAL_BAR_X + 2, 9, (uint8_t)(overlay_bar * (SCREEN_SHOWN_W - PEDAL_BAR_X - 4) / 127U), 5, White);
+	}
 	ssd1306_UpdateScreen();
 	refresh_pending = 0;
 }
 
-static void show_overlay(const char *msg){
+// bar: an expression pedal's value drawn as a bar after msg, 0xFF for none
+static void show_readout(const char *msg, uint8_t bar){
 	if(banner_running()) return;	// the banner is not cut short for a readout
 	if(preview_bank != 0xFF) return;	// nor the bank being chosen
 	if(tuner_on) return;			// nor the tuner
 	if(moment_showing) moment_done();
 	snprintf(overlay_msg, sizeof(overlay_msg), "%s", msg);
+	overlay_bar = bar;
 	draw_overlay();
 	overlay_until = HAL_GetTick() + OVERLAY_MS;
+}
+
+static void show_overlay(const char *msg){
+	show_readout(msg, 0xFF);
 }
 
 void display_show_tempo(void){
@@ -874,6 +893,32 @@ void display_show_cc(uint8_t cc, uint8_t value){
 		snprintf(msg, sizeof(msg), "C%u=%u", cc, value);
 	}
 	show_overlay(msg);
+}
+
+/*
+ * Where an expression pedal is, while it moves: "EXP1 64", or a 1 and a bar.
+ * The value is only noted here; display_task draws the latest one once the
+ * last screen has gone out, so a sweep never waits on the display.
+ */
+void display_show_pedal(uint8_t pedal, uint8_t value, bool bar){
+	pedal_value = value;
+	pedal_bar = bar;
+	pedal_tick = HAL_GetTick();
+	pedal_pending = (uint8_t)(pedal + 1U);
+}
+
+static void draw_pedal(void){
+	char msg[13];
+	uint8_t pedal = (uint8_t)(pedal_pending - 1U);
+	pedal_pending = 0;
+	// Kept waiting by the tuner or the banner: gone by now
+	if(HAL_GetTick() - pedal_tick > OVERLAY_MS) return;
+	if(pedal_bar){
+		snprintf(msg, sizeof(msg), "%u", (unsigned)(pedal + 1U));
+	} else {
+		snprintf(msg, sizeof(msg), "EXP%u %u", (unsigned)(pedal + 1U), (unsigned)pedal_value);
+	}
+	show_readout(msg, pedal_bar ? pedal_value : 0xFF);
 }
 
 // A relative PC's program: by its preset name when it has one (1.20)
@@ -1096,6 +1141,10 @@ void display_task(void){
 	}
 	if(moment_pending){
 		show_moment_text();
+		return;
+	}
+	if(pedal_pending){
+		draw_pedal();
 		return;
 	}
 	// An external clock appeared or changed tempo

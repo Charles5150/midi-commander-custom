@@ -52,6 +52,9 @@
  * Or scroll, for lyrics, a score or a teleprompter: a mouse wheel, or the
  * arrow keys, going as fast as the pedal is pressed. See scroll.
  *
+ * The display can show where a pedal is while it moves, the value it sends
+ * as a number or a bar in the info line, for a moment (1.29).
+ *
  * Or the jack holds no pedal at all but a small box of switches, each putting
  * the jack at its own level, and each level holds down a switch of the pedal.
  * See switch_box.
@@ -64,6 +67,7 @@
 #include "expression.h"
 
 #include <stdbool.h>
+#include "display.h"
 #include "flash_midi_settings.h"
 #include "midi_cmds.h"
 #include "midi_defines.h"
@@ -941,8 +945,15 @@ static void process_pedal(uint32_t i)
           else sent = midiCmd_send_cc(channel, cc, (uint8_t)send_value);
       }
       if (sent != ERROR_BUFFERS_FULL) {
+          uint8_t was = p->last_sent_midi;
           p->last_sent_value = out_value;
           p->last_sent_midi = seven ? (uint8_t)send_value : (uint8_t)(send_value >> 7);
+          // Show where it went, when the foot moved it (not on entering a bank)
+          uint8_t show = flash_settings_exp_display((uint8_t)i);
+          if (show != EXP_DISPLAY_OFF && enabled && kind != SEND_SCROLL && !forced
+              && was != 0xFFU && was != p->last_sent_midi) {
+              display_show_pedal((uint8_t)i, p->last_sent_midi, show == EXP_DISPLAY_BAR);
+          }
       }
   }
   send_extras(i, midi_value);

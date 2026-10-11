@@ -69,6 +69,9 @@ EXT2_MAP_OFFSET = 16
 # How each pedal takes over a value it does not hold (firmware 1.18): two bits
 # per pedal in this header byte, pedal 1 in the low ones; 3 (erased) is Jump
 EXT2_TAKEOVER_OFFSET = 4
+# What the display shows while each pedal moves (firmware 1.29): two bits per
+# pedal in this header byte, pedal 1 in the low ones; 3 (erased) is Off
+EXT2_EXP_DISPLAY_OFFSET = 5
 # MIDI map: messages arriving over USB turned into others on the DIN output
 MIDI_MAP_COUNT = 32
 MIDI_MAP_STRIDE = 12

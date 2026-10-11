@@ -79,7 +79,7 @@ class DoublePressTest(unittest.TestCase):
                                  packer.PRESET_NAMES_SECTION)}
         sections[packer.LONG_PRESS_SECTION] = sections[packer.LONG_PRESS_SECTION].assign(Long_Label="")
         sections[packer.BANK_SWITCH_SECTION] = sections[packer.BANK_SWITCH_SECTION].assign(Label="")
-        sections[packer.EXPRESSION_SECTION] = sections[packer.EXPRESSION_SECTION].assign(Takeover="Jump")
+        sections[packer.EXPRESSION_SECTION] = sections[packer.EXPRESSION_SECTION].assign(Takeover="Jump", Display="Off")
         self.assertEqual(packer.pack_flash_image(sections), packer.pack_config(sections))
         self.assertIsNone(packer.pack_double_press(sections))
 

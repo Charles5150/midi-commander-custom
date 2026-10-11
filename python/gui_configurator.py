@@ -1559,7 +1559,7 @@ class MidiCommanderGUI(ctk.CTk):
                 else empty_expression_settings()
             )
             for col, default in (("Out_Min", "0"), ("Out_Max", "127"), ("Auto_Button", "None"), ("Auto_Off_ms", "500"),
-                                 ("Output", "CC"), ("Send_On_Bank", "N"), ("Takeover", "Jump"),
+                                 ("Output", "CC"), ("Send_On_Bank", "N"), ("Takeover", "Jump"), ("Display", "Off"),
                                  ("Box_1", "None"), ("Box_2", "None"), ("Box_3", "None")):
                 if col not in self.df_exp.columns:
                     self.df_exp[col] = default
@@ -2407,6 +2407,13 @@ class MidiCommanderGUI(ctk.CTk):
             w["takeover"].pack(side="left", padx=(6, 2))
             ctk.CTkLabel(take, text="Jump: to the foot. CatchUp: waits for the foot. Scaled: from it to the end").pack(
                 side="left", padx=(6, 2))
+
+            show = ctk.CTkFrame(box, fg_color="transparent")
+            show.pack(fill="x", padx=8, pady=(0, 8))
+            ctk.CTkLabel(show, text="While it moves, the display shows the value").pack(side="left")
+            w["display"] = Option(show, ["Off", "Number", "Bar"], clean(r.get("Display")) or "Off", width=100)
+            w["display"].pack(side="left", padx=(6, 2))
+            ctk.CTkLabel(show, text="in the info line, for a moment").pack(side="left", padx=(6, 2))
 
             auto = ctk.CTkFrame(box, fg_color="transparent")
             auto.pack(fill="x", padx=8, pady=(0, 8))
@@ -3359,6 +3366,7 @@ class MidiCommanderGUI(ctk.CTk):
             self.df_exp.at[i, "Output"] = w["output"].value()
             self.df_exp.at[i, "Send_On_Bank"] = w["send_on_bank"].value()
             self.df_exp.at[i, "Takeover"] = w["takeover"].value()
+            self.df_exp.at[i, "Display"] = w["display"].value()
             for k in range(1, 4):
                 self.df_exp.at[i, f"Box_{k}"] = w[f"box_{k}"].value()
 

@@ -139,6 +139,12 @@ uint8_t flash_settings_exp_takeover(uint8_t pedal){
 	return mode <= EXP_TAKEOVER_SCALE ? mode : EXP_TAKEOVER_JUMP;
 }
 
+uint8_t flash_settings_exp_display(uint8_t pedal){
+	const uint8_t *t = ext2_part(EXT2_EXP_DISPLAY_OFF);
+	uint8_t mode = t ? (*t >> (2U * pedal)) & 3U : EXP_DISPLAY_OFF;
+	return mode <= EXP_DISPLAY_BAR ? mode : EXP_DISPLAY_OFF;
+}
+
 /*
  * Where 16 bytes at a tools offset live: the slot's own pages, or past them the
  * slot's extension areas. 0 when the chunk is outside all of them.

@@ -1533,3 +1533,38 @@ test("reload when lit: the lit button of a group sends its list again and stays 
   assert.deepEqual(off.filter((m) => m.startsWith("176")), ["176 6 0"], "switched off");
   assert.deepEqual(off.filter((m) => m.startsWith("192")), [], "the channel is on program 5 already");
 });
+
+test("an expression pedal shows its value on the display while it moves, as a bar or a number (before 1.29, nothing)", async () => {
+  const withDisplay = async (one, two) => simWithDemo(await flashWith(packDemo([
+    "e = d['Expression_Settings']",
+    "cols = ['Min_ADC', 'Max_ADC', 'Curve', 'Invert', 'Output', 'Toe_Button', 'Heel_Button', 'Auto_Button', 'Display']",
+    "e.loc[e.Pedal == '1', cols] = ['0', '4000', 'Linear', 'N', 'CC', '', '', '', '" + one + "']",
+    "e.loc[e.Pedal == '2', cols] = ['0', '4000', 'Linear', 'N', 'CC', '', '', '', '" + two + "']",
+  ].join("\n"))));
+  const move = (sim, i, value) => { sim.pedal(i, value); sim.run(300); };
+
+  const sim = await withDisplay("Bar", "Number");
+  sim.run(10000);                           // the demo's power on banner goes by first
+  move(sim, 0, 0);
+  move(sim, 1, 0);
+  sim.run(2000);
+  assert.ok(infoLineIs(sim, "1/10>S01"), "at rest, the bank's own info");
+
+  move(sim, 0, 2048);                       // about half way: 65 of 127
+  assert.ok(textAt(sim, 50, 6, "1"), "pedal 1's number");
+  assert.ok(lit(sim, 60, 11) && lit(sim, 127, 11), "the bar's frame, to the edge");
+  assert.ok(lit(sim, 80, 11) && !lit(sim, 110, 11), "filled half way");
+  sim.run(2000);
+  assert.ok(infoLineIs(sim, "1/10>S01"), "gone after a moment");
+
+  move(sim, 1, 4095);
+  assert.ok(infoLineIs(sim, "EXP2 127"), "pedal 2 as a number");
+  move(sim, 1, 1000);
+  assert.ok(infoLineIs(sim, "EXP2 32"), "following the foot");
+
+  const off = await withDisplay("Off", "Off");
+  off.run(10000);
+  move(off, 0, 0);
+  move(off, 0, 2048);
+  assert.ok(infoLineIs(off, "1/10>S01"), "Off: the info line as before");
+});

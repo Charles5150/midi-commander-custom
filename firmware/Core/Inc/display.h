@@ -43,6 +43,10 @@ void display_show_tempo_saved(uint16_t bpm);
 void display_show_upload(void);
 // A short message in the bank's info line, for a moment (8 characters fit)
 void display_show_message(const char *msg);
+// An expression pedal's value (0-127) for a moment, as a number or a bar
+// (1.29); drawn from the main loop when the screen is free, so a pedal
+// swept fast only shows its latest value
+void display_show_pedal(uint8_t pedal, uint8_t value, bool bar);
 // A relative Program Change's program for a moment: its preset name, or PC n
 void display_show_program(uint8_t program);
 

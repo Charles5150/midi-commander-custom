@@ -13,7 +13,7 @@ from lib.flashLayout import (
     NUM_BANKS, BUTTON_IDS, EXP_BUTTON_IDS, BOX_SWITCH_IDS, LABEL_LEN, EXP_STRIDE,
     SYSEX_STRING_COUNT, SYSEX_STRING_MAX, BANK_SWITCH_LISTS, SETLIST_MAX, COMBO_COUNT,
     DOUBLE_PRESS_OFFSET, EXT2_OFFSET, EXT2_MARKER, EXT2_MAP_OFFSET, MIDI_MAP_COUNT, MIDI_MAP_STRIDE,
-    EXT2_TAKEOVER_OFFSET,
+    EXT2_TAKEOVER_OFFSET, EXT2_EXP_DISPLAY_OFFSET,
     EXT2_BANK_SWITCH_LABELS_SIZE, PRESET_NAME_LEN, PRESET_NAME_COUNT,
 )
 
@@ -51,11 +51,14 @@ EXP_OUTPUTS = {"CC": 0, "PITCHBEND": 1, "CC14": 2, "SPEED": 3, "WHEEL": 4, "ARRO
 EXP_OUT_SWITCHES = 6
 # How a pedal takes over a CC left at another value (firmware 1.18)
 EXP_TAKEOVERS = {"JUMP": 0, "CATCHUP": 1, "SCALED": 2}
+# What the display shows while a pedal moves (firmware 1.29)
+EXP_DISPLAYS = {"OFF": 0, "NUMBER": 1, "BAR": 2}
 EXP_DEFAULTS = {
     "Min_ADC": "80", "Max_ADC": "3900", "Curve": "Linear", "Invert": "N",
     "Channel": "Global", "Toe_Button": "None", "Heel_Button": "None",
     "Toe_Level": "120", "Heel_Level": "7", "Out_Min": "0", "Out_Max": "127",
     "Auto_Button": "None", "Auto_Off_ms": "500", "Output": "CC", "Send_On_Bank": "N", "Takeover": "Jump",
+    "Display": "Off",
     "Box_1": "None", "Box_2": "None", "Box_3": "None",
 }
 BOX_COLUMNS = ["Box_1", "Box_2", "Box_3"]
@@ -436,10 +439,12 @@ def pack_ext2(sections: dict):
              pack_bank_switch_labels(sections.get(BANK_SWITCH_SECTION)),
              pack_preset_names(sections.get(PRESET_NAMES_SECTION))]
     takeover = expression_takeover(sections.get(EXPRESSION_SECTION))
-    if takeover == 0xFF and all(p.count(0xFF) == len(p) for p in parts):
+    shows = expression_display(sections.get(EXPRESSION_SECTION))
+    if takeover == 0xFF and shows == 0xFF and all(p.count(0xFF) == len(p) for p in parts):
         return None
     header = bytearray(EXT2_MARKER.ljust(EXT2_MAP_OFFSET, b"\xff"))
     header[EXT2_TAKEOVER_OFFSET] = takeover
+    header[EXT2_EXP_DISPLAY_OFFSET] = shows
     return bytes(header) + b"".join(parts)
 
 
@@ -532,6 +537,28 @@ def expression_takeover(df) -> int:
                 raise ValueError(f"Expression pedal {pedal}: Takeover must be Jump, CatchUp or Scaled, "
                                  f"not {row.get('Takeover')!r}")
             modes[int(pedal) - 1] = EXP_TAKEOVERS[text]
+    if modes == [0, 0]:
+        return 0xFF
+    return 0xF0 | modes[0] | modes[1] << 2
+
+
+def expression_display(df) -> int:
+    """What the display shows while each pedal moves, two bits each in byte 5
+    of the second extension area (firmware 1.29), pedal 1 in the low ones;
+    0xFF when neither shows anything, as erased flash does."""
+    modes = [0, 0]
+    if df is not None and "Display" in df.columns:
+        for _, row in df.iterrows():
+            pedal = _pedal(row)
+            if pedal not in ("1", "2"):
+                continue
+            text = str(row.get("Display", "")).strip().upper()
+            if text in ("", "NAN", "NONE", "N", "NO"):
+                text = "OFF"
+            if text not in EXP_DISPLAYS:
+                raise ValueError(f"Expression pedal {pedal}: Display must be Off, Number or Bar, "
+                                 f"not {row.get('Display')!r}")
+            modes[int(pedal) - 1] = EXP_DISPLAYS[text]
     if modes == [0, 0]:
         return 0xFF
     return 0xF0 | modes[0] | modes[1] << 2
