@@ -11,6 +11,7 @@
   --sim: #6a4fd8;
   --warn-bg: #fff1ef;
   --warn: #b3261e;
+  --on-warn: #ffffff;
   --pedal: #1c1c1e;
   --pedal-edge: #3a3a3c;
   --cap: #d1d1d6;
@@ -32,6 +33,7 @@
     --sim: #a592ff;
     --warn-bg: #3a1d1b;
     --warn: #ff8a80;
+  --on-warn: #1c0c0a;
     --pedal: #0e0e10;
     --pedal-edge: #3a3a3c;
     color-scheme: dark;
@@ -271,7 +273,9 @@ canvas.screen { width: 384px; max-width: 100%; image-rendering: pixelated; borde
 
 #toasts { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 10; max-width: min(460px, calc(100vw - 32px)); }
 .toast { background: var(--text); color: var(--card); padding: 10px 14px; border-radius: 9px; box-shadow: 0 4px 18px rgba(0,0,0,.25); }
-.toast.error { background: var(--warn); color: #fff; }
+.toast.error { background: var(--warn); color: var(--on-warn); display: flex; gap: 10px; align-items: flex-start; }
+.toast.error span { flex: 1; }
+.toast .close { background: none; border: none; color: inherit; font-size: 18px; line-height: 1; min-height: 0; padding: 0 2px; cursor: pointer; }
 
 dialog.dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--text); max-width: 480px; padding: 20px; }
 dialog.dialog::backdrop { background: rgba(0,0,0,.4); }

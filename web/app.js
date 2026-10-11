@@ -53,10 +53,13 @@ const state = {
 };
 
 // --- Messages -----------------------------------------------------------------
+// An error stays until closed, read or not; the rest go after a few seconds
 function toast(text, kind = "info") {
-  const el = h("div", { class: `toast ${kind}` }, text);
+  const error = kind === "error";
+  const el = h("div", { class: `toast ${kind}`, role: error ? "alert" : null }, h("span", {}, text),
+    error ? h("button", { class: "close", "aria-label": "Close", onclick: () => el.remove() }, "×") : null);
   $("#toasts").append(el);
-  setTimeout(() => el.remove(), kind === "error" ? 9000 : 4500);
+  if (!error) setTimeout(() => el.remove(), 4500);
 }
 
 // What went wrong and what to do about it, there until closed: for the
@@ -91,6 +94,35 @@ function download(name, text, type = "text/csv") {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// Where the focus is, as the child positions down from body, so it can go back
+// to the same place once that part of the page is drawn again
+function focusPath() {
+  const path = [];
+  for (let el = document.activeElement; el && el !== document.body; el = el.parentElement) {
+    if (!el.parentElement) return null;
+    path.unshift([...el.parentElement.children].indexOf(el));
+  }
+  return path.length ? path : null;
+}
+
+function keepingFocus(draw) {
+  const path = focusPath();
+  draw();
+  if (!path || (document.activeElement && document.activeElement !== document.body)) return;
+  let el = document.body;
+  for (const i of path) { if (!el.children[i]) break; el = el.children[i]; }
+  const focusable = "button, input, select, textarea, summary, a[href]";
+  const target = el.matches(focusable) ? el : el.querySelector(focusable);
+  if (target) target.focus();
+}
+
+// A name for a field's control where no label holds it
+function named(ctl, name) {
+  const el = ctl.matches("input, select") ? ctl : ctl.querySelector(":scope > input, :scope > select");
+  if (el) el.setAttribute("aria-label", name);
+  return ctl;
 }
 
 function confirmDialog(title, body, ok = "Continue") {
@@ -272,8 +304,8 @@ function fieldControl(spec, get, set) {
       let list = spec.lists[0];
       if (words.length && spec.lists.slice(1).includes(words[words.length - 1])) list = words.pop();
       const action = spec.actions.includes(words.join(" ")) ? words.join(" ") : spec.actions[0];
-      const lsel = h("select", {}, spec.lists.map((o) => h("option", { value: o }, o)));
-      const asel = h("select", {}, spec.actions.map((o) => h("option", { value: o }, o)));
+      const lsel = h("select", { "aria-label": `${spec.label || "Mode"}: list` }, spec.lists.map((o) => h("option", { value: o }, o)));
+      const asel = h("select", { "aria-label": `${spec.label || "Mode"}: action` }, spec.actions.map((o) => h("option", { value: o }, o)));
       lsel.value = list;
       asel.value = action;
       const store = () => {
@@ -305,14 +337,14 @@ function labelled(label, control, hint) {
 function commandList(sec, row, types) {
   const { slots, cmdFields, commandSpecs, noCommand } = state.schema;
   const wrap = h("div", { class: "commands" });
-  const draw = () => {
+  const draw = () => keepingFocus(() => {
     wrap.replaceChildren();
     let last = slots.length - 1;
     while (last > 0 && !cell(sec, row, `${slots[last]}_CommandType`)) last--;
     const shownCount = Math.min(slots.length, Math.max(last + 2, 3));
     slots.slice(0, shownCount).forEach((slot) => wrap.append(commandRow(sec, row, slot, types, draw)));
     if (shownCount < slots.length) wrap.append(h("div", { class: "hint" }, `${slots.length - shownCount} more below, as the ones above fill`));
-  };
+  });
   draw();
   return wrap;
 }
@@ -349,8 +381,8 @@ function deviceText(type, get) {
 
 // A menu of every device's commands; filled when opened, the device on this
 // channel first
-function devicePicker(types, channel, pick) {
-  const sel = h("select", { class: "device", title: "Fill this command from a device's MIDI map" }, h("option", { value: "" }, "Device…"));
+function devicePicker(types, channel, pick, label) {
+  const sel = h("select", { class: "device", title: "Fill this command from a device's MIDI map", "aria-label": label }, h("option", { value: "" }, "Device…"));
   const fill = () => {
     if (sel.options.length > 1) return;
     const devices = state.tools.devices();
@@ -413,7 +445,7 @@ function commandRow(sec, row, slot, types, redraw) {
     for (const f of cmdFields) setCell(sec, row, `${slot}_${f}`, out[f]);
   };
 
-  const typeSel = h("select", { class: "type" }, (types.includes(type) ? types : [...types, type]).map((t) => h("option", { value: t }, t)));
+  const typeSel = h("select", { class: "type", "aria-label": `Command ${slot}: type` }, (types.includes(type) ? types : [...types, type]).map((t) => h("option", { value: t }, t)));
   typeSel.value = type;
   typeSel.addEventListener("change", () => {
     const t = typeSel.value;
@@ -442,7 +474,7 @@ function commandRow(sec, row, slot, types, redraw) {
     deviceCache.edits = -1;
     store(values.CommandType, values);
     redraw();
-  }) : null;
+  }, `Command ${slot}: fill from a device`) : null;
 
   const nameHint = h("span", { class: "hint device-name" });
   const showName = () => { nameHint.textContent = deviceText(type, get); };
@@ -490,6 +522,10 @@ const TABS = [
 ];
 
 function renderToolbar() {
+  keepingFocus(drawToolbar);
+}
+
+function drawToolbar() {
   const conn = $("#connection");
   conn.replaceChildren();
   if (state.pedal) {
@@ -518,10 +554,15 @@ function renderToolbar() {
 }
 
 function render() {
-  renderToolbar();
+  keepingFocus(draw);
+}
+
+function draw() {
+  drawToolbar();
   const nav = $("#tabs");
   nav.replaceChildren(...TABS.map(([id, label]) => h("button", {
     class: state.tab === id ? "tab active" : "tab",
+    "aria-current": state.tab === id ? "page" : null,
     onclick: () => { state.tab = id; render(); },
   }, label)));
   const main = $("#main");
@@ -570,6 +611,7 @@ function renderBanks(main) {
   const { numBanks, buttonIds, shortCommandTypes, commandTypes, enterCommandTypes, buttonFields } = state.schema;
   const list = h("nav", { class: "bank-list" }, [...Array(numBanks)].map((_, b) => h("button", {
     class: b === state.bank ? "active" : "",
+    "aria-current": b === state.bank ? "true" : null,
     onclick: () => { state.bank = b; render(); },
   }, h("span", { class: "num" }, b), bankName(b) || "—")));
 
@@ -590,13 +632,14 @@ function renderBanks(main) {
     const label = state.press === "Long" ? (lr ? cell(lr.sec, lr.row, "Long_Label") : "") : r ? cell(r.sec, r.row, "Label") : "";
     return h("button", {
       class: `pedal-button${id === state.button ? " active" : ""}`,
+      "aria-current": id === state.button ? "true" : null,
       onclick: () => { state.button = id; render(); },
     }, h("span", { class: "id" }, id), h("span", { class: "label" }, label || " "), h("span", { class: "sum" }, state.press === "Long" ? summary(lr && lr.sec, lr && lr.row) : summary(btnSec, r && r.row)));
   }));
 
   const presses = [["Short", "Press", "Button_Settings", shortCommandTypes], ["Long", "Long press", "LongPress_Settings", commandTypes], ["Double", "Double press", "DoublePress_Settings", commandTypes]];
   const pressTabs = h("div", { class: "subtabs" }, presses.map(([id, label]) => h("button", {
-    class: state.press === id ? "active" : "", onclick: () => { state.press = id; render(); },
+    class: state.press === id ? "active" : "", "aria-pressed": state.press === id ? "true" : "false", onclick: () => { state.press = id; render(); },
   }, label)));
   const [, , secName, types] = presses.find((p) => p[0] === state.press);
   const r = rowOf(secName, { Bank_Number: state.bank, Button_Identifier: state.button });
@@ -650,7 +693,7 @@ function renderGlobal(main) {
       const spec = globalFields[label] || { kind: "text", max: 64 };
       const row = present.has(label) ? rowFor(label) : null;
       const ctl = fieldControl(spec, () => (row ? row[1] : ""), (v) => { const r = rowFor(label); if (r[1] !== v) { r[1] = v; changed(); } });
-      return h("div", { class: "setting" }, h("span", { class: "setting-name" }, name), ctl, h("span", { class: "hint" }, hint));
+      return h("div", { class: "setting" }, h("span", { class: "setting-name" }, name), named(ctl, name), h("span", { class: "hint" }, hint));
     })))));
 }
 
@@ -687,7 +730,7 @@ function table(sec, keyCol, keyLabel, fields) {
   return h("table", { class: "grid" },
     h("thead", {}, h("tr", {}, h("th", {}, keyLabel), fields.map((f) => h("th", {}, f.label)))),
     h("tbody", {}, sec.rows.map((row) => h("tr", {}, h("td", { class: "key" }, cell(sec, row, keyCol)),
-      fields.map((f) => h("td", {}, fieldControl(f, () => cell(sec, row, f.col), (v) => setCell(sec, row, f.col, v))))))));
+      fields.map((f) => h("td", {}, named(fieldControl(f, () => cell(sec, row, f.col), (v) => setCell(sec, row, f.col, v)), `${f.label}, ${keyLabel} ${cell(sec, row, keyCol)}`)))))));
 }
 
 function ensureRows(name, keyCol, count, extra = {}) {
@@ -720,7 +763,7 @@ function renderCombos(main) {
     sec.rows.length ? h("table", { class: "grid" },
       h("thead", {}, h("tr", {}, h("th", {}, "#"), fields.map((f) => h("th", {}, f.label)), h("th", {}))),
       h("tbody", {}, sec.rows.map((row, i) => h("tr", {}, h("td", { class: "key" }, String(i + 1)),
-        fields.map((f) => h("td", {}, fieldControl(f, () => cell(sec, row, f.col), (v) => setCell(sec, row, f.col, v)))),
+        fields.map((f) => h("td", {}, named(fieldControl(f, () => cell(sec, row, f.col), (v) => setCell(sec, row, f.col, v)), `${f.label}, combo ${i + 1}`))),
         h("td", {}, h("button", { "aria-label": `Remove combo ${i + 1}`, onclick: () => { sec.rows.splice(i, 1); changed(); render(); } }, "Remove")))))) : h("p", {}, "No combos yet."),
     h("button", {
       disabled: sec.rows.length >= state.schema.comboCount,
@@ -746,7 +789,7 @@ function renderMidiMap(main) {
   main.append(
     h("p", { class: "hint" }, "What a computer sends over USB, turned into what the device on the DIN output wants: another type, channel, number or value range (from 127 to 0 turns it round, one value alone always sends it), or a button's list, run as a Macro runs it. Every entry that matches acts. Empty number: any, or the same. Needs firmware 0.90."),
     ...sec.rows.map((row, i) => h("section", { class: "card" },
-      h("h3", {}, `Entry ${i + 1} `, h("button", { onclick: () => { sec.rows.splice(i, 1); changed(); render(); } }, "Remove")),
+      h("h3", {}, `Entry ${i + 1} `, h("button", { "aria-label": `Remove entry ${i + 1}`, onclick: () => { sec.rows.splice(i, 1); changed(); render(); } }, "Remove")),
       part(row, ["In_"], "When"),
       part(row, ["Out_", "Run_", "Keep"], "Becomes"))),
     ...(sec.rows.length ? [] : [h("p", {}, "No entries yet.")]),
@@ -1084,12 +1127,18 @@ function renderLive(main) {
   const canvas = h("canvas", { width: 128, height: 64, class: "screen" });
   const switchEl = (sw) => {
     const led = h("span", { class: "led", "data-sw": sw });
-    const btn = h("button", { class: "footswitch" }, sw === "UP" ? "BANK ▲" : sw === "DOWN" ? "BANK ▼" : sw);
-    const down = (e) => { e.preventDefault(); btn.classList.add("down"); state.pedal && state.pedal.press(sw, true).catch(() => {}); };
+    const btn = h("button", { class: "footswitch", "aria-label": sw === "UP" ? "Bank up" : sw === "DOWN" ? "Bank down" : `Switch ${sw}` }, sw === "UP" ? "BANK ▲" : sw === "DOWN" ? "BANK ▼" : sw);
+    const down = (e) => { e.preventDefault(); if (btn.classList.contains("down")) return; btn.classList.add("down"); state.pedal && state.pedal.press(sw, true).catch(() => {}); };
     const up = () => { if (!btn.classList.contains("down")) return; btn.classList.remove("down"); state.pedal && state.pedal.press(sw, false).catch(() => {}); };
     btn.addEventListener("pointerdown", down);
     btn.addEventListener("pointerup", up);
     btn.addEventListener("pointerleave", up);
+    btn.addEventListener("pointercancel", up);
+    // From the keyboard, Space or Enter held is the foot held
+    const key = (e) => e.key === " " || e.key === "Enter";
+    btn.addEventListener("keydown", (e) => { if (key(e)) down(e); });
+    btn.addEventListener("keyup", (e) => { if (key(e)) { e.preventDefault(); up(); } });
+    btn.addEventListener("blur", up);
     return h("div", { class: "sw" }, btn, led);
   };
   const info = h("p", { class: "hint live-info" }, "");

@@ -46,6 +46,8 @@ The tabs follow the desktop configurator's:
 
 Every change is checked as it is made. When the configuration could not be packed, a red line under the toolbar says what is wrong and where, and it can be neither saved nor written until that is fixed.
 
+The whole page works from the keyboard and with a screen reader: every field has a name, the tab, bank, button and press being edited are marked as the current one, and after a click or a change the focus stays where it was. Messages are read out as they appear.
+
 ## Saving and writing
 
 - **Save CSV** downloads the configuration as a CSV file.
@@ -54,7 +56,7 @@ Every change is checked as it is made. When the configuration could not be packe
 
 ## Live pedal
 
-The pedal's display, its LEDs and its ten switches, as they are on the pedal, a few times a second. It needs firmware 0.27 or later; with older firmware the tab says so. Press a switch on the screen, with the mouse or a finger, to press it on the pedal: it goes down while held, so long presses work too.
+The pedal's display, its LEDs and its ten switches, as they are on the pedal, a few times a second. It needs firmware 0.27 or later; with older firmware the tab says so. Press a switch on the screen, with the mouse or a finger, to press it on the pedal: it goes down while held, so long presses work too. From the keyboard, Tab to a switch and hold Space or Enter.
 
 ## Firmware
 
@@ -79,7 +81,7 @@ On Windows the bootloader needs the WinUSB driver, as it does for `dfu-util`: in
 - **The pedal does not answer.** A Midi Commander found but silent most likely runs MeloAudio's own firmware: the page says so and opens the Firmware tab, where it is updated with the pedal put in update mode by hand.
 - **An update failed** after the pedal had gone into its update mode: it stays there, with its screen dark, and the Firmware tab says so. Press **Update** again with the same file; the pedal does not need to be connected first.
 
-A message that needs reading stays under the toolbar until it is closed with ×, or until the pedal connects.
+A message that needs reading stays under the toolbar until it is closed with ×, or until the pedal connects. An error in the corner also stays until closed with ×; the other messages there go after a few seconds.
 
 ## Running it from the repository
 

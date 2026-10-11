@@ -46,6 +46,8 @@ Las pestañas siguen las del configurador de escritorio:
 
 Cada cambio se comprueba al hacerlo. Si la configuración no se puede empaquetar, una línea roja bajo la barra de herramientas dice qué está mal y dónde, y no se puede guardar ni escribir hasta arreglarlo.
 
+Toda la página funciona con el teclado y con un lector de pantalla: cada campo tiene nombre, la pestaña, el banco, el botón y la pulsación que se editan van marcados como los actuales, y tras un clic o un cambio el foco se queda donde estaba. Los mensajes se leen en voz alta al aparecer.
+
 ## Guardar y escribir
 
 - **Save CSV** descarga la configuración como fichero CSV.
@@ -54,7 +56,7 @@ Cada cambio se comprueba al hacerlo. Si la configuración no se puede empaquetar
 
 ## La pedalera en directo
 
-La pantalla de la pedalera, sus LEDs y sus diez interruptores, como están en la pedalera, varias veces por segundo. Necesita firmware 0.27 o posterior; con uno más antiguo la pestaña lo dice. Pulsa un interruptor en la pantalla, con el ratón o con el dedo, para pulsarlo en la pedalera: queda pisado mientras lo mantienes, así que las pulsaciones largas también funcionan.
+La pantalla de la pedalera, sus LEDs y sus diez interruptores, como están en la pedalera, varias veces por segundo. Necesita firmware 0.27 o posterior; con uno más antiguo la pestaña lo dice. Pulsa un interruptor en la pantalla, con el ratón o con el dedo, para pulsarlo en la pedalera: queda pisado mientras lo mantienes, así que las pulsaciones largas también funcionan. Con el teclado, llega a un interruptor con Tab y mantén Espacio o Intro.
 
 ## Firmware
 
@@ -79,7 +81,7 @@ En Windows el bootloader necesita el controlador WinUSB, igual que para `dfu-uti
 - **La pedalera no contesta.** Una Midi Commander que aparece pero no responde casi seguro lleva el firmware de MeloAudio: la página lo dice y abre la pestaña Firmware, donde se actualiza poniendo la pedalera en modo de actualización a mano.
 - **Una actualización falló** con la pedalera ya en su modo de actualización: se queda en él, con la pantalla apagada, y la pestaña Firmware lo dice. Pulsa **Update** otra vez con el mismo archivo; no hace falta conectar antes la pedalera.
 
-Un mensaje que hay que leer con calma se queda bajo la barra de herramientas hasta cerrarlo con ×, o hasta que se conecta la pedalera.
+Un mensaje que hay que leer con calma se queda bajo la barra de herramientas hasta cerrarlo con ×, o hasta que se conecta la pedalera. Un error en la esquina también se queda hasta cerrarlo con ×; los demás mensajes de ahí se van a los pocos segundos.
 
 ## Ejecutarlo desde el repositorio
 

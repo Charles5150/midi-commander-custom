@@ -33,16 +33,16 @@
     <button id="btn-write" class="primary" disabled>Write to pedal</button>
   </div>
 
-  <div id="busy" hidden>
+  <div id="busy" role="status" hidden>
     <span id="busy-text"></span>
     <progress id="busy-progress" hidden></progress>
   </div>
-  <p id="problem" class="problem" hidden></p>
+  <p id="problem" class="problem" aria-live="polite" hidden></p>
   <div id="notice" class="notice" role="alert" hidden></div>
 
   <nav id="tabs"></nav>
   <main id="main"></main>
-  <div id="toasts"></div>
+  <div id="toasts" role="status" aria-live="polite"></div>
 
   <footer>
     <a href="https://github.com/Charles5150/midi-commander-custom">midi-commander-custom</a>
