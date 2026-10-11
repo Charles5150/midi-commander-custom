@@ -119,7 +119,7 @@ void gpio_config(GPIO_TypeDef *port, uint16_t pins, uint32_t config);
 #define EXP2_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
-#define FIRMWARE_VERSION	"1.15"
+#define FIRMWARE_VERSION	"1.16"
 
 /* USER CODE END Private defines */
 

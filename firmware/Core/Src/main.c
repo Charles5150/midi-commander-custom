@@ -62,8 +62,6 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-I2C_HandleTypeDef hi2c1;
-DMA_HandleTypeDef hdma_i2c1_tx;
 
 UART_HandleTypeDef huart2;
 DMA_HandleTypeDef hdma_usart2_tx;
@@ -77,7 +75,6 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
-static void MX_I2C1_Init(void);
 static void MX_ADC1_Init(void);
 /* USER CODE BEGIN PFP */
 
@@ -86,23 +83,6 @@ static void MX_ADC1_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 extern const uint32_t g_pfnVectors[];
-
-/*
- * The HAL's I2C waits give up after so many ms of HAL_GetTick, which stands
- * still in SysTick, where the display's lines are started: a bus that hung
- * there waited for ever, and the watchdog restarted the pedal. While the
- * display starts a transfer from SysTick its clock moves a ms each 256 reads,
- * so the wait ends, in well under its real time, and the pedal carries on
- * without a screen.
- */
-uint32_t HAL_GetTick(void)
-{
-  if(ssd1306_hal_in_tick && (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) == 15U){
-    static uint32_t reads;
-    return uwTick + (++reads >> 8);
-  }
-  return uwTick;
-}
 
 // The table is wherever the linker put it: 0x08003000 behind the DFU
 // bootloader, 0x08000000 in the ST-Link build.
@@ -179,7 +159,7 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_USART2_UART_Init();
-  MX_I2C1_Init();
+  i2c_display_init();
   MX_ADC1_Init();
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
@@ -348,40 +328,6 @@ void SystemClock_Config(void)
 
   SystemCoreClock = 72000000U;
   HAL_InitTick(TICK_INT_PRIORITY);
-}
-
-/**
-  * @brief I2C1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_I2C1_Init(void)
-{
-
-  /* USER CODE BEGIN I2C1_Init 0 */
-
-  /* USER CODE END I2C1_Init 0 */
-
-  /* USER CODE BEGIN I2C1_Init 1 */
-
-  /* USER CODE END I2C1_Init 1 */
-  hi2c1.Instance = I2C1;
-  hi2c1.Init.ClockSpeed = 400000;
-  hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
-  hi2c1.Init.OwnAddress1 = 0;
-  hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
-  hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
-  hi2c1.Init.OwnAddress2 = 0;
-  hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
-  hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
-  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN I2C1_Init 2 */
-
-  /* USER CODE END I2C1_Init 2 */
-
 }
 
 /**

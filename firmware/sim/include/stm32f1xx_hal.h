@@ -125,23 +125,7 @@ HAL_StatusTypeDef HAL_FLASH_Lock(void);
 HAL_StatusTypeDef HAL_FLASH_Program(uint32_t type, uint32_t address, uint64_t data);
 HAL_StatusTypeDef HAL_FLASHEx_Erase(FLASH_EraseInitTypeDef *init, uint32_t *page_error);
 
-// --- DMA, I2C (the display), UART (DIN), ADC (the expression pedals) ----------
-typedef struct { uint32_t Instance; } DMA_HandleTypeDef;
-
-typedef enum { HAL_I2C_STATE_RESET = 0, HAL_I2C_STATE_READY = 0x20, HAL_I2C_STATE_BUSY = 0x24 } HAL_I2C_StateTypeDef;
-typedef struct {
-	uint32_t Instance;
-	DMA_HandleTypeDef *hdmatx;
-	volatile HAL_I2C_StateTypeDef State;
-} I2C_HandleTypeDef;
-
-HAL_StatusTypeDef HAL_I2C_Init(I2C_HandleTypeDef *h);
-HAL_I2C_StateTypeDef HAL_I2C_GetState(I2C_HandleTypeDef *h);
-HAL_StatusTypeDef HAL_I2C_Mem_Write_DMA(I2C_HandleTypeDef *h, uint16_t dev, uint16_t reg,
-		uint16_t reg_size, uint8_t *data, uint16_t size);
-HAL_StatusTypeDef HAL_DMA_Abort(DMA_HandleTypeDef *h);
-void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef *h);
-void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *h);
+// --- UART (DIN), ADC (the expression pedals) ----------------------------------
 
 typedef enum { HAL_UART_STATE_RESET = 0, HAL_UART_STATE_READY = 0x20, HAL_UART_STATE_BUSY_TX = 0x21 } HAL_UART_StateTypeDef;
 typedef struct {

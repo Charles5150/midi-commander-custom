@@ -42,9 +42,6 @@ _BEGIN_STD_C
 
 /* vvv I2C config vvv */
 
-#ifndef SSD1306_I2C_PORT
-#define SSD1306_I2C_PORT        hi2c1
-#endif
 
 #ifndef SSD1306_I2C_ADDR
 #define SSD1306_I2C_ADDR        (0x3C << 1)
@@ -82,7 +79,15 @@ _BEGIN_STD_C
 /* ^^^ SPI config ^^^ */
 
 #if defined(SSD1306_USE_I2C)
-extern I2C_HandleTypeDef SSD1306_I2C_PORT;
+// The I2C transfers, in Core/Src/i2c_display.c (sim.c in the simulator)
+void i2c_display_init(void);
+uint8_t i2c_display_write(const uint8_t *data, uint16_t len);
+uint8_t i2c_display_busy(void);
+uint8_t i2c_display_stuck(void);
+void i2c_display_reset(void);
+// What they call back, from their interrupts
+void ssd1306_TxDone(void);
+void ssd1306_TxFailed(void);
 #elif defined(SSD1306_USE_SPI)
 extern SPI_HandleTypeDef SSD1306_SPI_PORT;
 #else
@@ -134,7 +139,6 @@ void ssd1306_Fill(SSD1306_COLOR color);
 void ssd1306_UpdateScreen(void);
 void ssd1306_UpdateLines(uint8_t first, uint8_t last);
 uint8_t ssd1306_Busy(void);
-extern volatile uint8_t ssd1306_hal_in_tick;
 void ssd1306_DrawPixel(uint8_t x, uint8_t y, SSD1306_COLOR color);
 void ssd1306_FillRect(uint8_t x, uint8_t y, uint8_t w, uint8_t h, SSD1306_COLOR color);
 char ssd1306_WriteChar(char ch, FontDef Font, SSD1306_COLOR color);
@@ -168,7 +172,6 @@ uint8_t ssd1306_GetDisplayOn();
 // Low-level procedures
 void ssd1306_Reset(void);
 void ssd1306_WriteCommand(uint8_t byte);
-void ssd1306_WriteData(uint8_t* buffer, size_t buff_size);
 SSD1306_Error_t ssd1306_FillBuffer(uint8_t* buf, uint32_t len);
 // The screen buffer (SSD1306_BUFFER_SIZE bytes, one byte per column per 8 rows)
 const uint8_t *ssd1306_GetBuffer(void);

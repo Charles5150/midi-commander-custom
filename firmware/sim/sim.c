@@ -51,8 +51,6 @@ SCB_Type sim_scb;
 GPIO_TypeDef sim_gpio[3];
 TIM_TypeDef sim_tim2;
 
-I2C_HandleTypeDef hi2c1 = { .Instance = 1, .State = HAL_I2C_STATE_READY };
-DMA_HandleTypeDef hdma_i2c1_tx;
 UART_HandleTypeDef huart2 = { .Instance = 2, .gState = HAL_UART_STATE_READY };
 uint8_t f_sys_config_complete = 0;
 
@@ -107,31 +105,30 @@ HAL_StatusTypeDef HAL_FLASHEx_Erase(FLASH_EraseInitTypeDef *init, uint32_t *page
 }
 
 // --- The display: each transfer is over as soon as it starts ----------------
-HAL_StatusTypeDef HAL_I2C_Init(I2C_HandleTypeDef *h){ h->State = HAL_I2C_STATE_READY; return HAL_OK; }
-HAL_I2C_StateTypeDef HAL_I2C_GetState(I2C_HandleTypeDef *h){ return h->State; }
-HAL_StatusTypeDef HAL_DMA_Abort(DMA_HandleTypeDef *h){ (void)h; return HAL_OK; }
+void i2c_display_init(void){}
+void i2c_display_reset(void){}
+uint8_t i2c_display_busy(void){ return 0; }
+uint8_t i2c_display_stuck(void){ return 0; }
 
 // What the panel shows: each page as the last line sent for it left it
 static uint8_t panel[SSD1306_WIDTH * 8];
 // Transfers still to fail before the DMA starts, as on a NACK of the address
 static uint32_t i2c_fails = 0;
 
-HAL_StatusTypeDef HAL_I2C_Mem_Write_DMA(I2C_HandleTypeDef *h, uint16_t dev, uint16_t reg,
-		uint16_t reg_size, uint8_t *data, uint16_t size){
-	(void)dev; (void)reg_size;
+uint8_t i2c_display_write(const uint8_t *data, uint16_t size){
 	if(i2c_fails){
 		i2c_fails--;
-		return HAL_ERROR;
+		return 0;
 	}
 	// A line: page address, two column commands, then the page's data
-	if(reg == 0x80 && size == SSD1306_WIDTH + 6 && (data[0] & 0xF8) == 0xB0){
-		memcpy(&panel[SSD1306_WIDTH * (data[0] & 7)], data + 6, SSD1306_WIDTH);
+	if(size == SSD1306_WIDTH + 7 && data[0] == 0x80 && (data[1] & 0xF8) == 0xB0){
+		memcpy(&panel[SSD1306_WIDTH * (data[1] & 7)], data + 7, SSD1306_WIDTH);
 	}
 	uint32_t ipsr = sim_ipsr;
 	sim_ipsr = IRQ_DMA;
-	HAL_I2C_MemTxCpltCallback(h);
+	ssd1306_TxDone();
 	sim_ipsr = ipsr;
-	return HAL_OK;
+	return 1;
 }
 
 // --- What goes out ----------------------------------------------------------

@@ -26,8 +26,6 @@
 #include "health.h"
 #include <string.h>
 
-extern I2C_HandleTypeDef hi2c1;
-
 
 #define SYSEX_MAX_LENGTH 80	// the longest is the GET_STATE answer, 75 bytes
 uint8_t sysex_rx_buffer[SYSEX_MAX_LENGTH];
