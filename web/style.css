@@ -81,6 +81,11 @@ input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent);
 
 .hint { color: var(--muted); font-size: 12.5px; }
 .problem { background: var(--warn-bg); color: var(--warn); padding: 8px 16px; margin: 0; }
+.problem.card { border-radius: 9px; padding: 12px 16px; margin: 12px 0; }
+.problem.card p { margin: 6px 0 10px; }
+.notice { position: relative; background: var(--warn-bg); color: var(--warn); padding: 10px 44px 10px 16px; }
+.notice p { margin: 4px 0 0; max-width: 80ch; }
+.notice .close { position: absolute; top: 6px; right: 10px; border: 0; background: none; color: inherit; font-size: 20px; min-height: 0; padding: 0 6px; cursor: pointer; }
 
 header.top {
   display: flex;

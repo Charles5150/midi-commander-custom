@@ -137,6 +137,37 @@ def parse_sysex_bytes(text) -> bytes:
     return bytes(out[:SYSEX_STRING_MAX])
 
 
+def sysex_problem(text) -> str:
+    """What parse_sysex_bytes would drop or cut in a SysEx string, or "".
+
+    The packer keeps its rule, an empty message rather than a wrong one; an
+    editor asks this first, so nothing is lost without a word."""
+    s = "" if text is None else str(text).strip()
+    if s.lower() in ("", "nan"):
+        return ""
+    out = []
+    for token in s.replace(",", " ").split():
+        t = token.lower()
+        t = t[2:] if t.startswith("0x") else t
+        try:
+            v = int(t, 16)
+        except ValueError:
+            return f"“{token}” is not a byte in hexadecimal"
+        if v > 0xFF:
+            return f"“{token}” is not a byte in hexadecimal"
+        out.append(v)
+    while out and out[0] == 0xF0:
+        out.pop(0)
+    while out and out[-1] == 0xF7:
+        out.pop()
+    high = next((v for v in out if v > 0x7F), None)
+    if high is not None:
+        return f"{high:02X} is over 7F; only F0 and F7 at the ends may be"
+    if len(out) > SYSEX_STRING_MAX:
+        return f"{len(out)} bytes, more than the {SYSEX_STRING_MAX} a string holds"
+    return ""
+
+
 def empty_bank_switch_settings():
     """A BankSwitch_Settings frame with one blank row per switch and press."""
     import pandas as pd

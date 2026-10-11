@@ -15,7 +15,7 @@ import pandas as pd
 
 import lib.binaryUnpacker as unpacker
 from lib.configCsv import read_config_csv, write_config_csv
-from lib.configPacker import pack_config, pack_flash_image
+from lib.configPacker import pack_config, pack_flash_image, sysex_problem
 from lib.configSchema import schema
 import lib.deviceDictionary as devices
 from lib.displayText import display_text
@@ -105,9 +105,13 @@ def csv_to_sections(data: bytes) -> str:
         f.write(_bytes(data))
         path = f.name
     try:
-        return _to_json(read_config_csv(path))
+        sections = read_config_csv(path)
     finally:
         os.unlink(path)
+    missing = [n for n, _ in SECTION_ARGS[:3] if n not in sections]
+    if missing:
+        raise ValueError(f"this is not a Midi Commander configuration: it has no {', '.join(missing)} section{'s' if len(missing) > 1 else ''}")
+    return _to_json(sections)
 
 
 def sections_to_csv(text: str, note: str = "Written by the web configurator") -> str:
@@ -130,6 +134,16 @@ def pack(text: str):
     """(configuration, flash image) for sections JSON, as CSV_to_Flash.py packs
     them. Raises ValueError saying where, for anything the pedal would not take."""
     sections = _from_json(text)
+    missing = [n for n, _ in SECTION_ARGS[:3] if n not in sections]
+    if missing:
+        raise ValueError(f"the configuration has no {', '.join(missing)}")
+    sysex = sections.get("SysEx_Strings")
+    if sysex is not None and "Bytes" in sysex.columns:
+        index = sysex["Index"] if "Index" in sysex.columns else range(len(sysex))
+        for i, text in zip(index, sysex["Bytes"]):
+            problem = sysex_problem(text)
+            if problem:
+                raise ValueError(f"SysEx string {i}: {problem}")
     config = pack_config(sections)
     image = pack_flash_image(sections)
     pages = ceil(len(config) / FLASH_PAGE_SIZE)

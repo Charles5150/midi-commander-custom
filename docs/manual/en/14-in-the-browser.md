@@ -65,6 +65,17 @@ The bootloader and the configurations are never touched. A pedal with older firm
 
 On Windows the bootloader needs the WinUSB driver, as it does for `dfu-util`: install it once with [Zadig](https://zadig.akeo.ie) for the device `STM32 BOOTLOADER`. On Linux the browser needs the udev rule of [Getting started](02-getting-started.md#1-flash-the-firmware) to reach it.
 
+## When something goes wrong
+
+- **The configurator's Python could not load.** The page reads, checks and packs configurations with the tools' own Python, which the browser fetches from cdn.jsdelivr.net the first time. Offline, or with that site blocked by an extension or a company network, the start page says so in red, with **Reload the page**. Live pedal and Firmware work without it; opening, reading and writing a configuration do not, and a simulated pedal starts empty.
+- **A file that is not a configuration** is refused with what it lacks, and the configuration open stays open.
+- **A SysEx string the pedal would not send as written**, a byte that is not hexadecimal, one over `7F`, or more than 23 bytes, is named in the red line under the toolbar, and the configuration can be neither saved nor written until it is fixed.
+- **The browser did not allow MIDI.** Chrome remembers a refusal. The page says how to allow it again: the icon left of the address bar, the site settings, **MIDI devices** (in Chrome "Control and reprogram your MIDI devices") to Allow, then reload.
+- **The pedal does not answer.** A Midi Commander found but silent most likely runs MeloAudio's own firmware: the page says so and opens the Firmware tab, where it is updated with the pedal put in update mode by hand.
+- **An update failed** after the pedal had gone into its update mode: it stays there, with its screen dark, and the Firmware tab says so. Press **Update** again with the same file; the pedal does not need to be connected first.
+
+A message that needs reading stays under the toolbar until it is closed with ×, or until the pedal connects.
+
 ## Running it from the repository
 
 The page is `web/index.html`, and it loads the Python files from `python/lib`. The simulated pedal is `web/pedal-sim.wasm`, built from the firmware's sources with `firmware/sim/build.sh` (see [its README](../../../firmware/sim/README.md)). To try a change, serve the repository root and open the page there:

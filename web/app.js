@@ -3,7 +3,7 @@
 // built from python/lib/configSchema.py, packing is python/lib (see py.js).
 
 import { Tools } from "./py.js";
-import { Pedal, SWITCHES, LED_LEVELS, SCREEN_WIDTH, SCREEN_HEIGHT, versionAtLeast } from "./pedal.js";
+import { Pedal, Timeout, SWITCHES, LED_LEVELS, SCREEN_WIDTH, SCREEN_HEIGHT, versionAtLeast } from "./pedal.js";
 import { loadImage, flash, Dfu, DFU_FILTER, UpdateError } from "./dfu.js";
 import { Simulator } from "./sim.js";
 
@@ -46,6 +46,10 @@ const state = {
   dfuName: "",
   busy: false,
   deviceChosen: {},    // {channel: device} picked from the dictionary in this session
+  toolsError: "",      // why the configurator's Python did not load
+  expHeld: [null, null],   // what Live holds each expression pedal at, null: let go
+  expPedal: null,      // the pedal expHeld is about
+  updateStuck: false,  // the last update failed with the pedal in its update mode
 };
 
 // --- Messages -----------------------------------------------------------------
@@ -53,6 +57,15 @@ function toast(text, kind = "info") {
   const el = h("div", { class: `toast ${kind}` }, text);
   $("#toasts").append(el);
   setTimeout(() => el.remove(), kind === "error" ? 9000 : 4500);
+}
+
+// What went wrong and what to do about it, there until closed: for the
+// messages too long to read in a toast
+function notice(title, ...body) {
+  const box = $("#notice");
+  box.replaceChildren(h("strong", {}, title), ...body.map((b) => (typeof b === "string" ? h("p", {}, b) : b)),
+    h("button", { class: "close", "aria-label": "Close", onclick: () => { box.hidden = true; } }, "×"));
+  box.hidden = false;
 }
 
 function setBusy(text, done = null, total = null) {
@@ -526,13 +539,20 @@ function welcome() {
   return h("section", { class: "welcome" },
     h("h2", {}, "Configure your Midi Commander in the browser"),
     h("p", {}, "Nothing to install. Connect the pedal to read its configuration, open a CSV file made with the configurator, or start from the demo."),
-    state.tools ? null : h("p", { class: "hint" }, "Loading the configurator’s Python… the first time takes a few seconds."),
+    state.toolsError ? toolsFailed() : state.tools ? null : h("p", { class: "hint" }, "Loading the configurator’s Python… the first time takes a few seconds."),
     h("div", { class: "buttons" },
       h("button", { class: "primary", disabled: !state.pedal || !state.tools, onclick: readFromPedal }, "Read from the pedal"),
       h("button", { disabled: !state.tools, onclick: openFile }, "Open a CSV file"),
       h("button", { disabled: !state.tools, onclick: openDemo }, "Open the demo")),
     h("p", { class: "hint" }, "No pedal at hand? Try without a pedal: the pedal’s own firmware runs in the page, with the demo in it, and everything here works on it as on the real one."),
     h("p", { class: "hint" }, "Chrome, Edge or Opera on a computer: they have Web MIDI and WebUSB. The page asks to use MIDI devices with SysEx when you connect."));
+}
+
+function toolsFailed() {
+  return h("div", { class: "problem card" },
+    h("strong", {}, "The configurator’s Python could not load"),
+    h("p", {}, `${state.toolsError}. It comes from cdn.jsdelivr.net: check the internet connection, or whether a blocker or a company network stops that site, then reload the page. Without it a configuration cannot be opened, read or written; Live pedal and Firmware still work.`),
+    h("button", { onclick: () => location.reload() }, "Reload the page"));
 }
 
 // --- Banks -------------------------------------------------------------------
@@ -800,7 +820,12 @@ async function connect() {
     }
     await attach(false);
   } catch (e) {
-    toast(e.message || String(e), "error");
+    if (e.name === "SecurityError" || e.name === "NotAllowedError") {
+      notice("The browser did not allow MIDI for this page",
+        "The configurator needs MIDI devices with SysEx to talk to the pedal, and the browser remembers a refusal. To allow it: click the icon left of the address bar, open the site settings, set “MIDI devices” (in Chrome “Control and reprogram your MIDI devices”) to Allow, then reload the page.");
+    } else {
+      toast(e.message || String(e), "error");
+    }
   }
 }
 
@@ -816,10 +841,20 @@ async function attach(quiet) {
     pedal.onGone = () => { pedal.close(); if (state.pedal === pedal) { state.pedal = null; state.slots = null; render(); } };
     if (simulated !== state.simulated) { pedal.close(); return; }
     state.pedal = pedal;
+    $("#notice").hidden = true;     // whatever stood in the way, it is past
     if (!quiet) toast(simulated ? `Simulated pedal on: firmware ${state.version}` : `Connected: firmware ${state.version}`);
     render();
   } catch (e) {
-    if (!quiet) toast(e.message || String(e), "error");
+    if (quiet) return;
+    if (e instanceof Timeout && !state.simulated) {
+      notice("The Midi Commander does not answer the configurator",
+        "It is there, but it runs another firmware, most likely MeloAudio’s own: this configurator needs this project’s firmware. Install it in the Firmware tab: unplug the pedal, hold Bank Down and D while plugging it in, and it starts in its update mode.",
+        "If it runs this project’s firmware already, unplug it and plug it in again.");
+      state.tab = "firmware";
+      render();
+    } else {
+      toast(e.message || String(e), "error");
+    }
   }
 }
 
@@ -852,8 +887,12 @@ async function simulate() {
 async function demoIntoSimulation() {
   if (!state.tools) {
     setBusy("Loading the configurator’s Python");
-    await waitFor(() => state.tools, 120000, 300);
-    if (!state.tools) return;
+    await waitFor(() => state.tools || state.toolsError, 120000, 300);
+    if (!state.tools) {
+      notice("The simulated pedal is on, but empty", "The demo is written to it with the configurator’s Python, which " +
+        (state.toolsError ? "could not load. Reload the page to try again." : "has not loaded yet. Stop it and try again in a moment."));
+      return;
+    }
   }
   const packed = state.tools.pack(state.tools.csvToSections(await state.tools.fetchFile("demo-all-features.csv")));
   setBusy("Writing the demo to the simulated pedal");
@@ -1042,9 +1081,11 @@ function renderLive(main) {
 // The expression pedals moved from here, through the pedal's SET_PEDAL (0.70)
 function expressionControls() {
   if (!versionAtLeast(state.version, 0, 70)) return null;
+  if (state.expPedal !== state.pedal) { state.expPedal = state.pedal; state.expHeld = [null, null]; }
   const pedalEl = (i) => {
-    const slider = h("input", { type: "range", min: 0, max: 16383, value: 0, "aria-label": `Expression pedal ${i + 1}` });
-    const letGo = h("button", { disabled: true }, "Let go");
+    // What the pedal holds survives leaving the tab: the slider comes back where it was
+    const slider = h("input", { type: "range", min: 0, max: 16383, value: state.expHeld[i] ?? 0, "aria-label": `Expression pedal ${i + 1}` });
+    const letGo = h("button", { disabled: state.expHeld[i] === null }, "Let go");
     let sending = false, want = null;
     const send = async () => {
       if (sending) return;
@@ -1056,9 +1097,9 @@ function expressionControls() {
       }
       sending = false;
     };
-    slider.addEventListener("input", () => { want = Number(slider.value); letGo.disabled = false; send(); });
+    slider.addEventListener("input", () => { want = state.expHeld[i] = Number(slider.value); letGo.disabled = false; send(); });
     letGo.addEventListener("click", async () => {
-      want = null;
+      want = state.expHeld[i] = null;
       letGo.disabled = true;
       try { await state.pedal.setPedal(i, false); } catch (e) { /* gone */ }
     });
@@ -1163,6 +1204,7 @@ function renderFirmware(main) {
     h("h3", {}, "Update the firmware"),
     h("p", {}, "Choose a .dfu file from the project’s releases. The pedal restarts in its update mode by itself (firmware 0.58 or later), the file is written and read back, and the pedal starts again. About 15 seconds; your configurations stay."),
     usb ? null : h("p", { class: "problem" }, "This browser has no WebUSB: use Chrome, Edge or Opera on a computer."),
+    state.updateStuck ? h("p", { class: "problem" }, "The last update did not finish. The pedal waits in its update mode, with its screen dark: press Update again, with the same file. It does not need to be connected first.") : null,
     file, info,
     h("div", { class: "buttons" },
       h("button", { class: "primary", disabled: !state.dfuPayload || !usb || state.busy, onclick: updateFirmware }, "Update"),
@@ -1203,6 +1245,7 @@ async function updateFirmware() {
   const payload = state.dfuPayload;
   const ok = await confirmDialog("Update the firmware", `Write ${state.dfuName} (${payload.length} bytes) to the pedal? Keep the USB cable in until it has started again.`, "Update");
   if (!ok) return;
+  let inUpdateMode = false;     // from here on, a failure leaves the pedal waiting there
   try {
     let device = await Dfu.find(navigator.usb);
     let sent = false;     // the pedal was asked to go to update mode, and went
@@ -1227,6 +1270,7 @@ async function updateFirmware() {
         ? "no bootloader chosen. The pedal waits in update mode: press Update again and choose it."
         : "no pedal in update mode. Unplug the USB cable and plug it in again: it starts in update mode, and you can try again.");
     }
+    inUpdateMode = true;
     await flash(device, payload, {
       log: (m) => setBusy(m),
       progress: (d, t, what) => setBusy({ erase: "Erasing", write: "Writing", verify: "Checking" }[what], d, t),
@@ -1235,8 +1279,10 @@ async function updateFirmware() {
     if (state.midiAccess) {
       await waitFor(async () => { await attach(true); return state.pedal; }, 20000, 800);
     }
+    state.updateStuck = false;
     toast(state.pedal ? `Updated: the pedal runs ${state.version}` : "Updated. Connect the pedal again to see its version.");
   } catch (e) {
+    state.updateStuck = inUpdateMode;
     toast(`Update failed: ${e.message}`, "error");
   } finally {
     setBusy(null);
@@ -1260,7 +1306,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     state.schema = state.tools.schema;
     $("#py-status").textContent = "";
   } catch (e) {
-    $("#py-status").textContent = "The configurator could not load: " + e.message;
+    state.toolsError = e.message || String(e);
+    $("#py-status").textContent = "";
+    render();
     return;
   }
   render();

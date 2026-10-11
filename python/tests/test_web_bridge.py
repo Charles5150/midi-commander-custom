@@ -66,6 +66,25 @@ class BridgeTest(unittest.TestCase):
         problem = wb.check(json.dumps(sections))
         self.assertIn("Nonsense", problem)
 
+    def test_any_csv_is_not_a_configuration(self):
+        with self.assertRaisesRegex(ValueError, "not a Midi Commander configuration: it has no Global_Settings"):
+            wb.csv_to_sections(b"hello,world\n1,2\n")
+
+    def test_check_says_what_a_sysex_string_loses(self):
+        sections = json.loads(wb.csv_to_sections(read(CSVS[0])))
+        sysex = sections["SysEx_Strings"]
+        at = sysex["columns"].index("Bytes")
+        for text, problem in [("F0 ZZ 12", "“ZZ” is not a byte"), ("41 80 12", "80 is over 7F"),
+                              (" ".join(["01"] * 24), "24 bytes, more than the 23"), ("F0 41 10 42 F7", "")]:
+            with self.subTest(text):
+                sysex["rows"][2][at] = text
+                found = wb.check(json.dumps(sections))
+                self.assertIn(problem, found)
+                if problem:
+                    self.assertTrue(found.startswith(f"SysEx string {sysex['rows'][2][0]}: "))
+                else:
+                    self.assertEqual(found, "")
+
     def test_sizes_match_the_layout(self):
         self.assertEqual(wb.CONFIG_SIZE, layout.CONFIG_SIZE)
         self.assertEqual(wb.DOUBLE_PRESS_OFFSET, 12 * 2048)

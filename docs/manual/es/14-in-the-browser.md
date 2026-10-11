@@ -65,6 +65,17 @@ El bootloader y las configuraciones no se tocan nunca. Una pedalera con firmware
 
 En Windows el bootloader necesita el controlador WinUSB, igual que para `dfu-util`: instálalo una vez con [Zadig](https://zadig.akeo.ie) para el dispositivo `STM32 BOOTLOADER`. En Linux el navegador necesita la regla de udev de [Primeros pasos](02-getting-started.md#1-flashea-el-firmware) para llegar a él.
 
+## Cuando algo falla
+
+- **No se pudo cargar el Python del configurador.** La página lee, comprueba y empaqueta las configuraciones con el mismo Python de las herramientas, que el navegador descarga de cdn.jsdelivr.net la primera vez. Sin conexión, o con ese sitio bloqueado por una extensión o una red de empresa, la página de inicio lo dice en rojo, con **Reload the page**. La pedalera en directo y el firmware funcionan sin él; abrir, leer y escribir una configuración no, y una pedalera simulada arranca vacía.
+- **Un archivo que no es una configuración** se rechaza diciendo lo que le falta, y la configuración abierta sigue abierta.
+- **Una cadena SysEx que la pedalera no enviaría tal cual**, con un byte que no es hexadecimal, uno mayor que `7F` o más de 23 bytes, se señala en la línea roja bajo la barra de herramientas, y la configuración no se puede guardar ni escribir hasta corregirla.
+- **El navegador no permitió el MIDI.** Chrome recuerda la negativa. La página dice cómo volver a permitirlo: el icono a la izquierda de la barra de direcciones, la configuración del sitio, **Dispositivos MIDI** («Controlar y reprogramar tus dispositivos MIDI» en Chrome) en Permitir, y recargar.
+- **La pedalera no contesta.** Una Midi Commander que aparece pero no responde casi seguro lleva el firmware de MeloAudio: la página lo dice y abre la pestaña Firmware, donde se actualiza poniendo la pedalera en modo de actualización a mano.
+- **Una actualización falló** con la pedalera ya en su modo de actualización: se queda en él, con la pantalla apagada, y la pestaña Firmware lo dice. Pulsa **Update** otra vez con el mismo archivo; no hace falta conectar antes la pedalera.
+
+Un mensaje que hay que leer con calma se queda bajo la barra de herramientas hasta cerrarlo con ×, o hasta que se conecta la pedalera.
+
 ## Ejecutarlo desde el repositorio
 
 La página es `web/index.html`, y carga los ficheros Python de `python/lib`. La pedalera simulada es `web/pedal-sim.wasm`, compilada a partir de las fuentes del firmware con `firmware/sim/build.sh` (mira [su README](../../../firmware/sim/README.md)). Para probar un cambio, sirve la raíz del repositorio y abre la página allí:
