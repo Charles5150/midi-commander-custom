@@ -83,6 +83,7 @@ static struct {
 	uint8_t cmd[MIDI_ROM_CMD_SIZE];
 	uint8_t label[BUTTON_LABEL_LEN];
 	uint8_t label_reset;	// LABEL_RESET_BIT of the stored label, kept as it was
+	uint8_t label_instant;	// and LABEL_INSTANT_BIT
 	bool cmd_dirty, label_dirty, set_dirty;
 	uint8_t setting;		// the setting the cursor is on
 	uint8_t set_value;		// being edited
@@ -460,6 +461,7 @@ static void save(void){
 		uint8_t label[BUTTON_LABEL_LEN];
 		memcpy(label, ed.label, BUTTON_LABEL_LEN);
 		label[0] |= ed.label_reset;
+		label[1] |= ed.label_instant;
 		wrote |= flash_settings_patch(label_ptr(), label, BUTTON_LABEL_LEN);
 		ed.label_dirty = false;
 	}
@@ -491,6 +493,7 @@ static void load_cmd(void){
 static void load_label(void){
 	const uint8_t *l = label_ptr();
 	ed.label_reset = (l[0] == 0xFF) ? 0 : (l[0] & LABEL_RESET_BIT);
+	ed.label_instant = (l[1] == 0xFF) ? 0 : (l[1] & LABEL_INSTANT_BIT);
 	for(uint8_t i=0; i<BUTTON_LABEL_LEN; i++){
 		uint8_t c = (l[i] == 0xFF) ? ' ' : (uint8_t)(l[i] & 0x7F);
 		ed.label[i] = (c < 0x20 || c > 0x7E) ? ' ' : c;

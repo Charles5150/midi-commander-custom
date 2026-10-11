@@ -513,17 +513,23 @@ def pack_expression_settings(df) -> bytes:
 # Bit 7 of a label's first character, free since labels are ASCII: the button
 # goes back to off, and a cycle button to its start, when the bank changes.
 LABEL_RESET_BIT = 0x80
+# And of its second (1.17): the short list goes out as the button is pressed,
+# even when it has a long or double press list.
+LABEL_INSTANT_BIT = 0x80
 
 
-def pack_label(value, reset=False) -> bytes:
+def pack_label(value, reset=False, instant=False) -> bytes:
     """Label cell -> LABEL_LEN display bytes (see display_text), space padded,
-    with LABEL_RESET_BIT set in the first one when ``reset`` is true."""
+    with LABEL_RESET_BIT set in the first one when ``reset`` is true and
+    LABEL_INSTANT_BIT in the second when ``instant`` is."""
     text = "" if value is None else str(value)
     if text.strip().lower() == "nan":
         text = ""
     out = bytearray(display_bytes(text.strip(), LABEL_LEN))
     if reset:
         out[0] |= LABEL_RESET_BIT
+    if instant:
+        out[1] |= LABEL_INSTANT_BIT
     return bytes(out)
 
 
@@ -722,7 +728,8 @@ def pack_config(sections: dict, has_double=None) -> bytes:
                     cbp.pack_button_led_modes(light_modes[-1:], groups[-1:], holds[-1:],
                                               flashes[-1:], globals_[-1:])
                     labels += pack_label(row.get("Label", ""),
-                                         cbp.reset_on_bank_value(row.get("Reset_On_Bank", "")))
+                                         cbp.reset_on_bank_value(row.get("Reset_On_Bank", "")),
+                                         cbp.instant_press_value(row.get("Instant_Press", "")))
     out += cbp.pack_button_led_modes(light_modes, groups, holds, flashes, globals_)
     out += list(labels)
 

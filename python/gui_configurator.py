@@ -1354,6 +1354,10 @@ class MidiCommanderGUI(ctk.CTk):
                 df.insert(df.columns.get_loc("Global") + 1, "Reset_On_Bank", "")
             else:
                 df["Reset_On_Bank"] = df["Reset_On_Bank"].fillna("")
+            if "Instant_Press" not in df.columns:
+                df.insert(df.columns.get_loc("Reset_On_Bank") + 1, "Instant_Press", "")
+            else:
+                df["Instant_Press"] = df["Instant_Press"].fillna("")
             missing = [
                 f"{slot}_{field}"
                 for slot in SLOTS
@@ -1534,7 +1538,7 @@ class MidiCommanderGUI(ctk.CTk):
             columns += [f"{slot}_{f}" for f in CMD_FIELDS]
         if with_extras:
             columns += ["Light_Mode", "Group", "Momentary_Hold", "Tempo_Flash", "Global",
-                        "Reset_On_Bank"]
+                        "Reset_On_Bank", "Instant_Press"]
 
         out = []
         for b in range(NUM_BANKS):
@@ -1552,6 +1556,7 @@ class MidiCommanderGUI(ctk.CTk):
                     row["Tempo_Flash"] = ""
                     row["Global"] = ""
                     row["Reset_On_Bank"] = ""
+                    row["Instant_Press"] = ""
                 if src is not None:
                     for c in columns:
                         if c in src.index and c not in ("Bank_Number", "Button_Identifier"):
@@ -1940,6 +1945,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.tempo_flash = None
         self.button_global = None
         self.reset_on_bank = None
+        self.instant_press = None
         long_mode = self.press_mode == "Long press"
         double_mode = self.press_mode == "Double press"
 
@@ -1979,6 +1985,9 @@ class MidiCommanderGUI(ctk.CTk):
             self.reset_on_bank = Check(flags_frame, text="Reset on bank change",
                                        checked=is_yes(current.get("Reset_On_Bank")))
             self.reset_on_bank.pack(side="left", padx=(12, 0))
+            self.instant_press = Check(flags_frame, text="Press at once",
+                                       checked=is_yes(current.get("Instant_Press")))
+            self.instant_press.pack(side="left", padx=(12, 0))
             Help(
                 self.cmd_editor,
                 "Exclusive group: switching this button on switches off the others of its group "
@@ -2121,6 +2130,8 @@ class MidiCommanderGUI(ctk.CTk):
             self.df_buttons.at[idx, "Global"] = "Y" if self.button_global.value() == "Y" else ""
         if self.reset_on_bank is not None:
             self.df_buttons.at[idx, "Reset_On_Bank"] = "Y" if self.reset_on_bank.value() == "Y" else ""
+        if self.instant_press is not None:
+            self.df_buttons.at[idx, "Instant_Press"] = "Y" if self.instant_press.value() == "Y" else ""
         if self.label_entry is not None:
             df.at[idx, "Long_Label" if df is self.df_long else "Label"] = self.label_entry.value().strip()
 

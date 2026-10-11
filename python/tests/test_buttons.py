@@ -37,9 +37,9 @@ class DoublePressTest(unittest.TestCase):
         # slot's pages, so the extension follows it with no gap
         self.assertEqual(image[: len(config)], config)
         self.assertEqual(len(config), layout.DOUBLE_PRESS_OFFSET)
-        # Three commands in the demo, everything else erased
+        # Four commands in the demo, everything else erased
         extension = image[layout.DOUBLE_PRESS_OFFSET :]
-        self.assertEqual(sum(1 for b in extension if b != 0xFF), 12)
+        self.assertEqual(sum(1 for b in extension if b != 0xFF), 16)
         button = 2 * 8 + 3                     # bank 2, button 4
         off = layout.DOUBLE_PRESS_OFFSET + button * layout.BUTTON_STRIDE
         self.assertEqual(list(image[off : off + 4]), [0xB0, 18 | 0x80, 127, 0])
@@ -52,8 +52,8 @@ class DoublePressTest(unittest.TestCase):
         self.assertEqual(row["A_Number_(PC/CC/Note)"], "18")
         self.assertEqual(row["A_Toggle_(CC/PB/Note)"], "Y")
         self.assertEqual(row["B_CommandType"], "")
-        # and the Scene Save on A, and Arrows on 1 in bank 5
-        self.assertEqual((df["A_CommandType"] != "").sum(), 3)
+        # and the Scene Save on A, Arrows on 1 in bank 5 and Stop on REC
+        self.assertEqual((df["A_CommandType"] != "").sum(), 4)
 
     def test_commands_of_the_empty_type_are_kept(self):
         """Wait, If, Macro, Button and the rest share the empty command type's
@@ -124,7 +124,7 @@ class DoublePressTest(unittest.TestCase):
         df = unpacker.unpack_double_press_settings(image)
         row = df[(df["Bank_Number"] == "9") & (df["Button_Identifier"] == "4")].iloc[0]
         self.assertEqual(row["A_Number_(PC/CC/Note)"], "18")
-        self.assertEqual((df["A_CommandType"] != "").sum(), 5)
+        self.assertEqual((df["A_CommandType"] != "").sum(), 6)
 
 class BankClipboardTest(unittest.TestCase):
     """Copy one bank over another, as the configurator's Copy/Paste bank does."""
@@ -378,6 +378,74 @@ class ResetOnBankTest(unittest.TestCase):
             header = handle.read()
         m = re.search(r"#define\s+LABEL_RESET_BIT\s+\((0x[0-9A-Fa-f]+)\)", header)
         self.assertEqual(int(m.group(1), 16), packer.LABEL_RESET_BIT)
+
+class InstantPressTest(unittest.TestCase):
+    """Instant press, bit 7 of the second character of a button's label (1.17)."""
+
+    def _index(self, df, bank, btn):
+        return df.index[(df["Bank_Number"].astype(str) == str(bank))
+                        & (df["Button_Identifier"] == btn)][0]
+
+    def test_packs_in_the_label(self):
+        sections = read_config_csv(DEMO_CSV)
+        df = sections["Button_Settings"].copy()
+        df["Instant_Press"] = ""
+        i = self._index(df, 5, "B")
+        base = pack_config({**sections, "Button_Settings": df})
+        df.at[i, "Instant_Press"] = "Y"
+        packed = pack_config({**sections, "Button_Settings": df})
+        at = layout.LABELS_OFFSET + (5 * 8 + layout.BUTTON_IDS.index("B")) * layout.LABEL_LEN + 1
+        self.assertEqual(packed[at], base[at] | packer.LABEL_INSTANT_BIT)
+        self.assertEqual(packed[:at] + packed[at + 1:], base[:at] + base[at + 1:])
+
+    def test_with_the_reset_and_short_labels(self):
+        self.assertEqual(packer.pack_label("", instant=True), b" \xa0  ")
+        self.assertEqual(packer.pack_label("R", reset=True, instant=True), b"\xd2\xa0  ")
+        self.assertEqual(packer.pack_label("REC", instant=True), b"R\xc5C ")
+
+    def test_round_trip(self):
+        sections = read_config_csv(DEMO_CSV)
+        _, _, decoded, *_ = unpacker.unpack_config(pack_config(sections))
+        row = decoded[(decoded["Bank_Number"] == "1") & (decoded["Button_Identifier"] == "1")]
+        self.assertEqual(row["Instant_Press"].iloc[0], "Y")
+        self.assertEqual(row["Label"].iloc[0], "REC")
+        self.assertEqual(row["Reset_On_Bank"].iloc[0], "")
+        self.assertEqual((decoded["Instant_Press"] == "Y").sum(), 1)
+
+    def test_both_bits_round_trip(self):
+        sections = read_config_csv(DEMO_CSV)
+        df = sections["Button_Settings"].copy()
+        i = self._index(df, 11, "4")             # BOST, reset on bank change
+        df.at[i, "Instant_Press"] = "Y"
+        _, _, decoded, *_ = unpacker.unpack_config(pack_config({**sections, "Button_Settings": df}))
+        row = decoded[(decoded["Bank_Number"] == "11") & (decoded["Button_Identifier"] == "4")]
+        self.assertEqual(row["Label"].iloc[0], "BOST")
+        self.assertEqual(row["Reset_On_Bank"].iloc[0], "Y")
+        self.assertEqual(row["Instant_Press"].iloc[0], "Y")
+
+    def test_older_configurations_and_erased_flash_have_none(self):
+        sections = read_config_csv(SAMPLE_CSV)
+        self.assertNotIn("Instant_Press", sections["Button_Settings"].columns)
+        _, _, decoded, *_ = unpacker.unpack_config(pack_config(sections))
+        self.assertTrue((decoded["Instant_Press"] == "").all())
+        _, _, df, *_ = unpacker.unpack_config(bytes([0xFF]) * layout.CONFIG_SIZE)
+        self.assertTrue((df["Instant_Press"] == "").all())
+
+    def test_values(self):
+        for cell, want in (("", False), (float("nan"), False), ("N", False),
+                           ("Y", True), ("yes", True), ("1.0", True)):
+            self.assertEqual(cbp.instant_press_value(cell), want, cell)
+        with self.assertRaises(ValueError):
+            cbp.instant_press_value("maybe")
+
+    def test_firmware_bit_matches(self):
+        import re
+        path = os.path.join(os.path.dirname(__file__), "..", "..", "firmware", "Core", "Inc",
+                            "flash_midi_settings.h")
+        with open(path) as handle:
+            header = handle.read()
+        m = re.search(r"#define\s+LABEL_INSTANT_BIT\s+\((0x[0-9A-Fa-f]+)\)", header)
+        self.assertEqual(int(m.group(1), 16), packer.LABEL_INSTANT_BIT)
 
 class TempoFlashTest(unittest.TestCase):
     """Flashing at the tempo, bit 2 of each button's LED mode byte."""

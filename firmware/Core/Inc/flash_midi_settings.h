@@ -83,9 +83,12 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
 // The characters are ASCII, so bit 7 is free, and that of the first one says
 // the button goes back to off, and a cycle button to its start, when the bank
 // changes. Older configurations always left it at zero; erased flash (0xFF)
-// is an empty label and no reset.
+// is an empty label and no reset. That of the second one (1.17) makes the
+// button's short list go out as it is pressed, even with a long or double
+// press list (instant press); erased flash is not.
 #define BUTTON_LABEL_LEN		(4)
 #define LABEL_RESET_BIT			(0x80)
+#define LABEL_INSTANT_BIT		(0x80)
 
 // Button LED modes, one byte per button indexed by (bank * 8 + switch).
 // Bits 0-1: 0 = Normal, 1 = Reverse, 2 = AlwaysOn. Bit 2: flash at the tempo,

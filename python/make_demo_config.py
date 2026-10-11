@@ -86,7 +86,7 @@ def blank_button_rows():
     for slot in SLOT_NAMES:
         columns += [f"{slot}_{f}" for f in CMD_FIELDS]
     columns += ["Light_Mode", "Group", "Momentary_Hold", "Tempo_Flash", "Global",
-                "Reset_On_Bank"]
+                "Reset_On_Bank", "Instant_Press"]
     columns += [f"{slot}_KeyMode_(Key)" for slot in SLOT_NAMES]
 
     rows = []
@@ -190,6 +190,9 @@ class Demo:
     def reset_on_bank(self, bank, btn):
         self.buttons.at[self._index(self.buttons, bank, btn), "Reset_On_Bank"] = "Y"
 
+    def instant_press(self, bank, btn):
+        self.buttons.at[self._index(self.buttons, bank, btn), "Instant_Press"] = "Y"
+
     def cc(self, bank, btn, label, number, on="127", off="0", toggle="N", ch="1", light=None, slot="A"):
         self.button(bank, btn, label, light, slot, CommandType="CC",
                     **{"Channel_(PC/CC/Note/PB)": ch, "Number_(PC/CC/Note)": number,
@@ -286,6 +289,13 @@ def build() -> Demo:
     d.button(1, "1", slot="C", CommandType="Listen",
              **{"Number_(PC/CC/Note)": "23", "OnValue_(CC/PB)": "2", "OffValue_(CC)": "0",
                 "KeyMode_(Key)": "Slow"})
+    # A double tap on REC stops, as on a looper pedal. Its own press still
+    # goes out the moment it is pressed, not after the double tap window:
+    # recording starts on the beat
+    d.double_press(1, "1", CommandType="CC",
+                   **{"Channel_(PC/CC/Note/PB)": "1", "Number_(PC/CC/Note)": "3",
+                      "OnValue_(CC/PB)": "127", "OffValue_(CC)": "0"})
+    d.instant_press(1, "1")
     d.cc(1, "2", "PLAY", "2", toggle="Y")
     # The looper reports whether it is playing on a CC of its own, CC 22 at 1
     # while it plays: PLAY's LED follows that rather than its own CC 2

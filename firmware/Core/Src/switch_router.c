@@ -99,6 +99,7 @@ typedef struct {
 	uint32_t release_tick;       // HAL tick when a possible first press of a double ended
 	uint8_t press_state;         // PRESS_IDLE / PRESS_PENDING / PRESS_SHORT / PRESS_LONG
 	uint8_t press_bank;          // Bank showing when its list fired, whose release it sends
+	bool instant_fired;          // Its short list went out at once, still telling it apart
 	// Auto-repeat of the CCInc / PCInc commands marked Repeat while held
 	uint8_t *repeat_list;        // List that fired and holds such commands, NULL for none
 	uint8_t repeat_first;        // First command of the part of it that fired (a cycle state)
@@ -2881,6 +2882,33 @@ static uint8_t release_bank(sw_t *sw){
 	return (sw->press_bank < MIDI_NUM_BANKS) ? sw->press_bank : switch_current_page;
 }
 
+/*
+ * Instant press: a button with a long or double press list sends its short
+ * list as it goes down, not on release or after the double press window.
+ * Held, its long list goes out as well; a second tap in time sends its
+ * double list. Kept in bit 7 of the label's second character (see
+ * LABEL_INSTANT_BIT).
+ */
+static bool button_instant(uint8_t i){
+	uint8_t c = pButtonLabels[(uint16_t)(sw_bank(i) * MIDI_NUM_SWITCHES + i) * BUTTON_LABEL_LEN + 1];
+	return c != 0xFF && (c & LABEL_INSTANT_BIT);
+}
+
+// A press that may still become a long or double one begins
+static void pending_begin(uint8_t i, uint32_t now){
+	sw_t *sw = &a_sw_obj[i];
+	sw->instant_fired = false;
+	if(button_instant(i)){
+		latency_begin();
+		fire_short_down(i);
+		latency_end();
+		sw->instant_fired = true;
+	}
+	sw->press_tick = now;
+	sw->press_state = PRESS_PENDING;
+	set_momentary_led(i, 1);
+}
+
 static void fire_short_up(uint8_t i){
 	sw_t *sw = &a_sw_obj[i];
 	uint8_t bank = release_bank(sw);
@@ -2906,10 +2934,11 @@ static void settle_pending_presses(void){
 		sw_t *sw = &a_sw_obj[i];
 		if(sw->press_state == PRESS_WAIT_SECOND){
 			sw->press_state = PRESS_IDLE;
+			if(sw->instant_fired) continue;
 			fire_short_down(i);
 			fire_short_up(i);
 		} else if(sw->press_state == PRESS_PENDING || sw->press_state == PRESS_COMBO_WAIT){
-			fire_short_down(i);
+			if(!(sw->press_state == PRESS_PENDING && sw->instant_fired)) fire_short_down(i);
 			sw->press_state = PRESS_SHORT;
 		}
 	}
@@ -3939,8 +3968,9 @@ void handle_switches(void){
 		// with the wait counted in towards a long press
 		if(sw->press_state == PRESS_COMBO_WAIT && (now - sw->press_tick) >= combo_window_ms()){
 			if(has_long || has_double){
-				sw->press_state = PRESS_PENDING;
-				set_momentary_led(i, 1);
+				uint32_t began = sw->press_tick;
+				pending_begin(i, now);
+				sw->press_tick = began;
 			} else {
 				fire_short_down(i);
 				sw->press_state = PRESS_SHORT;
@@ -3950,12 +3980,14 @@ void handle_switches(void){
 		// A pending press becomes a long press once held past the threshold.
 		// A button with no long press commands, pending only because of its
 		// double press, is simply a short press being held.
+		// One whose short list went out at once adds its long list, unless
+		// that list changed the bank.
 		if(sw->press_state == PRESS_PENDING && (now - sw->press_tick) >= long_press_threshold_ms()){
-			if(has_long){
+			if(has_long && !(sw->instant_fired && sw->press_bank != switch_current_page)){
 				fire_long_down(i);
 				sw->press_state = PRESS_LONG;
 			} else {
-				fire_short_down(i);
+				if(!sw->instant_fired) fire_short_down(i);
 				sw->press_state = PRESS_SHORT;
 			}
 		}
@@ -3963,8 +3995,10 @@ void handle_switches(void){
 		// No second press in time: the tap was a single short press
 		if(sw->press_state == PRESS_WAIT_SECOND && (now - sw->release_tick) >= double_press_window_ms()){
 			sw->press_state = PRESS_IDLE;
-			fire_short_down(i);
-			fire_short_up(i);
+			if(!sw->instant_fired){
+				fire_short_down(i);
+				fire_short_up(i);
+			}
 		}
 
 		if(*sw_pins[i].changed & sw_pins[i].pin){
@@ -3984,9 +4018,7 @@ void handle_switches(void){
 					combo_press(i, now);
 				} else if(has_long || has_double){
 					// Can't tell yet whether this is a short, long or double press
-					sw->press_tick = now;
-					sw->press_state = PRESS_PENDING;
-					set_momentary_led(i, 1);
+					pending_begin(i, now);
 				} else {
 					sw->press_tick = now;
 					latency_begin();
@@ -3999,13 +4031,16 @@ void handle_switches(void){
 				uint8_t next = PRESS_IDLE;
 				switch(sw->press_state){
 				case PRESS_COMBO_WAIT:	// let go before its partner came: a tap
+					sw->instant_fired = false;
+					// fall through
 				case PRESS_PENDING:
+					if(sw->instant_fired) fire_short_up(i);	// went down at once
 					if(has_double){
 						// Maybe the first half of a double press: wait for a second one
 						set_momentary_led(i, 0);
 						sw->release_tick = now;
 						next = PRESS_WAIT_SECOND;
-					} else {
+					} else if(!sw->instant_fired){
 						// Released before the threshold: it was a short press
 						fire_short_down(i);
 						fire_short_up(i);
@@ -4021,6 +4056,7 @@ void handle_switches(void){
 					break;
 				case PRESS_LONG:
 					fire_long_up(i);
+					if(sw->instant_fired) fire_short_up(i);
 					break;
 				case PRESS_DOUBLE:
 					set_momentary_led(i, 0);

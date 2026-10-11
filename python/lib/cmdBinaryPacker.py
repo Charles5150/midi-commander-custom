@@ -1220,6 +1220,12 @@ def reset_on_bank_value(value) -> bool:
     return _yes_no(value, "Reset_On_Bank")
 
 
+def instant_press_value(value) -> bool:
+    """Instant_Press cell: Y/Yes/1/True is on, empty, N or None is off. Kept
+    in the button's label, see configPacker.LABEL_INSTANT_BIT."""
+    return _yes_no(value, "Instant_Press")
+
+
 def pack_button_led_modes(light_modes, groups=None, holds=None, flashes=None,
                           globals_=None) -> list:
     """Pack one LED mode byte per button from an iterable of mode names, with

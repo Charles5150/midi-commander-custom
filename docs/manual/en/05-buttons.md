@@ -6,7 +6,7 @@ Every button has three command lists, a short, a long and a double press, a labe
 
 ![When the short, long, double press and combination lists go out](../images/press-types-en.svg)
 
-In the configurator all of this is the **Buttons** tab: pick a bank, then a button from the eight laid out as on the pedal. At the top of the editor are its **display label**, **LED light mode** and **exclusive group**, and the **Momentary when held**, **Flash at the tempo**, **Global** and **Reset on bank change** boxes; below them, ten command slots, and **Short press / Long press / Double press** to switch between the three lists.
+In the configurator all of this is the **Buttons** tab: pick a bank, then a button from the eight laid out as on the pedal. At the top of the editor are its **display label**, **LED light mode** and **exclusive group**, and the **Momentary when held**, **Flash at the tempo**, **Global**, **Reset on bank change** and **Press at once** boxes; below them, ten command slots, and **Short press / Long press / Double press** to switch between the three lists.
 
 ## Short, long and double press
 
@@ -29,6 +29,18 @@ Long and double press commands each have their own toggle state, apart from the 
 `CSV_to_Flash.py` leaves the double press commands out, with a warning, when the pedal runs firmware older than 0.26.
 
 </details>
+
+## Press at once
+
+A button with a long or double press list sends its short press late: on release, or once the double press window has gone by. To start a looper recording on the beat that delay is felt. Tick **Press at once** (`Instant_Press` `Y`) and the button sends its short press the moment it goes down, as a button with nothing else to wait for does:
+
+- **Held,** past **Long press after**, its long press list goes out as well. Let go, and both lists' releases are sent, the long one's first.
+- **Two taps** in time send its double press list on the second, which is not a short press then. The first tap's short press has gone out already, so a toggle in it is on by then: give the double press commands that work after it, as a looper's stop after its record.
+- **A tap** is a short press, as it always was, only sooner.
+
+A switch that is half of a [combination](#two-switches-together) in the current bank still waits `Combo_ms` for its partner first, and sends its short press when none came. In the demo's LOOP bank, REC is marked: it records at once, and a double tap stops.
+
+*Firmware 1.17 or later. An older firmware ignores the box.*
 
 ## Two switches together
 
@@ -266,6 +278,7 @@ One row per button, 256 rows in bank order and, within a bank, in the order `1, 
 - `Tempo_Flash`: `Y` for a button whose LED flashes with the beat (see [Tap LED](07-tempo.md#tap-led)); empty or `N` otherwise.
 - `Global`: `Y` for a button that takes everything from the same button of `Global_Bank` (see [Global buttons](#global-buttons)); empty or `N` otherwise.
 - `Reset_On_Bank`: `Y` for a button that goes back to off when its bank is left (see [Reset on bank change](#reset-on-bank-change)); empty or `N` otherwise.
+- `Instant_Press`: `Y` for a button whose short press goes out as it is pressed even with a long or double press list (see [Press at once](#press-at-once)); empty or `N` otherwise. Kept in bit 7 of the label's second character.
 - Ten command slots, prefixed `A_` to `J_`, each with the fields in [Commands](06-commands.md#command-fields).
 
 Rows are optional here and in `Bank_Naming`: a configuration that only defines the first few banks, including one written for the 8 bank firmware, flashes unchanged and leaves the rest empty. The configurator always shows all 32 banks and writes them all when you save.

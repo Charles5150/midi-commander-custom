@@ -6,7 +6,7 @@ Cada botón tiene tres listas de comandos (pulsación corta, larga y doble), una
 
 ![Cuándo salen las listas de pulsación corta, larga, doble y de combinación](../images/press-types-es.svg)
 
-En el configurador todo esto está en la pestaña **Buttons**: eliges un banco y luego uno de los ocho botones, colocados como en la pedalera. Arriba del editor están su **display label** (etiqueta), su **LED light mode** (modo del LED) y su **exclusive group** (grupo exclusivo), y las casillas **Momentary when held**, **Flash at the tempo**, **Global** y **Reset on bank change**. Debajo, las diez casillas de comandos, y **Short press / Long press / Double press** para cambiar entre las tres listas.
+En el configurador todo esto está en la pestaña **Buttons**: eliges un banco y luego uno de los ocho botones, colocados como en la pedalera. Arriba del editor están su **display label** (etiqueta), su **LED light mode** (modo del LED) y su **exclusive group** (grupo exclusivo), y las casillas **Momentary when held**, **Flash at the tempo**, **Global**, **Reset on bank change** y **Press at once**. Debajo, las diez casillas de comandos, y **Short press / Long press / Double press** para cambiar entre las tres listas.
 
 ## Pulsación corta, larga y doble
 
@@ -29,6 +29,18 @@ Los comandos de pulsación larga y doble tienen cada uno su propio estado de tog
 `CSV_to_Flash.py` deja fuera los comandos de pulsación doble, con un aviso, cuando la pedalera lleva un firmware anterior a 0.26.
 
 </details>
+
+## Pulsación al instante
+
+Un botón con lista de pulsación larga o doble envía tarde su pulsación corta: al soltarlo, o cuando ha pasado la ventana de la doble. Para empezar a grabar un looper a tiempo, ese retraso se nota. Marca **Press at once** (`Instant_Press` `Y`) y el botón envía su pulsación corta en cuanto baja, como un botón que no tiene nada más que esperar:
+
+- **Si lo mantienes**, más allá de **Long press after**, sale también su lista de pulsación larga. Al soltarlo se envían las sueltas de las dos listas, primero la de la larga.
+- **Dos toques** a tiempo envían su lista de pulsación doble con el segundo, que entonces no es pulsación corta. La pulsación corta del primer toque ya salió, así que un toggle suyo ya está encendido: pon en la doble comandos que tengan sentido después, como el stop de un looper tras su grabación.
+- **Un toque** es una pulsación corta, como siempre, solo que antes.
+
+Un pulsador que forma parte de una [combinación](#dos-pulsadores-a-la-vez) en el banco actual sigue esperando `Combo_ms` a su pareja, y envía su pulsación corta si no llega. En el banco LOOP de la demo, REC lo tiene marcado: graba al instante, y un doble toque para.
+
+*Firmware 1.17 o posterior. Un firmware anterior no hace caso de la casilla.*
 
 ## Dos pulsadores a la vez
 
@@ -266,6 +278,7 @@ Una fila por botón, 256 filas en orden de banco y, dentro de cada banco, en el 
 - `Tempo_Flash`: `Y` para un botón cuyo LED parpadea con el pulso (mira [LED del tap](07-tempo.md#led-del-tap)); vacío o `N` si no.
 - `Global`: `Y` para un botón que lo toma todo del mismo botón de `Global_Bank` (mira [Botones globales](#botones-globales)); vacío o `N` si no.
 - `Reset_On_Bank`: `Y` para un botón que vuelve a apagado al salir de su banco (mira [Reiniciar al cambiar de banco](#reiniciar-al-cambiar-de-banco)); vacío o `N` si no.
+- `Instant_Press`: `Y` para un botón cuya pulsación corta sale al pisarlo aunque tenga lista de pulsación larga o doble (mira [Pulsación al instante](#pulsación-al-instante)); vacío o `N` si no. Se guarda en el bit 7 del segundo carácter de la etiqueta.
 - Diez casillas de comandos, con los prefijos `A_` a `J_`, cada una con los campos de [Comandos](06-commands.md#campos-de-un-comando).
 
 Las filas son opcionales aquí y en `Bank_Naming`: una configuración que solo define los primeros bancos, incluida una escrita para el firmware de 8 bancos, se flashea tal cual y deja vacíos los demás. El configurador siempre muestra los 32 bancos y los escribe todos al guardar.

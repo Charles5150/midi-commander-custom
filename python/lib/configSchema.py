@@ -176,6 +176,7 @@ BUTTON_FIELDS = [
     {"col": "Tempo_Flash", "label": "Flash at the tempo", "kind": "check", "off": ""},
     {"col": "Global", "label": "Global", "kind": "check", "off": ""},
     {"col": "Reset_On_Bank", "label": "Reset on bank change", "kind": "check", "off": ""},
+    {"col": "Instant_Press", "label": "Press at once", "kind": "check", "off": ""},
 ]
 
 CH = "Channel_(PC/CC/Note/PB)"

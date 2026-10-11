@@ -159,6 +159,75 @@ test("the demo's index bank: switch 1 goes to the looper bank, where it sends CC
   assert.deepEqual(seen.splice(0), ["USB b0 01 00", "DIN b0 01 00"], "a toggle: off again");
 });
 
+test("instant press: the short list goes out as the button goes down, the long and double lists after (before 1.17, it waited)", async () => {
+  const sim = simWithDemo(await flashWith(packDemo([
+    "b = d['Button_Settings']",
+    "b.loc[(b.Bank_Number == '1') & (b.Button_Identifier == '4'), 'Instant_Press'] = 'Y'",
+    "c = d['Combo_Settings']",
+    "d['Combo_Settings'] = c.iloc[0:0]",     // 3+4 would wait for its partner first
+  ].join("\n"))));
+  tap(sim, 0);                              // the index to LOOP
+  const seen = watch(sim);
+  const usb = () => seen.splice(0).filter((m) => m.startsWith("USB b0 0"));
+
+  // REC, with a double press that stops, marked in the demo
+  sim.footswitch(0, true);
+  sim.run(5);
+  assert.deepEqual(usb(), ["USB b0 01 7f"], "REC at once, not after the double press window");
+  sim.footswitch(0, false);
+  sim.run(600);
+  assert.deepEqual(usb(), [], "nothing more once the window has gone by");
+  sim.footswitch(0, true);
+  sim.run(5);
+  sim.footswitch(0, false);
+  sim.run(80);
+  sim.footswitch(0, true);
+  sim.run(5);
+  assert.deepEqual(usb(), ["USB b0 01 00", "USB b0 03 7f"], "a double tap: the first tap at once, the second the double list");
+  sim.footswitch(0, false);
+  sim.run(600);
+  usb();
+
+  // UNDO, with a long press that clears, marked here
+  sim.footswitch(3, true);
+  sim.run(5);
+  assert.deepEqual(usb(), ["USB b0 04 7f"], "UNDO at once, not on release");
+  sim.run(700);
+  assert.deepEqual(usb(), ["USB b0 05 7f"], "held, the long list as well");
+  sim.footswitch(3, false);
+  sim.run(50);
+  assert.deepEqual(usb(), ["USB b0 05 00", "USB b0 04 00"], "both let go");
+  sim.footswitch(3, true);
+  sim.run(100);
+  sim.footswitch(3, false);
+  sim.run(600);
+  assert.deepEqual(usb(), ["USB b0 04 7f", "USB b0 04 00"], "a tap: the short list only");
+
+  // A switch of a combination still waits for its partner first
+  const combo = simWithDemo(await flashWith(packDemo(
+    "b = d['Button_Settings']\nb.loc[(b.Bank_Number == '1') & (b.Button_Identifier == '4'), 'Instant_Press'] = 'Y'")));
+  tap(combo, 0);
+  const paired = watch(combo);
+  combo.footswitch(3, true);
+  combo.run(5);
+  assert.deepEqual(paired, [], "UNDO is half of 3+4");
+  combo.run(100);
+  assert.deepEqual(paired.filter((m) => m.startsWith("USB")), ["USB b0 04 7f"], "no partner: at once after the wait, not on release");
+  combo.footswitch(3, false);
+  combo.run(600);
+
+  // Without the mark, as before: STOP has neither list, so the demo's own UNDO
+  const plain = simWithDemo();
+  tap(plain, 0);
+  const was = watch(plain);
+  plain.footswitch(3, true);
+  plain.run(100);
+  assert.deepEqual(was.filter((m) => m.startsWith("USB")), [], "unmarked, nothing until it is let go");
+  plain.footswitch(3, false);
+  plain.run(50);
+  assert.deepEqual(was.filter((m) => m.startsWith("USB b0 0")), ["USB b0 04 7f", "USB b0 04 00"]);
+});
+
 test("a press from the page goes through the same logic", async () => {
   const sim = simWithDemo();
   const pedal = await Pedal.open(sim.access);

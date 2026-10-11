@@ -136,12 +136,14 @@ def _ascii(chunk: bytes) -> str:
 
 
 def _label(chunk: bytes) -> tuple:
-    """(Label, Reset_On_Bank) from a button's label: bit 7 of its first
-    character, which ASCII leaves free, is the reset. Erased flash is neither."""
+    """(Label, Reset_On_Bank, Instant_Press) from a button's label: bit 7 of
+    its first character, which ASCII leaves free, is the reset, and that of
+    its second the instant press. Erased flash is neither."""
     if not chunk or chunk[0] == 0xFF:
-        return _ascii(chunk), ""
+        return _ascii(chunk), "", ""
     reset = "Y" if chunk[0] & 0x80 else ""
-    return _ascii(bytes([chunk[0] & 0x7F]) + chunk[1:]), reset
+    instant = "Y" if len(chunk) > 1 and chunk[1] != 0xFF and chunk[1] & 0x80 else ""
+    return _ascii(bytes(b & 0x7F for b in chunk[:2]) + chunk[2:]), reset, instant
 
 
 def _led_mode_name(value: int) -> str:
@@ -489,7 +491,7 @@ def unpack_button_settings(data: bytes) -> pd.DataFrame:
     for slot in SLOT_NAMES:
         columns += [f"{slot}_{f}" for f in CMD_FIELDS]
     columns += ["Light_Mode", "Group", "Momentary_Hold", "Tempo_Flash", "Global",
-                "Reset_On_Bank"]
+                "Reset_On_Bank", "Instant_Press"]
     columns += [f"{slot}_KeyMode_(Key)" for slot in SLOT_NAMES]
 
     cycle_labels = unpack_cycle_labels(data)
@@ -498,12 +500,13 @@ def unpack_button_settings(data: bytes) -> pd.DataFrame:
         for btn_index, btn_id in enumerate(BUTTON_IDS):
             button_number = bank * len(BUTTON_IDS) + btn_index
             label_start = LABELS_OFFSET + button_number * LABEL_LEN
-            label, reset = _label(data[label_start : label_start + LABEL_LEN])
+            label, reset, instant = _label(data[label_start : label_start + LABEL_LEN])
             row = {
                 "Bank_Number": str(bank),
                 "Button_Identifier": btn_id,
                 "Label": label,
                 "Reset_On_Bank": reset,
+                "Instant_Press": instant,
             }
             for slot_index, slot in enumerate(SLOT_NAMES):
                 offset = (
