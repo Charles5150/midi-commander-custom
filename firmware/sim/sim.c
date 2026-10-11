@@ -31,6 +31,7 @@
 #include "kemper.h"
 #include "gt1000.h"
 #include "latency.h"
+#include "midi_cmds.h"
 #include "dfu_entry.h"
 #include "ssd1306.h"
 #include "usbd_midi_if.h"
@@ -322,6 +323,7 @@ static void millisecond(void){
 		sleep_task();
 		kemper_task();
 		gt1000_task();
+		midiCmd_din_task();
 		dfu_entry_task();
 		break;
 	}

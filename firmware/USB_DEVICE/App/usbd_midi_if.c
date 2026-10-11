@@ -676,7 +676,7 @@ static uint8_t thru_len = 0;
 
 static void thru_flush(void){
 	if(thru_len){
-		midiCmd_send_bytes_serial(thru_buf, thru_len);
+		midiCmd_send_thru(thru_buf, thru_len);
 		thru_len = 0;
 	}
 }
@@ -690,11 +690,7 @@ static void thru_add(const uint8_t *data, uint8_t len){
 }
 
 static void thru_push(const uint8_t *data, uint8_t len){
-	if(!usb_thru_enabled() || thru_len + len > sizeof(thru_buf)){
-		return;
-	}
-	memcpy(thru_buf + thru_len, data, len);
-	thru_len += len;
+	if(usb_thru_enabled()) thru_add(data, len);
 }
 
 // A channel message: through the MIDI map, then on through the thru unless an
@@ -845,11 +841,14 @@ uint16_t MIDI_DataRx(uint8_t *msg, uint16_t length)
 			} else if(data[0] == 0xFA || data[0] == 0xFB || data[0] == 0xFC){
 				tempo_external_transport(data[0]);
 			}
-			// Realtime messages. Clock/Start/Continue/Stop pass when enabled.
+			// Realtime messages. Clock/Start/Continue/Stop pass when enabled,
+			// after what came before them in the packet: a Song Position or a
+			// Song Select reaches the device before the Continue or Start
 			if(pGlobalSettings[GLOBAL_SETTINGS_REALTIME_PASS] == 1){	// erased flash is off
 				uint8_t b = data[0];
 				if(b == 0xF8 || b == 0xFA || b == 0xFB || b == 0xFC){
-					midiCmd_send_byte_serial(b);
+					thru_flush();
+					midiCmd_send_thru(&b, 1);
 				}
 			}
 			break;

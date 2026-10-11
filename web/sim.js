@@ -64,9 +64,13 @@ export class MidiParser {
       if (b >= 0xf8) { this.onMessage([b]); continue; }
       if (b === 0xf0) { this.msg = [b]; this.need = -1; continue; }
       if (this.need === -1) {
-        this.msg.push(b);
-        if (b === 0xf7) { this.onMessage(this.msg); this.msg = []; this.need = 0; }
-        continue;
+        if (b < 0x80 || b === 0xf7) {
+          this.msg.push(b);
+          if (b === 0xf7) { this.onMessage(this.msg); this.msg = []; this.need = 0; }
+          continue;
+        }
+        this.msg = [];        // any other status byte cuts a SysEx short: it is lost
+        this.need = 0;
       }
       if (b >= 0x80) {
         this.status = b;

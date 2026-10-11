@@ -437,6 +437,17 @@ Windows numbers the ports instead of naming them, `MIDIOUT2 (MIDI Commander Cust
 Needs firmware 1.04 (bit 1 of global byte 6, beside `USB_MIDI_Thru` in bit 0).
 
 
+## In order on the DIN output
+
+What comes in over USB and goes on to the MIDI OUT socket, through `USB_MIDI_Thru`, `RealTime_Passthrough`, the MIDI map or port 2, goes out in the order it came, and the pedal's own messages do not cut into it:
+
+- **Start, Continue and Stop** go out after what came before them: a Song Position or a Song Select sent just before a Continue or a Start reaches the device first, and it starts where it was told. The clock is the one message that may jump the queue, as MIDI allows.
+- **A SysEx goes out whole.** A long one, a preset dump, comes in over USB in pieces; until its `F7` goes out, a press, an expression pedal or a request to an amp waits for it on the DIN output, and follows straight after. USB has them at once. A SysEx the computer leaves unfinished lets them go after a second.
+- **Nothing is dropped** when the MIDI map makes more messages than came in.
+
+Needs firmware 1.19; before, a Continue could reach the device before its Song Position, a press in the middle of a dump spoilt it, and a USB packet full of mapped messages lost its last one.
+
+
 ## Translating what comes in
 
 A DAW, a sequencer or a keyboard on USB rarely speaks the language of the old pedal on the DIN cable: the DAW changes scene with a Program Change, the delay wants two CCs; the keyboard's mod wheel is CC 1, the amp's volume CC 11 and the other way round. The **MIDI map** puts the pedal in the middle and translates.

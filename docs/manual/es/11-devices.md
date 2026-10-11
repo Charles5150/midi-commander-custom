@@ -437,6 +437,17 @@ Windows numera los puertos en vez de nombrarlos, `MIDIOUT2 (MIDI Commander Custo
 Necesita el firmware 1.04 (el bit 1 del byte global 6, junto a `USB_MIDI_Thru` en el bit 0).
 
 
+## En orden por la salida DIN
+
+Lo que llega por USB y sale por la toma MIDI OUT, ya sea por `USB_MIDI_Thru`, `RealTime_Passthrough`, el mapa MIDI o el puerto 2, sale en el orden en que llegó, y los mensajes de la propia pedalera no se meten en medio:
+
+- **Start, Continue y Stop** salen detrás de lo que llegó antes que ellos: un Song Position o un Song Select mandado justo antes de un Continue o un Start llega primero al equipo, y este arranca donde se le dijo. El reloj es el único mensaje que puede adelantarse, como permite MIDI.
+- **Un SysEx sale entero.** Uno largo, un volcado de presets, llega por USB a trozos; hasta que sale su `F7`, una pulsación, un pedal de expresión o una petición a un ampli lo esperan en la salida DIN, y salen justo detrás. Por USB salen al momento. Si el ordenador deja un SysEx sin terminar, los suelta al cabo de un segundo.
+- **No se pierde nada** cuando el mapa MIDI genera más mensajes de los que llegaron.
+
+Necesita el firmware 1.19; antes, un Continue podía llegar al equipo antes que su Song Position, una pulsación en medio de un volcado lo estropeaba, y un paquete USB lleno de mensajes traducidos perdía el último.
+
+
 ## Traducir lo que llega
 
 Un DAW, un secuenciador o un teclado conectados por USB rara vez hablan el idioma del pedal antiguo que cuelga del cable DIN: el DAW cambia de escena con un Program Change y el delay quiere dos CC; la rueda de modulación del teclado es el CC 1, y el volumen del ampli el CC 11 y al revés. El **mapa MIDI** pone la pedalera en medio y traduce.

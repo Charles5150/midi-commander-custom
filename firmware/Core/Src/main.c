@@ -261,6 +261,7 @@ int main(void)
       sleep_task();
       kemper_task();
       gt1000_task();
+      midiCmd_din_task();
       dfu_entry_task();
       IWDG->KR = 0xAAAA;	// feed the watchdog
 

@@ -284,6 +284,10 @@ test("MIDI into the page's port: raw bytes to USB events and back", () => {
   const p = new MidiParser((m) => got.push(m));
   p.push([0x90, 60, 100, 62, 0, 0xf8, 0xf0, 1, 2, 0xf7, 0xc0, 3]);
   assert.deepEqual(got, [[0x90, 60, 100], [0x90, 62, 0], [0xf8], [0xf0, 1, 2, 0xf7], [0xc0, 3]]);
+  // A SysEx cut short by a status byte is lost; a clock inside one is not
+  got.length = 0;
+  p.push([0xf0, 1, 0xf8, 2, 0xb0, 7, 64, 0xf0, 3, 0xf7]);
+  assert.deepEqual(got, [[0xf8], [0xb0, 7, 64], [0xf0, 3, 0xf7]]);
 });
 
 test("the demo's MIDI map turns what comes in over USB into what goes out on DIN", async () => {
@@ -304,6 +308,52 @@ test("the demo's MIDI map turns what comes in over USB into what goes out on DIN
   // off when it comes up, on both outputs like a press
   assert.deepEqual(send([0x9d, 36, 90]), ["USB b0 44 7f", "DIN b0 44 7f"]);
   assert.deepEqual(send([0x8d, 36, 0]), ["USB b0 44 00", "DIN b0 44 00"]);
+});
+
+test("USB on to DIN keeps its order: a transport after what came before it, a SysEx whole, a full packet of mapped CCs (before 1.19, not)", () => {
+  const sim = simWithDemo();
+  const seen = watch(sim);
+  const take = () => seen.splice(0);
+  const din = () => take().filter((m) => m.startsWith("DIN"));
+  // What the pedal's own press sends, on DIN as on USB
+  const asDin = (out) => out.filter((m) => m.startsWith("USB")).map((m) => m.replace("USB", "DIN"));
+  // A Song Position then a Continue, in one packet: the device must move first
+  sim.usbIn([0xf2, 0x00, 0x10, 0xfb]);
+  sim.run(20);
+  assert.deepEqual(din(), ["DIN f2 00 10", "DIN fb"]);
+  sim.usbIn([0xfc]);
+  sim.run(20);
+  tap(sim, 1);
+  take();
+  // A foreign SysEx in two packets, a press of the pedal's own between them:
+  // USB has the press at once, DIN after the F7
+  const dump = [0xf0, 0x41, 0x10, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0xf7];
+  const whole = `DIN ${dump.map((b) => b.toString(16).padStart(2, "0")).join(" ")}`;
+  const events = toUsbEvents(dump);
+  sim.usbEvents(events.slice(0, 8));
+  sim.run(20);
+  tap(sim, 1);
+  const pressed = take();
+  assert.ok(asDin(pressed).length, "the press sends something");
+  assert.deepEqual(pressed.filter((m) => m.startsWith("DIN")), []);
+  sim.usbEvents(events.slice(8));
+  sim.run(20);
+  assert.deepEqual(din(), [whole, ...asDin(pressed)]);
+  // One the host leaves open lets the press go after a second
+  sim.usbEvents(events.slice(0, 8));
+  sim.run(20);
+  tap(sim, 2);
+  const late = take();
+  assert.deepEqual(late.filter((m) => m.startsWith("DIN")), []);
+  sim.run(400);
+  assert.deepEqual(din(), asDin(late));
+  // Sixteen mod wheel moves in one packet, each mapped to CC 11 and kept:
+  // 32 messages, more than the packet brought in
+  sim.usbIn(Array.from({ length: 16 }, (_, i) => [0xbd, 1, i]).flat());
+  sim.run(200);
+  const cc = din();
+  assert.equal(cc.length, 32);
+  assert.equal(cc[31], "DIN bd 01 0f");
 });
 
 test("a note's release through the MIDI map is a Note Off of the note it played (before 1.12, a Note On)", async () => {

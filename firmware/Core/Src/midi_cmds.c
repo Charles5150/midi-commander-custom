@@ -102,17 +102,97 @@ static bool din_put(const uint8_t *data, uint32_t len){
 	return fits;
 }
 
+/*
+ * A SysEx passing through from USB to DIN goes out a USB packet at a time, and
+ * the pedal's own messages must not land between two of them: any status byte
+ * but a realtime one ends a SysEx, and the receiver drops the dump. While one
+ * is open, what the pedal sends to DIN waits here and follows its F7. One the
+ * host leaves open, gone in the middle of it, lets go after a second.
+ */
+#define DIN_HELD_SIZE		(256)
+#define DIN_SYSEX_TIMEOUT	(1000)	// ms without a byte of it
+
+static uint8_t din_held[DIN_HELD_SIZE];
+static uint16_t din_held_len = 0;
+static bool din_held_transport = false;	// a Start, Continue or Stop among them
+static bool din_thru_sysex = false;
+static uint32_t din_thru_at = 0;		// when its last bytes came
+
+static void din_release(void){
+	uint32_t primask = __get_PRIMASK();
+	__disable_irq();
+	din_thru_sysex = false;
+	din_put(din_held, din_held_len);
+	din_held_len = 0;
+	din_held_transport = false;
+	if(!primask) __enable_irq();
+}
+
+// The pedal's own bytes: into the queue, or held behind a SysEx passing through
+static bool din_own(const uint8_t *data, uint32_t len){
+	bool fits;
+	uint32_t primask = __get_PRIMASK();
+	__disable_irq();
+	if(din_thru_sysex){
+		fits = len <= (uint32_t)(DIN_HELD_SIZE - din_held_len);
+		if(fits){
+			for(uint32_t i = 0; i < len; i++){
+				din_held[din_held_len++] = data[i];
+				if(data[i] == 0xFA || data[i] == 0xFB || data[i] == 0xFC) din_held_transport = true;
+			}
+		}
+	} else {
+		fits = din_put(data, len);
+	}
+	if(!primask) __enable_irq();
+	return fits;
+}
+
+void midiCmd_din_task(void){
+	if(din_thru_sysex && HAL_GetTick() - din_thru_at >= DIN_SYSEX_TIMEOUT) din_release();
+}
+
 // A MIDI Clock: ahead of everything, unless a Start or a Stop is waiting
 static void din_clock(void){
 	uint32_t primask = __get_PRIMASK();
 	__disable_irq();
-	if(din_transport_waiting()){
+	if(din_thru_sysex && din_held_transport){
+		din_own(&din_clock_byte, 1);
+	} else if(din_transport_waiting()){
 		din_put(&din_clock_byte, 1);
 	} else if(din_clocks < DIN_CLOCKS_MAX){
 		din_clocks++;
 	}
 	if(!primask) __enable_irq();
 	din_start();
+}
+
+/*
+ * MIDI coming in over USB on to DIN, in the order it came: a clock jumps the
+ * queue as ever, the rest after what is waiting. A SysEx among it holds the
+ * pedal's own messages back until it ends.
+ */
+void midiCmd_send_thru(const uint8_t *data, uint8_t len){
+	if(len == 0) return;
+	if(len == 1 && data[0] == 0xF8){
+		din_clock();
+		return;
+	}
+	uint32_t primask = __get_PRIMASK();
+	__disable_irq();
+	din_put(data, len);
+	bool ended = false;
+	for(uint8_t i = 0; i < len; i++){
+		if(data[i] == 0xF0){
+			din_thru_sysex = true;
+			ended = false;
+		} else if(data[i] >= 0x80 && data[i] < 0xF8 && din_thru_sysex){
+			ended = true;	// F7, or a status byte cutting it short
+		}
+	}
+	if(ended) din_release();
+	else if(din_thru_sysex) din_thru_at = HAL_GetTick();
+	if(!primask) __enable_irq();
 }
 
 /*
@@ -166,7 +246,7 @@ static void usb_tx(uint8_t *msg, uint16_t len){
 
 static int8_t din_bytes(const uint8_t *data, uint8_t len){
 	if(outputs_off & CHAN_NO_DIN) return 0;
-	return din_put(data, len) ? 0 : ERROR_BUFFERS_FULL;
+	return din_own(data, len) ? 0 : ERROR_BUFFERS_FULL;
 }
 
 /*
@@ -227,14 +307,13 @@ uint32_t midiCmd_get_delay(uint8_t *pRom){
 
 /*
  * Send raw bytes just through to the serial midi port, without touching USB,
- * whatever outputs a Chan command left on: messages received over USB and
- * forwarded to the DIN output, and the clock. Silently drops a message the
- * queue has no room for.
+ * whatever outputs a Chan command left on: the requests to an amp, and the
+ * clock. Silently drops a message the queue has no room for.
  */
 void midiCmd_send_bytes_serial(const uint8_t *data, uint8_t len){
 	if(len == 0) return;
 	if(len == 1 && data[0] == 0xF8) din_clock();
-	else din_put(data, len);
+	else din_own(data, len);
 }
 
 void midiCmd_send_byte_serial(uint8_t byteMessage){

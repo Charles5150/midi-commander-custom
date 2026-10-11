@@ -32,6 +32,8 @@ int8_t midiCmd_send_mmc(uint8_t command, uint16_t seconds);
 int8_t midiCmd_send_panic(void);
 void midiCmd_send_byte_serial(uint8_t byteMessage);
 void midiCmd_send_bytes_serial(const uint8_t *data, uint8_t len);	// DIN only, whatever the outputs
+void midiCmd_send_thru(const uint8_t *data, uint8_t len);	// from USB on to DIN, in order
+void midiCmd_din_task(void);	// lets go of a SysEx passing through left open
 void midiCmd_send_sysex(uint8_t *msg, uint8_t len);	// F0 to F7, to the outputs that are on
 
 void midiCmd_force_channel(uint8_t channel);	// 1-16 while a Chan command sends, 0 to stop forcing
