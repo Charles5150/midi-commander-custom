@@ -2740,8 +2740,13 @@ class MidiCommanderGUI(ctk.CTk):
     def _on_close(self):
         if not self._may_discard("Quit"):
             return
+        # The MIDI ports are left open: closing an input now and then hangs in
+        # CoreMIDI, and with it the window. The process ends with os._exit
+        # (see the end of this file) and the system closes them.
+        LearnSession.listener = None
         LearnSession.stop()
-        self._monitor_stop()
+        self.monitor = None
+        self.live = None
         self._live_disconnect()
         self.destroy()
 
@@ -3802,3 +3807,5 @@ class MidiCommanderGUI(ctk.CTk):
 if __name__ == "__main__":
     app = MidiCommanderGUI()
     app.mainloop()
+    sys.stdout.flush()
+    os._exit(0)
