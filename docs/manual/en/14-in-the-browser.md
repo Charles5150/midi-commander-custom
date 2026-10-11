@@ -46,7 +46,7 @@ Every change is checked as it is made. When the configuration could not be packe
 ## Saving and writing
 
 - **Save CSV** downloads the configuration as a CSV file.
-- **Write to pedal** asks which slot to write, says what that slot holds now, writes it and restarts the pedal: about 12 seconds. As with the configurator, writing the slot the pedal is running pauses the pedal until the restart.
+- **Write to pedal** asks which slot to write, says what that slot holds now, writes it and restarts the pedal: about 12 seconds. As with the configurator, writing the slot the pedal is running pauses the pedal until the restart. If the pedal does not take the slot asked for, nothing is written; if a write fails after the slot was erased, the page says so, and the slot needs writing again. Firmware before 0.24 has a single configuration, so the page offers slot 1 only.
 - **Back up all slots** downloads every slot that holds a configuration, one CSV file each.
 
 ## Live pedal

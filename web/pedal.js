@@ -176,6 +176,23 @@ export class Pedal {
     return { target: d[0], active: d[1], valid: [0, 1, 2, 3].filter((s) => d[2] & (1 << s)) };
   }
 
+  // select_slot's rules (python/lib/slotIO.py): the active slot is asked for,
+  // never assumed; firmware before 0.24, which does not answer, has slot 0 only;
+  // and a slot the pedal did not take is refused, not read or written.
+  async useSlot(slot = null) {
+    let target, active, valid;
+    try {
+      ({ active } = await this.selectSlot(null));
+      ({ target, active, valid } = await this.selectSlot(slot === null ? active : slot));
+    } catch (e) {
+      if (!(e instanceof Timeout)) throw e;
+      if (slot !== null && slot !== 0) throw new Error("this firmware has a single configuration; slots need 0.24 or later");
+      return { target: 0, active: 0, valid: [0], single: true };
+    }
+    if (slot !== null && target !== slot) throw new Error(`the pedal did not accept slot ${slot + 1}`);
+    return { target, active, valid };
+  }
+
   async readChunk(index, timeout = 1000) {
     const hi = (index >> 7) & 0x7f, lo = index & 0x7f;
     const d = await this.ask([CMD.READ_FLASH, hi, lo], CMD.RSP_READ_FLASH, timeout,

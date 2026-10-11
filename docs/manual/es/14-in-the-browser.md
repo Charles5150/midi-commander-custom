@@ -46,7 +46,7 @@ Cada cambio se comprueba al hacerlo. Si la configuración no se puede empaquetar
 ## Guardar y escribir
 
 - **Save CSV** descarga la configuración como fichero CSV.
-- **Write to pedal** pregunta en qué slot escribir, dice qué tiene ahora ese slot, lo escribe y reinicia la pedalera: unos 12 segundos. Como con el configurador, escribir el slot que está en marcha pone la pedalera en pausa hasta el reinicio.
+- **Write to pedal** pregunta en qué slot escribir, dice qué tiene ahora ese slot, lo escribe y reinicia la pedalera: unos 12 segundos. Como con el configurador, escribir el slot que está en marcha pone la pedalera en pausa hasta el reinicio. Si la pedalera no acepta el slot pedido, no se escribe nada; si una escritura falla después de borrar el slot, la página lo dice, y hay que volver a escribirlo. El firmware anterior a 0.24 tiene una sola configuración, así que la página solo ofrece el slot 1.
 - **Back up all slots** descarga todos los slots que tienen configuración, un fichero CSV por slot.
 
 ## La pedalera en directo

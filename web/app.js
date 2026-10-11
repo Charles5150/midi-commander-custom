@@ -400,7 +400,7 @@ function renderToolbar() {
   const conn = $("#connection");
   conn.replaceChildren();
   if (state.pedal) {
-    const slot = state.slots ? ` · running slot ${state.slots.active + 1}` : "";
+    const slot = state.slots && !state.slots.single ? ` · running slot ${state.slots.active + 1}` : "";
     conn.append(h("span", { class: state.simulated ? "pill ok sim" : "pill ok" },
       `${state.simulated ? "Simulated pedal" : "Midi Commander"} ${state.version}${slot}`));
     if (state.simulated) conn.append(h("button", { disabled: state.busy, onclick: stopSimulation, title: "Stop the simulated pedal; what was written to it stays for next time" }, "Stop"));
@@ -707,7 +707,7 @@ async function attach(quiet) {
     if (simulated) pedal.pause = 0;
     else pedal.onMessage = (msg) => logMessage("USB", msg);
     state.version = await pedal.version();
-    try { state.slots = await pedal.selectSlot(null); } catch (e) { state.slots = null; }
+    try { state.slots = await pedal.useSlot(null); } catch (e) { state.slots = null; }
     pedal.onGone = () => { pedal.close(); if (state.pedal === pedal) { state.pedal = null; state.slots = null; render(); } };
     if (simulated !== state.simulated) { pedal.close(); return; }
     state.pedal = pedal;
@@ -753,7 +753,7 @@ async function demoIntoSimulation() {
   const packed = state.tools.pack(state.tools.csvToSections(await state.tools.fetchFile("demo-all-features.csv")));
   setBusy("Writing the demo to the simulated pedal");
   const pedal = state.pedal;
-  await pedal.selectSlot(0);
+  await pedal.useSlot(0);
   await pedal.writeImage(state.version, packed.config, packed.image, () => {}, (d, t) => setBusy("Writing the demo to the simulated pedal", d, t), state.tools.sizes.ext2Offset);
   pedal.reset();
   toast("The simulated pedal holds the demo in slot 1. Write any configuration to it as to the pedal.");
@@ -770,15 +770,16 @@ function stopSimulation() {
 }
 
 async function slotName(pedal, slot) {
-  await pedal.selectSlot(slot);
+  await pedal.useSlot(slot);
   const head = await pedal.readSettings(32);
   return String.fromCharCode(...head.slice(16, 32).map((b) => (b >= 32 && b < 127 ? b : 32))).trim();
 }
 
 function slotChooser(label, withEmpty) {
   const valid = state.slots ? state.slots.valid : [0];
-  const sel = h("select", {}, [0, 1, 2, 3].filter((s) => withEmpty || valid.includes(s)).map((s) =>
-    h("option", { value: s }, `Slot ${s + 1}${state.slots && s === state.slots.active ? " (running)" : ""}${valid.includes(s) ? "" : " (empty)"}`)));
+  const slots = state.slots && !state.slots.single ? [0, 1, 2, 3] : [0];
+  const sel = h("select", {}, slots.filter((s) => withEmpty || valid.includes(s)).map((s) =>
+    h("option", { value: s }, `Slot ${s + 1}${slots.length > 1 && s === state.slots.active ? " (running)" : ""}${valid.includes(s) ? "" : " (empty)"}`)));
   sel.value = state.slots ? state.slots.active : 0;
   return { sel, el: labelled(label, sel) };
 }
@@ -791,7 +792,7 @@ async function readFromPedal() {
   const pedal = state.pedal;
   try {
     setBusy(`Reading slot ${slot + 1}`);
-    await pedal.selectSlot(slot);
+    await pedal.useSlot(slot);
     const { data, image } = await pedal.readImage(state.version, state.tools.sizes, (d, t) => setBusy(`Reading slot ${slot + 1}`, d, t));
     setConfig(state.tools.imageToSections(data, image), "");
     toast(`Read slot ${slot + 1}: ${configName()}`);
@@ -808,7 +809,7 @@ async function backupSlots() {
   try {
     for (const slot of valid) {
       setBusy(`Backing up slot ${slot + 1}`);
-      await pedal.selectSlot(slot);
+      await pedal.useSlot(slot);
       const { data, image } = await pedal.readImage(state.version, state.tools.sizes, (d, t) => setBusy(`Backing up slot ${slot + 1}`, d, t));
       const sections = state.tools.imageToSections(data, image);
       const name = (sections.Global_Settings.rows.find((r) => r[0] === "ConfigName") || [, ""])[1].trim() || "configuration";
@@ -831,31 +832,36 @@ async function writeToPedal() {
   const pedal = state.pedal;
   const pick = slotChooser("Write to", true);
   const note = h("p", { class: "hint" }, "");
-  const showNow = async () => {
+  // One look at a time, and over before the write: each selects a slot
+  let looking = Promise.resolve();
+  const look = async () => {
     const s = Number(pick.sel.value);
     note.textContent = state.slots && !state.slots.valid.includes(s) ? "The slot is empty." : "Looking at what the slot holds…";
     if (state.slots && state.slots.valid.includes(s)) {
       try { note.textContent = `It holds “${await slotName(pedal, s)}”, which this replaces.`; } catch (e) { note.textContent = ""; }
     }
   };
+  const showNow = () => { looking = looking.then(look); };
   pick.sel.addEventListener("change", showNow);
   showNow();
   const ok = await confirmDialog(`Write “${configName()}” to the pedal`,
     [pick.el, note, h("p", {}, `${packed.image.length} bytes. The pedal restarts when it is written.`)], "Write");
   if (!ok) return;
   const slot = Number(pick.sel.value);
+  let erased = false;     // from the erase on, the slot is no longer what it was
   try {
     setBusy(`Writing slot ${slot + 1}`);
-    await pedal.selectSlot(slot);
+    await looking;
+    await pedal.useSlot(slot);
     let warning = "";
-    const log = (m) => { console.log(m); if (m.startsWith("WARNING: ")) warning = m.slice(9); };
+    const log = (m) => { console.log(m); if (m === "Erasing the slot") erased = true; if (m.startsWith("WARNING: ")) warning = m.slice(9); };
     await pedal.writeImage(state.version, packed.config, packed.image, log, (d, t) => setBusy(`Writing slot ${slot + 1}`, d, t), state.tools.sizes.ext2Offset);
     setBusy("Restarting the pedal");
     state.dirty = state.edits !== edits;     // what changed during the write is not on the pedal
     pedal.reset();
     toast(warning ? `Written to slot ${slot + 1}, but ${warning}` : `Written to slot ${slot + 1}; the pedal restarts`, warning ? "error" : undefined);
   } catch (e) {
-    toast(`Writing failed: ${e.message}. The slot is incomplete: write it again.`, "error");
+    toast(erased ? `Writing failed: ${e.message}. The slot is incomplete: write it again.` : `Writing failed: ${e.message}. Nothing was changed.`, "error");
   } finally {
     setBusy(null);
   }
