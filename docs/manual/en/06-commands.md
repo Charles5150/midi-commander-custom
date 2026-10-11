@@ -222,7 +222,7 @@ A button that steps the Program Change up or down from wherever the device is. `
 - The last program is shared, so a Next and a Previous button work as a pair.
 - It is not kept across a power cycle.
 - No Bank Select is sent.
-- The new number shows on the display for a moment, as `PC 6`.
+- The new program shows on the display for a moment, by its [preset name](09-the-display.md#preset-names) when it has one, otherwise as `PC 6`. A label `$N` keeps it there ([Live values](09-the-display.md#live-values)).
 
 The demo puts PREV and NEXT on C and D of the program change bank, which sends PC 0 when entered.
 

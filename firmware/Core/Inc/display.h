@@ -42,6 +42,8 @@ void display_show_saved(void);
 void display_show_upload(void);
 // A short message in the bank's info line, for a moment (8 characters fit)
 void display_show_message(const char *msg);
+// A relative Program Change's program for a moment: its preset name, or PC n
+void display_show_program(uint8_t program);
 
 /*
  * Text sent by the host over SysEx, called from the USB interrupt. place is

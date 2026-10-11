@@ -67,6 +67,7 @@ def write_config_csv(
     df_bank_expression: pd.DataFrame = None,
     df_combos: pd.DataFrame = None,
     df_midi_map: pd.DataFrame = None,
+    df_preset_names: pd.DataFrame = None,
 ) -> None:
     # "\n" everywhere: pandas would end its rows with os.linesep, "\r\n" on
     # Windows, among the section lines written here with "\n"
@@ -135,3 +136,8 @@ def write_config_csv(
             f.write(PAD + "\n")
             f.write("* MidiMap_Settings" + PAD + "\n")
             df_midi_map.to_csv(f, index=False, lineterminator="\n")
+
+        if df_preset_names is not None and len(df_preset_names):
+            f.write(PAD + "\n")
+            f.write("* Preset_Names" + PAD + "\n")
+            df_preset_names.to_csv(f, index=False, lineterminator="\n")

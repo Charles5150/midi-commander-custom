@@ -98,6 +98,10 @@ Dos pulsadores pisados a la vez, una combinación por fila: los dos pulsadores, 
 
 Lo que llega por USB traducido para el equipo de la salida DIN, cada entrada en dos líneas: **When**, el tipo, canal, número y valores que casan, y **Becomes**, el mensaje que envía en su lugar o la lista de botón que ejecuta. Los campos de la segunda línea siguen a su tipo. **Add an entry** y **Remove** las añaden y las quitan, hasta 32. Mira [Traducir lo que llega](11-devices.md#traducir-lo-que-llega).
 
+## Presets
+
+Un nombre para cada programa 0–127, de hasta 8 caracteres, en cuatro columnas. Una etiqueta, un nombre de banco o una línea de información con `$N` muestra el nombre en lugar del número. Mira [Nombres de preset](09-the-display.md#nombres-de-preset).
+
 ## Setlist
 
 El orden que siguen Bank Up / Down cuando **Follow the setlist** (`Setlist_Mode`) está activado: un desplegable por posición, con cada banco por número y nombre. La lista termina en la primera fila vacía. Mira [Setlist](04-banks.md#setlist).

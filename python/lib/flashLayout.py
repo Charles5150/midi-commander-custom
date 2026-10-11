@@ -79,7 +79,12 @@ EXT2_LONG_LABELS_OFFSET = EXT2_MAP_OFFSET + MIDI_MAP_COUNT * MIDI_MAP_STRIDE
 # read and write in pieces of 16 bytes, so the two take that much.
 EXT2_BANK_SWITCH_LABELS_OFFSET = EXT2_LONG_LABELS_OFFSET + NUM_BANKS * NUM_BUTTONS * LABEL_LEN
 EXT2_BANK_SWITCH_LABELS_SIZE = 16
-EXT2_SIZE = EXT2_BANK_SWITCH_LABELS_OFFSET + EXT2_BANK_SWITCH_LABELS_SIZE
+# Preset names (firmware 1.20), after those: PRESET_NAME_LEN chars for each
+# program 0-127, which a label's $N shows in place of the number
+PRESET_NAME_LEN = 8
+PRESET_NAME_COUNT = 128
+EXT2_PRESET_NAMES_OFFSET = EXT2_BANK_SWITCH_LABELS_OFFSET + EXT2_BANK_SWITCH_LABELS_SIZE
+EXT2_SIZE = EXT2_PRESET_NAMES_OFFSET + PRESET_NAME_COUNT * PRESET_NAME_LEN
 
 # What a Global_Settings row reads as when it is missing, and what an erased
 # or out of range byte unpacks to

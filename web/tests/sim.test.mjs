@@ -100,9 +100,9 @@ test("the demo written over SysEx reads back the same", async () => {
   const pedal = await Pedal.open(sim.access);
   assert.deepEqual((await pedal.selectSlot(null)).valid, [0]);
   // As the page takes them from the tools (py.js): the double press area,
-  // then the second extension area with the MIDI map, the long press labels
-  // and the bank switches' labels
-  const sizes = { config: demo.config.length, double: 10240, doubleOffset: 12 * 2048, ext2Offset: 17 * 2048, ext2: 16 + 32 * 12 + 32 * 8 * 4 + 16 };
+  // then the second extension area with the MIDI map, the long press labels,
+  // the bank switches' labels and the preset names
+  const sizes = { config: demo.config.length, double: 10240, doubleOffset: 12 * 2048, ext2Offset: 17 * 2048, ext2: 16 + 32 * 12 + 32 * 8 * 4 + 16 + 128 * 8 };
   const back = await running(sim, () => pedal.readImage(firmwareVersion, sizes));
   assert.deepEqual(back.data, demo.config);
   assert.deepEqual(back.image, demo.image);
@@ -804,11 +804,11 @@ test("a box's switch holds as long as it is down; a press from the page lets go 
   assert.deepEqual(cc1(), ["USB b0 01 7f", "USB b0 01 00"], "a press from the page left down lets go by itself");
 });
 
-function smallTextAt(sim, x, y, text) {
+function smallTextAt(sim, x, y, text, inverted = false) {
   for (let i = 0; i < text.length; i++) {
     for (let row = 0; row < 8; row++) {
       for (let c = 0; c < 6; c++) {
-        const want = Boolean((font6x8[(text.charCodeAt(i) - 32) * 8 + row] << c) & 0x80);
+        const want = Boolean((font6x8[(text.charCodeAt(i) - 32) * 8 + row] << c) & 0x80) !== inverted;
         if (lit(sim, x + i * 6 + c, y + row) !== want) return false;
       }
     }
@@ -930,4 +930,53 @@ test("takeover: back on a CC it left at another value, the pedal catches up with
   assert.equal(cc11(scaled.seen).at(-1), 127, "at the toe with the foot");
   move(scaled.sim, 2048);
   assert.ok(Math.abs(cc11(scaled.seen).at(-1) - 64) <= 1, "the foot's own from there");
+});
+
+// Text in the 7x10 font with its top left corner at x, y
+function bigTextAt(sim, x, y, text) {
+  for (let i = 0; i < text.length; i++) {
+    for (let row = 0; row < 10; row++) {
+      for (let c = 0; c < 7; c++) {
+        const want = Boolean((font7x10[(text.charCodeAt(i) - 32) * 10 + row] << c) & 0x8000);
+        if (lit(sim, x + i * 7 + c, y + row) !== want) return false;
+      }
+    }
+  }
+  return true;
+}
+
+test("live values: $N shows the preset you are on by its name, $V a button's value, as they change (before 1.20, the text as it was)", async () => {
+  const sim = simWithDemo();
+  sim.run(10000);                           // the demo's power on banner goes by first
+  tap(sim, 2);                              // PTCH, whose enter list sends PC 0
+  assert.ok(infoLineIs(sim, "CLEAN"), "the info line's $N: program 0 on MIDI_Channel");
+  tap(sim, 7);                              // NEXT
+  assert.ok(infoLineIs(sim, "CRUNCH"), "for a moment, the program it sent by its name (before 1.20, PC 1)");
+  sim.run(1600);
+  assert.ok(infoLineIs(sim, "CRUNCH"), "and then the bank's info line, the same");
+  for (let i = 0; i < 4; i++) tap(sim, 7);
+  assert.ok(infoLineIs(sim, "PC 5"), "with no name, its number");
+  sim.run(1600);
+  assert.ok(infoLineIs(sim, "5"));
+  sim.usbIn([0xc0, 12]);                    // the computer selects one
+  sim.run(200);
+  assert.ok(infoLineIs(sim, "SOLO"), "whoever selects it");
+
+  const tweak = [
+    "b = d['Button_Settings']",
+    "b.loc[(b.Bank_Number == '7') & (b.Button_Identifier == '1'), 'Label'] = 'V$V'",
+    "b.loc[(b.Bank_Number == '7') & (b.Button_Identifier == '2'), 'Label'] = 'VL$V'",
+    "b.loc[(b.Bank_Number == '7') & (b.Button_Identifier == 'A'), 'Label'] = 'W:$V'",
+  ].join("\n");
+  const knob = simWithDemo(await flashWith(packDemo(tweak)));
+  knob.run(10000);
+  tap(knob, 6);                             // KNOB: VOL+ and VOL- start from 64
+  assert.ok(bigTextAt(knob, 5, 25, "V64"), "the value a CCInc starts from");
+  assert.ok(bigTextAt(knob, 34, 25, "VL64"));
+  tap(knob, 0);
+  assert.ok(bigTextAt(knob, 5, 25, "V66"), "pressed, the value it sent");
+  tap(knob, 1);
+  assert.ok(bigTextAt(knob, 34, 25, "VL62"), "each CCInc its own value");
+  for (let i = 0; i < 7; i++) tap(knob, 4);  // WRP+, by 16, a toggle drawn the other way round
+  assert.ok(smallTextAt(knob, 2, 48, "W:112", true), "one character more than a label fits, in the small letters");
 });

@@ -2,7 +2,7 @@
 
 **English** · [Español](../es/09-the-display.md)
 
-The pedal's 128×64 screen tells you where you are and what is on, at a glance from the floor. This chapter covers the bank screen, what shows over it for a moment, the text a computer can put on it, and the banner at power on.
+The pedal's 128×64 screen tells you where you are and what is on, at a glance from the floor. This chapter covers the bank screen, what shows over it for a moment, the live values a label can show, the text a computer can put on it, and the banner at power on.
 
 ## The bank screen
 
@@ -29,7 +29,7 @@ Some things take the screen, or part of it, for a moment and then give the bank 
 | A clock running, with `Beat_Counter` on | the bar, the beat and the tempo in place of the info line, `12.3 120`, for as long as it runs ([Bar and beat on the display](07-tempo.md#bar-and-beat-on-the-display)) |
 | A count-in (`Wait` `Count`) | the beats left in place of the bank's name, `IN 4` to `IN 1`, until the list goes ([On the beat](06-commands.md#on-the-beat)) |
 | A relative CC button | the CC number and the value just sent, in place of the info line for 1.5 seconds: `CC7=69`, or `C120=127` for three digit CC numbers |
-| A next or previous preset button | the new program number, as `PC 6` |
+| A next or previous preset button | the new program's [name](#preset-names), or its number, as `PC 6` |
 | Switching configuration | the new configuration's number and name, full screen; a short notice when the slot asked for is empty |
 | Bank Up / Down with `Bank_Preview` on | the bank they would go to, its name inverted, white with black letters, over its labels ([Bank preview](04-banks.md#bank-preview)) |
 | Starting in safe mode | **SAFE MODE**, for three seconds ([Safe mode](10-editing-on-the-pedal.md#safe-mode)) |
@@ -41,6 +41,43 @@ While a bank preview shows, readouts such as the tempo are skipped, and text fro
 ### When it goes dark
 
 With `Sleep_After_Min` set, the display and the LEDs switch off after that many minutes with nobody touching the pedal. Any press or expression pedal movement brings them back, and the press that wakes it still does its job. They also go off while the computer the pedal is connected to sleeps, and come back when it wakes. See the [global settings](12-configuration-file.md#global_settings).
+
+## Live values
+
+*Needs firmware 1.20 or later.*
+
+A label, a bank's name or its info line can show a value as it is now in place of fixed text: the preset the amp is on, by its name, the value a relative CC has reached, a counter, the tempo. Write a `$` and a letter where the value goes. The pedal fills it in, and draws the screen again as soon as one of the values on it changes, under a readout too.
+
+| Write | It shows |
+|---|---|
+| `$V` | In a label, the button's value, from the first `CCInc`, `PC`, `PCInc` or `Value` command of its press list: the value a `CCInc` last sent, or starts from before its first press; the program a `PCInc` is on; the program a `PC` selects; the value a `Value` command changes. In the bank's name or info line, the program last selected on `MIDI_Channel`. |
+| `$N` | The same, a program shown by its name in the [preset names](#preset-names) when it has one |
+| `$1` to `$8` | One of the eight values of the [`Value` command](06-commands.md#values-and-conditions) |
+| `$T` | The tempo |
+| `$$` | A `$` |
+
+A program nothing has selected yet, or a button with none of those commands, shows `-`. Lowercase works too, `$v`, and a `$` followed by anything else stays as it is.
+
+The program is kept for each channel, whoever selected it: a `PC` command, a bank's enter list, a [next or previous preset](06-commands.md#next-and-previous-preset) button, or the computer over USB. So a `PCInc` button labelled `$N` names the preset you are on, and a `PC` button labelled `$N` the one it selects.
+
+A label is 4 characters, so `$V` leaves room for two more: `V$V` shows `V64`. A value that makes it one character longer, `W:112`, is drawn in the small letters; past that, and in the ten cell grid, it is cut. The bank's name keeps its 4 characters and the info line its 8.
+
+In the demo, bank PTCH's info line is `$N`: entering the bank shows `CLEAN`, NEXT and PREV step through the names, and a Program Change from the computer shows there too. Bank MIX's info line, `mixed $1`, counts as ALL5 is held.
+
+### Preset names
+
+Names for the programs 0–127 of your device, up to 8 characters each, for `$N`. In the configurator they are the **Presets** tab, in the browser **Preset names**, and in the [file](12-configuration-file.md) the `Preset_Names` section, a row per named program:
+
+```
+* Preset_Names
+Program,Name
+0,CLEAN
+1,CRUNCH
+```
+
+One table serves every channel. A program with no name shows its number. A next or previous preset button shows the name for a moment too: `CRUNCH`, where it used to show `PC 1`.
+
+They are kept in the second extension area, after the bank switches' labels, 8 bytes per program; older firmware ignores them, and shows `$N` as it is written.
 
 ## Text from the computer
 

@@ -222,7 +222,7 @@ Un botón que sube o baja el Program Change desde donde esté el equipo. `Comman
 - El último programa es compartido, así que un botón Siguiente y uno Anterior funcionan como pareja.
 - No se conserva al apagar y encender.
 - No se envía Bank Select.
-- El número nuevo aparece un momento en la pantalla, como `PC 6`.
+- El programa nuevo aparece un momento en la pantalla, con su [nombre de preset](09-the-display.md#nombres-de-preset) si lo tiene, si no como `PC 6`. Una etiqueta `$N` lo deja ahí ([Valores en vivo](09-the-display.md#valores-en-vivo)).
 
 La demo pone PREV y NEXT en C y D del banco de program change, que envía PC 0 al entrar.
 

@@ -17,6 +17,7 @@ Una configuración es un CSV con varias secciones, cada una introducida por una 
 | `Setlist` | El orden que siguen Bank Up / Down | [Bancos](04-banks.md#setlist) |
 | `Expression_Settings`, `BankExpression_Settings` | Los dos pedales de expresión, y por banco | [Pedales de expresión](08-expression.md) |
 | `MidiMap_Settings` | Lo que llega por USB, traducido | [Plantillas y equipos](11-devices.md#midimap_settings) |
+| `Preset_Names` | Nombres para los programas 0–127, para `$N` en una etiqueta | [La pantalla](09-the-display.md#nombres-de-preset) |
 
 El archivo puede guardarse en UTF-8, con o sin la marca que pone al principio el **CSV UTF-8** de Excel, o en el Windows-1252 del **CSV** normal de Excel en Windows. La pantalla solo dibuja las letras, cifras y signos del ASCII simple, así que en el nombre de la configuración, los nombres de banco, las etiquetas y las etiquetas de ciclo una letra con tilde va como la letra sin ella, `Canción` como `Cancion` y `Ñu` como `Nu`, las comillas tipográficas y las rayas como sus formas simples, y cualquier otra cosa, como `€`, como `?`. El configurador muestra el texto así al salir del campo.
 

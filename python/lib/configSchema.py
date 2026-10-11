@@ -23,8 +23,9 @@ from lib.cmdBinaryPacker import (
 )
 from lib.configPacker import (
     BUTTON_IDS, COMBO_COLUMNS, COMBO_COUNT, MIDI_MAP_COLUMNS, MIDI_MAP_COUNT, MIDI_MAP_OUT_TYPES,
-    MIDI_MAP_TYPES, NUM_BANKS, SETLIST_MAX, SYSEX_STRING_COUNT,
+    MIDI_MAP_TYPES, NUM_BANKS, PRESET_NAME_COLUMNS, SETLIST_MAX, SYSEX_STRING_COUNT,
 )
+from lib.flashLayout import PRESET_NAME_COUNT, PRESET_NAME_LEN
 
 CHANNELS = [str(i) for i in range(1, 17)]
 BANKS = [str(b) for b in range(NUM_BANKS)]
@@ -413,4 +414,7 @@ def schema() -> dict:
         "comboColumns": COMBO_COLUMNS,
         "midiMapCount": MIDI_MAP_COUNT,
         "midiMapColumns": MIDI_MAP_COLUMNS,
+        "presetNameColumns": PRESET_NAME_COLUMNS,
+        "presetNameCount": PRESET_NAME_COUNT,
+        "presetNameLength": PRESET_NAME_LEN,
     }

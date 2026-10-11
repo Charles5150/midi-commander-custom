@@ -75,7 +75,8 @@ class DoublePressTest(unittest.TestCase):
 
     def test_without_double_press_image_is_the_config(self):
         sections = {k: v for k, v in self.sections.items()
-                    if k not in (packer.DOUBLE_PRESS_SECTION, packer.MIDI_MAP_SECTION)}
+                    if k not in (packer.DOUBLE_PRESS_SECTION, packer.MIDI_MAP_SECTION,
+                                 packer.PRESET_NAMES_SECTION)}
         sections[packer.LONG_PRESS_SECTION] = sections[packer.LONG_PRESS_SECTION].assign(Long_Label="")
         sections[packer.BANK_SWITCH_SECTION] = sections[packer.BANK_SWITCH_SECTION].assign(Label="")
         sections[packer.EXPRESSION_SECTION] = sections[packer.EXPRESSION_SECTION].assign(Takeover="Jump")

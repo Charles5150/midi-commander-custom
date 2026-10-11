@@ -17,6 +17,7 @@ A configuration is a CSV with several sections, each introduced by a line starti
 | `Setlist` | The order Bank Up / Down follow | [Banks](04-banks.md#setlist) |
 | `Expression_Settings`, `BankExpression_Settings` | The two expression pedals, and per bank | [Expression pedals](08-expression.md) |
 | `MidiMap_Settings` | What comes in over USB, translated | [Templates and devices](11-devices.md#midimap_settings) |
+| `Preset_Names` | Names for programs 0–127, for `$N` in a label | [The display](09-the-display.md#preset-names) |
 
 The file can be saved as UTF-8, with or without the mark Excel's **CSV UTF-8** puts at its start, or as the Windows-1252 of Excel's plain **CSV** on Windows. The display only draws the letters, digits and signs of plain ASCII, so in the configuration's name, the bank names, the labels and the cycle labels a letter with an accent goes as the plain letter, `Canción` as `Cancion` and `Ñu` as `Nu`, curly quotes and dashes as their plain forms, and anything else, such as `€`, as `?`. The configurator shows the text that way on leaving the field.
 

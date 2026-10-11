@@ -271,7 +271,7 @@ The global bytes are all taken, so the setting is bit 1 of byte 35, beside `LED_
 One row per button, 256 rows in bank order and, within a bank, in the order `1, 2, 3, 4, A, B, C, D` (top row of the pedal, then bottom row). Columns:
 
 - `Bank_Number`, `Button_Identifier`
-- `Label`: up to 4 characters shown on the display. Empty shows the button identifier.
+- `Label`: up to 4 characters shown on the display. Empty shows the button identifier. It can hold [live values](09-the-display.md#live-values), `$V` for the button's value or `$N` for a preset's name.
 - `Light_Mode`: Normal / Reverse / AlwaysOn.
 - `Group`: empty, or an exclusive group 1–4 (see [Exclusive groups](#exclusive-groups)).
 - `Momentary_Hold`: `Y` for a toggle button that is momentary when held (see [Latch or momentary](#latch-or-momentary)); empty or `N` otherwise.

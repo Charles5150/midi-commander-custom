@@ -392,7 +392,8 @@ function summary(sec, row) {
 // --- Toolbar and tabs -------------------------------------------------------
 const TABS = [
   ["banks", "Banks"], ["global", "Global"], ["expression", "Expression"], ["bankswitch", "Bank switches"],
-  ["sysex", "SysEx"], ["setlist", "Setlist"], ["combos", "Combos"], ["midimap", "MIDI map"], ["live", "Live pedal"],
+  ["sysex", "SysEx"], ["setlist", "Setlist"], ["combos", "Combos"], ["midimap", "MIDI map"], ["presets", "Preset names"],
+  ["live", "Live pedal"],
   ["firmware", "Firmware"],
 ];
 
@@ -436,7 +437,7 @@ function render() {
   }
   ({
     banks: renderBanks, global: renderGlobal, expression: renderExpression, bankswitch: renderBankSwitch,
-    sysex: renderSysex, setlist: renderSetlist, combos: renderCombos, midimap: renderMidiMap, live: renderLive,
+    sysex: renderSysex, setlist: renderSetlist, combos: renderCombos, midimap: renderMidiMap, presets: renderPresetNames, live: renderLive,
     firmware: renderFirmware,
   })[state.tab](main);
   if (state.tab !== "live") stopLive();
@@ -651,6 +652,31 @@ function renderMidiMap(main) {
         render();
       },
     }, "Add an entry"));
+}
+
+// Every program 0-127 with a box for its name; only the named ones are rows
+function renderPresetNames(main) {
+  const sec = section("Preset_Names") || (state.config.Preset_Names = { columns: [...state.schema.presetNameColumns], rows: [] });
+  const rowFor = (p) => sec.rows.find((row) => int(cell(sec, row, "Program")) === p);
+  const set = (p, v) => {
+    const row = rowFor(p);
+    if (!v) {
+      if (row) { sec.rows.splice(sec.rows.indexOf(row), 1); changed(); }
+      return;
+    }
+    if (row) { setCell(sec, row, "Name", v); return; }
+    const fresh = sec.columns.map(() => "");
+    fresh[col(sec, "Program")] = String(p);
+    fresh[col(sec, "Name")] = v;
+    sec.rows.push(fresh);
+    sec.rows.sort((a, b) => int(cell(sec, a, "Program")) - int(cell(sec, b, "Program")));
+    changed();
+  };
+  const spec = { kind: "text", max: state.schema.presetNameLength, display: true };
+  main.append(
+    h("p", { class: "hint" }, "A name for each program of your device, up to 8 characters. A label, a bank name or an info line with $N shows the name of the program it stands for instead of its number: put $N on a PCInc button and it shows the preset you are on. Needs firmware 1.20."),
+    h("div", { class: "presets" }, Array.from({ length: state.schema.presetNameCount }, (_, p) =>
+      labelled(String(p), fieldControl(spec, () => cell(sec, rowFor(p), "Name"), (v) => set(p, v))))));
 }
 
 // --- Files -----------------------------------------------------------------

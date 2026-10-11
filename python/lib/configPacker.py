@@ -14,7 +14,7 @@ from lib.flashLayout import (
     SYSEX_STRING_COUNT, SYSEX_STRING_MAX, BANK_SWITCH_LISTS, SETLIST_MAX, COMBO_COUNT,
     DOUBLE_PRESS_OFFSET, EXT2_OFFSET, EXT2_MARKER, EXT2_MAP_OFFSET, MIDI_MAP_COUNT, MIDI_MAP_STRIDE,
     EXT2_TAKEOVER_OFFSET,
-    EXT2_BANK_SWITCH_LABELS_SIZE,
+    EXT2_BANK_SWITCH_LABELS_SIZE, PRESET_NAME_LEN, PRESET_NAME_COUNT,
 )
 
 LONG_PRESS_SECTION = "LongPress_Settings"
@@ -31,6 +31,9 @@ COMBO_SECTION = "Combo_Settings"
 COMBO_COLUMNS = ["Switches", "Bank", "Run_Bank", "Run_Button", "Run_List"]
 # MIDI map: messages arriving over USB turned into others on the DIN output
 MIDI_MAP_SECTION = "MidiMap_Settings"
+# Names of the programs 0-127, for $N in a label (firmware 1.20)
+PRESET_NAMES_SECTION = "Preset_Names"
+PRESET_NAME_COLUMNS = ["Program", "Name"]
 # The bank switches with a label of their own (firmware 1.08)
 BANK_SWITCH_LABELED = ["Down", "Up"]
 MIDI_MAP_COLUMNS = ["In_Type", "In_Channel", "In_Number", "In_Min", "In_Max",
@@ -361,11 +364,46 @@ def pack_bank_switch_labels(df) -> bytes:
     return packed.ljust(EXT2_BANK_SWITCH_LABELS_SIZE, b"\xff")
 
 
+def empty_preset_names():
+    """A Preset_Names frame with no names."""
+    import pandas as pd
+
+    return pd.DataFrame(columns=PRESET_NAME_COLUMNS)
+
+
+def pack_preset_names(df) -> bytes:
+    """PRESET_NAME_LEN display bytes per program 0-127 (firmware 1.20), space
+    padded; a program with no name stays erased."""
+    out = bytearray(b"\xff" * (PRESET_NAME_COUNT * PRESET_NAME_LEN))
+    seen = set()
+    if df is None:
+        return bytes(out)
+    for n, (_, row) in enumerate(df.iterrows(), start=1):
+        program, name = _cell(row.get("Program")), _cell(row.get("Name"))
+        if not program and not name:
+            continue
+        with _at(f"{PRESET_NAMES_SECTION} row {n}"):
+            try:
+                p = int(float(program))
+            except ValueError:
+                p = -1
+            if not 0 <= p < PRESET_NAME_COUNT:
+                raise ValueError(f"Program must be 0-{PRESET_NAME_COUNT - 1}, not {program!r}")
+            if p in seen:
+                raise ValueError(f"program {p} is named twice")
+            seen.add(p)
+            if not name:
+                continue
+            out[p * PRESET_NAME_LEN:(p + 1) * PRESET_NAME_LEN] = display_bytes(name, PRESET_NAME_LEN)
+    return bytes(out)
+
+
 def pack_ext2(sections: dict):
     """The second extension area, or None when nothing goes there."""
     parts = [pack_midi_map(sections.get(MIDI_MAP_SECTION)),
              pack_long_labels(sections.get(LONG_PRESS_SECTION)),
-             pack_bank_switch_labels(sections.get(BANK_SWITCH_SECTION))]
+             pack_bank_switch_labels(sections.get(BANK_SWITCH_SECTION)),
+             pack_preset_names(sections.get(PRESET_NAMES_SECTION))]
     takeover = expression_takeover(sections.get(EXPRESSION_SECTION))
     if takeover == 0xFF and all(p.count(0xFF) == len(p) for p in parts):
         return None

@@ -91,5 +91,14 @@ uint8_t sw_get_toggle_state(uint8_t bank, uint8_t sw);
 const uint8_t *sw_button_label(uint8_t bank, uint8_t sw);
 // One of the eight values a Var command keeps and an If command looks at
 uint8_t sw_get_value(uint8_t which);
+// The program last selected on a channel (0-15), 0xFF before any
+uint8_t sw_get_program(uint8_t channel);
+// What $V and $N in a button's label show: the value of the first CCInc, PC,
+// PCInc or Value command of its short list into *value, and which kind it is.
+// A program nothing has selected yet is 0xFF.
+#define LIVE_NONE		(0)
+#define LIVE_NUMBER		(1)
+#define LIVE_PROGRAM	(2)
+uint8_t sw_button_value(uint8_t bank, uint8_t sw, uint8_t *value);
 
 #endif /* INC_SWITCH_ROUTER_H_ */

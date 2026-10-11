@@ -15,7 +15,7 @@ Each bank has a name the display shows in large capitals, 4 characters (a lowerc
 
 ### `Bank_Naming`
 
-One row per bank, `Bank_Number` 0–31: `Bank_Name_Large` (4 characters, big font) and `Bank_Info_Small` (8 characters, small font). Rows may be missing: a configuration that only defines the first few banks, including one written for the 8 bank firmware, flashes unchanged and leaves the rest empty.
+One row per bank, `Bank_Number` 0–31: `Bank_Name_Large` (4 characters, big font) and `Bank_Info_Small` (8 characters, small font), either of which can hold [live values](09-the-display.md#live-values). Rows may be missing: a configuration that only defines the first few banks, including one written for the 8 bank firmware, flashes unchanged and leaves the rest empty.
 
 ## Bank Up and Bank Down
 

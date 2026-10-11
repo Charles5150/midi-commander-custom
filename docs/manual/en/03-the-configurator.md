@@ -96,6 +96,10 @@ Two switches pressed together, one combination a row: the two switches, the bank
 
 What arrives over USB translated for the device on the DIN output, an entry in two lines: **When**, the type, channel, number and values it matches, and **Becomes**, the message it sends instead or the button's list it runs. The fields of the second line follow its type. **Add an entry** and **Remove** add and take them away, up to 32. See [Translating what comes in](11-devices.md#translating-what-comes-in).
 
+## Presets
+
+A name for each program 0–127, up to 8 characters, in four columns. A label, a bank name or an info line with `$N` shows the name in place of the number. See [Preset names](09-the-display.md#preset-names).
+
 ## Setlist
 
 The order Bank Up / Down follow when **Follow the setlist** (`Setlist_Mode`) is on: one drop-down per position, listing every bank by number and name. The list ends at the first empty row. See [Setlist](04-banks.md#setlist).

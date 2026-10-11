@@ -23,6 +23,7 @@ from lib.configPacker import (  # noqa: E402
     BUTTON_IDS,
     COMBO_COLUMNS,
     MIDI_MAP_COLUMNS,
+    PRESET_NAME_COLUMNS,
     NUM_BANKS,
     empty_bank_enter_settings,
     empty_bank_switch_settings,
@@ -38,7 +39,7 @@ BANKS = {
     0: ("HOME", "index"),
     1: ("LOOP", "looper"),
     2: ("FX", "led modes"),
-    3: ("PTCH", "prog chg"),
+    3: ("PTCH", "$N"),        # the preset you are on, by its name
     4: ("KEYS", "keyboard"),
     5: ("MEDI", "media"),
     6: ("TMPO", "tap+clock"),
@@ -46,7 +47,7 @@ BANKS = {
     8: ("SYX", "sysex"),
     9: ("NOTE", "note+bend"),
     10: ("NAV", "bank jump"),
-    11: ("MIX", "mixed"),
+    11: ("MIX", "mixed $1"),  # value 1, which ALL5 counts round
 }
 SETLIST_FROM = 12   # banks 12..29 are "songs"
 GLOBAL_BANK = 30    # the bank set aside for the buttons that are the same everywhere
@@ -57,6 +58,13 @@ COMBOS = [
     {"Switches": "3+4", "Bank": "All", "Run_Bank": str(GLOBAL_BANK), "Run_Button": "B", "Run_List": "Short"},
     {"Switches": "3+4", "Bank": str(SETLIST_FROM), "Run_Bank": str(GLOBAL_BANK), "Run_Button": "4",
      "Run_List": "Short"},
+]
+# Names for the programs of the amp on channel 1: bank 3 shows the one you are
+# on in its info line, as NEXT and PREV step through them
+PRESET_NAMES = [
+    {"Program": "0", "Name": "CLEAN"}, {"Program": "1", "Name": "CRUNCH"}, {"Program": "2", "Name": "LEAD"},
+    {"Program": "3", "Name": "AMBIENT"}, {"Program": "4", "Name": "ACOUSTIC"},
+    {"Program": "10", "Name": "VERSE"}, {"Program": "11", "Name": "CHORUS"}, {"Program": "12", "Name": "SOLO"},
 ]
 # The MIDI map: what a computer sends turned into what the rig on the DIN
 # output wants. A scene change from the DAW (PC on channel 15) becomes two CCs
@@ -806,6 +814,7 @@ def main() -> int:
         ),
         df_combos=pd.DataFrame(COMBOS, columns=COMBO_COLUMNS),
         df_midi_map=pd.DataFrame(MIDI_MAP, columns=MIDI_MAP_COLUMNS),
+        df_preset_names=pd.DataFrame(PRESET_NAMES, columns=PRESET_NAME_COLUMNS),
     )
     print(f"wrote {OUT}")
     return 0

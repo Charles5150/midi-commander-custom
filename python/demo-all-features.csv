@@ -46,7 +46,7 @@ Bank_Number,Bank_Name_Large,Bank_Info_Small
 0,HOME,index
 1,LOOP,looper
 2,FX,led modes
-3,PTCH,prog chg
+3,PTCH,$N
 4,KEYS,keyboard
 5,MEDI,media
 6,TMPO,tap+clock
@@ -54,7 +54,7 @@ Bank_Number,Bank_Name_Large,Bank_Info_Small
 8,SYX,sysex
 9,NOTE,note+bend
 10,NAV,bank jump
-11,MIX,mixed
+11,MIX,mixed $1
 12,S01,song 1
 13,S02,song 2
 14,S03,song 3
@@ -979,3 +979,14 @@ PC,15,,,,CC,2,21,,,,,,N
 CC,14,1,,,CC,1,11,127,0,,,,Y
 Note,14,36,,,Run,,,,,30,B,Short,N
 PitchBend,14,,,,CC,1,4,,,,,,N
+,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+* Preset_Names,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+Program,Name
+0,CLEAN
+1,CRUNCH
+2,LEAD
+3,AMBIENT
+4,ACOUSTIC
+10,VERSE
+11,CHORUS
+12,SOLO

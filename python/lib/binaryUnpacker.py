@@ -13,6 +13,7 @@ import pandas as pd
 
 from lib.configPacker import (
     BANK_SWITCH_LABELED, COMBO_COLUMNS, MIDI_MAP_COLUMNS, MIDI_MAP_OUT_TYPES, MIDI_MAP_RUN, MIDI_MAP_TYPES,
+    PRESET_NAME_COLUMNS,
 )
 from lib.flashLayout import (
     NUM_BANKS, BUTTON_IDS, default_int, EXP_BUTTON_IDS, BOX_SWITCH_IDS, LABEL_LEN, GLOBAL_SIZE, CMD_SIZE,
@@ -23,6 +24,7 @@ from lib.flashLayout import (
     CYCLE_LABELS_OFFSET, COMBOS_OFFSET, COMBO_COUNT, COMBO_STRIDE, CONFIG_SIZE, DOUBLE_PRESS_OFFSET,
     DOUBLE_PRESS_SIZE, EXT2_OFFSET, EXT2_MARKER, EXT2_MAP_OFFSET, MIDI_MAP_COUNT, EXT2_TAKEOVER_OFFSET,
     MIDI_MAP_STRIDE, EXT2_LONG_LABELS_OFFSET, EXT2_BANK_SWITCH_LABELS_OFFSET, EXT2_SIZE,
+    EXT2_PRESET_NAMES_OFFSET, PRESET_NAME_LEN, PRESET_NAME_COUNT,
 )
 
 from lib.cmdBinaryPacker import (
@@ -778,6 +780,21 @@ def unpack_midi_map(image: bytes) -> pd.DataFrame:
             })
         rows.append(row)
     return pd.DataFrame(rows, columns=MIDI_MAP_COLUMNS)
+
+
+def unpack_preset_names(image: bytes) -> pd.DataFrame:
+    """The preset names of a slot's full image (firmware 1.20), one row per
+    program with a name; empty when the second extension area has none."""
+    rows = []
+    ext = bytes(image[EXT2_OFFSET:EXT2_OFFSET + EXT2_SIZE])
+    if ext.startswith(EXT2_MARKER):
+        names = ext[EXT2_PRESET_NAMES_OFFSET:]
+        for p in range(PRESET_NAME_COUNT):
+            raw = names[p * PRESET_NAME_LEN:(p + 1) * PRESET_NAME_LEN]
+            name = "".join(chr(b) if 0x20 <= b <= 0x7E else " " for b in raw).rstrip()
+            if name.strip():
+                rows.append({"Program": str(p), "Name": name})
+    return pd.DataFrame(rows, columns=PRESET_NAME_COLUMNS)
 
 
 def unpack_sysex_strings(data: bytes) -> pd.DataFrame:

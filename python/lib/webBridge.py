@@ -38,6 +38,7 @@ SECTION_ARGS = [
     ("BankExpression_Settings", "df_bank_expression"),
     ("Combo_Settings", "df_combos"),
     ("MidiMap_Settings", "df_midi_map"),
+    ("Preset_Names", "df_preset_names"),
 ]
 
 
@@ -146,6 +147,7 @@ def image_to_sections(data: bytes, image: bytes) -> str:
         "BankExpression_Settings": unpacker.unpack_bank_expression_settings(data),
         "Combo_Settings": unpacker.unpack_combos(data),
         "MidiMap_Settings": unpacker.unpack_midi_map(image),
+        "Preset_Names": unpacker.unpack_preset_names(image),
     }
     # Through a CSV and back, so the cells are the text a CSV file holds
     csv = sections_to_csv(_to_json({k: v for k, v in sections.items() if v is not None}))

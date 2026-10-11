@@ -443,10 +443,7 @@ static void send_pc_relative(const uint8_t *pRom, bool repeat){
 	uint8_t pc[4] = { CMD_PC_NIBBLE | channel, (uint8_t)next, 0x80, 0xFF }; // no Bank Select
 	midiCmd_send_pc_command_from_rom(pc);
 	pc_current[channel] = (uint8_t)next;
-
-	char msg[9];
-	snprintf(msg, sizeof(msg), "PC %u", (unsigned)next);
-	display_show_message(msg);
+	display_show_program((uint8_t)next);
 }
 
 // A Tap command that steps the tempo up or down
@@ -2353,6 +2350,34 @@ static uint8_t var_value[VAR_COUNT] = {0};
 
 uint8_t sw_get_value(uint8_t which){
 	return which < VAR_COUNT ? var_value[which] : 0;
+}
+
+uint8_t sw_get_program(uint8_t channel){
+	return pc_current[channel & 0x0F];
+}
+
+uint8_t sw_button_value(uint8_t bank, uint8_t sw, uint8_t *value){
+	for(uint8_t c=0; c<MIDI_NUM_COMMANDS_PER_SWITCH; c++){
+		const uint8_t *p = get_rom_pointer(bank, sw, c);
+		switch(p[0] & 0xF0){
+		case CMD_PC_NIBBLE:
+			*value = PC_IS_RELATIVE(p[2]) ? pc_current[midiCmd_channel(p[0])] : (uint8_t)(p[1] & 0x7F);
+			return LIVE_PROGRAM;
+		case CMD_CCINC_NIBBLE: {
+			// Before the first press, the value it starts from
+			int32_t slot = ccinc_index(p);
+			*value = (slot >= 0 && ccinc_value[slot] != 0xFF) ? ccinc_value[slot] : (uint8_t)(p[3] & 0x7F);
+			return LIVE_NUMBER;
+		}
+		case CMD_NO_CMD_NIBBLE:
+			if((p[0] & 0x0F) == CMD_VAR_MODE){
+				*value = var_value[p[1] & 0x07];
+				return LIVE_NUMBER;
+			}
+			break;
+		}
+	}
+	return LIVE_NONE;
 }
 
 static inline bool cmd_is_var(const uint8_t *pRom){

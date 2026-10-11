@@ -496,9 +496,10 @@ class TakeoverTest(unittest.TestCase):
 
     def test_written_alone_when_nothing_else_needs_the_area(self):
         # A configuration with no MIDI map, long press or bank switch labels
-        # gets the area for Takeover alone, and none without it
+        # or preset names gets the area for Takeover alone, and none without it
         sections = {k: v for k, v in self.sections.items()
-                    if k not in (packer.MIDI_MAP_SECTION, packer.LONG_PRESS_SECTION, packer.BANK_SWITCH_SECTION)}
+                    if k not in (packer.MIDI_MAP_SECTION, packer.LONG_PRESS_SECTION, packer.BANK_SWITCH_SECTION,
+                                 packer.PRESET_NAMES_SECTION)}
         plain = self.pack_with("Jump", "Jump", sections)
         self.assertLessEqual(len(plain), layout.EXT2_OFFSET)
         packed = self.pack_with("Jump", "CatchUp", sections)

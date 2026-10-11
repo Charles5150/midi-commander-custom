@@ -689,7 +689,7 @@ class BankSwitchLabelTest(unittest.TestCase):
         self.assertIn("#define EXT2_BANK_SW_LABELS_OFF	(EXT2_LONG_LABELS_OFF + CFG_BUTTONS * BUTTON_LABEL_LEN)", header)
         self.assertIn("#define EXT2_BANK_SW_LABELS_SIZE	(16)", header)
         self.assertEqual(layout.EXT2_BANK_SWITCH_LABELS_SIZE, 16)
-        self.assertEqual(layout.EXT2_SIZE, layout.EXT2_BANK_SWITCH_LABELS_OFFSET + 16)
+        self.assertEqual(layout.EXT2_PRESET_NAMES_OFFSET, layout.EXT2_BANK_SWITCH_LABELS_OFFSET + 16)
         self.assertEqual(layout.EXT2_SIZE % 16, 0)        # the tools move it 16 bytes at a time
         self.assertEqual(packer.BANK_SWITCH_LABELED, ["Down", "Up"])
 
@@ -697,7 +697,8 @@ class BankSwitchLabelTest(unittest.TestCase):
         image = packer.pack_flash_image(self.sections({("Down", "Short"): "PREV", ("Up", "Short"): "nxt"}))
         ext = image[layout.EXT2_OFFSET:]
         self.assertEqual(ext[:4], b"EXT2")             # the labels alone write the area
-        self.assertEqual(ext[layout.EXT2_BANK_SWITCH_LABELS_OFFSET:], b"PREVnxt " + b"\xff" * 8)
+        self.assertEqual(ext[layout.EXT2_BANK_SWITCH_LABELS_OFFSET:layout.EXT2_PRESET_NAMES_OFFSET],
+                         b"PREVnxt " + b"\xff" * 8)
         back = unpacker.unpack_bank_switch_settings(image).set_index(["Switch", "Press"])["Label"]
         self.assertEqual(back.to_dict(), {("Down", "Short"): "PREV", ("Down", "Long"): "",
                                           ("Up", "Short"): "nxt", ("Up", "Long"): ""})
@@ -737,8 +738,9 @@ class BankSwitchLabelTest(unittest.TestCase):
                              df_expression=frames[4], df_bank_enter=frames[5], df_sysex=frames[6],
                              df_bank_switch=frames[7], df_setlist=frames[8])
             again = read_config_csv(out)
-        self.assertEqual(packer.pack_flash_image(again)[layout.EXT2_OFFSET:][layout.EXT2_BANK_SWITCH_LABELS_OFFSET:],
-                         image[layout.EXT2_OFFSET:][layout.EXT2_BANK_SWITCH_LABELS_OFFSET:])
+        labels = slice(layout.EXT2_BANK_SWITCH_LABELS_OFFSET, layout.EXT2_PRESET_NAMES_OFFSET)
+        self.assertEqual(packer.pack_flash_image(again)[layout.EXT2_OFFSET:][labels],
+                         image[layout.EXT2_OFFSET:][labels])
 
     def test_firmware(self):
         """Ten cells only with MIDI only and a label, Bank Up on top."""
@@ -746,6 +748,78 @@ class BankSwitchLabelTest(unittest.TestCase):
         self.assertIn("!= BANK_SWITCH_MIDI_ONLY) return NULL;", display)
         self.assertIn("flash_settings_bank_switch_labels()", display)
         self.assertIn("draw_label_cell(4, which == 1, true, label, false);", display)
+
+class PresetNamesTest(unittest.TestCase):
+    """Names for the programs 0-127, which $N in a label shows (1.20), after the
+    labels of the bank switches in the second extension area."""
+
+    def sections(self, rows, csv=SAMPLE_CSV):
+        sections = dict(read_config_csv(csv))
+        sections[packer.PRESET_NAMES_SECTION] = pd.DataFrame(rows, columns=packer.PRESET_NAME_COLUMNS)
+        return sections
+
+    def test_layout_agrees(self):
+        header = firmware_source("Inc", "flash_midi_settings.h")
+        self.assertIn("#define PRESET_NAME_LEN			(8)", header)
+        self.assertIn("#define PRESET_NAME_COUNT		(128)", header)
+        self.assertIn("#define EXT2_PRESET_NAMES_OFF	(EXT2_BANK_SW_LABELS_OFF + EXT2_BANK_SW_LABELS_SIZE)", header)
+        self.assertEqual(layout.EXT2_SIZE, layout.EXT2_PRESET_NAMES_OFFSET + 128 * 8)
+        self.assertLessEqual(layout.EXT2_SIZE, layout.EXT2_PAGES * 2048)
+
+    def test_round_trip(self):
+        image = packer.pack_flash_image(self.sections([
+            {"Program": "0", "Name": "Clean"}, {"Program": "127", "Name": "Lead Boost"},
+            {"Program": "5", "Name": ""}]))
+        ext = image[layout.EXT2_OFFSET:]
+        self.assertEqual(len(ext), layout.EXT2_SIZE)
+        self.assertEqual(ext[:4], b"EXT2")              # the names alone write the area
+        names = ext[layout.EXT2_PRESET_NAMES_OFFSET:]
+        self.assertEqual(names[:8], b"Clean   ")
+        self.assertEqual(names[8:16], b"\xff" * 8)       # no name: erased
+        self.assertEqual(names[-8:], b"Lead Boo")       # cut at 8
+        back = unpacker.unpack_preset_names(image)
+        self.assertEqual(back.values.tolist(), [["0", "Clean"], ["127", "Lead Boo"]])
+
+    def test_none_no_area(self):
+        self.assertIsNone(packer.pack_ext2(self.sections([])))
+        self.assertEqual(len(unpacker.unpack_preset_names(packer.pack_flash_image(self.sections([])))), 0)
+
+    def test_errors(self):
+        for rows, words in (([{"Program": "128", "Name": "X"}], "0-127"),
+                            ([{"Program": "x", "Name": "X"}], "0-127"),
+                            ([{"Program": "3", "Name": "A"}, {"Program": "3.0", "Name": "B"}], "named twice")):
+            with self.assertRaises(ValueError) as caught:
+                packer.pack_flash_image(self.sections(rows))
+            self.assertIn(packer.PRESET_NAMES_SECTION, str(caught.exception))
+            self.assertIn(words, str(caught.exception))
+
+    def test_demo_and_csv_round_trip(self):
+        import tempfile
+
+        from lib.configCsv import write_config_csv
+
+        sections = read_config_csv(DEMO_CSV)
+        self.assertEqual(sections[packer.PRESET_NAMES_SECTION]["Name"].tolist()[:3], ["CLEAN", "CRUNCH", "LEAD"])
+        image = packer.pack_flash_image(sections)
+        frames = unpacker.unpack_config(image)
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "back.csv")
+            write_config_csv(out, frames[0], frames[1], frames[2],
+                             df_preset_names=unpacker.unpack_preset_names(image))
+            again = read_config_csv(out)
+        names = slice(layout.EXT2_OFFSET + layout.EXT2_PRESET_NAMES_OFFSET, None)
+        self.assertEqual(packer.pack_flash_image(again)[names], image[names])
+
+    def test_web_bridge(self):
+        import json
+
+        import lib.webBridge as bridge
+
+        image = packer.pack_flash_image(read_config_csv(DEMO_CSV))
+        sections = json.loads(bridge.image_to_sections(image[:layout.CONFIG_SIZE], image))
+        self.assertEqual(sections["Preset_Names"]["rows"][0], ["0", "CLEAN"])
+        self.assertIn(("Preset_Names", "df_preset_names"), bridge.SECTION_ARGS)
+
 
 class MidiMapTest(unittest.TestCase):
     """Messages arriving over USB turned into others (0.90), in the second

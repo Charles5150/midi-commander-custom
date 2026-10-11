@@ -15,7 +15,7 @@ Cada banco tiene un nombre que la pantalla muestra en mayúsculas grandes, de 4 
 
 ### `Bank_Naming`
 
-Una fila por banco, `Bank_Number` 0–31: `Bank_Name_Large` (4 caracteres, letra grande) y `Bank_Info_Small` (8 caracteres, letra pequeña). Pueden faltar filas: una configuración que solo define los primeros bancos, incluso una escrita para el firmware de 8 bancos, se graba tal cual y deja vacíos los demás.
+Una fila por banco, `Bank_Number` 0–31: `Bank_Name_Large` (4 caracteres, letra grande) y `Bank_Info_Small` (8 caracteres, letra pequeña), que pueden llevar [valores en vivo](09-the-display.md#valores-en-vivo). Pueden faltar filas: una configuración que solo define los primeros bancos, incluso una escrita para el firmware de 8 bancos, se graba tal cual y deja vacíos los demás.
 
 ## Bank Up y Bank Down
 

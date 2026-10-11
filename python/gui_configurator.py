@@ -31,7 +31,7 @@ from lib.cmdBinaryPacker import (  # noqa: E402
 )
 from lib.configCsv import read_config_csv, write_config_csv  # noqa: E402
 from lib.displayText import display_text  # noqa: E402
-from lib.flashLayout import GLOBAL_DEFAULTS, NUM_BANKS, BUTTON_IDS  # noqa: E402
+from lib.flashLayout import GLOBAL_DEFAULTS, NUM_BANKS, BUTTON_IDS, PRESET_NAME_COUNT, PRESET_NAME_LEN  # noqa: E402
 from lib.configPacker import (  # noqa: E402
     BANK_ENTER_SECTION,
     BANK_SWITCH_SECTION,
@@ -57,6 +57,9 @@ from lib.configPacker import (  # noqa: E402
     MIDI_MAP_OUT_TYPES,
     MIDI_MAP_TYPES,
     empty_midi_map,
+    PRESET_NAMES_SECTION,
+    PRESET_NAME_COLUMNS,
+    empty_preset_names,
     parse_sysex_bytes,
 )
 from lib.configPacker import (  # noqa: E402
@@ -1098,6 +1101,8 @@ class MidiCommanderGUI(ctk.CTk):
         self.combo_widgets = []
         self.df_midi_map = None
         self.midi_map_widgets = []
+        self.df_preset_names = None
+        self.preset_name_widgets = {}  # program -> TextEntry
         self.df_bank_exp = None
         self.bank_exp_widgets = {}  # df index -> {column: widget}
         self.setlist_widgets = []
@@ -1187,7 +1192,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.tabview.grid(row=0, column=1, padx=16, pady=(12, 16), sticky="nsew")
         # In the order a configuration is usually built
         for name in ("Buttons", "Banks", "Bank Enter", "Bank Switch", "Combos", "Setlist",
-                     "Expression", "SysEx", "MIDI Map", "Global", "Virtual Pedal", "Monitor"):
+                     "Expression", "SysEx", "MIDI Map", "Presets", "Global", "Virtual Pedal", "Monitor"):
             self.tabview.add(name)
 
         self.global_scroll = ctk.CTkScrollableFrame(self.tabview.tab("Global"))
@@ -1236,6 +1241,7 @@ class MidiCommanderGUI(ctk.CTk):
         self._setup_setlist_tab()
         self._setup_combo_tab()
         self._setup_midi_map_tab()
+        self._setup_preset_names_tab()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
         if os.path.exists(DEFAULT_CSV):
@@ -1447,6 +1453,12 @@ class MidiCommanderGUI(ctk.CTk):
                 else empty_midi_map()
             )
             self.populate_midi_map()
+            self.df_preset_names = (
+                data[PRESET_NAMES_SECTION].astype(object).reset_index(drop=True)
+                if PRESET_NAMES_SECTION in data
+                else empty_preset_names()
+            )
+            self.populate_preset_names()
             self.df_sysex = (
                 data[SYSEX_SECTION].astype(object).reset_index(drop=True)
                 if SYSEX_SECTION in data
@@ -3071,6 +3083,43 @@ class MidiCommanderGUI(ctk.CTk):
             self.df_midi_map = pd.DataFrame(rows, columns=MIDI_MAP_COLUMNS)
 
     # --- SysEx tab -----------------------------------------------------------------
+    # --- Preset names tab ------------------------------------------------------------
+    def _setup_preset_names_tab(self):
+        tab = self.tabview.tab("Presets")
+        Help(
+            tab,
+            "A name for each program of your device, up to 8 characters.",
+            "A label, a bank name or an info line with $N shows the name of the program it stands "
+            "for in place of its number: $N on a PCInc button shows the preset you are on, on a PC "
+            "button the one it selects. A program with no name shows its number. Needs firmware 1.20.",
+        ).pack(anchor="w", padx=10, pady=(10, 6))
+        self.preset_names_frame = ctk.CTkScrollableFrame(tab)
+        self.preset_names_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+
+    def populate_preset_names(self):
+        for w in self.preset_names_frame.winfo_children():
+            w.destroy()
+        self.preset_name_widgets = {}
+        names = {}
+        if self.df_preset_names is not None:
+            names = {clean(r.get("Program")): clean(r.get("Name")) for _, r in self.df_preset_names.iterrows()}
+        columns = 4
+        rows = (PRESET_NAME_COUNT + columns - 1) // columns
+        for p in range(PRESET_NAME_COUNT):
+            r, c = p % rows, p // rows   # down the columns, as a list reads
+            ctk.CTkLabel(self.preset_names_frame, text=f"{p:>3}", width=30, font=BOLD).grid(
+                row=r, column=2 * c, padx=(10 if c else 0, 4), pady=2, sticky="e")
+            entry = TextEntry(self.preset_names_frame, PRESET_NAME_LEN, names.get(str(p), ""), width=110, display=True)
+            entry.grid(row=r, column=2 * c + 1, pady=2, sticky="w")
+            self.preset_name_widgets[p] = entry
+
+    def apply_preset_names_changes(self):
+        if not self.preset_name_widgets:
+            return
+        rows = [{"Program": str(p), "Name": w.value().strip()}
+                for p, w in sorted(self.preset_name_widgets.items()) if w.value().strip()]
+        self.df_preset_names = pd.DataFrame(rows, columns=PRESET_NAME_COLUMNS)
+
     def _setup_sysex_tab(self):
         tab = self.tabview.tab("SysEx")
         Help(
@@ -3129,6 +3178,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.apply_setlist_changes()
         self.apply_combo_changes()
         self.apply_midi_map_changes()
+        self.apply_preset_names_changes()
         self.apply_sysex_changes()
         for idx, w in self.global_widgets.items():
             self.df_global.at[idx, "Value"] = w.value()
@@ -3200,6 +3250,7 @@ class MidiCommanderGUI(ctk.CTk):
             df_bank_expression=self.df_bank_exp,
             df_combos=self.df_combos,
             df_midi_map=self.df_midi_map,
+            df_preset_names=self.df_preset_names,
         )
 
     def _config_text(self):

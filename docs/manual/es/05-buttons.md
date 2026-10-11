@@ -271,7 +271,7 @@ Los bytes globales están todos ocupados, así que el ajuste es el bit 1 del byt
 Una fila por botón, 256 filas en orden de banco y, dentro de cada banco, en el orden `1, 2, 3, 4, A, B, C, D` (fila de arriba de la pedalera y luego la de abajo). Columnas:
 
 - `Bank_Number`, `Button_Identifier`
-- `Label`: hasta 4 caracteres que se ven en la pantalla. Vacía, muestra el identificador del botón.
+- `Label`: hasta 4 caracteres que se ven en la pantalla. Vacía, muestra el identificador del botón. Puede llevar [valores en vivo](09-the-display.md#valores-en-vivo), `$V` para el valor del botón o `$N` para el nombre de un preset.
 - `Light_Mode`: Normal / Reverse / AlwaysOn.
 - `Group`: vacío, o un grupo exclusivo del 1 al 4 (mira [Grupos exclusivos](#grupos-exclusivos)).
 - `Momentary_Hold`: `Y` para un toggle que es momentáneo si lo mantienes (mira [Enclavar o momentáneo](#enclavar-o-momentáneo)); vacío o `N` si no.

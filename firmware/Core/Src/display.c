@@ -28,6 +28,10 @@
  * version, cross the screen in large letters, once. Any switch ends it, and
  * the bank screen waits for it underneath.
  *
+ * A label, the bank's name or its info line can hold live values (1.20), $V
+ * for a button's value, $N for a preset's name, and so on, see expand(). The
+ * screen is drawn again whenever one of those it shows changes.
+ *
  * With Kemper_Mode on, the amp's tuner takes the whole screen while it is up:
  * the note twice the size of the large font, and a scale under it with a
  * needle, which is drawn solid and with the note boxed in once it is in tune.
@@ -43,6 +47,7 @@
 #include "ssd1306.h"
 #include "tempo.h"
 #include "sleep.h"
+#include "midi_cmds.h"
 
 #define CELL_W		(32)
 #define CELL_H		(14)
@@ -67,6 +72,9 @@ static uint8_t current_bank = 0;
 static uint8_t editor_on = 0;	// the on-pedal editor owns the screen
 static uint8_t preview_bank = 0xFF;	// a bank shown before it is confirmed
 static uint32_t overlay_until = 0;
+// The readout shown over the info line until overlay_until; empty while a
+// notice that is not over the bank screen has it
+static char overlay_msg[13];
 
 /*
  * Host text, one per place; an empty string means the bank's own text. Written
@@ -309,6 +317,8 @@ static const uint8_t *ten_cell_labels(void){
 
 // One cell of the grid: column col of the top or bottom row
 static void draw_label_cell(uint8_t col, bool top, bool ten, const char *label, bool active){
+	// A live value one character longer than a label fits in the small letters
+	bool small = ten || strlen(label) > BUTTON_LABEL_LEN;
 	uint8_t w = ten ? CELL10_W : CELL_W;
 	uint8_t x = ten ? (uint8_t)(CELL10_X + col * CELL10_W) : (uint8_t)(col * CELL_W);
 	uint8_t y = top ? ROW_TOP_Y : ROW_BOT_Y;
@@ -317,13 +327,13 @@ static void draw_label_cell(uint8_t col, bool top, bool ten, const char *label, 
 
 	fill_rect(x, y, w, CELL_H, bg);
 
-	uint8_t text_w = (uint8_t)(strlen(label) * (ten ? LABEL10_CHAR_W : LABEL_CHAR_W));
+	uint8_t text_w = (uint8_t)(strlen(label) * (small ? LABEL10_CHAR_W : LABEL_CHAR_W));
 	// The narrow cells leave a pixel or two between labels: centred on the
 	// letters alone, not the blank column after the last, they get one more
-	if(ten && text_w) text_w--;
-	uint8_t tx = (uint8_t)(x + (w - text_w + (ten ? 1 : 0)) / 2);
-	ssd1306_SetCursor(tx, (uint8_t)(y + (ten ? 3 : 2)));
-	ssd1306_WriteString((char *)label, ten ? LABEL10_FONT : LABEL_FONT, fg);
+	if(small && text_w) text_w--;
+	uint8_t tx = (uint8_t)(x + (w - text_w + (small ? 1 : 0)) / 2);
+	ssd1306_SetCursor(tx, (uint8_t)(y + (small ? 3 : 2)));
+	ssd1306_WriteString((char *)label, small ? LABEL10_FONT : LABEL_FONT, fg);
 }
 
 // Bank Down (0) or Bank Up (1) in the fifth column
@@ -334,15 +344,142 @@ static void draw_bank_switch_cell(const uint8_t *labels, uint8_t which){
 	draw_label_cell(4, which == 1, true, label, false);
 }
 
-static void draw_cell(uint8_t bank, uint8_t sw){
-	static const char ids[MIDI_NUM_SWITCHES] = {'1','2','3','4','A','B','C','D'};
+/*
+ * Live values (1.20), in a label, the bank's name or its info line:
+ *   $V  the button's value, that of the first CCInc, PC, PCInc or Value
+ *       command of its short list; in the bank's name and info, the program
+ *       last selected on MIDI_Channel. "-" for none, or a program nothing
+ *       has selected yet.
+ *   $N  the same, a program shown by its name in the preset names when it
+ *       has one
+ *   $1 to $8  the eight values of the Value command
+ *   $T  the tempo
+ *   $$  a $
+ * Anything else after a $ stays as it is. The text is cut at max chars. sw is
+ * the button, or 0xFF for the bank's own texts. live_sum adds up the values
+ * shown, so a change to any of them is seen, and live_any notes there was one.
+ */
+#define LIVE_LOOK_MS	(50)
+static uint32_t live_sum;
+static uint8_t live_any;
+static uint8_t live_shown_any;	// as the screen was drawn
+static uint32_t live_shown_sum;
+static uint32_t live_next;
 
+static void put(char *dst, uint8_t *n, uint8_t max, const char *text){
+	while(*text && *n < max) dst[(*n)++] = *text++;
+}
+
+// A program's name in the preset names, without its trailing spaces; false
+// when it has none
+static bool preset_name(uint8_t program, char out[PRESET_NAME_LEN + 1]){
+	const uint8_t *names = flash_settings_preset_names();
+	if(!names || program >= PRESET_NAME_COUNT) return false;
+	const uint8_t *src = names + program * PRESET_NAME_LEN;
+	uint8_t k = 0;
+	for(uint8_t i=0; i<PRESET_NAME_LEN; i++){
+		char c = (char)src[i];
+		out[i] = (c < 0x20 || c > 0x7E) ? ' ' : c;
+		if(out[i] != ' ') k = (uint8_t)(i + 1);
+	}
+	out[k] = 0;
+	return k != 0;
+}
+
+static void expand(const char *src, char *dst, uint8_t max, uint8_t bank, uint8_t sw){
+	uint8_t n = 0;
+	for(; *src && n < max; src++){
+		char t = src[1];
+		if(t >= 'a' && t <= 'z') t = (char)(t - 'a' + 'A');
+		if(src[0] != '$' || !(t == 'V' || t == 'N' || t == 'T' || t == '$' || (t >= '1' && t <= '8'))){
+			dst[n++] = *src;
+			continue;
+		}
+		src++;
+		if(t == '$'){
+			dst[n++] = '$';
+			continue;
+		}
+		uint8_t kind = LIVE_NUMBER;
+		uint16_t v;
+		if(t == 'T'){
+			v = tempo_get_bpm();
+		} else if(t != 'V' && t != 'N'){
+			v = sw_get_value((uint8_t)(t - '1'));
+		} else if(sw < MIDI_NUM_SWITCHES){
+			uint8_t b = 0;
+			kind = sw_button_value(bank, sw, &b);
+			v = b;
+		} else {
+			uint8_t ch = pGlobalSettings[GLOBAL_SETTINGS_CHANNEL];
+			kind = LIVE_PROGRAM;
+			v = sw_get_program(midiCmd_channel(ch <= 15 ? ch : 0));
+		}
+		live_any = 1;
+		live_sum = live_sum * 31U + v + ((uint32_t)kind << 16);
+		if(kind == LIVE_NONE || (kind == LIVE_PROGRAM && v > 127)){
+			put(dst, &n, max, "-");
+			continue;
+		}
+		char name[PRESET_NAME_LEN + 1];
+		if(t == 'N' && kind == LIVE_PROGRAM && preset_name((uint8_t)v, name)){
+			put(dst, &n, max, name);
+			continue;
+		}
+		char num[6];
+		snprintf(num, sizeof(num), "%u", v);
+		put(dst, &n, max, num);
+	}
+	dst[n] = 0;
+}
+
+// The label a button shows: its own, its live values filled in, or its name
+static void button_text(uint8_t bank, uint8_t sw, char out[BUTTON_LABEL_LEN + 2]){
+	static const char ids[MIDI_NUM_SWITCHES] = {'1','2','3','4','A','B','C','D'};
 	char label[BUTTON_LABEL_LEN + 1];
 	get_label(bank, sw, label);
-	if(label[0] == 0){
-		label[0] = ids[sw];
-		label[1] = 0;
+	// The wide cells take one more character, in the small letters
+	expand(label, out, ten_cell_labels() ? BUTTON_LABEL_LEN : BUTTON_LABEL_LEN + 1, bank, sw);
+	if(out[0] == 0){
+		out[0] = ids[sw];
+		out[1] = 0;
 	}
+}
+
+// The bank's name (4 chars) or its info line (8), live values filled in
+static void bank_text(uint8_t bank, bool info, char out[9]){
+	const uint8_t *src = pBankStrings + (12 * bank) + (info ? 4 : 0);
+	uint8_t len = info ? 8 : 4;
+	char raw[9];
+	for(uint8_t i=0; i<len; i++){
+		char c = (char)src[i];
+		raw[i] = (c < 0x20 || c > 0x7E) ? ' ' : c;
+	}
+	raw[len] = 0;
+	expand(raw, out, len, bank, 0xFF);
+}
+
+// What the live values on a bank's screen come to, in live_sum and live_any
+static void live_scan(uint8_t bank){
+	char text[BUTTON_LABEL_LEN + 2 > 9 ? BUTTON_LABEL_LEN + 2 : 9];
+	live_sum = 0;
+	live_any = 0;
+	for(uint8_t sw=0; sw<MIDI_NUM_SWITCHES; sw++) button_text(bank, sw, text);
+	bank_text(bank, false, text);
+	bank_text(bank, true, text);
+}
+
+// Once in a while: true when a live value on the screen has changed
+static bool live_changed(void){
+	if(!live_shown_any || (int32_t)(HAL_GetTick() - live_next) < 0) return false;
+	live_next = HAL_GetTick() + LIVE_LOOK_MS;
+	live_scan(current_bank);
+	return live_sum != live_shown_sum;
+}
+
+static void draw_cell(uint8_t bank, uint8_t sw){
+	char label[BUTTON_LABEL_LEN + 2];
+	button_text(bank, sw, label);
 
 	uint8_t active;
 	if(bank & PREVIEW_DIRECT){
@@ -406,8 +543,6 @@ static void draw_top(uint8_t bank, uint8_t over_place, const char *override){
 	if(override && over_place <= DISPLAY_TEXT_NAME){
 		text[DISPLAY_TEXT_LINE_LARGE] = text[DISPLAY_TEXT_LINE_SMALL] = "";
 	}
-	const uint8_t *pString = pBankStrings + (12 * bank);
-
 	fill_rect(0, 0, SSD1306_WIDTH, ROW_TOP_Y - 1, Black);
 	scroll_need = 0;
 
@@ -421,21 +556,20 @@ static void draw_top(uint8_t bank, uint8_t over_place, const char *override){
 	}
 
 	// Bank name, large 4 chars then small 8 chars on the same line
+	char own[9];
 	ssd1306_SetCursor(0, 0);
 	if(text[DISPLAY_TEXT_NAME][0]){
 		draw_text(0, 0, NAME_W, text[DISPLAY_TEXT_NAME], Font_11x18);
 	} else {
-		for(int i=0; i<4; i++){
-			ssd1306_WriteChar((char)pString[i], Font_11x18, White);
-		}
+		bank_text(bank, false, own);
+		ssd1306_WriteString(own, Font_11x18, White);
 	}
 	ssd1306_SetCursor(INFO_X, 6);
 	if(text[DISPLAY_TEXT_INFO][0]){
 		draw_text(INFO_X, 6, SCREEN_SHOWN_W - INFO_X, text[DISPLAY_TEXT_INFO], Font_7x10);
 	} else {
-		for(int i=0; i<8; i++){
-			ssd1306_WriteChar((char)pString[4 + i], Font_7x10, White);
-		}
+		bank_text(bank, true, own);
+		ssd1306_WriteString(own, Font_7x10, White);
 	}
 }
 
@@ -533,6 +667,10 @@ static void render_bank(uint8_t bankNumber){
 		draw_bank_switch_cell(bank_switch, 0);
 		draw_bank_switch_cell(bank_switch, 1);
 	}
+	live_scan(bankNumber);
+	live_shown_any = live_any;
+	live_shown_sum = live_sum;
+	live_next = HAL_GetTick() + LIVE_LOOK_MS;
 }
 
 static void draw_bank(uint8_t bankNumber){
@@ -580,7 +718,13 @@ static void draw_preview(void){
 		else snprintf(direct, sizeof(direct), "BANK%u-%u     ", first, first + DIRECT_GROUP - 1);
 		pString = (const uint8_t *)direct;
 	} else {
-		pString = pBankStrings + (12 * preview_bank);
+		// Its own texts, live values filled in and padded to their places
+		char text[9];
+		bank_text(preview_bank, false, text);
+		snprintf(direct, sizeof(direct), "%-4s", text);
+		bank_text(preview_bank, true, text);
+		snprintf(direct + 4, sizeof(direct) - 4, "%-8s", text);
+		pString = (const uint8_t *)direct;
 	}
 	ssd1306_Fill(Black);
 	fill_rect(0, 0, SSD1306_WIDTH, ROW_TOP_Y - 3, White);
@@ -685,19 +829,24 @@ void display_editor_end(void){
  * Replace the bank's info line with a short message for OVERLAY_MS. Only that
  * line is redrawn, so the bank name and the button grid stay put.
  */
+// The readout over the info line, the bank screen under it as it is now
+static void draw_overlay(void){
+	if(refresh_pending) render_bank(current_bank);	// a bank just entered, under the readout
+	fill_rect(50, 6, SSD1306_WIDTH - 50, 10, Black);
+	ssd1306_SetCursor(50, 6);
+	ssd1306_WriteString(overlay_msg, Font_7x10, White);
+	ssd1306_UpdateScreen();
+	refresh_pending = 0;
+}
+
 static void show_overlay(const char *msg){
 	if(banner_running()) return;	// the banner is not cut short for a readout
 	if(preview_bank != 0xFF) return;	// nor the bank being chosen
 	if(tuner_on) return;			// nor the tuner
 	if(moment_showing) moment_done();
-	if(refresh_pending) render_bank(current_bank);	// a bank just entered, under the readout
-	fill_rect(50, 6, SSD1306_WIDTH - 50, 10, Black);
-	ssd1306_SetCursor(50, 6);
-	ssd1306_WriteString((char *)msg, Font_7x10, White);
-	ssd1306_UpdateScreen();
-
+	snprintf(overlay_msg, sizeof(overlay_msg), "%s", msg);
+	draw_overlay();
 	overlay_until = HAL_GetTick() + OVERLAY_MS;
-	refresh_pending = 0;
 }
 
 void display_show_tempo(void){
@@ -726,6 +875,13 @@ void display_show_cc(uint8_t cc, uint8_t value){
 	show_overlay(msg);
 }
 
+// A relative PC's program: by its preset name when it has one (1.20)
+void display_show_program(uint8_t program){
+	char msg[PRESET_NAME_LEN + 1];
+	if(!preset_name(program, msg)) snprintf(msg, sizeof(msg), "PC %u", program);
+	show_overlay(msg);
+}
+
 void display_show_message(const char *msg){
 	show_overlay(msg);
 }
@@ -746,6 +902,7 @@ void display_show_config(uint8_t slot){
 	ssd1306_UpdateScreen();
 
 	// The bank screen comes back once the notice has been read
+	overlay_msg[0] = 0;
 	overlay_until = HAL_GetTick() + OVERLAY_MS;
 	refresh_pending = 0;
 }
@@ -762,6 +919,7 @@ static void show_notice(const char *big, const char *small){
 	ssd1306_WriteString((char *)small, Font_7x10, White);
 	ssd1306_UpdateScreen();
 
+	overlay_msg[0] = 0;
 	overlay_until = HAL_GetTick() + SAFE_MODE_MS;
 	refresh_pending = 0;
 }
@@ -940,12 +1098,20 @@ void display_task(void){
 			uint8_t ending = (scroll_state == SCROLL_HOLD_END);
 			if(scroll_step() && !ending) draw_moment_text();
 		}
-		if(HAL_GetTick() < overlay_until || (moment_showing && scroll_state != SCROLL_IDLE)) return;
+		if(HAL_GetTick() < overlay_until || (moment_showing && scroll_state != SCROLL_IDLE)){
+			// A value a label shows changed under the readout: at once, not after it
+			if(!moment_showing && overlay_msg[0] && live_changed()){
+				refresh_pending = 1;
+				draw_overlay();
+			}
+			return;
+		}
 		overlay_until = 0;
 		if(moment_showing) moment_done();
 		refresh_pending = 1;
 	}
 	bool beat_changed = beat_update();
+	if(!refresh_pending && live_changed()) refresh_pending = 1;
 	if(refresh_pending){
 		draw_bank(current_bank);
 	} else if(beat_changed || scroll_step()){

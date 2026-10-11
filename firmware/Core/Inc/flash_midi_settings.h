@@ -303,6 +303,9 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
  *             labels in the slot; erased flash is no label
  *   [1424..]  the labels of Bank Down and Bank Up (1.08), then 0xFF to 16
  *             bytes; erased flash is no label
+ *   [1440..]  preset names (1.20), PRESET_NAME_LEN chars per program 0-127,
+ *             space padded, for $N in a label; erased flash or spaces is no
+ *             name, and the program's number shows instead
  */
 #define FLASH_EXT2_PAGES		(2)
 #define FLASH_EXT2_ADDR(n)		(FLASH_BANNER_ADDR + FLASH_PAGE_SIZE + (n) * FLASH_EXT2_PAGES * FLASH_PAGE_SIZE)
@@ -320,6 +323,9 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
 #define EXT2_LONG_LABELS_OFF	(EXT2_MAP_OFF + MIDI_MAP_COUNT * MIDI_MAP_STRIDE)
 #define EXT2_BANK_SW_LABELS_OFF	(EXT2_LONG_LABELS_OFF + CFG_BUTTONS * BUTTON_LABEL_LEN)
 #define EXT2_BANK_SW_LABELS_SIZE	(16)
+#define PRESET_NAME_LEN			(8)
+#define PRESET_NAME_COUNT		(128)
+#define EXT2_PRESET_NAMES_OFF	(EXT2_BANK_SW_LABELS_OFF + EXT2_BANK_SW_LABELS_SIZE)
 
 /*
  * MIDI map: what a message arriving over USB turns into. Every entry that
@@ -355,6 +361,8 @@ const uint8_t *flash_settings_midi_map(void);
 const uint8_t *flash_settings_long_labels(void);
 // The active slot's Bank Down and Bank Up labels, in that order, or NULL
 const uint8_t *flash_settings_bank_switch_labels(void);
+// The active slot's preset names, or NULL
+const uint8_t *flash_settings_preset_names(void);
 // How pedal 0 or 1 takes over a value it does not hold: EXP_TAKEOVER_
 uint8_t flash_settings_exp_takeover(uint8_t pedal);
 

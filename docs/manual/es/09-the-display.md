@@ -2,7 +2,7 @@
 
 [English](../en/09-the-display.md) · **Español**
 
-La pantalla de 128×64 de la pedalera te dice dónde estás y qué está encendido, de un vistazo desde el suelo. Este capítulo trata la pantalla del banco, lo que aparece encima un momento, el texto que puede poner un ordenador y el banner al encender.
+La pantalla de 128×64 de la pedalera te dice dónde estás y qué está encendido, de un vistazo desde el suelo. Este capítulo trata la pantalla del banco, lo que aparece encima un momento, los valores en vivo que puede mostrar una etiqueta, el texto que puede poner un ordenador y el banner al encender.
 
 ## La pantalla del banco
 
@@ -29,7 +29,7 @@ Algunas cosas ocupan la pantalla, o parte de ella, un momento y luego devuelven 
 | Con un reloj en marcha y `Beat_Counter` activado | el compás, el tiempo y el tempo en lugar de la línea de información, `12.3 120`, mientras corra ([Compás y tiempo en la pantalla](07-tempo.md#compás-y-tiempo-en-la-pantalla)) |
 | Una cuenta atrás (`Wait` `Count`) | los tiempos que faltan en lugar del nombre del banco, de `IN 4` a `IN 1`, hasta que sale la lista ([A tiempo](06-commands.md#a-tiempo)) |
 | Un botón de CC relativo | el número de CC y el valor que se acaba de enviar, en lugar de la línea de información durante 1,5 segundos: `CC7=69`, o `C120=127` para números de CC de tres cifras |
-| Un botón de preset siguiente o anterior | el nuevo número de programa, como `PC 6` |
+| Un botón de preset siguiente o anterior | el [nombre](#nombres-de-preset) del nuevo programa, o su número, como `PC 6` |
 | Al cambiar de configuración | el número y el nombre de la nueva configuración, a pantalla completa; un aviso breve si la ranura pedida está vacía |
 | Bank Up / Down con `Bank_Preview` activado | el banco al que irían, con el nombre invertido, blanco con letras negras, sobre sus etiquetas ([Vista previa de banco](04-banks.md#vista-previa-de-banco)) |
 | Al arrancar en modo seguro | **SAFE MODE**, durante tres segundos ([Modo seguro](10-editing-on-the-pedal.md#modo-seguro)) |
@@ -41,6 +41,43 @@ Mientras se ve una vista previa de banco, los avisos como el del tempo se saltan
 ### Cuándo se apaga
 
 Con `Sleep_After_Min` puesto, la pantalla y los LEDs se apagan tras ese número de minutos sin que nadie toque la pedalera. Cualquier pulsación o movimiento de un pedal de expresión los vuelve a encender, y la pulsación que la despierta sigue haciendo su trabajo. También se apagan mientras duerme el ordenador al que está conectada la pedalera, y vuelven cuando se despierta. Mira los [ajustes globales](12-configuration-file.md#global_settings).
+
+## Valores en vivo
+
+*Necesita firmware 1.20 o posterior.*
+
+Una etiqueta, el nombre de un banco o su línea de información pueden mostrar un valor tal como está ahora en lugar de un texto fijo: el preset en el que está el ampli, con su nombre, el valor al que ha llegado un CC relativo, un contador, el tempo. Escribe un `$` y una letra donde va el valor. La pedalera lo rellena, y vuelve a dibujar la pantalla en cuanto cambia uno de los valores que hay en ella, también debajo de un aviso.
+
+| Escribe | Muestra |
+|---|---|
+| `$V` | En una etiqueta, el valor del botón, del primer comando `CCInc`, `PC`, `PCInc` o `Value` de su lista de pulsación: el valor que envió por última vez un `CCInc`, o del que parte antes de la primera pulsación; el programa en el que está un `PCInc`; el programa que selecciona un `PC`; el valor que cambia un comando `Value`. En el nombre del banco o en su línea de información, el último programa seleccionado en `MIDI_Channel`. |
+| `$N` | Lo mismo, con un programa mostrado por su nombre en los [nombres de preset](#nombres-de-preset) cuando tiene uno |
+| `$1` a `$8` | Uno de los ocho valores del [comando `Value`](06-commands.md#valores-y-condiciones) |
+| `$T` | El tempo |
+| `$$` | Un `$` |
+
+Un programa que nadie ha seleccionado todavía, o un botón sin ninguno de esos comandos, muestra `-`. También vale en minúscula, `$v`, y un `$` seguido de cualquier otra cosa se queda tal cual.
+
+El programa se guarda por canal, lo seleccione quien lo seleccione: un comando `PC`, la lista de entrada de un banco, un botón de [preset siguiente o anterior](06-commands.md#preset-siguiente-y-anterior) o el ordenador por USB. Así, un botón `PCInc` con la etiqueta `$N` nombra el preset en el que estás, y un botón `PC` con `$N` el que selecciona.
+
+Una etiqueta tiene 4 caracteres, así que `$V` deja sitio para dos más: `V$V` muestra `V64`. Un valor que la alarga un carácter, `W:112`, se dibuja en letra pequeña; más allá, y en la rejilla de diez celdas, se corta. El nombre del banco conserva sus 4 caracteres y la línea de información sus 8.
+
+En el demo, la línea de información del banco PTCH es `$N`: al entrar en el banco muestra `CLEAN`, NEXT y PREV recorren los nombres, y un Program Change del ordenador también se ve ahí. La del banco MIX, `mixed $1`, cuenta mientras se mantiene ALL5.
+
+### Nombres de preset
+
+Nombres para los programas 0–127 de tu equipo, de hasta 8 caracteres cada uno, para `$N`. En el configurador están en la pestaña **Presets**, en el navegador en **Preset names**, y en el [archivo](12-configuration-file.md) en la sección `Preset_Names`, una fila por programa con nombre:
+
+```
+* Preset_Names
+Program,Name
+0,CLEAN
+1,CRUNCH
+```
+
+Una sola tabla sirve para todos los canales. Un programa sin nombre muestra su número. Un botón de preset siguiente o anterior también muestra el nombre un momento: `CRUNCH`, donde antes mostraba `PC 1`.
+
+Se guardan en la segunda área de extensión, tras las etiquetas de los bank switches, 8 bytes por programa; un firmware anterior no los usa y muestra `$N` tal como está escrito.
 
 ## Texto desde el ordenador
 
