@@ -132,7 +132,7 @@ jobs:
         # import and pack a configuration on each system
         shell: bash
         run: |
-          if [ -x .venv/Scripts/python.exe ]; then PY=.venv/Scripts/python.exe; else PY=.venv/bin/python; fi
+          if [ -x .venv/Scripts/python.exe ]; then PY=$PWD/.venv/Scripts/python.exe; else PY=$PWD/.venv/bin/python; fi
           cd python
           "$PY" -c "import lib.configPacker, lib.binaryUnpacker, lib.midiDevice, lib.configCsv"
           "$PY" CSV_to_Flash.py --help > /dev/null
