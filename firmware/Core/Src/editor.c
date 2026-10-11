@@ -422,6 +422,7 @@ static const setting_t settings[] = {
 	{"LINKTOGL", GLOBAL_SETTINGS_LED_FEEDBACK,        S_FLAG,   LED_FEEDBACK_LINK, 1, 0, false, NULL},
 	{"USB THRU", GLOBAL_SETTINGS_USB_THRU,            S_FLAG,   USB_THRU_ON, 1, 0, false, NULL},
 	{"3 PORTS",  GLOBAL_SETTINGS_USB_THRU,            S_FLAG,   USB_THREE_PORTS, 1, 0, false, NULL},
+	{"SKIP PC",  GLOBAL_SETTINGS_USB_THRU,            S_FLAG,   PC_SKIP_SAME, 1, 0, false, NULL},
 	{"RT THRU",  GLOBAL_SETTINGS_REALTIME_PASS,       S_ONOFF,  0,     1, 0,   false, NULL},
 	{"TWO WAY",  GLOBAL_SETTINGS_KEMPER_MODE,         S_CHOICE, 0,     2, 0,   false, two_way_names},
 	{"EXP1 CC",  GLOBAL_SETTINGS_EXP1_CC,             S_NUM,    1,   127, 11,  true,  NULL},

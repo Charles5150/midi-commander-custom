@@ -63,6 +63,22 @@ Hasta las herramientas del firmware 0.17, un Bank Select vacío se empaquetaba c
 
 </details>
 
+#### No recargar el preset en el que estás
+
+Muchos modeladores, un Helix, un Kemper, un Axe-Fx, recargan el preset cuando les llega el Program Change en el que ya están, y el sonido se corta un instante. Basta con volver a un banco cuya lista de entrada elige el mismo patch, o pisar un botón que lo envía otra vez. Con `Skip_Same_PC` activado (en la pestaña Global, **Don't resend the same PC**), un Program Change no se envía cuando su canal ya está en ese programa, ni su Bank Select: el programa elegido por última vez en el canal, por un comando PC, la lista de entrada de un banco, un botón de preset siguiente o anterior o el ordenador por USB, y el Bank Select enviado por última vez en él, si el comando lleva uno.
+
+Cuando sí quieres recargar el preset, para descartar los cambios que le has hecho en el equipo, marca **Force** en ese PC (`KeyMode` `Y`): sale siempre. Force no va con `BankSelectHighByte`.
+
+Si también cambias de preset en el propio equipo, con sus pulsadores o su panel, la pedalera no se entera: un PC al programa que envió la última vez se quedaría sin salir. En ese caso deja `Skip_Same_PC` desactivado, o pon Force en los botones que importan.
+
+En la demo `Skip_Same_PC` está activado: el banco 3 elige el programa 0 al entrar, y no otra vez cuando vuelves a él; P 1 envía el programa 1 una vez por mucho que lo pises, y P 0 lleva Force, así que recarga el programa 0 en cada pulsación.
+
+<details><summary>Por dentro</summary>
+
+Necesita el firmware 1.27. `Skip_Same_PC` es el bit 2 del byte global 6, junto a `USB_MIDI_Thru` y `USB_Ports`; Force es el byte del MSB del Bank Select del PC a `0x85`, que significa sin MSB como cualquier byte desde `0x80`, así que un firmware anterior a la 1.27 lo envía como un PC normal. No se recuerda nada al apagar, así que el primer PC de cada canal sale siempre.
+
+</details>
+
 ### Control Change
 
 `Channel` es el canal, `Number` el controlador, `OnValue` el valor que se envía al pisar, 0–127, y `OffValue` el que se envía al soltar, o al apagar un toggle. Con `Toggle` a `Y`, el botón alterna entre los dos en pulsaciones sucesivas, y su LED indica en cuál está. Un CC no usa `Duration`. Deja `OffValue` vacío para un CC sin valor de apagado, que solo envía `OnValue`.
@@ -622,7 +638,7 @@ La referencia: cada columna de una casilla de comando en el CSV, y qué hace con
 | `Toggle_(CC/PB/Note)` | | ✓ | ✓ | ✓ | ✓ | Y: alterna on / off en pulsaciones sucesivas. Key / Media: mantener hasta la siguiente pulsación |
 | `Velocity_(Note)` | | | ✓ | | | 0–127 |
 | `Duration_(Note/PB)` | | | ✓ | ✓ | ✓ | En pasos de 10 ms, 0–127 (máx. 1,27 s). Media: igual que Key. Wait: la pausa en milisegundos, hasta 2550. Ramp: su tiempo en milisegundos, hasta 655350 |
-| `KeyMode_(Key)` | | | | | ✓ | Normal / Down / Up. CCInc y PCInc: Up / Down / Up Repeat / Down Repeat. Tap: Tap / Clock / Set / Up / Down / Up Repeat / Down Repeat / Record / Playback / Erase / Out / Save. Listen: Steady / Slow / Fast / Dim. Exp: CC / Off / Own / Speed / Add / Wheel / Arrows. LFO: Sine / Triangle / SawUp / SawDown / Square / Random (vacío es Sine). Seq: cuánto dura un paso, las mismas divisiones que el LFO (vacío es `1/8`), leído del primer comando de la serie. MMC: Play / Stop / Record / RecordExit / Pause / FastForward / Rewind / Locate / DeferredPlay / Chase / Eject / Reset (vacío es Play). Song: Select / Position. Value: Set / Add / Sub (vacío es Set). If: Button on / Button off / Value = / Value <> / Value < / Value >= / Bank is / Bank is not. Bank: GoTo / Up / Down / Back / Page / Config / NextConfig / Reveal / Direct / Lock. Macro: Short / Long / Double. Button: Press / On / Off / Set On / Set Off, y detrás Long o Double para esas listas. Wait: Time / Beat / Bar / Count (vacío para Time). NRPN: NRPN / RPN / NRPN 14-bit / RPN 14-bit (vacío para NRPN) Scene: `Recall` (o vacío) o `Save`, `Save Long`, `Save Double`. |
+| `KeyMode_(Key)` | | | | | ✓ | Normal / Down / Up. PC: `Y` para Force, enviado aunque `Skip_Same_PC` esté activado. CCInc y PCInc: Up / Down / Up Repeat / Down Repeat. Tap: Tap / Clock / Set / Up / Down / Up Repeat / Down Repeat / Record / Playback / Erase / Out / Save. Listen: Steady / Slow / Fast / Dim. Exp: CC / Off / Own / Speed / Add / Wheel / Arrows. LFO: Sine / Triangle / SawUp / SawDown / Square / Random (vacío es Sine). Seq: cuánto dura un paso, las mismas divisiones que el LFO (vacío es `1/8`), leído del primer comando de la serie. MMC: Play / Stop / Record / RecordExit / Pause / FastForward / Rewind / Locate / DeferredPlay / Chase / Eject / Reset (vacío es Play). Song: Select / Position. Value: Set / Add / Sub (vacío es Set). If: Button on / Button off / Value = / Value <> / Value < / Value >= / Bank is / Bank is not. Bank: GoTo / Up / Down / Back / Page / Config / NextConfig / Reveal / Direct / Lock. Macro: Short / Long / Double. Button: Press / On / Off / Set On / Set Off, y detrás Long o Double para esas listas. Wait: Time / Beat / Bar / Count (vacío para Time). NRPN: NRPN / RPN / NRPN 14-bit / RPN 14-bit (vacío para NRPN) Scene: `Recall` (o vacío) o `Save`, `Save Long`, `Save Double`. |
 
 ---
 

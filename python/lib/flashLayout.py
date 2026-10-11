@@ -97,6 +97,7 @@ GLOBAL_DEFAULTS = {
     "Bank_Down_LED_Mode": "Normal",
     "USB_MIDI_Thru": "N",
     "USB_Ports": "1",
+    "Skip_Same_PC": "N",
     "Remember_State": "N",
     "Long_Press_ms": "500",
     "LED_Brightness": "100",

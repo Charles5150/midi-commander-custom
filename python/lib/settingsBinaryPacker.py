@@ -11,6 +11,7 @@ GLOBAL_SETTINGS_BANK_DOWN_LED = 5
 GLOBAL_SETTINGS_USB_THRU = 6
 USB_THRU_ON = 0x01
 USB_THREE_PORTS = 0x02         # three USB MIDI ports (USB_Ports)
+PC_SKIP_SAME = 0x04            # a PC the channel is already on is not resent (Skip_Same_PC)
 GLOBAL_SETTINGS_REMEMBER_STATE = 7
 GLOBAL_SETTINGS_LONG_PRESS = 8
 GLOBAL_SETTINGS_LED_BRIGHTNESS = 9
@@ -109,6 +110,10 @@ def pack_global_settings(df):
         bin_list[GLOBAL_SETTINGS_USB_THRU] |= USB_THREE_PORTS
     else:
         raise ValueError(f"USB_Ports must be 1 or 3, not {ports!r}")
+
+    # Don't resend a PC the channel is already on (firmware 1.27), same byte
+    if "Skip_Same_PC" in df.index and "Y" in str(df.loc["Skip_Same_PC", "Value"]).upper():
+        bin_list[GLOBAL_SETTINGS_USB_THRU] |= PC_SKIP_SAME
 
     # Restore last bank and toggle states at power on (Y/N)
     if "Remember_State" in df.index and "Y" in str(df.loc["Remember_State", "Value"]).upper():

@@ -442,7 +442,7 @@ class UsbPortsTest(unittest.TestCase):
     def test_round_trip_beside_the_thru(self):
         for ports, thru, byte in (("1", "Y", 1), ("3", "Y", 3), ("3", "N", 2), ("1", "N", 0), ("", "N", 0)):
             packed = self.pack_with(ports, thru)
-            self.assertEqual(packed[6], byte, (ports, thru))
+            self.assertEqual(packed[6] & 3, byte, (ports, thru))
             back = unpacker.unpack_config(packed)[0].set_index("Label")["Value"]
             self.assertEqual((back["USB_Ports"], back["USB_MIDI_Thru"]), (ports or "1", thru))
 
@@ -460,6 +460,25 @@ class UsbPortsTest(unittest.TestCase):
         text = open(os.path.join(FIRMWARE, "Core", "Inc", "midi_defines.h")).read()
         self.assertIn("#define USB_THRU_ON		(0x%02X)" % sbp.USB_THRU_ON, text)
         self.assertIn("#define USB_THREE_PORTS		(0x%02X)" % sbp.USB_THREE_PORTS, text)
+
+    def test_skip_same_pc_bit(self):
+        """Skip_Same_PC (1.27), bit 2 of the same byte."""
+        from lib import settingsBinaryPacker as sbp
+        sections = read_config_csv(DEMO_CSV)
+        g = sections["Global_Settings"]
+        g = g[g["Label"] != "Skip_Same_PC"]
+        for value, bit in (("Y", 4), ("N", 0)):
+            sections["Global_Settings"] = pd.concat(
+                [g, pd.DataFrame([{"Label": "Skip_Same_PC", "Value": value}])], ignore_index=True)
+            packed = packer.pack_config(sections)
+            self.assertEqual(packed[6] & 4, bit)
+            back = unpacker.unpack_config(packed)[0].set_index("Label")["Value"]
+            self.assertEqual(back["Skip_Same_PC"], value)
+        packed = bytearray(packed)
+        packed[6] = 0xFF
+        self.assertEqual(unpacker.unpack_config(bytes(packed))[0].set_index("Label")["Value"]["Skip_Same_PC"], "N")
+        text = open(os.path.join(FIRMWARE, "Core", "Inc", "midi_defines.h")).read()
+        self.assertIn("#define PC_SKIP_SAME		(0x%02X)" % sbp.PC_SKIP_SAME, text)
 
     def test_tools_pick_the_config_port_never_din(self):
         from lib import midiDevice as md

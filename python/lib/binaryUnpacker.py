@@ -75,6 +75,7 @@ from lib.cmdBinaryPacker import (
     EXP_TARGET_ARROWS,
     CYCLE_LABEL_COUNT,
     CYCLE_LABEL_LEN,
+    PC_FORCE,
     PC_REL_MARKERS,
     CMD_CC_NIBBLE,
     CMD_BANK_NIBBLE,
@@ -182,6 +183,7 @@ def unpack_global_settings(data: bytes) -> pd.DataFrame:
         ("Bank_Down_LED_Mode", _led_mode_name(g[5])),
         ("USB_MIDI_Thru", "Y" if g[6] != 0xFF and g[6] & 0x01 else "N"),
         ("USB_Ports", "3" if g[6] != 0xFF and g[6] & 0x02 else "1"),
+        ("Skip_Same_PC", "Y" if g[6] != 0xFF and g[6] & 0x04 else "N"),
         ("Remember_State", "Y" if g[7] == 1 else "N"),
         ("Long_Press_ms", str(g[8] * 10 if 0 < g[8] < 0xFF else default_int("Long_Press_ms"))),
         ("LED_Brightness", str(g[9] if 0 < g[9] <= 100 else default_int("LED_Brightness"))),
@@ -386,6 +388,8 @@ def unpack_command(raw: bytes, cycle_labels=None) -> dict:
         cmd["CommandType"] = "PC"
         cmd["Channel_(PC/CC/Note/PB)"] = channel
         cmd["Number_(PC/CC/Note)"] = str(b1 & 0x7F)
+        if b2 == PC_FORCE:
+            cmd["KeyMode_(Key)"] = "Y"
         if b2 < 0x80:
             # High byte present, so the value spans both bytes
             cmd["BankSelect_(PC)"] = str((b2 << 7) | (b3 & 0x7F))

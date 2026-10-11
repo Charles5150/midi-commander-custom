@@ -433,6 +433,22 @@ void sw_note_program(uint8_t channel, uint8_t program){
 	pc_current[channel & 0x0F] = program & 0x7F;
 }
 
+/*
+ * Skip_Same_PC: a PC whose channel is already on that program, and on the bank
+ * it selects as far as the Bank Select last sent there goes, is not sent again,
+ * so re-entering a bank or a scene does not reload the preset and cut the
+ * sound. A PC marked Force goes out all the same.
+ */
+static bool pc_already_on(const uint8_t *pRom){
+	uint8_t g = pGlobalSettings[GLOBAL_SETTINGS_USB_THRU];
+	if(g == 0xFF || !(g & PC_SKIP_SAME) || pRom[2] == PC_FORCE) return false;
+	uint8_t channel = midiCmd_channel(pRom[0]);
+	if(pc_current[channel] != (pRom[1] & 0x7F)) return false;
+	if(pRom[2] < 0x80 && midiCmd_cc_sent(channel, MIDI_PC_BANK_SELECT_MSB) != pRom[2]) return false;
+	if(pRom[3] < 0x80 && midiCmd_cc_sent(channel, MIDI_PC_BANK_SELECT_LSB) != pRom[3]) return false;
+	return true;
+}
+
 static void send_pc_relative(const uint8_t *pRom, bool repeat){
 	uint8_t channel = midiCmd_channel(pRom[0]);	// the channel it goes out on
 	int16_t step = (pRom[1] & 0x7F) ? (pRom[1] & 0x7F) : 1;
@@ -1332,7 +1348,7 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 	case CMD_PC_NIBBLE:
 		if(PC_IS_RELATIVE(pRom[2])){
 			send_pc_relative(pRom, false);
-		} else {
+		} else if(!pc_already_on(pRom)){
 			status = midiCmd_send_pc_command_from_rom(pRom);
 			sw_note_program(midiCmd_channel(pRom[0]), pRom[1]);
 		}

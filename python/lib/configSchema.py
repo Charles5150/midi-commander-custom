@@ -112,6 +112,7 @@ GLOBAL_GROUPS = [
         ("USB_MIDI_Thru", "USB to DIN thru", "forward notes, CC, PC and other devices' SysEx"),
         ("RealTime_Passthrough", "Clock and transport thru", "forward Clock, Start, Continue and Stop"),
         ("USB_Ports", "USB MIDI ports", "3 = the pedal, the DIN output, and the pedal again for a second program; from the next start"),
+        ("Skip_Same_PC", "Don't resend the same PC", "a PC the device is already on, bank included, is not sent again, so its preset does not reload; a PC with Force always is"),
         ("Clock_Follow", "Follow the host's clock", "adopt the tempo of MIDI clock from USB"),
         ("Beat_Counter", "Bar and beat on the display", "beats in a bar, shown while a clock runs; Off = not shown"),
         ("Remote_Mode", "Press from the computer", "CC or notes from USB press the switches"),
@@ -141,7 +142,7 @@ GLOBAL_FIELDS = {
     "MIDI_Channel": _choice(CHANNELS),
     **{label: CHECK for label in ("RealTime_Passthrough", "USB_MIDI_Thru", "Remember_State",
                                   "Setlist_Mode", "Setlist_Display", "Clock_Follow", "LED_Feedback", "Link_Toggles",
-                                  "Edit_Lock", "Kemper_Mode", "GT1000_Mode")},
+                                  "Edit_Lock", "Kemper_Mode", "GT1000_Mode", "Skip_Same_PC")},
     "Bank_Up_LED_Mode": _choice(LED_MODES),
     "Bank_Down_LED_Mode": _choice(LED_MODES),
     "Exp1_CC": _int(1, 127),
@@ -214,7 +215,9 @@ def _when(col, *values):
 # hint_by. Start, Stop, Panic and (none) have none.
 COMMAND_SPECS = {
     "PC": {"fields": [_channel(), _f(NUM, "Program", _int(0, 127)),
-                      _f(BS, "BankSel", _int(0, 16383)), _f(BSH, "Send bank MSB", CHECK)]},
+                      _f(BS, "BankSel", _int(0, 16383)), _f(BSH, "Send bank MSB", CHECK),
+                      _f(MODE, "Force", CHECK)],
+           "hint": "Force: sent even when Skip_Same_PC would drop it, to reload the preset"},
     "CC": {"fields": [_channel(), _f(NUM, "CC#", _int(0, 127)), _f(ON, "On", _int(0, 127)),
                       _f(OFF, "Off", _int(0, 127)), _toggle()]},
     "Pressure": {"fields": [_channel(), _f(ON, "On", _int(0, 127)), _f(OFF, "Off", _int(0, 127)),

@@ -282,6 +282,8 @@
 #define PC_REL_UP_REPEAT	(0x83)
 #define PC_REL_DOWN_REPEAT	(0x84)
 #define PC_IS_RELATIVE(b2)	((b2) >= PC_REL_UP && (b2) <= PC_REL_DOWN_REPEAT)
+// A PC with no Bank Select MSB that goes out even when Skip_Same_PC would drop it
+#define PC_FORCE			(0x85)
 #define CMD_CC_NIBBLE		(0xB0)
 #define CMD_PB_NIBBLE		(0xE0)
 #define CMD_NOTE_NIBBLE		(0x90)
@@ -336,9 +338,10 @@
 #define GLOBAL_SETTINGS_EXP2_CC (3)
 #define GLOBAL_SETTINGS_BANK_UP_LED (4)
 #define GLOBAL_SETTINGS_BANK_DOWN_LED (5)
-#define GLOBAL_SETTINGS_USB_THRU (6)		// bits: USB_THRU_ON, USB_THREE_PORTS; 0xFF = none
+#define GLOBAL_SETTINGS_USB_THRU (6)		// bits: USB_THRU_ON, USB_THREE_PORTS, PC_SKIP_SAME; 0xFF = none
 #define USB_THRU_ON		(0x01)	// forward channel, system common and foreign SysEx from USB to DIN
 #define USB_THREE_PORTS		(0x02)	// the pedal shows up as three USB MIDI ports (USB_Ports), from the next start
+#define PC_SKIP_SAME		(0x04)	// a PC the channel is already on is not sent again (Skip_Same_PC)
 #define GLOBAL_SETTINGS_REMEMBER_STATE (7)	// Restore last bank and toggle states at power on
 #define GLOBAL_SETTINGS_LONG_PRESS (8)		// Long press threshold in 10 ms units (0/0xFF = 500 ms)
 #define GLOBAL_SETTINGS_LED_BRIGHTNESS (9)		// Lit LED brightness in percent (0xFF = 100)

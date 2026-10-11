@@ -1458,3 +1458,31 @@ test("Tap Save keeps the tapped tempo in the bank's enter list, set again on ent
   const after = tapsOnEntering(again);
   assert.ok(after.length === 3 && after.every((g) => Math.abs(g - 600) <= 2), `100 BPM after a restart: ${after}`);
 });
+
+test("Skip_Same_PC drops a PC the channel is already on, bank included, and Force sends it all the same (before 1.27, every one went out)", async () => {
+  const sim = simWithDemo();
+  sim.run(10000);
+  const run = (ms) => { for (let t = 0; t < ms; t += 5) sim.run(5); };
+  // What goes out on USB channel 1 meanwhile: PCs, and the Bank Select LSB
+  const sent = (work) => {
+    const seen = [];
+    sim.onOutput = (port, msg) => {
+      if (port === "USB" && (msg[0] === 0xc0 || (msg[0] === 0xb0 && msg[1] === 32))) seen.push(msg.slice(0, msg[0] === 0xc0 ? 2 : 3).join(" "));
+    };
+    work();
+    sim.onOutput = null;
+    return seen;
+  };
+  const enter = (bank) => { sim.usbIn([0xb0, 32, bank]); run(300); };
+  const press = (sw) => { sim.footswitch(sw, true); run(60); sim.footswitch(sw, false); run(200); };
+
+  assert.deepEqual(sent(() => enter(3)), ["192 0"], "bank 3 selects program 0 as it is entered");
+  assert.deepEqual(sent(() => { enter(4); enter(3); }), [], "and not again: the channel is still on it");
+  assert.deepEqual(sent(() => press(1)), ["192 1"], "P 1");
+  assert.deepEqual(sent(() => press(1)), [], "P 1 again");
+  assert.deepEqual(sent(() => { press(0); press(0); }), ["192 0", "192 0"], "P 0 has Force");
+  assert.deepEqual(sent(() => { press(4); press(4); }), ["176 32 3", "192 3"], "BS 3, with its Bank Select");
+  sim.usbIn([0xc0, 1]);                      // the host moved the device to program 1
+  run(100);
+  assert.deepEqual(sent(() => { press(1); press(4); }), ["176 32 3", "192 3"], "P 1 is where the host left it, BS 3 is not");
+});

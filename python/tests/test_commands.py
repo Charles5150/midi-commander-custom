@@ -80,6 +80,28 @@ class PcIncTest(unittest.TestCase):
         self.assertNotIn(packed[2], cbp.PC_REL_MARKERS)
         self.assertEqual(unpacker.unpack_command(packed)["CommandType"], "PC")
 
+    def pc(self, bank="", msb="N", force=""):
+        row = {f"A_{f}": "" for f in unpacker.CMD_FIELDS}
+        row.update({"A_CommandType": "PC", "A_Channel_(PC/CC/Note/PB)": "2",
+                    "A_Number_(PC/CC/Note)": "5", "A_BankSelect_(PC)": bank,
+                    "A_BankSelectHighByte_(PC)": msb, "A_KeyMode_(Key)": force})
+        return bytes(cbp.pack_row(pd.Series(row)))[:4]
+
+    def test_force(self):
+        """Force (1.27) marks the MSB byte, so it goes with no Bank Select or
+        with the LSB only, and comes back as KeyMode Y."""
+        self.assertEqual(self.pc(force="Y"), bytes([0xC1, 5, cbp.PC_FORCE, 0xFF]))
+        self.assertEqual(self.pc(bank="3", force="Force"), bytes([0xC1, 5, cbp.PC_FORCE, 3]))
+        self.assertEqual(self.pc(bank="3"), bytes([0xC1, 5, 0x80, 3]))
+        for bank in ("", "3"):
+            d = unpacker.unpack_command(self.pc(bank=bank, force="Y"))
+            self.assertEqual((d["CommandType"], d["KeyMode_(Key)"], d["BankSelect_(PC)"]), ("PC", "Y", bank))
+            self.assertEqual(unpacker.unpack_command(self.pc(bank=bank))["KeyMode_(Key)"], "")
+        with self.assertRaises(ValueError):
+            self.pc(bank="300", msb="Y", force="Y")
+        text = firmware_source("Inc", "midi_defines.h")
+        self.assertIn("#define PC_FORCE			(0x%02X)" % cbp.PC_FORCE, text)
+
     def test_demo_prev_next(self):
         buttons = unpacker.unpack_config(packer.pack_config(read_config_csv(DEMO_CSV)))[2]
         def btn(b):

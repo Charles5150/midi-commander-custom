@@ -67,6 +67,7 @@ A command of any other type is shown by name and left exactly as it is until the
 | `LINKTOGL` | linked toggles (`Link_Toggles`) |
 | `USB THRU`, `RT THRU` | the two thru switches (`USB_MIDI_Thru`, `RealTime_Passthrough`) |
 | `3 PORTS` | three USB MIDI ports (`USB_Ports`), from the next start |
+| `SKIP PC` | don't resend a PC the channel is already on (`Skip_Same_PC`) |
 | `TWO WAY` | which unit to talk to both ways: `Off`, `Kemper` (`Kemper_Mode`) or `GT-1000` (`GT1000_Mode`) |
 | `EXP1 CC`, `EXP2 CC` | the expression pedal CC numbers (`Exp1_CC`, `Exp2_CC`), 1–127 |
 | `EXP1SEND`, `EXP2SEND` | each pedal sends its position on entering a bank (`Send_On_Bank`) |

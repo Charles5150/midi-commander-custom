@@ -63,6 +63,22 @@ Until the tools of firmware 0.17, an empty Bank Select was packed as a 0, so eve
 
 </details>
 
+#### Not reloading the preset you are on
+
+Many modelers, a Helix, a Kemper, an Axe-Fx, reload a preset when they receive the Program Change they are already on, and the sound drops out for a moment. Coming back to a bank whose enter list selects the same patch, or pressing a button that sends it again, is enough. With `Skip_Same_PC` on (in the Global tab, **Don't resend the same PC**), a Program Change is not sent when its channel is already on that program, nor its Bank Select: the program last selected on the channel, by a PC command, a bank's enter list, a next or previous preset button or the computer over USB, and the Bank Select last sent on it, when the command has one.
+
+When you do want the preset reloaded, to drop the changes made to it on the device, tick **Force** on that PC (`KeyMode` `Y`): it always goes out. Force does not go with `BankSelectHighByte`.
+
+If you also change presets on the device itself, its own footswitches or front panel, the pedal does not know: a PC to the program it last sent would then be left out. Leave `Skip_Same_PC` off in that case, or put Force on the buttons that matter.
+
+In the demo `Skip_Same_PC` is on: bank 3 selects program 0 as it is entered, and not again when you come back to it; P 1 sends program 1 once however often it is pressed, and P 0 has Force, so it reloads program 0 at every press.
+
+<details><summary>Under the hood</summary>
+
+Needs firmware 1.27. `Skip_Same_PC` is bit 2 of global byte 6, beside `USB_MIDI_Thru` and `USB_Ports`; Force is the PC's Bank Select MSB byte set to `0x85`, which says no MSB as any byte from `0x80` does, so firmware before 1.27 sends it as a plain PC. Nothing is remembered across a power cycle, so the first PC on a channel always goes out.
+
+</details>
+
 ### Control Change
 
 `Channel` is the channel, `Number` the controller, `OnValue` the value sent on the press, 0–127, and `OffValue` the value sent on the release, or when a toggle is switched off. With `Toggle` set to `Y` the button alternates between the two on successive presses, and its LED shows which. A CC ignores `Duration`. Leave `OffValue` empty for a CC that has no off value and only ever sends `OnValue`.
@@ -622,7 +638,7 @@ The reference: every column of a command slot in the CSV, and what each command 
 | `Toggle_(CC/PB/Note)` | | ✓ | ✓ | ✓ | ✓ | Y: alternate on / off on successive presses. Key / Media: hold until the next press |
 | `Velocity_(Note)` | | | ✓ | | | 0–127 |
 | `Duration_(Note/PB)` | | | ✓ | ✓ | ✓ | In 10 ms steps, 0–127 (max 1.27 s). Media: same as Key. Wait: the pause in milliseconds, up to 2550. Ramp: its time in milliseconds, up to 655350 |
-| `KeyMode_(Key)` | | | | | ✓ | Normal / Down / Up. CCInc and PCInc: Up / Down / Up Repeat / Down Repeat. Tap: Tap / Clock / Set / Up / Down / Up Repeat / Down Repeat / Record / Playback / Erase / Out / Save. Listen: Steady / Slow / Fast / Dim. Exp: CC / Off / Own / Speed / Add / Wheel / Arrows. LFO: Sine / Triangle / SawUp / SawDown / Square / Random (empty for Sine). Seq: how long a step lasts, the same note divisions as the LFO (empty for `1/8`), read from the first command of the run. MMC: Play / Stop / Record / RecordExit / Pause / FastForward / Rewind / Locate / DeferredPlay / Chase / Eject / Reset (empty for Play). Song: Select / Position. Value: Set / Add / Sub (empty for Set). If: Button on / Button off / Value = / Value <> / Value < / Value >= / Bank is / Bank is not. Bank: GoTo / Up / Down / Back / Page / Config / NextConfig / Reveal / Direct / Lock. Macro: Short / Long / Double. Button: Press / On / Off / Set On / Set Off, then Long or Double for those lists. Wait: Time / Beat / Bar / Count (empty for Time). NRPN: NRPN / RPN / NRPN 14-bit / RPN 14-bit (empty for NRPN) Scene: `Recall` (or empty) or `Save`, `Save Long`, `Save Double`. |
+| `KeyMode_(Key)` | | | | | ✓ | Normal / Down / Up. PC: `Y` for Force, sent even with `Skip_Same_PC` on. CCInc and PCInc: Up / Down / Up Repeat / Down Repeat. Tap: Tap / Clock / Set / Up / Down / Up Repeat / Down Repeat / Record / Playback / Erase / Out / Save. Listen: Steady / Slow / Fast / Dim. Exp: CC / Off / Own / Speed / Add / Wheel / Arrows. LFO: Sine / Triangle / SawUp / SawDown / Square / Random (empty for Sine). Seq: how long a step lasts, the same note divisions as the LFO (empty for `1/8`), read from the first command of the run. MMC: Play / Stop / Record / RecordExit / Pause / FastForward / Rewind / Locate / DeferredPlay / Chase / Eject / Reset (empty for Play). Song: Select / Position. Value: Set / Add / Sub (empty for Set). If: Button on / Button off / Value = / Value <> / Value < / Value >= / Bank is / Bank is not. Bank: GoTo / Up / Down / Back / Page / Config / NextConfig / Reveal / Direct / Lock. Macro: Short / Long / Double. Button: Press / On / Off / Set On / Set Off, then Long or Double for those lists. Wait: Time / Beat / Bar / Count (empty for Time). NRPN: NRPN / RPN / NRPN 14-bit / RPN 14-bit (empty for NRPN) Scene: `Recall` (or empty) or `Save`, `Save Long`, `Save Double`. |
 
 ---
 

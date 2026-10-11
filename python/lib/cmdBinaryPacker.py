@@ -166,6 +166,9 @@ PC_REL_DOWN = 0x82
 PC_REL_UP_REPEAT = 0x83
 PC_REL_DOWN_REPEAT = 0x84
 PC_REL_MARKERS = (PC_REL_UP, PC_REL_DOWN, PC_REL_UP_REPEAT, PC_REL_DOWN_REPEAT)
+# A PC with no Bank Select MSB that goes out even when Skip_Same_PC is on
+# (firmware 1.27); older firmware sends it as a plain PC
+PC_FORCE = 0x85
 # In the step byte of CCInc: fire again while the button is held
 CCINC_REPEAT_BIT = 0x80
 # Button order of a scene string, one character each: + on, - off, . leave
@@ -330,13 +333,15 @@ def cmd_pc(cmd):
     field, as this used to, made every Program Change send an unwanted
     Bank Select LSB of 0, which on some devices changes bank.
     """
+    # Force (KeyMode Y): sent even when the channel is already on it
+    force = str(cmd.get("KeyMode_(Key)", "")).strip().upper() in ("Y", "FORCE")
     raw = str(cmd["BankSelect_(PC)"]).strip()
     if raw.lower() in ("", "nan", "none"):
         # No Bank Select at all: both bytes marked as absent
         return [
             CMD_PC_NIBBLE | channel_nibble(cmd["Channel_(PC/CC/Note/PB)"]),
             safe_int(cmd["Number_(PC/CC/Note)"]) & 0x7F,
-            0x80,
+            PC_FORCE if force else 0x80,
             0xFF,
         ]
 
@@ -344,9 +349,11 @@ def cmd_pc(cmd):
 
     bs_high_str = str(cmd["BankSelectHighByte_(PC)"])
     if "Y" in bs_high_str:
+        if force:
+            raise ValueError("A PC with Force cannot send the Bank Select MSB")
         bank_select_high = (safe_int(cmd["BankSelect_(PC)"]) >> 7) & 0x7F
     else:
-        bank_select_high = 0x80
+        bank_select_high = PC_FORCE if force else 0x80
 
     cmd_bytes = [
         CMD_PC_NIBBLE

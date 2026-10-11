@@ -671,6 +671,7 @@ class SlotEditor:
             self._int("number", "Program", "Number_(PC/CC/Note)", 0, 127)
             self._int("bank", "BankSel", "BankSelect_(PC)", 0, 16383, width=65)
             self._check("bank_msb", "Send bank MSB", "BankSelectHighByte_(PC)")
+            self._check("force", "Force", "KeyMode_(Key)")
         elif cmd_type == "CC":
             self._channel()
             self._int("number", "CC#", "Number_(PC/CC/Note)", 0, 127)
@@ -1119,6 +1120,8 @@ class SlotEditor:
             out["BankSelect_(PC)"] = w["bank"].value()
         if "bank_msb" in w:
             out["BankSelectHighByte_(PC)"] = w["bank_msb"].value()
+        if "force" in w:
+            out["KeyMode_(Key)"] = w["force"].value()
         if "velocity" in w:
             out["Velocity_(Note)"] = w["velocity"].value()
         if "duration" in w:

@@ -209,10 +209,11 @@ class Demo:
                        "OnValue_(CC/PB)": on, "OffValue_(CC)": off,
                        "Toggle_(CC/PB/Note)": toggle})
 
-    def pc(self, bank, btn, label, program, ch="1", bank_select="", msb="N", slot="A"):
+    def pc(self, bank, btn, label, program, ch="1", bank_select="", msb="N", slot="A", force=""):
         self.button(bank, btn, label, None, slot, CommandType="PC",
                     **{"Channel_(PC/CC/Note/PB)": ch, "Number_(PC/CC/Note)": program,
-                       "BankSelect_(PC)": bank_select, "BankSelectHighByte_(PC)": msb})
+                       "BankSelect_(PC)": bank_select, "BankSelectHighByte_(PC)": msb,
+                       "KeyMode_(Key)": force})
 
     def key(self, bank, btn, label, mods, keyname, mode="Normal", duration="", toggle="N", slot="A"):
         self.button(bank, btn, label, None, slot, CommandType="Key",
@@ -355,7 +356,9 @@ def build() -> Demo:
     d.bank_expression(7, Exp1_CC="Off", Exp2_CC="7", Exp2_Channel="2", Exp2_Min="40")
 
     # --- bank 3: program changes, with and without bank select -----------
-    d.pc(3, "1", "P 0", "0")
+    # Skip_Same_PC is on, so a PC the channel is already on is not sent
+    # again; P 0 has Force and always is, reloading the patch bank 3 entered on
+    d.pc(3, "1", "P 0", "0", force="Y")
     # Held, P 0 changes the amp on the DIN port alone and tells the computer
     # with a CC on USB alone: each Chan picks the output of the command below
     d.long_press(3, "1", CommandType="Chan", **{"KeyMode_(Key)": "DIN"})
@@ -784,6 +787,7 @@ def global_settings() -> pd.DataFrame:
                 ("Bank_Down_LED_Mode", "Normal"),
                 ("USB_MIDI_Thru", "Y"),
                 ("USB_Ports", "1"),
+                ("Skip_Same_PC", "Y"),
                 ("Remember_State", "Y"),
                 ("Long_Press_ms", "500"),
                 ("LED_Brightness", "100"),
