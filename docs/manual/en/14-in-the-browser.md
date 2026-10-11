@@ -31,7 +31,7 @@ It keeps time as the pedal does, a millisecond at a time, but the browser runs i
 - **Open CSV** opens a configuration file, from the configurator, the command line tools or a template.
 - **Demo** opens the demo configuration, which uses every feature.
 
-The name of the configuration is at the top, with **changed** after it until it is saved or written. Leaving the page with changes not saved asks first.
+The name of the configuration is at the top, with **changed** after it until it is saved or written; a change made while the pedal is being written stays marked, since it is not on the pedal. Leaving the page with changes not saved, or while the pedal is being written or updated, asks first.
 
 ## Editing
 

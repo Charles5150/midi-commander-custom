@@ -29,6 +29,7 @@ const state = {
   config: null,        // sections: {name: {columns, rows}}
   fileName: "",
   dirty: false,
+  edits: 0,            // counts the changes, so a write knows if more came while it ran
   bank: 0,
   button: "1",
   press: "Short",
@@ -155,6 +156,7 @@ function configName() {
 let checkTimer = null;
 function changed() {
   state.dirty = true;
+  state.edits++;
   renderToolbar();
   clearTimeout(checkTimer);
   checkTimer = setTimeout(checkConfig, 350);
@@ -823,6 +825,7 @@ async function backupSlots() {
 async function writeToPedal() {
   const problem = checkConfig();
   if (problem) { toast("Fix the configuration first: " + problem, "error"); return; }
+  const edits = state.edits;
   let packed;
   try { packed = state.tools.pack(state.config); } catch (e) { toast(e.message, "error"); return; }
   const pedal = state.pedal;
@@ -848,7 +851,7 @@ async function writeToPedal() {
     const log = (m) => { console.log(m); if (m.startsWith("WARNING: ")) warning = m.slice(9); };
     await pedal.writeImage(state.version, packed.config, packed.image, log, (d, t) => setBusy(`Writing slot ${slot + 1}`, d, t), state.tools.sizes.ext2Offset);
     setBusy("Restarting the pedal");
-    state.dirty = false;
+    state.dirty = state.edits !== edits;     // what changed during the write is not on the pedal
     pedal.reset();
     toast(warning ? `Written to slot ${slot + 1}, but ${warning}` : `Written to slot ${slot + 1}; the pedal restarts`, warning ? "error" : undefined);
   } catch (e) {
@@ -1080,7 +1083,7 @@ async function askForBootloader() {
           try { const d = await navigator.usb.requestDevice({ filters: [DFU_FILTER] }); dlg.close(); resolve(d); } catch (e) { /* chose nothing */ }
         } }, "Choose")));
     document.body.append(dlg);
-    dlg.addEventListener("close", () => dlg.remove());
+    dlg.addEventListener("close", () => { dlg.remove(); resolve(null); });   // Escape too
     dlg.showModal();
   });
 }
@@ -1131,7 +1134,7 @@ async function updateFirmware() {
 }
 
 // --- Start -------------------------------------------------------------------------
-window.addEventListener("beforeunload", (e) => { if (state.dirty) { e.preventDefault(); e.returnValue = ""; } });
+window.addEventListener("beforeunload", (e) => { if (state.dirty || state.busy) { e.preventDefault(); e.returnValue = ""; } });
 
 document.addEventListener("DOMContentLoaded", async () => {
   $("#btn-open").addEventListener("click", openFile);

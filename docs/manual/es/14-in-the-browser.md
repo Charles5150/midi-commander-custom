@@ -31,7 +31,7 @@ Lleva el tiempo como la pedalera, milisegundo a milisegundo, pero la ejecuta el 
 - **Open CSV** abre un fichero de configuración, del configurador, de las herramientas de línea de comandos o una plantilla.
 - **Demo** abre la configuración de demostración, que usa todas las funciones.
 
-El nombre de la configuración está arriba, seguido de **changed** hasta que se guarda o se escribe. Salir de la página con cambios sin guardar pregunta antes.
+El nombre de la configuración está arriba, seguido de **changed** hasta que se guarda o se escribe; un cambio hecho mientras se escribe en la pedalera sigue marcado, porque no está en ella. Salir de la página con cambios sin guardar, o mientras se escribe o se actualiza la pedalera, pregunta antes.
 
 ## Editar
 
