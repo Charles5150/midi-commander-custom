@@ -690,6 +690,26 @@ class BackCommandTest(unittest.TestCase):
                          ("PREV", "Bank", "Back"))
         self.assertEqual(norm(row["A_OnValue_(CC/PB)"]), "")
 
+class BankLockTest(unittest.TestCase):
+    """Locking the switches with a Bank Lock, best in a combination (1.21)."""
+
+    def test_command(self):
+        self.assertEqual(cbp.cmd_bank({"KeyMode_(Key)": "Lock", "OnValue_(CC/PB)": "3"}), [0x49, 0, 0, 0])
+        cmd = unpacker.unpack_command(bytes([0x49, 0, 0, 0]))
+        self.assertEqual((cmd["CommandType"], cmd["KeyMode_(Key)"], cmd["OnValue_(CC/PB)"]),
+                         ("Bank", "Lock", ""))
+        from lib.configSchema import BANK_MODES
+        self.assertIn("Lock", BANK_MODES)
+
+    def test_firmware(self):
+        defines = firmware_source("Inc", "midi_defines.h")
+        self.assertRegex(defines, r"#define BANK_MODE_LOCK\s+\(9\)")
+        router = firmware_source("Src", "switch_router.c")
+        self.assertIn("case BANK_MODE_LOCK:        set_locked(!locked); break;", router)
+        self.assertIn("return !locked || list_has_lock(combo_list(n));", router)
+        self.assertIn("locked = false;", router)  # another configuration starts unlocked
+        self.assertIn('if(sw_locked()) text[DISPLAY_TEXT_INFO] = "LOCKED";', firmware_source("Src", "display.c"))
+
 class BankDirectTest(unittest.TestCase):
     """Choosing any bank with two presses, Bank Direct (0.92)."""
 

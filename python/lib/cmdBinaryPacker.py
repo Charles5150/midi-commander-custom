@@ -561,8 +561,11 @@ def cmd_bank(cmd):
     the bank left by the last bank change, no value. Reveal: while held, the
     buttons show the labels of their long presses, no value. Direct: the
     buttons choose a group of eight banks and then one of them, no value.
+    Lock: locks every switch but those holding a Lock, or unlocks, no value.
     """
     mode_text = str(cmd.get("KeyMode_(Key)", "")).strip().upper().replace(" ", "")
+    if mode_text.startswith("LOCK"):
+        return [CMD_BANK_NIBBLE | 9, 0, 0, 0]
     if mode_text.startswith("DIRECT"):
         return [CMD_BANK_NIBBLE | 8, 0, 0, 0]
     if mode_text.startswith("REVEAL"):

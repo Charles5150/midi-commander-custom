@@ -980,3 +980,42 @@ test("live values: $N shows the preset you are on by its name, $V a button's val
   for (let i = 0; i < 7; i++) tap(knob, 4);  // WRP+, by 16, a toggle drawn the other way round
   assert.ok(smallTextAt(knob, 2, 48, "W:112", true), "one character more than a label fits, in the small letters");
 });
+
+// Two switches pressed together, as a foot does: the second a little after
+function pair(sim, a, b) {
+  sim.footswitch(a, true);
+  sim.run(20);
+  sim.footswitch(b, true);
+  sim.run(100);
+  sim.footswitch(a, false);
+  sim.footswitch(b, false);
+  sim.run(600);
+}
+
+test("B+C locks the demo's switches, LOCKED in the info line, and unlocks them (before 1.21, nothing did)", async () => {
+  const sim = simWithDemo();
+  sim.run(10000);                           // the power on banner goes by first
+  tap(sim, 0);                              // the index to LOOP
+  const pedal = await Pedal.open(sim.access);
+  const seen = watch(sim);
+  pair(sim, 5, 6);
+  sim.run(3000);                            // past the LOCKED readout
+  assert.ok(infoLineIs(sim, "LOCKED"), "the info line says so");
+  assert.deepEqual(seen.splice(0), [], "the lock itself sends nothing");
+
+  tap(sim, 0);                              // REC
+  tap(sim, 5);                              // B alone
+  tap(sim, 9);                              // Bank Up
+  sim.footswitch(3, true);                  // half of 3+4, held long
+  sim.run(1500);
+  sim.footswitch(3, false);
+  sim.run(600);
+  assert.deepEqual(seen.splice(0), [], "nothing goes out");
+  assert.equal((await running(sim, () => pedal.getState())).bankName, "LOOP", "nor does the bank change");
+
+  pair(sim, 6, 5);                          // the other way round
+  sim.run(3000);
+  assert.ok(infoLineIs(sim, "looper"), "the bank's own info again");
+  tap(sim, 0);
+  assert.deepEqual(seen.splice(0), ["USB b0 01 7f", "DIN b0 01 7f"], "REC answers again");
+});

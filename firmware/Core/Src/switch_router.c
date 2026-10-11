@@ -115,6 +115,7 @@ typedef struct {
 #define PRESS_DOUBLE	(5)  // Double press commands fired, waiting for release
 #define PRESS_COMBO_WAIT	(6)  // Down, waiting to see if the other switch of a combination follows
 #define PRESS_COMBO		(7)  // Half of a combination that fired, waiting for release
+#define PRESS_LOCKED	(8)  // Down while the switches are locked: nothing, until released
 
 typedef struct {
 	uint32_t systick_timout;
@@ -623,6 +624,39 @@ static void set_reveal(bool on){
 }
 
 static const uint8_t *direct_label(uint8_t sw);
+
+/*
+ * Lock: a Bank command in BANK_MODE_LOCK locks every switch, Bank Up and Down
+ * too, so nothing goes out when the pedal is stepped on between songs or
+ * carried. Only a combination or a button whose list holds a Lock still
+ * answers, and its Lock unlocks. The info line says LOCKED. It is not kept:
+ * a power cycle or another configuration starts unlocked.
+ */
+static bool locked = false;
+
+bool sw_locked(void){
+	return locked;
+}
+
+static void set_locked(bool on){
+	locked = on;
+	display_request_refresh();	// the info line under the readout
+	display_show_message(on ? "LOCKED" : "UNLOCKED");
+}
+
+static bool list_has_lock(const uint8_t *base){
+	for(uint8_t c=0; base && c<MIDI_NUM_COMMANDS_PER_SWITCH; c++){
+		if(base[c * MIDI_ROM_CMD_SIZE] == (CMD_BANK_NIBBLE | BANK_MODE_LOCK)) return true;
+	}
+	return false;
+}
+
+// Whether a button of the bank showing still answers while locked
+static bool lock_passes(uint8_t sw){
+	uint8_t bank = switch_current_page;
+	return list_has_lock(get_rom_pointer(bank, sw, 0)) || list_has_lock(get_long_rom_pointer(bank, sw, 0))
+			|| (flash_settings_double_stored() && list_has_lock(get_double_rom_pointer(bank, sw, 0)));
+}
 
 const uint8_t *sw_button_label(uint8_t bank, uint8_t sw){
 	if(sw_preview_bank() != 0xFF && (sw_preview_bank() & PREVIEW_DIRECT)) return direct_label(sw);
@@ -1381,6 +1415,7 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 		case BANK_MODE_BACK:        pending_bank = previous_bank; break;
 		case BANK_MODE_REVEAL:      set_reveal(true); break;
 		case BANK_MODE_DIRECT:      direct_show(PREVIEW_DIRECT); break;
+		case BANK_MODE_LOCK:        set_locked(!locked); break;
 		default: pending_bank = (pRom[1] < MIDI_NUM_BANKS) ? pRom[1] : 0xFF; break;
 		}
 		break;
@@ -3110,6 +3145,10 @@ static void handle_bank_switch(bank_press_t *bp, GPIO_TypeDef *port, uint16_t pi
 	clear_changed(pChanged, pin);
 
 	if(switch_down(port, pin)){
+		if(locked){
+			display_show_message("LOCKED");
+			return;
+		}
 		// Pressed: wait to see whether this becomes a long press
 		bp->press_tick = now;
 		bp->state = PRESS_PENDING;
@@ -3212,6 +3251,7 @@ static void switch_config(uint8_t target){
 	memset(cycle_pos, CYCLE_NONE, sizeof(cycle_pos));
 	combo_toggle = 0;
 	combo_held = 0xFF;
+	locked = false;		// the new one may hold no Lock to undo it
 	pending_bank = 0xFF;
 	pending_page = 0xFF;
 
@@ -3786,11 +3826,15 @@ static uint32_t combo_window_ms(void){
 }
 
 // Whether combination n is a valid one that counts in the bank showing
+static uint8_t *combo_list(uint8_t n);
+
+// Locked, only a combination whose list holds a Lock counts
 static bool combo_here(uint8_t n){
 	const uint8_t *c = pCombos + n * COMBO_STRIDE;
 	uint8_t a = c[0] & 0x0F, b = c[0] >> 4;
 	if(c[0] == COMBO_UNUSED || a >= MIDI_NUM_SWITCHES || b >= MIDI_NUM_SWITCHES || a == b) return false;
-	return c[1] == COMBO_EVERY_BANK || c[1] == (uint8_t)(switch_current_page + 1U);
+	if(c[1] != COMBO_EVERY_BANK && c[1] != (uint8_t)(switch_current_page + 1U)) return false;
+	return !locked || list_has_lock(combo_list(n));
 }
 
 static bool combo_has(uint8_t n, uint8_t sw){
@@ -3902,7 +3946,7 @@ static bool editor_switches(uint32_t now){
 			both_banks_since = BOTH_BANKS_DONE;	// once per hold
 			if(editor_is_open()){
 				editor_close();
-			} else if(pGlobalSettings[GLOBAL_SETTINGS_EDIT_LOCK] != 1 || safe_mode){
+			} else if((pGlobalSettings[GLOBAL_SETTINGS_EDIT_LOCK] != 1 || safe_mode) && !locked){
 				preview_end();
 				preview_held = 0;	// the editor takes the releases now
 				editor_open();
@@ -3992,7 +4036,9 @@ void handle_switches(void){
 		// No partner in time: the press carries on as if it had just begun,
 		// with the wait counted in towards a long press
 		if(sw->press_state == PRESS_COMBO_WAIT && (now - sw->press_tick) >= combo_window_ms()){
-			if(has_long || has_double){
+			if(locked && !lock_passes(i)){
+				sw->press_state = PRESS_LOCKED;	// half of a Lock combination alone
+			} else if(has_long || has_double){
 				uint32_t began = sw->press_tick;
 				pending_begin(i, now);
 				sw->press_tick = began;
@@ -4031,7 +4077,10 @@ void handle_switches(void){
 
 			if(switch_down(sw_pins[i].port, sw_pins[i].pin)){
 				// Switch Down
-				if(sw->press_state == PRESS_WAIT_SECOND){
+				if(locked && !lock_passes(i) && !combo_member(i)){
+					sw->press_state = PRESS_LOCKED;	// does nothing until let go
+					display_show_message("LOCKED");
+				} else if(sw->press_state == PRESS_WAIT_SECOND){
 					// The second press of a double press
 					set_momentary_led(i, 1);
 					latency_begin();
@@ -4056,6 +4105,7 @@ void handle_switches(void){
 				uint8_t next = PRESS_IDLE;
 				switch(sw->press_state){
 				case PRESS_COMBO_WAIT:	// let go before its partner came: a tap
+					if(locked && !lock_passes(i)) break;
 					sw->instant_fired = false;
 					// fall through
 				case PRESS_PENDING:

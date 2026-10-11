@@ -55,13 +55,37 @@ Se configura en la pestaña **Combos** del configurador, una fila por combinaci�
 - **Al soltar.** La lista se ejecuta al pisar, con un estado de toggle propio de la combinación, y lo que va al soltar (los «off» momentáneos) sale cuando se levanta el primero de los dos pulsadores. `Wait`, `If`, `Macro` y los demás funcionan ahí como en cualquier otro sitio.
 - Dos pulsaciones del mismo pulsador siguen siendo una pulsación doble, no una combinación, y los dos pulsadores de banco conservan su propio gesto, el [editor de la pedalera](10-editing-on-the-pedal.md).
 
-En la demo, 3+4 activa y desactiva un afinador en todos los bancos y borra el looper en la canción 1.
+En la demo, 3+4 activa y desactiva un afinador en todos los bancos y borra el looper en la canción 1, y B+C [bloquea los pulsadores](#bloquear-los-pulsadores).
 
 *Firmware 0.59 o posterior.*
 
 <details><summary>Por dentro</summary>
 
 Una combinación ocupa cuatro bytes en lugar de diez comandos: no quedaba sitio para una lista propia. El firmware lee la tabla de los últimos 48 bytes de la ranura de configuración; un firmware anterior la ignora y los dos pulsadores hacen lo que hacen por separado.
+
+</details>
+
+### Bloquear los pulsadores
+
+Pasar por encima de la pedalera entre canciones, recoger, o que alguien se apoye en ella: un comando `Bank` con la acción `Lock` bloquea todos los pulsadores, para que nada de eso envíe nada. Ponlo en la lista de una combinación y la misma pareja desbloquea:
+
+1. En un botón libre, uno del banco global por ejemplo, añade un comando `Bank` y elige **Lock**.
+2. En la pestaña **Combos**, añade una pareja, B+C por ejemplo, en todos los bancos, que ejecute la pulsación corta de ese botón.
+
+Pisada a la vez, la pareja bloquea la pedalera: `LOCKED` aparece un momento y luego se queda en la línea de info en lugar de la del banco. Pisada a la vez otra vez, desbloquea, y `UNLOCKED` aparece un momento.
+
+- **Mientras está bloqueada** ningún pulsador hace nada: ni comandos, ni luces, ni cambio de banco, incluidos Bank Up y Down y su [gesto del editor](10-editing-on-the-pedal.md). Una pisada muestra `LOCKED` un momento, para que no parezca que la pedalera está rota.
+- **Lo que sigue respondiendo** es una combinación, o un botón, cuya lista lleva un `Lock`. Un botón con un `Lock` en cualquiera de sus listas responde entero: deja el comando en una pareja, o en una pulsación larga, que un pie despistado rara vez hace.
+- **Las pulsaciones de otros sitios cuentan como pulsaciones.** Las pulsaciones remotas por MIDI (`Remote_Mode`), las de la [página](14-in-the-browser.md) y una caja de pulsadores en una toma de expresión se bloquean igual que los propios pulsadores. Lo que no es una pulsación sigue pasando: un cambio de banco o una entrada del [mapa MIDI](11-devices.md) desde el ordenador, y los pedales de expresión.
+- **No se guarda.** Al apagar y encender, o al cambiar a otra configuración, empieza desbloqueada, así que una ranura sin `Lock` nunca te deja atascado.
+
+La demo bloquea y desbloquea con B+C, en todos los bancos.
+
+*Firmware 1.21 o posterior.*
+
+<details><summary>Por dentro</summary>
+
+Se guarda como nibble bajo 9 del comando `Bank`, sin valor. Un firmware anterior a la 1.21 lo toma como `GoTo` al banco 0, así que actualiza el firmware antes de usarlo.
 
 </details>
 

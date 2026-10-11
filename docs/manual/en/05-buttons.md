@@ -55,13 +55,37 @@ Set it up in the configurator's **Combos** tab, one row per combination, up to t
 - **Release.** The list runs on the press with a toggle state of the combination's own, and its release, the momentary offs, goes out when the first of the two switches lets go. `Wait`, `If`, `Macro` and the rest work in it as anywhere else.
 - Two presses of the same switch are still a double press, not a combination, and the two bank switches keep their own gesture, the [on-pedal editor](10-editing-on-the-pedal.md).
 
-In the demo, 3+4 toggles a tuner in every bank and clears the looper on song 1.
+In the demo, 3+4 toggles a tuner in every bank and clears the looper on song 1, and B+C [locks the switches](#locking-the-switches).
 
 *Firmware 0.59 or later.*
 
 <details><summary>Under the hood</summary>
 
 A combination costs four bytes rather than ten commands: there was no room left for a list of its own. The firmware reads the table from the last 48 bytes of the configuration slot; older firmware ignores it and the two switches do what they do alone.
+
+</details>
+
+### Locking the switches
+
+Stepping over the pedal between songs, packing up, or someone leaning on it: a `Bank` command with the action `Lock` locks every switch, so none of that sends anything. Put it in a combination's list and the same pair unlocks:
+
+1. On a spare button, the global bank's for instance, add a `Bank` command and choose **Lock**.
+2. In the **Combos** tab, add a pair, B+C say, in all banks, running that button's short press.
+
+Pressed together, the pair locks the pedal: `LOCKED` shows for a moment, then stays in the info line in place of the bank's own. Pressed together again, it unlocks, and `UNLOCKED` shows for a moment.
+
+- **While locked** no switch does anything: no command, no light, no bank change, Bank Up and Down and their [editor gesture](10-editing-on-the-pedal.md) included. A press shows `LOCKED` for a moment, so the pedal does not look broken.
+- **What still answers** is a combination, or a button, whose list holds a `Lock`. A button with a `Lock` in any of its lists answers whole: keep the command on a pair, or on a long press, which a stray foot rarely makes.
+- **Presses from elsewhere count as presses.** Remote presses over MIDI (`Remote_Mode`), presses from the [page](14-in-the-browser.md) and a box of switches on an expression jack are locked like the switches themselves. What is not a press still goes through: a bank change or a [MIDI map](11-devices.md) entry from the computer, and the expression pedals.
+- **It is not kept.** A power cycle, or a switch to another configuration, starts unlocked, so a slot that has no `Lock` can never leave you stuck.
+
+The demo locks and unlocks with B+C, in every bank.
+
+*Firmware 1.21 or later.*
+
+<details><summary>Under the hood</summary>
+
+Stored as low nibble 9 of the `Bank` command, with no value. Firmware before 1.21 takes it as `GoTo` bank 0, so update the firmware before using it.
 
 </details>
 

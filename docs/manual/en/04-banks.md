@@ -89,6 +89,7 @@ Any button can move you between banks with a `Bank` command, alongside whatever 
 | `Config`, `NextConfig` | Switches to another [configuration](#four-configurations). |
 | `Reveal` | While held, every button shows the label of its long press; see [Labels for the long press](05-buttons.md#labels-for-the-long-press). |
 | `Direct` | Two presses choose any bank: its group of eight, then the bank; see [Any bank in two presses](#any-bank-in-two-presses). |
+| `Lock` | Locks every switch, or unlocks them; see [Locking the switches](05-buttons.md#locking-the-switches). |
 
 The change happens after the button's remaining commands have been sent, so a button can send MIDI and then move to another bank. In the CSV it is `CommandType` `Bank`, with the action in `KeyMode` and the bank or the number of banks in `OnValue`; nothing else in the command is used.
 

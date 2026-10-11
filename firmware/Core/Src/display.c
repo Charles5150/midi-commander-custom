@@ -538,6 +538,7 @@ static void draw_top(uint8_t bank, uint8_t over_place, const char *override){
 	if(bank == current_bank && preview_bank == 0xFF){
 		if(!text[DISPLAY_TEXT_NAME][0]) text[DISPLAY_TEXT_NAME] = count_text;
 		if(!text[DISPLAY_TEXT_INFO][0]) text[DISPLAY_TEXT_INFO] = beat_text[0] ? beat_text : setlist_text;
+		if(sw_locked()) text[DISPLAY_TEXT_INFO] = "LOCKED";	// over anything else there
 	}
 	// A moment's text in the bank name or info shows even over a whole line
 	if(override && over_place <= DISPLAY_TEXT_NAME){

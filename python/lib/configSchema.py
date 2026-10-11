@@ -45,7 +45,7 @@ ENTER_COMMAND_TYPES = COMMAND_TYPES + ["Leave"]
 TAP_MODES = ["Tap", "Clock", "Set", "Up", "Down", "Up Repeat", "Down Repeat"]
 WAIT_MODES = ["Time", "Beat", "Bar", "Count"]
 CCINC_DIRECTIONS = ["Up", "Down", "Up Repeat", "Down Repeat"]
-BANK_MODES = ["GoTo", "Up", "Down", "Config", "NextConfig", "Page", "Back", "Reveal", "Direct"]
+BANK_MODES = ["GoTo", "Up", "Down", "Config", "NextConfig", "Page", "Back", "Reveal", "Direct", "Lock"]
 CONFIG_SLOT_NAMES = ["1", "2", "3", "4"]
 KEY_MODES = ["Normal", "Down", "Up"]
 KEY_NAMES = (
@@ -255,7 +255,8 @@ COMMAND_SPECS = {
              "hints": {"NextConfig": "next slot holding a configuration",
                        "Back": "the bank you came from",
                        "Reveal": "while held, the buttons show their long press labels",
-                       "Direct": "two presses choose any bank: its group of eight, then the bank"}},
+                       "Direct": "two presses choose any bank: its group of eight, then the bank",
+                       "Lock": "locks every switch but those holding a Lock, which unlocks; best in a combination"}},
     "MMC": {"fields": [_f(MODE, "Action", _choice(MMC_COMMANDS), default="Play"),
                        _f(ON, "At (s)", _int(0, MMC_LOCATE_MAX), default="0", **_when(MODE, "Locate"))],
             "hint": "MIDI Machine Control, to every device"},

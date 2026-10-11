@@ -773,16 +773,17 @@ class ComboTest(unittest.TestCase):
             self.assertEqual(packer.pack_flash_image(again), image)
 
     def test_demo(self):
-        """3+4 is the tuner everywhere, and on the first song the looper's clear."""
+        """3+4 is the tuner everywhere, and on the first song the looper's clear;
+        B+C locks the switches everywhere."""
         sections = read_config_csv(DEMO_CSV)
         combos = sections[packer.COMBO_SECTION]
-        self.assertEqual(combos["Switches"].tolist(), ["3+4", "3+4"])
-        self.assertEqual(combos["Bank"].tolist(), ["All", "12"])
+        self.assertEqual(combos["Switches"].tolist(), ["3+4", "3+4", "B+C"])
+        self.assertEqual(combos["Bank"].tolist(), ["All", "12", "All"])
         buttons = sections["Button_Settings"]
-        for _, c in combos.iterrows():
+        for (_, c), kind in zip(combos.iterrows(), ("CC", "CC", "Bank")):
             row = buttons[(buttons["Bank_Number"].astype(str) == c["Run_Bank"])
                           & (buttons["Button_Identifier"] == c["Run_Button"])].iloc[0]
-            self.assertEqual(norm(row["A_CommandType"]), "CC", c.to_dict())
+            self.assertEqual(norm(row["A_CommandType"]), kind, c.to_dict())
         table = self.table(pack_config(sections))
         self.assertEqual(table[:8], bytes([0x32, 0, 30, 0x05, 0x32, 13, 30, 0x03]))
 

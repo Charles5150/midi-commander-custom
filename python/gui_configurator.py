@@ -673,6 +673,9 @@ class SlotEditor:
             elif mode == "Direct":
                 ctk.CTkLabel(self.params, text="(two presses: the group, then the bank)",
                              text_color=MUTED).pack(side="left", padx=8)
+            elif mode == "Lock":
+                ctk.CTkLabel(self.params, text="(locks the switches, or unlocks)",
+                             text_color=MUTED).pack(side="left", padx=8)
             else:
                 self._label("Banks")
                 v = IntEntry(self.params, 1, 31, self.initial.get("OnValue_(CC/PB)") or "8", width=55)
