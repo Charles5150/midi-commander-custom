@@ -44,6 +44,7 @@ En el configurador, pon los bancos en orden en la pestaña **Setlist**, un despl
 - Un banco puede aparecer más de una vez, pero al avanzar desde él siempre se sigue desde su primera aparición.
 - Un `GoTo` y un cambio de banco por MIDI entrante siguen yendo al banco exacto que se pide.
 - La lista solo cuenta mientras **Follow the setlist** está activado, así que puedes tener una guardada y desactivarla.
+- Sin ordenador a mano, el [editor de la pedalera](10-editing-on-the-pedal.md#reordenar-el-setlist) mueve, añade y quita canciones (firmware 1.23).
 
 ### Dónde estás en ella
 

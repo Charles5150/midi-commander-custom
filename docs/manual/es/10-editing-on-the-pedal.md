@@ -14,7 +14,7 @@ Mantén **Bank Down y Bank Up a la vez durante dos segundos** y la pedalera abre
 
 ## Los pulsadores
 
-![Las dos pantallas del editor y qué hace cada pulsador](../images/editor-es.svg)
+![Las tres pantallas del editor y qué hace cada pulsador](../images/editor-es.svg)
 
 La pantalla es una lista de campos con nombre, con el cursor en uno de ellos:
 
@@ -24,7 +24,7 @@ La pantalla es una lista de campos con nombre, con el cursor en uno de ellos:
 | **3** / **4** | cambian el valor bajo el cursor; si los mantienes, repiten y aceleran |
 | **A** / **B** | pasan al comando anterior o siguiente de la lista del botón |
 | **C** | envía el comando tal como está, para oírlo |
-| **D** | cambia entre los comandos y los ajustes |
+| **D** | pasa a la pantalla siguiente: los comandos, los ajustes, el setlist, y vuelta a empezar |
 | **Bank Down** / **Bank Up** | pasan al banco anterior o siguiente |
 
 ## Editar los comandos de un botón
@@ -46,7 +46,7 @@ Un comando de cualquier otro tipo se muestra por su nombre y se deja exactamente
 
 ## Editar los ajustes
 
-**D** pasa a la pantalla de ajustes, con los ajustes globales que son un número o una opción. El resto, los que necesitan texto o una lista, se quedan para el configurador.
+**D** pasa de los comandos a la pantalla de ajustes, con los ajustes globales que son un número o una opción. El resto, los que necesitan texto o una lista, se quedan para el configurador.
 
 | En la pedalera | En el configurador (CSV) |
 |---|---|
@@ -72,9 +72,28 @@ Un comando de cualquier otro tipo se muestra por su nombre y se deja exactamente
 | `EXP1SEND`, `EXP2SEND` | cada pedal envía su posición al entrar en un banco (`Send_On_Bank`) |
 | `BARBEATS` | los tiempos de un compás para el compás y el tiempo en la pantalla, `off` o 1–15 (`Beat_Counter`) |
 
+## Reordenar el setlist
+
+La banda cambia el orden en la prueba de sonido, y el portátil está en el coche. **D** desde los ajustes pasa a la pantalla del setlist: una línea por canción, con su puesto, el número de su banco y su nombre grande, y una última línea `END` para añadir detrás.
+
+| Pulsador | En la pantalla del setlist |
+| --- | --- |
+| **1** / **2** | mueven el cursor de canción en canción |
+| **3** / **4** | cambian el banco de la canción; **3** por debajo del banco 1 muestra `---`, que quita la canción |
+| **A** / **B** | mueven la canción un puesto antes o después, y el cursor con ella |
+| **C** | mete el banco en el que está la pedalera, delante de la canción bajo el cursor, o al final si está en `END` |
+
+Así que para añadir una canción, ve primero a su banco, abre el editor, pasa al setlist, pon el cursor donde va y pulsa **C**. La lista admite hasta 32 canciones; llena, **C** ya no añade nada.
+
+- La lista se guarda al salir el cursor de la línea, como todo en el editor, y una canción puesta a `---` desaparece al guardarse.
+- El orden solo cuenta mientras `SETLIST` en los ajustes está en `Yes` o `Shown`, igual que el [setlist](04-banks.md#setlist) que escribe el configurador; la pantalla está ahí de todos modos.
+- **Bank Down** y **Bank Up** no hacen nada en esta pantalla.
+
+*Firmware 1.23 o posterior.*
+
 ## Cuándo se guarda un cambio
 
-Lo que cambias se escribe en la flash en cuanto el cursor sale del comando, la etiqueta o el ajuste, así que si te vas no pierdes nada. Una estrella en la línea del título indica que hay algo sin escribir todavía.
+Lo que cambias se escribe en la flash en cuanto el cursor sale del comando, la etiqueta, el ajuste o la canción, así que si te vas no pierdes nada. Una estrella en la línea del título indica que hay algo sin escribir todavía.
 
 - Una escritura tarda una décima de segundo, durante la cual la pedalera está ocupada: cambia lo que necesites entre canciones, no en mitad de una.
 - Después la pedalera vuelve a leer la configuración, así que el comando nuevo funciona al momento.

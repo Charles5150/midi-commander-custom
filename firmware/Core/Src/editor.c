@@ -13,13 +13,19 @@
  *   3 and 4   change the value under the cursor; held, they repeat and speed up
  *   A and B   step to the previous or next command of the list
  *   C         sends the command as it stands, so it can be heard
- *   D         swaps the commands for the settings
+ *   D         goes on to the settings, then to the setlist, then back
  *
  * What is changed is written back to flash as soon as the cursor leaves the
  * command, the label or the setting, so walking away loses nothing. A star in
  * the title says there is something not written yet. Writing means rewriting
  * the 2 kB flash page those bytes live in (flash_settings_patch), after which
  * everything the firmware derives from the configuration is built again.
+ *
+ * The setlist screen lists the songs in their order, a bank each, with a last
+ * END line to add after them. 3 and 4 change the song's bank, and below the
+ * first bank is "---", which takes it out of the list; A and B move it one
+ * place earlier or later; C puts the bank the pedal is on in before it. The
+ * list is written when the cursor leaves its line, as one 32 byte patch.
  *
  * The double press lists are offered only when the configuration has them:
  * they live in an area the tools write as a block, which a configuration
@@ -71,12 +77,15 @@ static const char *const tap_actions[] = {"Tap", "Clock", "Set BPM", "Up by", "D
 #define TAP_ACTIONS		(5)
 static const char sw_ids[MIDI_NUM_SWITCHES] = {'1', '2', '3', '4', 'A', 'B', 'C', 'D'};
 
+enum { SCR_CMDS, SCR_SETTINGS, SCR_SETLIST, SCR_COUNT };
+#define SONG_OUT	(0xFE)	// a song set to "---", left out when the list is written
+
 // The fields that are there whatever the command is
 enum { F_BANK, F_BUTTON, F_LIST, F_SLOT, F_TYPE, F_FIRST_OWN };
 
 static struct {
 	bool open;
-	bool settings;			// the settings screen instead of the commands one
+	uint8_t screen;			// SCR_
 	uint8_t bank, sw, list, slot;
 	uint8_t field;			// the line the cursor is on
 	uint8_t top;			// the first line shown
@@ -84,9 +93,11 @@ static struct {
 	uint8_t label[BUTTON_LABEL_LEN];
 	uint8_t label_reset;	// LABEL_RESET_BIT of the stored label, kept as it was
 	uint8_t label_instant;	// and LABEL_INSTANT_BIT
-	bool cmd_dirty, label_dirty, set_dirty;
+	bool cmd_dirty, label_dirty, set_dirty, list_dirty;
 	uint8_t setting;		// the setting the cursor is on
 	uint8_t set_value;		// being edited
+	uint8_t songs;			// in the setlist being edited
+	uint8_t setlist[SETLIST_MAX];
 	int8_t held;			// -1 or +1 while 3 or 4 is down
 	uint32_t held_tick;
 	uint16_t held_interval;
@@ -447,11 +458,13 @@ static void setting_text(const setting_t *s, uint8_t v, char *out, uint8_t size)
 
 /* ------------------------------------------------------------------ saving */
 
+static void load_setlist(void);
+
 static void save(void){
 	bool wrote = false;
 
 	// A Duration still running points into the page about to be rewritten
-	if(ed.cmd_dirty || ed.label_dirty || ed.set_dirty) sw_release_all();
+	if(ed.cmd_dirty || ed.label_dirty || ed.set_dirty || ed.list_dirty) sw_release_all();
 
 	if(ed.cmd_dirty){
 		wrote |= flash_settings_patch(cmd_ptr(), ed.cmd, MIDI_ROM_CMD_SIZE);
@@ -476,6 +489,16 @@ static void save(void){
 		wrote |= flash_settings_patch(&pGlobalSettings[s->byte], &v, 1);
 		ed.set_dirty = false;
 	}
+	if(ed.list_dirty){
+		uint8_t list[SETLIST_MAX], n = 0;
+		memset(list, 0xFF, SETLIST_MAX);
+		for(uint8_t i=0; i<ed.songs; i++){
+			if(ed.setlist[i] != SONG_OUT) list[n++] = ed.setlist[i];
+		}
+		wrote |= flash_settings_patch(pSetlist, list, SETLIST_MAX);
+		ed.list_dirty = false;
+		load_setlist();
+	}
 
 	if(wrote){
 		// Everything the firmware works out from the configuration, again
@@ -483,6 +506,17 @@ static void save(void){
 		sw_led_init();
 		set_all_leds(1);	// the editor lights them all while it is open
 	}
+}
+
+// The list as the firmware reads it: up to the first byte that is no bank
+static void load_setlist(void){
+	memset(ed.setlist, 0xFF, SETLIST_MAX);
+	ed.songs = 0;
+	while(ed.songs < SETLIST_MAX && pSetlist[ed.songs] < MIDI_NUM_BANKS){
+		ed.setlist[ed.songs] = pSetlist[ed.songs];
+		ed.songs++;
+	}
+	ed.list_dirty = false;
 }
 
 static void load_cmd(void){
@@ -509,7 +543,8 @@ static void load_setting(void){
 /* ------------------------------------------------------------------ fields */
 
 static uint8_t field_count(void){
-	if(ed.settings) return SETTING_COUNT;
+	if(ed.screen == SCR_SETTINGS) return SETTING_COUNT;
+	if(ed.screen == SCR_SETLIST) return (uint8_t)(ed.songs + (ed.songs < SETLIST_MAX));
 	return (uint8_t)(F_FIRST_OWN + own_fields(ed.cmd) + BUTTON_LABEL_LEN);
 }
 
@@ -519,7 +554,26 @@ static void field_line(uint8_t f, char *out, uint8_t size){
 	const char *name = "";
 	value[0] = 0;
 
-	if(ed.settings){
+	if(ed.screen == SCR_SETLIST){
+		static char song_name[] = "SONG nn";
+		if(f >= ed.songs){
+			name = "END";
+		} else {
+			snprintf(song_name + 5, 3, "%u", f + 1);
+			name = song_name;
+			uint8_t b = ed.setlist[f];
+			if(b == SONG_OUT){
+				snprintf(value, sizeof(value), "---");
+			} else {
+				// The bank's number, and its big name as the bank screen shows it
+				char big[5];
+				const uint8_t *src = pBankStrings + CFG_BANK_STRING_SIZE * b;
+				for(uint8_t i=0; i<4; i++) big[i] = (src[i] >= ' ' && src[i] < 0x7F) ? (char)src[i] : ' ';
+				big[4] = 0;
+				snprintf(value, sizeof(value), "%-2u %s", b + 1, big);
+			}
+		}
+	} else if(ed.screen == SCR_SETTINGS){
 		const setting_t *s = &settings[f];
 		name = s->name;
 		setting_text(s, (f == ed.setting) ? ed.set_value : setting_value(s), value, sizeof(value));
@@ -549,7 +603,16 @@ static void field_line(uint8_t f, char *out, uint8_t size){
 }
 
 static void field_step(uint8_t f, int8_t d){
-	if(ed.settings){
+	if(ed.screen == SCR_SETLIST){
+		if(f >= ed.songs) return;	// END has no bank
+		uint8_t *b = &ed.setlist[f];
+		if(*b == SONG_OUT)			{ if(d > 0) *b = 0; }
+		else if(*b == 0 && d < 0)	*b = SONG_OUT;
+		else						*b = step_clamp(*b, d, 0, MIDI_NUM_BANKS - 1);
+		ed.list_dirty = true;
+		return;
+	}
+	if(ed.screen == SCR_SETTINGS){
 		const setting_t *s = &settings[ed.setting];
 		if(s->kind == S_ONOFF || (s->kind == S_FLAG && s->hi == 1))	ed.set_value = ed.set_value ? 0 : 1;
 		else if(s->kind == S_FLAG)	ed.set_value = step_clamp(ed.set_value, d, 0, s->hi);
@@ -620,9 +683,9 @@ static void redraw(void){
 		field_line((uint8_t)(ed.top + i), lines[i], sizeof(lines[i]));
 	}
 
-	bool dirty = ed.cmd_dirty || ed.label_dirty || ed.set_dirty;
-	snprintf(title, sizeof(title), "EDIT %-8s %s",
-			ed.settings ? "SETTINGS" : "COMMANDS", dirty ? "*" : " ");
+	static const char *const screen_names[SCR_COUNT] = {"COMMANDS", "SETTINGS", "SETLIST"};
+	bool dirty = ed.cmd_dirty || ed.label_dirty || ed.set_dirty || ed.list_dirty;
+	snprintf(title, sizeof(title), "EDIT %-8s %s", screen_names[ed.screen], dirty ? "*" : " ");
 
 	display_editor(title, (const char (*)[DISPLAY_EDIT_COLS + 1])lines, shown,
 			(uint8_t)(ed.field - ed.top));
@@ -631,7 +694,7 @@ static void redraw(void){
 /* ------------------------------------------------------------- trying out */
 
 static void try_cmd(void){
-	if(ed.settings) return;
+	if(ed.screen != SCR_CMDS) return;
 	switch(cmd_type(ed.cmd)){
 	case T_PC:
 		midiCmd_send_pc_command_from_rom(ed.cmd);
@@ -677,6 +740,38 @@ void editor_close(void){
 	update_leds_on_bank_change();
 }
 
+// The setlist's cursor to another line: what was changed is written, and the
+// songs taken out before the new line no longer move it down
+static void setlist_walk(int8_t d){
+	ed.field = step_wrap(ed.field, d, 0, (uint8_t)(field_count() - 1));
+	uint8_t out = 0;
+	for(uint8_t i=0; i<ed.field && i<ed.songs; i++) out += (ed.setlist[i] == SONG_OUT);
+	save();
+	ed.field = (uint8_t)(ed.field - out);
+}
+
+// The song under the cursor one place earlier or later, the cursor with it
+static void setlist_move(int8_t d){
+	uint8_t f = ed.field;
+	if(f >= ed.songs) return;
+	if((d < 0 && f == 0) || (d > 0 && f + 1 >= ed.songs)) return;
+	uint8_t g = (uint8_t)(f + d), b = ed.setlist[f];
+	ed.setlist[f] = ed.setlist[g];
+	ed.setlist[g] = b;
+	ed.field = g;
+	ed.list_dirty = true;
+}
+
+// The bank the pedal is on, in before the song under the cursor
+static void setlist_insert(void){
+	if(ed.songs >= SETLIST_MAX) return;
+	uint8_t f = ed.field;
+	memmove(&ed.setlist[f + 1], &ed.setlist[f], (size_t)(ed.songs - f));
+	ed.setlist[f] = sw_get_home_bank();
+	ed.songs++;
+	ed.list_dirty = true;
+}
+
 void editor_press(uint8_t sw, bool down){
 	if(!ed.open) return;
 
@@ -687,13 +782,13 @@ void editor_press(uint8_t sw, bool down){
 
 	switch(sw){
 	case SW_1:
-		ed.field = step_wrap(ed.field, -1, 0, (uint8_t)(field_count() - 1));
-		if(ed.settings){ save(); ed.setting = ed.field; load_setting(); }
+	case SW_2: {
+		int8_t d = (sw == SW_1) ? -1 : +1;
+		if(ed.screen == SCR_SETLIST){ setlist_walk(d); break; }
+		ed.field = step_wrap(ed.field, d, 0, (uint8_t)(field_count() - 1));
+		if(ed.screen == SCR_SETTINGS){ save(); ed.setting = ed.field; load_setting(); }
 		break;
-	case SW_2:
-		ed.field = step_wrap(ed.field, +1, 0, (uint8_t)(field_count() - 1));
-		if(ed.settings){ save(); ed.setting = ed.field; load_setting(); }
-		break;
+	}
 	case SW_3:
 	case SW_4:
 		ed.held = (sw == SW_3) ? -1 : +1;
@@ -703,7 +798,9 @@ void editor_press(uint8_t sw, bool down){
 		break;
 	case SW_A:
 	case SW_B:
-		if(!ed.settings){
+		if(ed.screen == SCR_SETLIST){
+			setlist_move((sw == SW_A) ? -1 : +1);
+		} else if(ed.screen == SCR_CMDS){
 			save();
 			ed.slot = step_wrap(ed.slot, (sw == SW_A) ? -1 : +1, 0,
 					MIDI_NUM_COMMANDS_PER_SWITCH - 1);
@@ -711,11 +808,12 @@ void editor_press(uint8_t sw, bool down){
 		}
 		break;
 	case SW_C:
-		try_cmd();
+		if(ed.screen == SCR_SETLIST) setlist_insert();
+		else try_cmd();
 		break;
 	case SW_VIRTUAL_BANK_DOWN:
 	case SW_VIRTUAL_BANK_UP:
-		if(!ed.settings){
+		if(ed.screen == SCR_CMDS){
 			save();
 			ed.bank = step_wrap(ed.bank, (sw == SW_VIRTUAL_BANK_DOWN) ? -1 : +1,
 					0, MIDI_NUM_BANKS - 1);
@@ -724,10 +822,11 @@ void editor_press(uint8_t sw, bool down){
 		break;
 	case SW_D:
 		save();
-		ed.settings = !ed.settings;
+		ed.screen = step_wrap(ed.screen, +1, 0, SCR_COUNT - 1);
 		ed.field = 0;
 		ed.top = 0;
-		if(ed.settings){ ed.setting = 0; load_setting(); }
+		if(ed.screen == SCR_SETTINGS){ ed.setting = 0; load_setting(); }
+		else if(ed.screen == SCR_SETLIST) load_setlist();
 		else { load_cmd(); load_label(); }
 		break;
 	default:

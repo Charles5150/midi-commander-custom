@@ -609,6 +609,91 @@ test("with Setlist_Display, the info line shows the place in the setlist and the
   assert.ok(infoLineIs(sim, "looper"), "a bank off the setlist keeps its own info");
 });
 
+// Whether the screen holds this text in the 7x10 font with its top left at x, y
+function textAt(sim, x, y, text, inverted = false) {
+  for (let i = 0; i < text.length; i++) {
+    for (let row = 0; row < 10; row++) {
+      for (let c = 0; c < 7; c++) {
+        const want = Boolean((font7x10[(text.charCodeAt(i) - 32) * 10 + row] << c) & 0x8000) !== inverted;
+        if (lit(sim, x + i * 7 + c, y + row) !== want) return false;
+      }
+    }
+  }
+  return true;
+}
+
+// The setlist in slot 1's flash, up to its end
+const setlistAt = 0x20000 + 24048;
+function setlistOf(sim) {
+  const list = [];
+  for (const b of sim.flashNow().subarray(setlistAt, setlistAt + 32)) {
+    if (b >= 32) break;
+    list.push(b);
+  }
+  return list;
+}
+
+// Bank Down and Bank Up held together, which opens the editor and closes it
+function holdBoth(sim) {
+  sim.footswitch(8, true);
+  sim.footswitch(9, true);
+  sim.run(2200);
+  sim.footswitch(8, false);
+  sim.footswitch(9, false);
+  sim.run(600);
+}
+
+test("the editor's setlist screen moves, takes out and puts in songs (before 1.23, it had none)", async () => {
+  const sim = simWithDemo();
+  sim.run(10000);                           // the power on banner goes by first
+  assert.deepEqual(setlistOf(sim), [0, 12, 15, 13, 14, 18, 16, 17, 19, 20]);
+  tap(sim, 0);                              // the index to LOOP, bank 2
+  holdBoth(sim);
+  tap(sim, 7);
+  tap(sim, 7);                              // D twice: the commands, the settings, the setlist
+  assert.ok(textAt(sim, 0, 0, "EDIT SETLIST"), "the setlist screen");
+  assert.ok(textAt(sim, 0, 12, "SONG 1   1  HOME", true), "the cursor on the first song, its bank's number and name");
+
+  tap(sim, 1);                              // to song 2, bank 13 (12 counted from 0)
+  tap(sim, 5);                              // B: one place later
+  tap(sim, 1);                              // leaving the line writes it
+  assert.deepEqual(setlistOf(sim), [0, 15, 12, 13, 14, 18, 16, 17, 19, 20]);
+
+  for (let i = 0; i < 14; i++) tap(sim, 2);   // song 4 from bank 14 down past bank 1, to ---
+  for (let i = 0; i < 3; i++) tap(sim, 2);    // where it stays
+  tap(sim, 0);                              // back to song 3, the song taken out
+  assert.deepEqual(setlistOf(sim), [0, 15, 12, 14, 18, 16, 17, 19, 20]);
+
+  tap(sim, 6);                              // C: the bank the pedal is on, LOOP, in before song 3
+  tap(sim, 4);                              // and A one place earlier
+  assert.ok(textAt(sim, 0, 22, "SONG 2   2  LOOP", true));
+  holdBoth(sim);                            // closing writes it
+  assert.deepEqual(setlistOf(sim), [0, 1, 15, 12, 14, 18, 16, 17, 19, 20]);
+
+  const pedal = await Pedal.open(sim.access);
+  tap(sim, 9);                              // Bank Up follows the new order
+  assert.equal((await running(sim, () => pedal.getState())).bank, 15);
+});
+
+test("an empty setlist is started on the pedal from its END line, and a full one takes no more", async () => {
+  const sim = simWithDemo(await flashWith(packDemo("d['Setlist'] = d['Setlist'].iloc[0:0]")));
+  sim.run(10000);
+  assert.deepEqual(setlistOf(sim), []);
+  tap(sim, 1);                              // the index to FX, bank 3
+  holdBoth(sim);
+  tap(sim, 7);
+  tap(sim, 7);
+  assert.ok(textAt(sim, 0, 12, "END", true), "only the END line");
+  tap(sim, 3);                              // 4 on END changes nothing
+  tap(sim, 6);                              // C puts FX in
+  tap(sim, 3);                              // and 4 makes it bank 4
+  tap(sim, 1);
+  assert.deepEqual(setlistOf(sim), [3]);
+  for (let i = 0; i < 35; i++) tap(sim, 6); // C again and again: 32 songs at most
+  holdBoth(sim);
+  assert.deepEqual(setlistOf(sim), [3, ...Array(31).fill(2)]);
+});
+
 test("with USB_Ports at 3, cable 1 goes straight to DIN and the pedal answers on the cable asked", async () => {
   const flash = await flashWith(packDemo("g = d['Global_Settings']\ng.loc[g.Label == 'USB_Ports', 'Value'] = '3'"));
   const sim = simWithDemo(flash);

@@ -44,6 +44,7 @@ In the configurator, put the banks in order in the **Setlist** tab, one drop-dow
 - A bank may appear more than once, but stepping from it always continues from its first appearance.
 - A `GoTo` and a bank change from incoming MIDI still go to the exact bank asked for.
 - The list only counts while **Follow the setlist** is on, so you can keep one stored and switch it off.
+- With no computer around, the [editor on the pedal](10-editing-on-the-pedal.md#reordering-the-setlist) moves, adds and takes out songs (firmware 1.23).
 
 ### Where you are in it
 

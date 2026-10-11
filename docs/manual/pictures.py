@@ -615,23 +615,25 @@ def display_gallery(lang):
 EDITOR = {
     "en": {
         "title": "The editor on the pedal: what each switch does",
-        "commands": "Commands", "settings": "Settings",
+        "commands": "Commands", "settings": "Settings", "setlist": "Setlist",
         "keys": {
             "1": "cursor up", "2": "cursor down", "3": "value −", "4": "value +", "UP": "next bank",
-            "A": "previous command", "B": "next command", "C": "send it, to hear it", "D": "commands ⇄ settings",
+            "A": "previous command", "B": "next command", "C": "send it, to hear it", "D": "next screen",
             "DOWN": "previous bank",
         },
         "foot": "Bank Down and Bank Up held for two seconds open it, and again close it. What you change is written as the cursor leaves it.",
+        "foot2": "On the setlist screen, A and B move the song one place, C puts in the bank the pedal is on, and 3 below bank 1 takes the song out.",
     },
     "es": {
         "title": "El editor de la pedalera: qué hace cada pulsador",
-        "commands": "Comandos", "settings": "Ajustes",
+        "commands": "Comandos", "settings": "Ajustes", "setlist": "Setlist",
         "keys": {
             "1": "cursor arriba", "2": "cursor abajo", "3": "valor −", "4": "valor +", "UP": "banco siguiente",
-            "A": "comando anterior", "B": "comando siguiente", "C": "enviarlo, para oírlo", "D": "comandos ⇄ ajustes",
+            "A": "comando anterior", "B": "comando siguiente", "C": "enviarlo, para oírlo", "D": "pantalla siguiente",
             "DOWN": "banco anterior",
         },
         "foot": "Bank Down y Bank Up pisados dos segundos lo abren, y otra vez lo cierran. Lo que cambias se guarda al salir el cursor.",
+        "foot2": "En la pantalla del setlist, A y B mueven la canción un puesto, C mete el banco en el que está la pedalera, y 3 por debajo del banco 1 quita la canción.",
     },
 }
 
@@ -640,9 +642,11 @@ def editor(lang):
     t = EDITOR[lang]
     width = 1180
     parts = [text(width / 2, 52, t["title"], 24, TEXT, "700")]
-    # the two screens
-    for k, (screen, label) in enumerate((("display-editor", t["commands"]), ("display-editor-settings", t["settings"]))):
-        x = 292 + k * 340
+    # the three screens, D going from one to the next
+    screens = (("display-editor", t["commands"]), ("display-editor-settings", t["settings"]),
+               ("display-editor-setlist", t["setlist"]))
+    for k, (screen, label) in enumerate(screens):
+        x = 122 + k * 340
         parts.append(oled(load_screen(screen), x, 104, 2))
         parts.append(text(x + 128, 262, label, 14, MUTED, "700"))
     # the pedal's ten switches, as they sit, with what they do
@@ -658,7 +662,8 @@ def editor(lang):
             parts.append(text(cx + 36, cy + 14, t["keys"][sw], 14, colours[sw], "700", "start"))
     fy = 330 + 120 + 70
     parts.append(text(width / 2, fy, t["foot"], 13, MUTED))
-    return svg(width, fy + 28, "\n".join(parts), t["title"])
+    parts.append(text(width / 2, fy + 22, t["foot2"], 13, MUTED))
+    return svg(width, fy + 50, "\n".join(parts), t["title"])
 
 
 PICTURES = {"bank-preview": bank_preview, "press-types": press_types, "setlist": setlist, "midi-routes": midi_routes,

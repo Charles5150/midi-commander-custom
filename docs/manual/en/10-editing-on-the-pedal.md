@@ -14,7 +14,7 @@ Hold **Bank Down and Bank Up together for two seconds** and the pedal opens the 
 
 ## The switches
 
-![The editor's two screens and what each switch does](../images/editor-en.svg)
+![The editor's three screens and what each switch does](../images/editor-en.svg)
 
 The screen is a list of named fields with the cursor on one of them:
 
@@ -24,7 +24,7 @@ The screen is a list of named fields with the cursor on one of them:
 | **3** / **4** | change the value under the cursor; held, they repeat and speed up |
 | **A** / **B** | step to the previous or next command of the button's list |
 | **C** | send the command as it stands, so it can be heard |
-| **D** | swap the commands for the settings |
+| **D** | go on to the next screen: the commands, the settings, the setlist, and round again |
 | **Bank Down** / **Bank Up** | step to the previous or next bank |
 
 ## Editing a button's commands
@@ -46,7 +46,7 @@ A command of any other type is shown by name and left exactly as it is until the
 
 ## Editing the settings
 
-**D** swaps to the settings screen, which holds the global settings that are a number or a choice. The rest, the ones that need text or a list, stay with the configurator.
+**D** goes from the commands to the settings screen, which holds the global settings that are a number or a choice. The rest, the ones that need text or a list, stay with the configurator.
 
 | On the pedal | In the configurator (CSV) |
 |---|---|
@@ -72,9 +72,28 @@ A command of any other type is shown by name and left exactly as it is until the
 | `EXP1SEND`, `EXP2SEND` | each pedal sends its position on entering a bank (`Send_On_Bank`) |
 | `BARBEATS` | the beats in a bar for the bar and beat on the display, `off` or 1–15 (`Beat_Counter`) |
 
+## Reordering the setlist
+
+The band changes the order at soundcheck, and the laptop is in the car. **D** from the settings goes on to the setlist screen: one line per song, its place, its bank's number and big name, and a last `END` line to add after them.
+
+| Switch | On the setlist screen |
+| --- | --- |
+| **1** / **2** | move the cursor from song to song |
+| **3** / **4** | change the song's bank; **3** below bank 1 shows `---`, which takes the song out |
+| **A** / **B** | move the song one place earlier or later, the cursor with it |
+| **C** | put in the bank the pedal is on, before the song under the cursor, or at the end on `END` |
+
+So to add a song, go to its bank first, open the editor, go to the setlist, put the cursor where it belongs and press **C**. The list holds up to 32 songs; once it is full, **C** adds nothing.
+
+- The list is written when the cursor leaves the line, as anything else in the editor, and a song set to `---` goes when it is written.
+- The order only counts while `SETLIST` in the settings is `Yes` or `Shown`, as in the [setlist](04-banks.md#setlist) the configurator writes; the screen is there either way.
+- **Bank Down** and **Bank Up** do nothing on this screen.
+
+*Firmware 1.23 or later.*
+
 ## When a change is written
 
-What you change is written to flash as soon as the cursor leaves the command, the label or the setting, so walking away loses nothing. A star in the title line says there is something not written yet.
+What you change is written to flash as soon as the cursor leaves the command, the label, the setting or the song, so walking away loses nothing. A star in the title line says there is something not written yet.
 
 - A write takes about a tenth of a second, during which the pedal is busy: change what you need between songs, not in the middle of one.
 - Afterwards the pedal reads the configuration again, so the new command is live at once.
