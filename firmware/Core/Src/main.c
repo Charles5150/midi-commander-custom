@@ -94,7 +94,7 @@ static inline void RelocateVectorTable(void)
  * The independent watchdog: any lock-up restarts the pedal instead of leaving
  * it dead until switched off. It runs from its own clock (LSI, 30 to 60 kHz),
  * so with /32 and the longest reload it bites after 2.2 to 4.4 s without the
- * main loop, room enough for the 17 pages an upload erases in one go. Stopped
+ * main loop, room enough for the 19 pages an upload erases in one go. Stopped
  * while a debugger holds the core, and gone after any reset, the one into the
  * bootloader for a firmware update included.
  */

@@ -124,6 +124,16 @@ static void scan(void){
 		const uint8_t *e = entry_ptr(i);
 		if(entry_is_blank(e, STATE_ENTRY_SIZE)){
 			next_free = i;
+			// Entries after a blank one: the power went in the middle of
+			// an erase, which left old ones in the pages it had not reached.
+			// Writes there would fail and a later scan bring them back, so
+			// the next save erases the region first.
+			for(uint32_t j=i+1; j<STATE_ENTRIES; j++){
+				if(!entry_is_blank(entry_ptr(j), STATE_ENTRY_SIZE)){
+					next_free = STATE_ENTRIES;
+					break;
+				}
+			}
 			break;
 		}
 		if(entry_is_valid(e, STATE_BANK_OFF, STATE_MARKER)){

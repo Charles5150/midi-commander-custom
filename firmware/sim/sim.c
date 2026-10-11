@@ -337,6 +337,9 @@ EXPORT(sim_run) void sim_run(uint32_t ms){
 	}
 }
 
+// The tick alone, the main loop held up as a flash erase holds it
+EXPORT(sim_systick) void sim_systick(void){ systick(); }
+
 EXPORT(sim_ready) bool sim_ready(void){ return phase == RUNNING; }
 EXPORT(sim_restart_asked) bool sim_restart_asked(void){ return restart_asked; }
 EXPORT(sim_tick) uint32_t sim_tick(void){ return tick; }

@@ -128,11 +128,11 @@ typedef struct {
 #define SW_PORTB_MASK (SW_A_Pin | SW_3_Pin | SW_4_Pin | SW_5_Pin)
 #define SW_PORTC_MASK (SW_B_Pin)
 
-uint16_t port_A_previous_state = SW_PORTA_MASK; // All pins will be high un-pressed
+volatile uint16_t port_A_previous_state = SW_PORTA_MASK; // All pins will be high un-pressed
 volatile uint16_t port_A_switches_changed = 0;
-uint16_t port_B_previous_state = SW_PORTB_MASK; // All pins will be high un-pressed
+volatile uint16_t port_B_previous_state = SW_PORTB_MASK; // All pins will be high un-pressed
 volatile uint16_t port_B_switches_changed = 0;
-uint16_t port_C_previous_state = SW_PORTC_MASK; // All pins will be high un-pressed
+volatile uint16_t port_C_previous_state = SW_PORTC_MASK; // All pins will be high un-pressed
 volatile uint16_t port_C_switches_changed = 0;
 
 volatile uint8_t debounce_counter = 0;
@@ -194,7 +194,11 @@ delayed_cmd_t delayed_cmds[MAX_DELAYED_CMDS];
  * This scans the switch ports each ms for changes in the systick interrupt context.
  * We can't use port interrupts, as some of the pins are on non-interrupt pins.
  *
- * Switch changes are then handled in the main loop.
+ * Switch changes are then handled in the main loop, which reads what the scan
+ * saw (switch_down), not the pin. A switch whose change the main loop has not
+ * taken yet keeps the state it changed to: when a flash erase stalls the loop,
+ * a foot already off the switch again is still a press when the loop gets to
+ * it, and the release the change after.
  */
 void sw_scan(void){
 
@@ -209,16 +213,19 @@ void sw_scan(void){
 
 	/* PORTA input pins */
 	uint16_t current_port_A = GPIOA->IDR & SW_PORTA_MASK;
+	current_port_A = (uint16_t)((current_port_A & ~port_A_switches_changed) | (port_A_previous_state & port_A_switches_changed));
 	port_A_switches_changed |= current_port_A  ^ port_A_previous_state;
 	port_A_previous_state = current_port_A;
 
 	/* PORTB input pins */
 	uint16_t current_port_B = GPIOB->IDR & SW_PORTB_MASK;
+	current_port_B = (uint16_t)((current_port_B & ~port_B_switches_changed) | (port_B_previous_state & port_B_switches_changed));
 	port_B_switches_changed |= current_port_B  ^ port_B_previous_state;
 	port_B_previous_state = current_port_B;
 
 	/* PORTC input pins */
 	uint16_t current_port_C = GPIOC->IDR & SW_PORTC_MASK;
+	current_port_C = (uint16_t)((current_port_C & ~port_C_switches_changed) | (port_C_previous_state & port_C_switches_changed));
 	port_C_switches_changed |= current_port_C  ^ port_C_previous_state;
 	port_C_previous_state = current_port_C;
 
@@ -1555,6 +1562,7 @@ static uint8_t page_led_on(uint8_t i){
 }
 
 void update_leds_on_bank_change(void){
+	if(sleep_is_asleep()) return;	// dark until it wakes, which lights them again
 	for(int i=0; i<8; i++){
 		if(a_sw_obj[i].led_cmd_toggle & (1UL<<switch_current_page)){
 			set_led(i, toggle_led_level(i, get_sw_toggle_state(&a_sw_obj[i])));
@@ -3518,7 +3526,9 @@ static void virtual_task(void){
 
 // A switch is down when a foot holds it or a virtual press does
 static bool switch_down(GPIO_TypeDef *port, uint16_t pin){
-	if(!HAL_GPIO_ReadPin(port, pin)) return true;
+	uint16_t seen = port == GPIOA ? port_A_previous_state
+			: port == GPIOB ? port_B_previous_state : port_C_previous_state;
+	if(!(seen & pin)) return true;
 	if(!virtual_down) return false;
 	for(uint8_t id=0; id<SW_VIRTUAL_COUNT; id++){
 		GPIO_TypeDef *p;

@@ -144,6 +144,7 @@ static void sysex_flash_answer(uint8_t rsp, bool ok){
  * sysex_flash_task().
  */
 static volatile bool erase_pending = false;
+static volatile bool reset_pending = false;	// RESET, after the state is saved
 static bool upload_paused = false;
 
 #define UPLOAD_IDLE_MS 10000	// a tool that stops this long is gone
@@ -186,6 +187,10 @@ void sysex_flash_task(void){
 	if(flash_settings_upload_idle(UPLOAD_IDLE_MS)){
 		if(upload_paused) NVIC_SystemReset();
 		flash_settings_upload_end();
+	}
+	if(reset_pending){
+		state_store_flush();	// a bank or toggle changed just before is kept
+		NVIC_SystemReset();
 	}
 }
 
@@ -578,7 +583,7 @@ void process_sysex_message(void){
 		sysex_get_pedals();
 		break;
 	case SYSEX_CMD_RESET:
-		NVIC_SystemReset();
+		reset_pending = true;	// from the main loop, which saves the state first
 		break;
 	case SYSEX_CMD_ENTER_DFU:
 		// F0 7D 74 44 46 F7 = 6 bytes
@@ -756,6 +761,13 @@ static bool handle_remote_message(uint8_t cin, const uint8_t *data){
 
 static void handle_sysex_event(uint8_t cin, const uint8_t *data, uint8_t len){
 	uint8_t is_end = (cin != CIN_SYSEX_STARTS_OR_CONTINUES);
+
+	// A new F0: the message before it never ended, and is dropped
+	if(len && data[0] == SYSEX_START && (sysex_rx_counter || sysex_foreign)){
+		abort_sysex_message();
+		sysex_foreign = 0;
+		sysex_discard = 0;
+	}
 
 	if(sysex_rx_counter == 0 && !sysex_foreign){
 		// First chunk of a new message: F0 <manufacturer> ...

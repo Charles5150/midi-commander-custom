@@ -1099,7 +1099,7 @@ void display_task(void){
 			uint8_t ending = (scroll_state == SCROLL_HOLD_END);
 			if(scroll_step() && !ending) draw_moment_text();
 		}
-		if(HAL_GetTick() < overlay_until || (moment_showing && scroll_state != SCROLL_IDLE)){
+		if((int32_t)(HAL_GetTick() - overlay_until) < 0 || (moment_showing && scroll_state != SCROLL_IDLE)){
 			// A value a label shows changed under the readout: at once, not after it
 			if(!moment_showing && overlay_msg[0] && live_changed()){
 				refresh_pending = 1;

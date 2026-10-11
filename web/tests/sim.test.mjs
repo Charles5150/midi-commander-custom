@@ -1019,3 +1019,108 @@ test("B+C locks the demo's switches, LOCKED in the info line, and unlocks them (
   tap(sim, 0);
   assert.deepEqual(seen.splice(0), ["USB b0 01 7f", "DIN b0 01 7f"], "REC answers again");
 });
+
+test("asleep, a bank change from the computer leaves the LEDs dark until a press wakes the pedal (before 1.22, it lit them)", async () => {
+  const sim = simWithDemo(await flashWith(packDemo("d['Global_Settings'].loc[d['Global_Settings']['Label'] == 'Sleep_After_Min', 'Value'] = '1'")));
+  sim.run(61000);
+  assert.ok(!sim.e.sim_screen_on(), "asleep after a minute");
+  assert.deepEqual(sim.leds(), Array(10).fill(0), "with the LEDs out");
+  sim.usbIn([0xb0, 32, 2]);                 // the demo's Bank_Change_CC: to bank 3
+  sim.run(100);
+  assert.ok(!sim.e.sim_screen_on(), "the screen stays off");
+  assert.deepEqual(sim.leds(), Array(10).fill(0), "and so do the LEDs");
+  tap(sim, 9);
+  assert.ok(sim.e.sim_screen_on(), "a press wakes it");
+});
+
+test("a SysEx left unfinished is dropped at the next F0, not run with the next message (before 1.22, a press)", async () => {
+  const sim = simWithDemo();
+  sim.run(10000);
+  const pedal = await Pedal.open(sim.access);
+  const before = (await running(sim, () => pedal.getState())).bankName;
+  const seen = watch(sim);
+  sim.usbEvents([0x04, 0xf0, 0x7d, 0x42, 0x04, 0x03, 0x01, 0x00]);  // PRESS_BUTTON 4 down, no F7
+  const state = await running(sim, () => pedal.getState());
+  sim.run(1000);
+  assert.equal(state.bankName, before, "GET_STATE answers, and no switch was pressed");
+  assert.deepEqual(seen, [], "nothing goes out");
+});
+
+test("RESET from the tools keeps a bank chosen just before it (before 1.22, the restart lost it)", async () => {
+  const sim = simWithDemo();
+  sim.run(10000);
+  sim.footswitch(0, true);                  // the index to LOOP, and at once
+  sim.run(100);
+  sim.footswitch(0, false);
+  sim.run(100);
+  const pedal = await Pedal.open(sim.access);
+  pedal.reset();
+  await null;
+  sim.run(1);
+  const again = await Pedal.open(sim.access);
+  assert.equal((await running(sim, () => again.getState())).bankName, "LOOP");
+});
+
+test("a power cut in the middle of erasing the saved state does not bring an old bank back later (before 1.22, it did)", async () => {
+  const STATE = 0x26000, ENTRY = 100, ENTRIES = 81;
+  const sim = simWithDemo();
+  sim.run(10000);
+  tap(sim, 0);                              // the index to LOOP
+  sim.run(3000);
+  const flash = sim.flashNow();
+  assert.equal(flash[STATE + 98], 0xa9, "saved in the first entry");
+  // Cut after the first of the four pages was erased: the old entries are still in the others
+  const cut = flash.slice();
+  cut.fill(0xff, STATE, STATE + 4 * 2048);
+  for (let i = 21; i < ENTRIES; i++) cut.set(flash.slice(STATE, STATE + ENTRY), STATE + i * ENTRY);
+  const boot = (f) => {
+    const s = new Simulator(module, { persist: false });
+    s.flash = f;
+    s.start();
+    clearInterval(s.timer);
+    clearInterval(s.saveTimer);
+    s.run(1300);
+    return s;
+  };
+  const again = boot(cut);
+  again.run(10000);
+  for (let i = 0; i < 24; i++) {            // more saves than the first page holds
+    tap(again, i % 2 ? 8 : 9);
+    again.run(2500);
+  }
+  const want = (await running(again, async () => (await Pedal.open(again.access)).getState())).bankName;
+  assert.notEqual(want, "LOOP");
+  const third = boot(again.flashNow());
+  assert.equal((await running(third, async () => (await Pedal.open(third.access)).getState())).bankName, want);
+});
+
+test("a tap let go while the main loop is held up by a flash erase is still a press (before 1.22, it was lost)", async () => {
+  const sim = simWithDemo();
+  sim.run(10000);
+  const pedal = await Pedal.open(sim.access);
+  sim.footswitch(0, true);
+  sim.e.sim_systick();                      // the scan sees the press, then the loop stalls
+  sim.footswitch(0, false);                 // the foot is off before the loop is back
+  sim.e.sim_systick();
+  sim.run(700);
+  assert.equal((await running(sim, () => pedal.getState())).bankName, "LOOP", "the index went to LOOP");
+});
+
+test("the first tap after power on starts the measurement, not timed from the boot (before 1.22, 30-50 BPM)", async () => {
+  const sim = new Simulator(module, { persist: false });
+  sim.flash = Uint8Array.from(demoFlash);
+  sim.start();
+  clearInterval(sim.timer);
+  clearInterval(sim.saveTimer);
+  while (!sim.e.sim_ready()) sim.run(1);
+  sim.usbIn([0xb0, 32, 6]);                 // to the tempo bank at once
+  sim.run(10);
+  assert.ok(sim.e.sim_tick() < 1950, "under 2 s after power on");
+  for (let i = 0; i < 2; i++) {             // TAP twice, 500 ms apart
+    sim.footswitch(0, true);
+    sim.run(100);
+    sim.footswitch(0, false);
+    sim.run(400);
+  }
+  assert.ok(infoLineIs(sim, "120 BPM"), "two taps half a second apart are 120 BPM");
+});

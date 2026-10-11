@@ -292,7 +292,7 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
  *   0x0803B800  slot 1
  *   0x0803C800  slot 2
  *   0x0803D800  slot 3
- *   0x0803E800  free      3 pages
+ *   0x0803E800  page patch copy and log, then 1 free page (see above)
  *
  *   [0..3]    EXT2_MARKER
  *   [4]       how each pedal takes over a value it does not hold (1.18), two

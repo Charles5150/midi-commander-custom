@@ -27,6 +27,7 @@ static volatile uint8_t clocks_due = 0;
 
 // Tap measurement
 static uint32_t last_tap_tick = 0;
+static bool tapped = false;	// no tap yet: the first one is not timed from boot
 static uint32_t intervals[TAPS_AVERAGED];
 static uint8_t interval_count = 0;
 static uint8_t interval_next = 0;
@@ -154,6 +155,7 @@ void tempo_init(void){
 	interval_count = 0;
 	interval_next = 0;
 	last_tap_tick = 0;
+	tapped = false;
 	clock_acc_us = 0;
 	clocks_due = 0;
 	recalc_interval();
@@ -172,8 +174,9 @@ void tempo_set_bpm(uint16_t new_bpm){
 
 uint16_t tempo_tap(void){
 	uint32_t now = HAL_GetTick();
-	uint32_t since = now - last_tap_tick;
+	uint32_t since = tapped ? now - last_tap_tick : UINT32_MAX;
 	last_tap_tick = now;
+	tapped = true;
 
 	// The tap is a beat: with the clock stopped the LED flashes with the foot
 	if(!clock_running){
