@@ -1,0 +1,120 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Generate the Line 6 Helix Stadium template, python/templates/Helix_Stadium.csv.
+
+The Helix Stadium (and Stadium XL) has a fixed MIDI map, the global CCs of
+its manual's MIDI page, different from the Helix Floor's: only its Global
+MIDI Channel, Global Settings > MIDI, has to match CHANNEL. The CCs you
+assign to blocks yourself go on its other channel, Bypass/Ctrl, 2 at first.
+
+    python3 python/make_helix_stadium_template.py
+"""
+import os
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+
+from lib.templateMaker import NO_SEND, full_range_pedals, global_settings, write_template  # noqa: E402
+from make_demo_config import Demo  # noqa: E402
+
+OUT = os.path.join(HERE, "templates", "Helix_Stadium.csv")
+
+CHANNEL = "1"           # the Stadium's Global MIDI Channel
+FOLDER = "1"            # CC#32 before each Program Change: 1 is User Presets 1A-32D, 2-4 the next 128
+
+# The Stadium's MIDI map
+CC_EXP1 = "1"           # EXP 1 and EXP 2 pedals
+CC_EXP2 = "2"
+CC_BUTTON = "9"         # a button of the top panel or the screen, by value:
+BUTTON_PRESET_DOWN = "12"
+BUTTON_PRESET_UP = "13"
+BUTTON_TUNER = "34"     # opens and closes the tuner
+CC_MODE = "37"          # the footswitch mode, 0-6
+MODES = (("STMA", "0"), ("STMB", "1"), ("PRST", "2"), ("SNAP", "3"))
+CC_LOOP_CLEAR = "52"
+CC_LOOP_UNDO = "53"     # undo / redo
+CC_LOOP_HALF = "54"     # 64-127 half speed, 0-63 full speed
+CC_LOOP_REV = "55"      # 64-127 reverse, 0-63 forward
+CC_LOOP_REC = "58"      # 64-127 record, 0-63 overdub
+CC_LOOP_PLAY = "59"     # 64-127 play, 0-63 stop
+CC_LOOP_ONCE = "60"
+CC_LOOPER = "62"        # the Looper block on / off
+CC_TAP = "64"
+CC_SNAPSHOT = "69"      # 0-7 = snapshots 1-8, 8 = next, 9 = previous
+
+PRESET_BANKS = 30       # banks 0-29 load presets 1A to 8B of FOLDER
+LOOP_BANK = 30
+MODE_BANK = 31
+SNAPSHOT_BUTTONS = ("1", "2", "3", "4", "A", "B")
+PRESS = "127"
+
+
+def preset_name(program):
+    """The Stadium's own name for a preset: 1A ... 1D, 2A..."""
+    return f"{program // 4 + 1}{'ABCD'[program % 4]}"
+
+
+def press(d, bank, btn, label, number, on=PRESS):
+    d.cc(bank, btn, label, number, on=on, off=NO_SEND, ch=CHANNEL)
+
+
+def build():
+    d = Demo()
+    names = {}
+
+    for bank in range(PRESET_BANKS):
+        names[bank] = (preset_name(bank), f"prst {bank:03d}")
+        d.on_enter(bank, CommandType="PC",
+                   **{"Channel_(PC/CC/Note/PB)": CHANNEL, "Number_(PC/CC/Note)": str(bank),
+                      "BankSelect_(PC)": FOLDER})
+        for snapshot, btn in enumerate(SNAPSHOT_BUTTONS, 1):
+            # An exclusive group, so the LED and the display show the
+            # snapshot last picked; switching it off sends nothing
+            d.cc(bank, btn, f"SNP{snapshot}", CC_SNAPSHOT, on=str(snapshot - 1), off=NO_SEND,
+                 toggle="Y", ch=CHANNEL)
+            d.group(bank, btn, 1)
+        # Each message opens or closes the tuner, so both presses send one
+        d.cc(bank, "C", "TUNR", CC_BUTTON, on=BUTTON_TUNER, off=BUTTON_TUNER, toggle="Y", ch=CHANNEL)
+        # Tap sends only on the press; a second message on the release would
+        # count as another tap
+        press(d, bank, "D", "TAP", CC_TAP)
+
+    names[LOOP_BANK] = ("LOOP", "looper")
+    # Switches the Looper block on, and the Deluxe Looper's footswitches
+    d.cc(LOOP_BANK, "1", "LOOP", CC_LOOPER, toggle="Y", ch=CHANNEL)
+    press(d, LOOP_BANK, "2", "REC", CC_LOOP_REC)
+    press(d, LOOP_BANK, "3", "DUB", CC_LOOP_REC, on="0")
+    d.cc(LOOP_BANK, "4", "PLAY", CC_LOOP_PLAY, toggle="Y", ch=CHANNEL)
+    press(d, LOOP_BANK, "A", "ONCE", CC_LOOP_ONCE)
+    press(d, LOOP_BANK, "B", "UNDO", CC_LOOP_UNDO)
+    d.cc(LOOP_BANK, "C", "HALF", CC_LOOP_HALF, toggle="Y", ch=CHANNEL)
+    d.cc(LOOP_BANK, "D", "REV", CC_LOOP_REV, toggle="Y", ch=CHANNEL)
+    d.long_press(LOOP_BANK, "B", CommandType="CC",
+                 **{"Channel_(PC/CC/Note/PB)": CHANNEL, "Number_(PC/CC/Note)": CC_LOOP_CLEAR,
+                    "OnValue_(CC/PB)": PRESS, "OffValue_(CC)": NO_SEND, "Toggle_(CC/PB/Note)": "N"})
+    d.long_label(LOOP_BANK, "B", "CLR")
+
+    # The Stadium has no CCs that press its footswitches: this bank picks
+    # what they do instead
+    names[MODE_BANK] = ("MODE", "switches")
+    for btn, (label, value) in zip(("1", "2", "3", "4"), MODES):
+        d.cc(MODE_BANK, btn, label, CC_MODE, on=value, off=NO_SEND, toggle="Y", ch=CHANNEL)
+        d.group(MODE_BANK, btn, 1)
+    press(d, MODE_BANK, "A", "PRS-", CC_BUTTON, on=BUTTON_PRESET_DOWN)
+    press(d, MODE_BANK, "B", "PRS+", CC_BUTTON, on=BUTTON_PRESET_UP)
+    press(d, MODE_BANK, "C", "SNP-", CC_SNAPSHOT, on="9")
+    press(d, MODE_BANK, "D", "SNP+", CC_SNAPSHOT, on="8")
+
+    full_range_pedals(d)
+    return d, names
+
+
+def main() -> int:
+    d, names = build()
+    return write_template(OUT, d, names, global_settings("Helix Stadium", CHANNEL, CC_EXP1, CC_EXP2),
+                          "Line 6 Helix Stadium template, generated by make_helix_stadium_template.py")
+
+
+if __name__ == "__main__":
+    sys.exit(main())

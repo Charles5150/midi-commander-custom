@@ -109,6 +109,15 @@ class GuessTest(unittest.TestCase):
         g.loc[len(g)] = ["Global_Channel", "7"] + [None] * (len(g.columns) - 2)
         self.assertEqual(dd.guess(dd.config_commands(sections)), {7: "HX Stomp"})
 
+    def test_a_pedal_sending_no_cc_is_not_counted(self):
+        """The TONEX Board's pedals set the speed: their CCs go nowhere."""
+        sections = template_sections("TONEX_Board")
+        g = sections["Global_Settings"]
+        g.loc[g["Label"] == "Exp1_CC", "Value"] = "11"
+        self.assertNotIn(("1", "CC", "11", "", ""), dd.config_commands(sections))
+        sections["Expression_Settings"].loc[0, "Output"] = "CC"
+        self.assertIn(("1", "CC", "11", "", ""), dd.config_commands(sections))
+
     def test_one_number_several_meanings(self):
         self.assertEqual(dd.describe({1: "HX Stomp"}, "1", "CC", "69", "2", "N"), "HX Stomp: Snapshot 3")
         self.assertEqual(dd.describe({1: "HX Stomp"}, "", "CC", "69", "8", "N"), "HX Stomp: Snapshot next")

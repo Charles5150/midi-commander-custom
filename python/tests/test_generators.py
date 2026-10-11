@@ -39,6 +39,13 @@ GENERATORS = {
     "make_enzo_x_template": os.path.join("templates", "Enzo_X.csv"),
     "make_lvx_template": os.path.join("templates", "LVX.csv"),
     "make_mercuryx_template": os.path.join("templates", "MercuryX.csv"),
+    "make_helix_template": os.path.join("templates", "Helix.csv"),
+    "make_helix_stadium_template": os.path.join("templates", "Helix_Stadium.csv"),
+    "make_pod_go_template": os.path.join("templates", "POD_Go.csv"),
+    "make_nano_cortex_template": os.path.join("templates", "Nano_Cortex.csv"),
+    "make_tonex_pedal_template": os.path.join("templates", "TONEX_Pedal.csv"),
+    "make_tonex_board_template": os.path.join("templates", "TONEX_Board.csv"),
+    "make_gp200_template": os.path.join("templates", "GP-200.csv"),
 }
 
 

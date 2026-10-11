@@ -40,6 +40,27 @@ CC_BUTTONS = {
     "LVX.csv": [(16, "D", "CC", "99", "127", ""), (31, "A", "CC", "100", "127", ""),
                 (31, "4", "CC", "103", "127", "")],
     "MercuryX.csv": [(0, "D", "CC", "118", "127", "0"), (31, "1", "CC", "14", "0", "127")],
+    "Helix.csv": [(0, "1", "CC", "69", "0", ""), (0, "B", "CC", "69", "5", ""), (0, "C", "CC", "68", "127", "0"),
+                  (30, "2", "CC", "60", "0", ""), (31, "4", "CC", "52", "127", "0"),
+                  (31, "A", "CC", "54", "127", "0"), (31, "D", "CC", "57", "127", "0")],
+    "Helix_Stadium.csv": [(0, "A", "CC", "69", "4", ""), (0, "C", "CC", "9", "34", "34"),
+                          (0, "D", "CC", "64", "127", ""), (30, "1", "CC", "62", "127", "0"),
+                          (30, "2", "CC", "58", "127", ""), (31, "4", "CC", "37", "3", ""),
+                          (31, "B", "CC", "9", "13", "")],
+    "POD_Go.csv": [(0, "4", "CC", "69", "3", ""), (0, "B", "CC", "50", "127", "0"),
+                   (30, "C", "CC", "65", "127", "0"), (31, "D", "CC", "56", "127", "0")],
+    "Nano_Cortex.csv": [(0, "1", "CC", "35", "127", "0"), (0, "B", "CC", "41", "127", "0"),
+                        (0, "C", "CC", "43", "127", "0"), (0, "D", "CC", "42", "127", ""),
+                        (31, "1", "CC", "34", "127", "0"), (31, "3", "CC", "36", "127", "0")],
+    "TONEX_Pedal.csv": [(0, "1", "CC", "12", "0", "127"), (0, "4", "CC", "32", "127", "0"),
+                        (0, "C", "CC", "9", "127", "0"), (0, "D", "CC", "10", "127", ""),
+                        (31, "2", "CC", "90", "127", ""), (31, "B", "CC", "87", "127", "")],
+    "TONEX_Board.csv": [(0, "3", "CC", "39", "2", ""), (0, "4", "CC", "41", "127", "0"),
+                        (0, "A", "CC", "35", "127", "127"), (0, "D", "CC", "45", "127", ""),
+                        (31, "3", "CC", "43", "2", ""), (31, "B", "CC", "44", "127", "")],
+    "GP-200.csv": [(0, "1", "CC", "49", "127", "0"), (0, "C", "CC", "58", "127", "0"),
+                   (0, "D", "CC", "75", "127", ""), (30, "A", "CC", "63", "0", "127"),
+                   (31, "A", "CC", "76", "127", "0")],
 }
 # (bank, button, key, modifiers)
 KEYS = {
@@ -53,7 +74,14 @@ PROGRAMS = {
     "H90.csv": {0: 0, 30: 30}, "TimeLine.csv": {29: 29}, "BigSky.csv": {30: 30},
     "Volante.csv": {29: 29}, "Iridium.csv": {31: 31}, "Ampero_II.csv": {29: 29},
     "RC-600.csv": {0: 0, 30: 30}, "MainStage.csv": {30: 30}, "Gig_Performer.csv": {31: 31},
-    "Cantabile.csv": {31: 31},
+    "Cantabile.csv": {31: 31}, "Helix.csv": {29: 29}, "POD_Go.csv": {29: 29},
+    "Nano_Cortex.csv": {30: 30}, "TONEX_Pedal.csv": {30: 30},
+}
+# The same, with a Bank Select before it: bank: (program, Bank Select, MSB too)
+BANK_SELECTED = {
+    "Helix_Stadium.csv": {0: ("0", "1", "N"), 29: ("29", "1", "N")},     # CC#32 1, User Presets
+    "TONEX_Board.csv": {30: ("30", "0", "Y")},                           # CC#0 0, setlist 01
+    "GP-200.csv": {0: ("0", "128", "Y")},                                # CC#0 1, patches 01-A to 32-D
 }
 
 
@@ -106,6 +134,16 @@ class TemplatesTest(unittest.TestCase):
                     self.assertEqual(norm(r["A_Number_(PC/CC/Note)"]), str(program))
                     self.assertEqual(norm(r["A_BankSelect_(PC)"]), "")    # no Bank Select
 
+    def test_banks_load_their_program_from_a_bank(self):
+        for name, programs in BANK_SELECTED.items():
+            enter = read(name)[3]
+            for bank, (program, bank_select, msb) in programs.items():
+                with self.subTest(f"{name} {bank}"):
+                    r = row(enter, bank)
+                    self.assertEqual((r["A_CommandType"], norm(r["A_Number_(PC/CC/Note)"])), ("PC", program))
+                    self.assertEqual(norm(r["A_BankSelect_(PC)"]), bank_select)
+                    self.assertEqual(norm(r["A_BankSelectHighByte_(PC)"]) or "N", msb)
+
     def test_meris_presets_on_buttons(self):
         # Six presets a bank, 1 2 3 then A B C, and the favorites after 99
         for name in ("Enzo_X.csv", "LVX.csv", "MercuryX.csv"):
@@ -142,7 +180,10 @@ class TemplatesTest(unittest.TestCase):
     def test_expression_pedals(self):
         for name, ccs in (("H90.csv", ("16", "17")), ("TimeLine.csv", ("100", "14")), ("Iridium.csv", ("7", "13")),
                           ("Ampero_II.csv", ("11", "7")), ("RC-600.csv", ("70", "71")),
-                          ("Enzo_X.csv", ("4", "60")), ("LVX.csv", ("4", "1")), ("MercuryX.csv", ("4", "1"))):
+                          ("Enzo_X.csv", ("4", "60")), ("LVX.csv", ("4", "1")), ("MercuryX.csv", ("4", "1")),
+                          ("Helix.csv", ("1", "2")), ("Helix_Stadium.csv", ("1", "2")), ("POD_Go.csv", ("1", "2")),
+                          ("Nano_Cortex.csv", ("1", "1")), ("TONEX_Pedal.csv", ("11", "102")),
+                          ("GP-200.csv", ("11", "7"))):
             with self.subTest(name):
                 settings = read(name)[0].set_index("Label")["Value"]
                 self.assertEqual((norm(settings["Exp1_CC"]), norm(settings["Exp2_CC"])), ccs)

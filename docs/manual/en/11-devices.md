@@ -6,7 +6,7 @@ The pedal talks to a computer over USB and to the rest of your gear through its 
 
 ![Where MIDI goes in and out](../images/midi-routes-en.svg)
 
-Ready-made configurations under `python/templates/` put a device's main controls under your feet with nothing, or next to nothing, to set up on the device: the [Fractal FM3](#fractal-audio-fm3-template), the [Line 6 HX Stomp](#line-6-hx-stomp-template), the [Neural DSP Quad Cortex](#neural-dsp-quad-cortex-template), the [Eventide H90](#eventide-h90-template), the Strymon [TimeLine](#timeline), [BigSky](#bigsky), [Volante](#volante) and [Iridium](#iridium), the Meris [Enzo X, LVX and MercuryX](#meris-templates), the [Hotone Ampero II](#hotone-ampero-ii-template), the [Boss RC-600](#boss-rc-600-template) and the [Kemper Player](#kemper-profiler-player-template), and on the computer [MainStage](#apple-mainstage), [Gig Performer](#gig-performer), [Cantabile](#cantabile) and [Ableton Live](#ableton-live). To use one, open it with **Load CSV** in the configurator and press **Flash to Device**, or from a terminal:
+Ready-made configurations under `python/templates/` put a device's main controls under your feet with nothing, or next to nothing, to set up on the device: the [Fractal FM3](#fractal-audio-fm3-template), the Line 6 [HX Stomp](#line-6-hx-stomp-template), [Helix](#line-6-helix-template), [Helix Stadium](#line-6-helix-stadium-template) and [POD Go](#line-6-pod-go-template), the Neural DSP [Quad Cortex](#neural-dsp-quad-cortex-template) and [Nano Cortex](#neural-dsp-nano-cortex-template), the [Eventide H90](#eventide-h90-template), the Strymon [TimeLine](#timeline), [BigSky](#bigsky), [Volante](#volante) and [Iridium](#iridium), the Meris [Enzo X, LVX and MercuryX](#meris-templates), the [Hotone Ampero II](#hotone-ampero-ii-template), the IK Multimedia [TONEX Pedal and TONEX Board](#ik-multimedia-tonex-templates), the [Valeton GP-200](#valeton-gp-200-template), the [Boss RC-600](#boss-rc-600-template) and the [Kemper Player](#kemper-profiler-player-template), and on the computer [MainStage](#apple-mainstage), [Gig Performer](#gig-performer), [Cantabile](#cantabile) and [Ableton Live](#ableton-live). To use one, open it with **Load CSV** in the configurator and press **Flash to Device**, or from a terminal:
 
 ```bash
 .venv/bin/python python/CSV_to_Flash.py python/templates/FM3.csv
@@ -68,6 +68,72 @@ The HX Stomp has a fixed MIDI map, so it needs no assignments: under **Global Se
 
 To use another channel, change `CHANNEL` at the top of `python/make_hx_stomp_template.py` and run it again, or edit the buttons in the configurator. Presets above 10C take a Program Change with the preset number, 0 to 125.
 
+## Line 6 Helix template
+
+**`python/templates/Helix.csv`** is ready to flash for a Line 6 Helix Floor or Helix LT, which share a MIDI map (owner's manuals, firmware 3.80). Connect the pedal's MIDI OUT to the Helix's MIDI IN.
+
+| Banks | Buttons |
+|---|---|
+| 0–29, `01A`–`08B` | Entering the bank loads the preset with the same name, 01A to 08B, from the setlist the Helix is on. 1 2 3 4 A B are snapshots 1–6, C opens and closes the tuner, D taps the tempo |
+| 30, `LOOP` | Looper: Record, Overdub, Play / Stop, Half Speed, Play Once, Undo, Reverse, then tap |
+| 31, `FS` | FS1–FS4 on the top row and FS7–FS10 on the bottom one, as laid out on the Helix |
+
+The snapshot buttons are an exclusive group, as on the HX Stomp. The footswitch buttons act as if you stepped on the Helix's own, in whatever mode it is in. Under **Global Settings > MIDI/Tempo**, set the MIDI Base Channel to 1 and MIDI PC Receive on. The template sends:
+
+| Function | CC | Values |
+|---|---|---|
+| EXP 1, EXP 2 | 1, 2 | the pedals |
+| FS1–FS5, FS7–FS11 | 49–53, 54–58 | 127 and 0, each one a press; FS6 is MODE |
+| Looper Record / Overdub | 60 | 127 records, 0 overdubs |
+| Looper Play / Stop, Play Once, Undo | 61, 62, 63 | |
+| Tap Tempo | 64 | 127, on the press only |
+| Looper Reverse, Half Speed | 65, 66 | |
+| Tuner | 68 | |
+| Snapshot | 69 | 0–5 snapshots 1–6; 6 and 7 are snapshots 7 and 8, 8 next, 9 previous |
+
+Not used by the template but in the device dictionary: FS5 and FS11, the EXP toe switch (59), the Looper block (67), the MODE switch (71), the previous and next preset (72 with 0 and 127), and EXP 3 (3, Helix Floor only). A setlist is CC#32 before the Program Change, 0 for FACTORY 1: set `BankSelect_(PC)` on the banks' enter lists.
+
+## Line 6 Helix Stadium template
+
+**`python/templates/Helix_Stadium.csv`** is ready to flash for a Line 6 Helix Stadium or Stadium XL, from the MIDI page of its manual. Its map is not the Helix's: there is no CC that presses a footswitch, and the tuner and the looper have other numbers. Connect the pedal's MIDI OUT to the Stadium's MIDI IN.
+
+| Banks | Buttons |
+|---|---|
+| 0–29, `1A`–`8B` | Entering the bank loads the user preset of the same name, with CC#32 1 before the Program Change. 1 2 3 4 A B are snapshots 1–6, C opens and closes the tuner, D taps the tempo |
+| 30, `LOOP` | The Looper block on and off, Record, Overdub, Play / Stop, Play Once, Undo, Half Speed and Reverse; a long press on Undo clears the loop |
+| 31, `MODE` | The footswitch mode, Stomp A, Stomp B, Preset or Snapshot, as an exclusive group; then previous and next preset, previous and next snapshot |
+
+The Stadium has two MIDI channels, under **Global Settings > MIDI**: the template sends on the Global MIDI Channel, 1. The CCs you learn to blocks go on the other one, Bypass/Ctrl, 2 at first, for any button in the configurator. The template sends:
+
+| Function | CC | Values |
+|---|---|---|
+| Bank Select before each preset | 32 | 1: User Presets 1A–32D; 2, 3 and 4 the next 128 each |
+| EXP 1, EXP 2 | 1, 2 | the pedals |
+| A top panel button | 9 | 34 opens and closes the tuner, 12 and 13 the previous and next preset |
+| Footswitch mode | 37 | 0 Stomp A, 1 Stomp B, 2 Preset, 3 Snapshot |
+| Looper Clear, Undo / Redo | 52, 53 | 127, on the press only |
+| Looper Half Speed, Reverse | 54, 55 | 127 on, 0 off |
+| Looper Record / Overdub | 58 | 127 records, 0 overdubs |
+| Looper Play / Stop | 59 | 127 plays, 0 stops |
+| Looper Play Once | 60 | 127, on the press only |
+| Looper block | 62 | 127 on, 0 off |
+| Tap Tempo | 64 | 127, on the press only |
+| Snapshot | 69 | 0–7 snapshots 1–8, 8 next, 9 previous |
+
+To load another folder, change `FOLDER` at the top of `python/make_helix_stadium_template.py` and run it again.
+
+## Line 6 POD Go template
+
+**`python/templates/POD_Go.csv`** is for a Line 6 POD Go or POD Go Wireless, from its owner's manual (firmware 2.50). The POD Go takes MIDI over its USB port only, and that port is a device, like the pedal's: two devices cannot talk to each other over USB. Put a USB MIDI host box between them, one with a DIN input: the pedal's MIDI OUT into the box, the box's USB A socket to the POD Go. Through a computer, routing the pedal's USB port to the POD Go's, works as well.
+
+| Banks | Buttons |
+|---|---|
+| 0–29, `01A`–`08B` | Entering the bank loads the preset of the same name. 1 2 3 4 are snapshots 1–4, A and B press FS1 and FS2, C opens and closes the tuner, D taps the tempo |
+| 30, `LOOP` | Looper: Record, Overdub, Play / Stop, Half Speed, Play Once, Undo, Reverse, then tap |
+| 31, `FS` | FS1–FS8; FS7 and FS8 are the switches on the POD Go's EXP 2 jack |
+
+Under **Global Settings > MIDI/Tempo**, set the MIDI Channel to 1 and Tx/Rx MIDI PC on. The CCs are the HX Stomp's, above, with FS1–FS8 on 49–56 and snapshots 1–4 on CC 69 with 0–3.
+
 ## Neural DSP Quad Cortex template
 
 **`python/templates/Quad_Cortex.csv`** is ready to flash for a Neural DSP Quad Cortex driven over the DIN output. Connect the pedal's MIDI OUT to the Quad Cortex's MIDI IN and power the pedal over USB.
@@ -95,6 +161,36 @@ The Quad Cortex has a fixed MIDI map, so it needs no assignments: under **Settin
 | Looper X Record / Overdub, Play / Stop, Undo / Redo | 53, 54, 56 | 127, on the press only |
 
 To use another channel, or another setlist, change `CHANNEL` or `SETLIST` at the top of `python/make_quad_cortex_template.py` and run it again: `SETLIST` is the Bank Select LSB, 0 for Factory Presets, 1 for My Presets and 2 to 12 for the user setlists. Scenes G and H are CC 43 with 6 and 7, for any button in the configurator.
+
+The **Quad Cortex Mini** has the same MIDI map, on 3.5 mm TRS MIDI Type A sockets instead of DIN ones: it takes the same template through a DIN to TRS Type A adapter. With four footswitches, the template's footswitches A–D are the Mini's Page I and E–H its Page II.
+
+## Neural DSP Nano Cortex template
+
+**`python/templates/Nano_Cortex.csv`** is ready to flash for a Neural DSP Nano Cortex with NanOS 2.1 or later, from its manual's incoming CCs; NanOS 2.0 answered Program Changes only.
+
+The Nano Cortex takes MIDI on its EXP/MIDI jack, a TRS MIDI Type A input. The pedal's MIDI OUT is a DIN socket, so it needs a **DIN to TRS Type A** adapter or cable: tip from DIN pin 5, ring from pin 4, sleeve from pin 2. Two things leave the Nano Cortex deaf to any controller, and are what is behind the "my controller sends nothing" threads on the Neural DSP forum:
+
+- the jack set to Expression Pedal. Set it to MIDI in the app's settings; the jack then takes no expression pedal, and the pedal's own move the Nano Cortex's expression over MIDI instead;
+- a Type B adapter, which has tip and ring the other way round. Type A and Type B adapters look the same: check which one you have.
+
+If it still hears nothing, try the pedal's USB into a computer and a MIDI monitor first, to see what the pedal sends, then a short cable and adapter on the DIN output.
+
+| Banks | Buttons |
+|---|---|
+| 0–30, `P01`–`P31` | Entering the bank loads presets 1 to 31, Program Change 0 to 30. 1 switches the capture, 2 3 4 A B the FX slots 1–5, C opens and closes the tuner, D taps the tempo |
+| 31, `SLOT` | Every slot on and off: Gate, Capture, Cab and FX 1–5 |
+
+Set the Nano Cortex's MIDI channel to 1. The template sends:
+
+| Function | CC | Values |
+|---|---|---|
+| Expression | 1 | both pedals |
+| Gate, Capture, Cab | 34, 35, 36 | 127 on, 0 off |
+| FX slots 1–5 | 37–41 | 127 on, 0 off |
+| Tap Tempo | 42 | 127, on the press only |
+| Tuner | 43 | 127 opens, 0 closes |
+
+The slot buttons light from what the pedal last sent, not from the preset: a preset that loads with a slot off leaves its button lit until pressed. Presets 32 to 64 are Program Changes 31 to 63, for any button in the configurator.
 
 ## Eventide H90 template
 
@@ -235,6 +331,75 @@ The Meris pedals answer no request for their preset or its state that is documen
 
 A patch above 128 takes a Program Change with `BankSelect_(PC)` set to 128 and `BankSelectHighByte_(PC)` to `Y`, 256 above 256, which sends CC#0 1 or 2. The Ampero II Stomp and Stage have maps of their own, three and five patches to a bank and five scenes, so the patch names would not match.
 
+## IK Multimedia TONEX templates
+
+The TONEX Pedal and the TONEX Board have MIDI maps of their own, from their user manuals. The TONEX ONE+ has the Pedal's CCs on a 3.5 mm TRS MIDI Type A socket, through a DIN to TRS Type A adapter, with 20 presets; the TONEX ONE and the TONEX Plug have no MIDI.
+
+### TONEX Pedal
+
+**`python/templates/TONEX_Pedal.csv`** is ready to flash for a TONEX Pedal (manual 1.6.22). Connect the pedal's MIDI OUT to its MIDI IN and set its MIDI CH to 1.
+
+| Banks | Buttons |
+|---|---|
+| 0–30, `00A`–`10A` | Entering the bank loads the preset of the same name, Program Change 0 to 30. 1 bypasses the preset, lit while bypassed; 2 3 4 A B switch the noise gate, compressor, modulation, delay and reverb; C opens and closes the tuner, D taps the tempo |
+| 31, `NAV` | Bank down and up, preset down and up, bypass, tuner and tap |
+
+| Function | CC | Values |
+|---|---|---|
+| Expression, Gain | 11, 102 | the pedals |
+| Preset on / bypass | 12 | 127 on, 0 bypassed |
+| Gate, Compressor, Modulation, Delay, Reverb | 14, 18, 32, 2, 75 | 127 on, 0 off |
+| Tuner | 9 | 127 opens, 0 closes |
+| Tap Tempo | 10 | 127, on the press only |
+| Preset down, up; bank down, up | 86, 87, 89, 90 | 127, on the press only |
+
+No Bank Select goes before the Program Changes: the TONEX Pedal starts on its first 128 presets, 00A to 42B, and its CC#32, which a Bank Select would send, switches the modulation. Presets from 42C up take CC#0 1 first, a CC command on the button before the Program Change.
+
+### TONEX Board
+
+**`python/templates/TONEX_Board.csv`** is ready to flash for a TONEX Board (manual 1.1.0). Connect the pedal's MIDI OUT to its MIDI IN and set its MIDI channel to 1.
+
+| Banks | Buttons |
+|---|---|
+| 0–30, `01A`–`11A` | Entering the bank loads the preset of the same name from setlist 01, with CC#0 0 before the Program Change. 1 2 3 are scenes A–C, 4 opens and closes the tuner, A B C press footswitches A–C, D taps the tempo |
+| 31, `MODE` | The mode, Preset, Scene or Stomp, as an exclusive group; the tuner; the previous and next mode; tap |
+
+| Function | CC | Values |
+|---|---|---|
+| Setlist, before each preset | 0 | 0–11, setlists 01–12 |
+| Footswitches A, B, C | 35, 36, 37 | 127, each one a press |
+| Scene | 39 | 0–2, scenes A–C |
+| Tuner | 41 | 127 opens, 0 closes |
+| Mode | 43 | 0 Preset, 1 Scene, 2 Stomp |
+| Previous, next mode | 44 | 0, 127 |
+| Tap Tempo | 45 | 127, on the press only |
+
+The Board has no CC for an expression pedal, so the template sets both pedals to `Speed`, which sends nothing: plug expression pedals into the Board itself. To use another setlist, change `SETLIST` at the top of `python/make_tonex_board_template.py` and run it again.
+
+## Valeton GP-200 template
+
+**`python/templates/GP-200.csv`** is ready to flash for a Valeton GP-200, from its MIDI Control Information List (firmware V1.7.4). Connect the pedal's MIDI OUT to the GP-200's MIDI IN; out of the box it listens on every channel, Omni, from MIDI IN and USB alike.
+
+| Banks | Buttons |
+|---|---|
+| 0–29, `01A`–`08B` | Entering the bank loads patch 01-A to 08-B. 1 2 3 4 A B switch the distortion, amp, modulation, delay, reverb and wah modules, C opens and closes the tuner, D taps the tempo |
+| 30, `LOOP` | The looper on and off, Record, Play / Stop, Auto Record, Half Speed and Reverse, lit while on, Delete, then tap |
+| 31, `CTRL` | CTRL 1–8 |
+
+| Function | CC | Values |
+|---|---|---|
+| Bank Select before each patch | 0 | 1: patches 01-A to 32-D; 0 for 33-A to 64-D |
+| Patch Volume, EXP 1 | 7, 11 | the pedals, 0–100 |
+| DST, AMP, MOD, DLY, RVB, WAH | 49, 50, 54, 55, 56, 57 | 127 on, 0 off |
+| Tuner, Looper | 58, 59 | 127 on, 0 off |
+| Looper Record, Auto Record, Delete | 60, 61, 65 | 127, on the press only |
+| Looper Play / Stop | 62 | 127 plays, 0 stops |
+| Looper Speed, Direction | 63, 64 | 0 half speed, reverse; 127 back to normal |
+| CTRL 1–4, 5–8 | 69–72, 76–79 | 127 and 0 |
+| Tap Tempo | 75 | 127, on the press only |
+
+The Bank Select's values are the other way round from what one would think, 1 for the first 128 patches; the template sends it with every patch. The GP-200LT has the same map, without CTRL 5–8, on 3.5 mm TRS MIDI sockets: check in its manual which TRS type its adapter is.
+
 ## Boss RC-600 template
 
 **`python/templates/RC-600.csv`** is ready to flash for a Boss RC-600 Loop Station. Connect the pedal's MIDI OUT to the RC-600's MIDI IN; it listens on channel 1 out of the box (MENU > MIDI > RX CH CTL).
@@ -284,6 +449,11 @@ The Player has a fixed MIDI map, so it needs no assignments: it listens on all s
 | Effect buttons I–IIII | 75–78 | 127 and 0 |
 
 To use another channel, change `CHANNEL` at the top of `python/make_kemper_player_template.py` and run it again, or edit the buttons in the configurator. The fifty rigs also answer to a plain Program Change: the Player's manual numbers them 1 to 50, which is `Number` 0 to 49 here.
+
+## No template yet: Boss GX-100 and Fender Tone Master Pro
+
+- **Boss GX-100 and GX-10.** They answer Program Changes, but none of their controls has a CC of its own: each CC has to be set as the SOURCE of an ASSIGN, in each memory, as on the [RC-600](#boss-rc-600-template). The GX-10 has no MIDI socket at all, only USB and Bluetooth, so it needs a USB MIDI host box, as the [POD Go](#line-6-pod-go-template) does. A Program Change selects a memory as the GX's PROGRAM MAP says; with MAP SELECT on FIX, CC#0 0, 1 or 2 before it reaches the 300 memories.
+- **Fender Tone Master Pro.** It has DIN MIDI, and a preset is CC#0 0–3 then a Program Change, 128 presets to a bank. Its CC chart has been corrected more than once since the first manual, and the current one could not be checked, so there is no template yet: its MIDI chapter, under **Settings > I/O > MIDI**, says which CC does what.
 
 ## Templates for programs on the computer
 

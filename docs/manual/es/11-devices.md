@@ -6,7 +6,7 @@ La pedalera habla con un ordenador por USB y con el resto de tu equipo por su to
 
 ![Por dónde entra y sale el MIDI](../images/midi-routes-es.svg)
 
-Hay configuraciones listas en `python/templates/` que ponen los controles principales de un equipo bajo tus pies sin tener que configurar nada, o casi nada, en el equipo: el [Fractal FM3](#plantilla-para-fractal-audio-fm3), el [Line 6 HX Stomp](#plantilla-para-line-6-hx-stomp), el [Neural DSP Quad Cortex](#plantilla-para-neural-dsp-quad-cortex), el [Eventide H90](#plantilla-para-eventide-h90), los Strymon [TimeLine](#timeline), [BigSky](#bigsky), [Volante](#volante) e [Iridium](#iridium), los Meris [Enzo X, LVX y MercuryX](#plantillas-para-meris), el [Hotone Ampero II](#plantilla-para-hotone-ampero-ii), la [Boss RC-600](#plantilla-para-boss-rc-600) y el [Kemper Player](#plantilla-para-kemper-profiler-player), y en el ordenador [MainStage](#apple-mainstage), [Gig Performer](#gig-performer), [Cantabile](#cantabile) y [Ableton Live](#ableton-live). Para usar una, ábrela con **Load CSV** en el configurador y pulsa **Flash to Device**, o desde un terminal:
+Hay configuraciones listas en `python/templates/` que ponen los controles principales de un equipo bajo tus pies sin tener que configurar nada, o casi nada, en el equipo: el [Fractal FM3](#plantilla-para-fractal-audio-fm3), las Line 6 [HX Stomp](#plantilla-para-line-6-hx-stomp), [Helix](#plantilla-para-line-6-helix), [Helix Stadium](#plantilla-para-line-6-helix-stadium) y [POD Go](#plantilla-para-line-6-pod-go), los Neural DSP [Quad Cortex](#plantilla-para-neural-dsp-quad-cortex) y [Nano Cortex](#plantilla-para-neural-dsp-nano-cortex), el [Eventide H90](#plantilla-para-eventide-h90), los Strymon [TimeLine](#timeline), [BigSky](#bigsky), [Volante](#volante) e [Iridium](#iridium), los Meris [Enzo X, LVX y MercuryX](#plantillas-para-meris), el [Hotone Ampero II](#plantilla-para-hotone-ampero-ii), las IK Multimedia [TONEX Pedal y TONEX Board](#plantillas-para-ik-multimedia-tonex), la [Valeton GP-200](#plantilla-para-valeton-gp-200), la [Boss RC-600](#plantilla-para-boss-rc-600) y el [Kemper Player](#plantilla-para-kemper-profiler-player), y en el ordenador [MainStage](#apple-mainstage), [Gig Performer](#gig-performer), [Cantabile](#cantabile) y [Ableton Live](#ableton-live). Para usar una, ábrela con **Load CSV** en el configurador y pulsa **Flash to Device**, o desde un terminal:
 
 ```bash
 .venv/bin/python python/CSV_to_Flash.py python/templates/FM3.csv
@@ -68,6 +68,72 @@ La HX Stomp tiene un mapa MIDI fijo, así que no hay que asignar nada: en **Glob
 
 Para usar otro canal, cambia `CHANNEL` al principio de `python/make_hx_stomp_template.py` y vuelve a ejecutarlo, o edita los botones en el configurador. Los presets por encima de 10C necesitan un Program Change con el número del preset, de 0 a 125.
 
+## Plantilla para Line 6 Helix
+
+**`python/templates/Helix.csv`** está lista para grabar y manejar una Line 6 Helix Floor o Helix LT, que comparten mapa MIDI (manuales de usuario, firmware 3.80). Conecta el MIDI OUT de la pedalera al MIDI IN de la Helix.
+
+| Bancos | Botones |
+|---|---|
+| 0–29, `01A`–`08B` | Al entrar en el banco se carga el preset con el mismo nombre, de 01A a 08B, del setlist en que esté la Helix. 1 2 3 4 A B son los snapshots 1–6, C abre y cierra el afinador, D marca el tap tempo |
+| 30, `LOOP` | Looper: Record, Overdub, Play / Stop, Half Speed, Play Once, Undo, Reverse, y luego tap |
+| 31, `FS` | FS1–FS4 en la fila de arriba y FS7–FS10 en la de abajo, colocados como en la Helix |
+
+Los botones de snapshot forman un grupo exclusivo, como en la HX Stomp. Los botones de pulsador actúan como si pisaras los de la Helix, en el modo en que esté. En **Global Settings > MIDI/Tempo**, pon el MIDI Base Channel en 1 y activa MIDI PC Receive. La plantilla envía:
+
+| Función | CC | Valores |
+|---|---|---|
+| EXP 1, EXP 2 | 1, 2 | los pedales |
+| FS1–FS5, FS7–FS11 | 49–53, 54–58 | 127 y 0, cada uno una pisada; FS6 es MODE |
+| Looper Record / Overdub | 60 | 127 graba, 0 sobregraba |
+| Looper Play / Stop, Play Once, Undo | 61, 62, 63 | |
+| Tap Tempo | 64 | 127, solo al pisar |
+| Looper Reverse, Half Speed | 65, 66 | |
+| Tuner | 68 | |
+| Snapshot | 69 | 0–5 snapshots 1–6; 6 y 7 son los snapshots 7 y 8, 8 siguiente, 9 anterior |
+
+La plantilla no los usa pero están en el diccionario de equipos: FS5 y FS11, el interruptor de punta del EXP (59), el bloque Looper (67), el pulsador MODE (71), el preset anterior y el siguiente (72 con 0 y 127) y EXP 3 (3, solo Helix Floor). Un setlist es un CC#32 antes del Program Change, 0 para FACTORY 1: pon `BankSelect_(PC)` en las listas de entrada de los bancos.
+
+## Plantilla para Line 6 Helix Stadium
+
+**`python/templates/Helix_Stadium.csv`** está lista para grabar y manejar una Line 6 Helix Stadium o Stadium XL, según la página MIDI de su manual. Su mapa no es el de la Helix: no hay ningún CC que pise un pulsador, y el afinador y el looper tienen otros números. Conecta el MIDI OUT de la pedalera al MIDI IN de la Stadium.
+
+| Bancos | Botones |
+|---|---|
+| 0–29, `1A`–`8B` | Al entrar en el banco se carga el preset de usuario con el mismo nombre, con un CC#32 1 antes del Program Change. 1 2 3 4 A B son los snapshots 1–6, C abre y cierra el afinador, D marca el tap tempo |
+| 30, `LOOP` | El bloque Looper encendido y apagado, Record, Overdub, Play / Stop, Play Once, Undo, Half Speed y Reverse; una pulsación larga en Undo borra el loop |
+| 31, `MODE` | El modo de los pulsadores, Stomp A, Stomp B, Preset o Snapshot, como grupo exclusivo; después preset anterior y siguiente, snapshot anterior y siguiente |
+
+La Stadium tiene dos canales MIDI, en **Global Settings > MIDI**: la plantilla envía por el Global MIDI Channel, el 1. Los CC que aprendas en los bloques van por el otro, Bypass/Ctrl, el 2 de fábrica, para cualquier botón en el configurador. La plantilla envía:
+
+| Función | CC | Valores |
+|---|---|---|
+| Bank Select antes de cada preset | 32 | 1: User Presets 1A–32D; 2, 3 y 4 los 128 siguientes cada uno |
+| EXP 1, EXP 2 | 1, 2 | los pedales |
+| Un botón del panel superior | 9 | 34 abre y cierra el afinador, 12 y 13 el preset anterior y el siguiente |
+| Modo de los pulsadores | 37 | 0 Stomp A, 1 Stomp B, 2 Preset, 3 Snapshot |
+| Looper Clear, Undo / Redo | 52, 53 | 127, solo al pisar |
+| Looper Half Speed, Reverse | 54, 55 | 127 activa, 0 desactiva |
+| Looper Record / Overdub | 58 | 127 graba, 0 sobregraba |
+| Looper Play / Stop | 59 | 127 reproduce, 0 para |
+| Looper Play Once | 60 | 127, solo al pisar |
+| Bloque Looper | 62 | 127 encendido, 0 apagado |
+| Tap Tempo | 64 | 127, solo al pisar |
+| Snapshot | 69 | 0–7 snapshots 1–8, 8 siguiente, 9 anterior |
+
+Para cargar otra carpeta, cambia `FOLDER` al principio de `python/make_helix_stadium_template.py` y vuelve a ejecutarlo.
+
+## Plantilla para Line 6 POD Go
+
+**`python/templates/POD_Go.csv`** es para una Line 6 POD Go o POD Go Wireless, según su manual de usuario (firmware 2.50). La POD Go solo recibe MIDI por su puerto USB, y ese puerto es de dispositivo, como el de la pedalera: dos dispositivos no pueden hablar entre sí por USB. Pon entre ellas una caja USB MIDI host con entrada DIN: el MIDI OUT de la pedalera a la caja, y la toma USB A de la caja a la POD Go. También funciona a través de un ordenador, que lleve el puerto USB de la pedalera al de la POD Go.
+
+| Bancos | Botones |
+|---|---|
+| 0–29, `01A`–`08B` | Al entrar en el banco se carga el preset con el mismo nombre. 1 2 3 4 son los snapshots 1–4, A y B pisan FS1 y FS2, C abre y cierra el afinador, D marca el tap tempo |
+| 30, `LOOP` | Looper: Record, Overdub, Play / Stop, Half Speed, Play Once, Undo, Reverse, y luego tap |
+| 31, `FS` | FS1–FS8; FS7 y FS8 son los pulsadores de la toma EXP 2 de la POD Go |
+
+En **Global Settings > MIDI/Tempo**, pon el MIDI Channel en 1 y activa Tx/Rx MIDI PC. Los CC son los de la HX Stomp, más arriba, con FS1–FS8 en 49–56 y los snapshots 1–4 en el CC 69 con 0–3.
+
 ## Plantilla para Neural DSP Quad Cortex
 
 **`python/templates/Quad_Cortex.csv`** está lista para grabar y manejar un Neural DSP Quad Cortex por la salida DIN. Conecta el MIDI OUT de la pedalera al MIDI IN del Quad Cortex y alimenta la pedalera por USB.
@@ -95,6 +161,36 @@ El Quad Cortex tiene un mapa MIDI fijo, así que no hay que asignar nada: en **S
 | Looper X Record / Overdub, Play / Stop, Undo / Redo | 53, 54, 56 | 127, solo al pisar |
 
 Para usar otro canal, u otro setlist, cambia `CHANNEL` o `SETLIST` al principio de `python/make_quad_cortex_template.py` y vuelve a ejecutarlo: `SETLIST` es el LSB del Bank Select, 0 para Factory Presets, 1 para My Presets y de 2 a 12 para los setlists del usuario. Las escenas G y H son el CC 43 con 6 y 7, para cualquier botón en el configurador.
+
+El **Quad Cortex Mini** tiene el mismo mapa MIDI, con tomas TRS MIDI de 3,5 mm de tipo A en vez de DIN: le sirve la misma plantilla con un adaptador de DIN a TRS tipo A. Como tiene cuatro pulsadores, los pulsadores A–D de la plantilla son la Page I del Mini y E–H su Page II.
+
+## Plantilla para Neural DSP Nano Cortex
+
+**`python/templates/Nano_Cortex.csv`** está lista para grabar y manejar un Neural DSP Nano Cortex con NanOS 2.1 o posterior, según los CC de entrada de su manual; NanOS 2.0 solo atendía Program Changes.
+
+El Nano Cortex recibe MIDI por su toma EXP/MIDI, una entrada TRS MIDI de tipo A. El MIDI OUT de la pedalera es una toma DIN, así que hace falta un adaptador o cable **de DIN a TRS tipo A**: la punta desde el pin 5 del DIN, el anillo desde el pin 4 y la malla desde el pin 2. Dos cosas dejan al Nano Cortex sordo a cualquier controlador, y son lo que hay detrás de los hilos del foro de Neural DSP en que "el controlador no envía nada":
+
+- la toma puesta en Expression Pedal. Ponla en MIDI en los ajustes de la app; la toma deja entonces de admitir un pedal de expresión, y los de la pedalera mueven la expresión del Nano Cortex por MIDI;
+- un adaptador de tipo B, que lleva la punta y el anillo al revés. Los de tipo A y tipo B parecen iguales: comprueba cuál tienes.
+
+Si aun así no oye nada, conecta primero el USB de la pedalera a un ordenador con un monitor MIDI para ver lo que envía, y luego prueba con un cable y un adaptador cortos en la salida DIN.
+
+| Bancos | Botones |
+|---|---|
+| 0–30, `P01`–`P31` | Al entrar en el banco se cargan los presets 1 a 31, Program Change 0 a 30. 1 conmuta la captura, 2 3 4 A B los slots de efecto FX 1–5, C abre y cierra el afinador, D marca el tap tempo |
+| 31, `SLOT` | Todos los slots encendidos y apagados: Gate, Capture, Cab y FX 1–5 |
+
+Pon el canal MIDI del Nano Cortex en 1. La plantilla envía:
+
+| Función | CC | Valores |
+|---|---|---|
+| Expresión | 1 | los dos pedales |
+| Gate, Capture, Cab | 34, 35, 36 | 127 encendido, 0 apagado |
+| Slots FX 1–5 | 37–41 | 127 encendido, 0 apagado |
+| Tap Tempo | 42 | 127, solo al pisar |
+| Afinador | 43 | 127 abre, 0 cierra |
+
+Los botones de los slots se encienden según lo último que envió la pedalera, no según el preset: un preset que se carga con un slot apagado deja su botón encendido hasta que lo pises. Los presets 32 a 64 son los Program Change 31 a 63, para cualquier botón en el configurador.
 
 ## Plantilla para Eventide H90
 
@@ -235,6 +331,75 @@ Los Meris no responden a ninguna petición documentada de su preset o su estado,
 
 Un patch por encima del 128 lleva un Program Change con `BankSelect_(PC)` a 128 y `BankSelectHighByte_(PC)` a `Y`, 256 por encima del 256, que envía el CC#0 con 1 o 2. El Ampero II Stomp y el Stage tienen mapas propios, con tres y cinco patches por banco y cinco escenas, así que los nombres de los patches no coincidirían.
 
+## Plantillas para IK Multimedia TONEX
+
+La TONEX Pedal y la TONEX Board tienen cada una su mapa MIDI, según sus manuales de usuario. La TONEX ONE+ tiene los CC de la Pedal en una toma TRS MIDI de 3,5 mm de tipo A, con un adaptador de DIN a TRS tipo A, y 20 presets; la TONEX ONE y la TONEX Plug no tienen MIDI.
+
+### TONEX Pedal
+
+**`python/templates/TONEX_Pedal.csv`** está lista para grabar y manejar una TONEX Pedal (manual 1.6.22). Conecta el MIDI OUT de la pedalera a su MIDI IN y pon su MIDI CH en 1.
+
+| Bancos | Botones |
+|---|---|
+| 0–30, `00A`–`10A` | Al entrar en el banco se carga el preset con el mismo nombre, Program Change 0 a 30. 1 pone el preset en bypass, encendido mientras lo está; 2 3 4 A B conmutan la puerta de ruido, el compresor, la modulación, el delay y la reverb; C abre y cierra el afinador, D marca el tap tempo |
+| 31, `NAV` | Banco anterior y siguiente, preset anterior y siguiente, bypass, afinador y tap |
+
+| Función | CC | Valores |
+|---|---|---|
+| Expresión, Gain | 11, 102 | los pedales |
+| Preset encendido / bypass | 12 | 127 encendido, 0 en bypass |
+| Gate, Compressor, Modulation, Delay, Reverb | 14, 18, 32, 2, 75 | 127 encendido, 0 apagado |
+| Afinador | 9 | 127 abre, 0 cierra |
+| Tap Tempo | 10 | 127, solo al pisar |
+| Preset anterior, siguiente; banco anterior, siguiente | 86, 87, 89, 90 | 127, solo al pisar |
+
+No va ningún Bank Select antes de los Program Change: la TONEX Pedal arranca en sus primeros 128 presets, de 00A a 42B, y su CC#32, que enviaría un Bank Select, conmuta la modulación. Los presets desde 42C necesitan antes un CC#0 1, un comando CC en el botón antes del Program Change.
+
+### TONEX Board
+
+**`python/templates/TONEX_Board.csv`** está lista para grabar y manejar una TONEX Board (manual 1.1.0). Conecta el MIDI OUT de la pedalera a su MIDI IN y pon su canal MIDI en 1.
+
+| Bancos | Botones |
+|---|---|
+| 0–30, `01A`–`11A` | Al entrar en el banco se carga el preset con el mismo nombre del setlist 01, con un CC#0 0 antes del Program Change. 1 2 3 son las escenas A–C, 4 abre y cierra el afinador, A B C pisan los pulsadores A–C, D marca el tap tempo |
+| 31, `MODE` | El modo, Preset, Scene o Stomp, como grupo exclusivo; el afinador; el modo anterior y el siguiente; tap |
+
+| Función | CC | Valores |
+|---|---|---|
+| Setlist, antes de cada preset | 0 | 0–11, setlists 01–12 |
+| Pulsadores A, B, C | 35, 36, 37 | 127, cada uno una pisada |
+| Escena | 39 | 0–2, escenas A–C |
+| Afinador | 41 | 127 abre, 0 cierra |
+| Modo | 43 | 0 Preset, 1 Scene, 2 Stomp |
+| Modo anterior, siguiente | 44 | 0, 127 |
+| Tap Tempo | 45 | 127, solo al pisar |
+
+La Board no tiene ningún CC para un pedal de expresión, así que la plantilla pone los dos pedales en `Speed`, que no envía nada: conecta los pedales de expresión a la propia Board. Para usar otro setlist, cambia `SETLIST` al principio de `python/make_tonex_board_template.py` y vuelve a ejecutarlo.
+
+## Plantilla para Valeton GP-200
+
+**`python/templates/GP-200.csv`** está lista para grabar y manejar una Valeton GP-200, según su MIDI Control Information List (firmware V1.7.4). Conecta el MIDI OUT de la pedalera al MIDI IN de la GP-200; de fábrica escucha en todos los canales, Omni, tanto por MIDI IN como por USB.
+
+| Bancos | Botones |
+|---|---|
+| 0–29, `01A`–`08B` | Al entrar en el banco se carga el patch 01-A a 08-B. 1 2 3 4 A B conmutan los módulos de distorsión, ampli, modulación, delay, reverb y wah, C abre y cierra el afinador, D marca el tap tempo |
+| 30, `LOOP` | El looper encendido y apagado, Record, Play / Stop, Auto Record, Half Speed y Reverse, encendidos mientras están activos, Delete, y luego tap |
+| 31, `CTRL` | CTRL 1–8 |
+
+| Función | CC | Valores |
+|---|---|---|
+| Bank Select antes de cada patch | 0 | 1: patches 01-A a 32-D; 0 para 33-A a 64-D |
+| Patch Volume, EXP 1 | 7, 11 | los pedales, 0–100 |
+| DST, AMP, MOD, DLY, RVB, WAH | 49, 50, 54, 55, 56, 57 | 127 encendido, 0 apagado |
+| Afinador, Looper | 58, 59 | 127 encendido, 0 apagado |
+| Looper Record, Auto Record, Delete | 60, 61, 65 | 127, solo al pisar |
+| Looper Play / Stop | 62 | 127 reproduce, 0 para |
+| Looper Speed, Direction | 63, 64 | 0 media velocidad, al revés; 127 vuelve a lo normal |
+| CTRL 1–4, 5–8 | 69–72, 76–79 | 127 y 0 |
+| Tap Tempo | 75 | 127, solo al pisar |
+
+Los valores del Bank Select van al revés de lo que se esperaría, 1 para los primeros 128 patches; la plantilla lo envía con cada patch. La GP-200LT tiene el mismo mapa, sin CTRL 5–8, con tomas MIDI TRS de 3,5 mm: mira en su manual de qué tipo TRS es su adaptador.
+
 ## Plantilla para Boss RC-600
 
 **`python/templates/RC-600.csv`** está lista para grabar y manejar una Boss RC-600 Loop Station. Conecta el MIDI OUT de la pedalera al MIDI IN de la RC-600; de fábrica escucha en el canal 1 (MENU > MIDI > RX CH CTL).
@@ -284,6 +449,11 @@ El Player tiene un mapa MIDI fijo, así que no hay que asignar nada: escucha en 
 | Botones de efecto I–IIII | 75–78 | 127 y 0 |
 
 Para usar otro canal, cambia `CHANNEL` al principio de `python/make_kemper_player_template.py` y vuelve a ejecutarlo, o edita los botones en el configurador. Los cincuenta rigs también responden a un Program Change normal: el manual del Player los numera del 1 al 50, que aquí es `Number` del 0 al 49.
+
+## Aún sin plantilla: Boss GX-100 y Fender Tone Master Pro
+
+- **Boss GX-100 y GX-10.** Atienden los Program Change, pero ninguno de sus controles tiene un CC propio: cada CC hay que ponerlo como SOURCE de un ASSIGN, en cada memoria, como en la [RC-600](#plantilla-para-boss-rc-600). La GX-10 no tiene ninguna toma MIDI, solo USB y Bluetooth, así que necesita una caja USB MIDI host, como la [POD Go](#plantilla-para-line-6-pod-go). Un Program Change elige una memoria según el PROGRAM MAP de la GX; con MAP SELECT en FIX, un CC#0 0, 1 o 2 antes llega a las 300 memorias.
+- **Fender Tone Master Pro.** Tiene MIDI DIN, y un preset es un CC#0 0–3 y luego un Program Change, 128 presets por banco. Su tabla de CC se ha corregido más de una vez desde el primer manual, y la actual no se ha podido comprobar, así que aún no tiene plantilla: el capítulo MIDI de su manual, en **Settings > I/O > MIDI**, dice qué hace cada CC.
 
 ## Plantillas para programas del ordenador
 

@@ -127,8 +127,15 @@ def config_commands(sections: dict) -> list:
     if g is not None and "Label" in g.columns:
         settings = {str(k): ("" if v != v else str(v)) for k, v in zip(g["Label"], g["Value"])}
     global_channel = _int(settings.get("Global_Channel"))
-    # The expression pedals' CCs, on the MIDI channel
-    for key in ("Exp1_CC", "Exp2_CC"):
+    # The expression pedals' CCs, on the MIDI channel, unless the pedal sends
+    # something else
+    outputs = {}
+    e = sections.get("Expression_Settings")
+    if e is not None and {"Pedal", "Output"} <= set(e.columns):
+        outputs = {str(p).strip(): str(o).strip().upper() for p, o in zip(e["Pedal"], e["Output"]) if o == o}
+    for pedal, key in (("1", "Exp1_CC"), ("2", "Exp2_CC")):
+        if outputs.get(pedal, "CC") not in ("", "CC", "CC14"):
+            continue
         if _int(settings.get(key)) is not None:
             out.append((global_channel or settings.get("MIDI_Channel", ""), "CC", settings[key], "", ""))
     for df in sections.values():
