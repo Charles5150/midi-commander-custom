@@ -300,12 +300,16 @@ class TempoCommandTest(unittest.TestCase):
         self.assertEqual(list(self.tap("Record")), [0x75, 0, 0, 0])
         self.assertEqual(list(self.tap("Playback")), [0x76, 0, 0, 0])
         self.assertEqual(list(self.tap("Erase")), [0x77, 0, 0, 0])
+        self.assertEqual(list(self.tap("Out", bpm="8")), [0x78, 0, 8, 0])
+        self.assertEqual(list(self.tap("Out", bpm="0")), [0x78, 0, 0, 0])    # every beat
 
     def test_defaults_and_limits(self):
         self.assertEqual(list(self.tap("Set")), [0x72, 0, 120, 0])       # empty: 120
         self.assertEqual(list(self.tap("Set", bpm="10")), [0x72, 0, 30, 0])
         self.assertEqual(list(self.tap("Set", bpm="999")), [0x72, 0, 300 & 0x7F, 2])
         self.assertEqual(list(self.tap("Up")), [0x73, 0, 1, 0])          # empty: 1 BPM
+        self.assertEqual(list(self.tap("Out")), [0x78, 0, 4, 0])         # empty: 4 taps
+        self.assertEqual(list(self.tap("Out", bpm="500")), [0x78, 0, 127, 0])
 
     def test_never_a_toggle(self):
         for mode in ("Set", "Up Repeat", "Down Repeat"):
@@ -321,6 +325,8 @@ class TempoCommandTest(unittest.TestCase):
                              ("Tap", mode, "4"))
         for mode in ("Tap", "Clock", "Record", "Playback", "Erase"):
             self.assertEqual(unpacker.unpack_command(self.tap(mode))["KeyMode_(Key)"], mode)
+        d = unpacker.unpack_command(self.tap("Out", bpm="6"))
+        self.assertEqual((d["KeyMode_(Key)"], d["OnValue_(CC/PB)"]), ("Out", "6"))
 
     def test_demo_bank(self):
         sections = unpacker.unpack_config(packer.pack_config(read_config_csv(DEMO_CSV)))

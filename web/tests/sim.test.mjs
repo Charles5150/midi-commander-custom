@@ -1352,3 +1352,58 @@ test("with the recordings' page full, the next one rewrites it with the latest o
   assert.equal(played(13), 30, "the new one");
   for (const bank of [14, 15, 16, 17]) assert.equal(played(bank), 60, `bank ${bank} kept`);
 });
+
+test("Tap Out sends a device's tap CC on four beats after entering the bank and after each change of tempo, until the bank changes (before 1.25, nothing did)", async () => {
+  const sim = simWithDemo();
+  sim.run(10000);
+  const run = (ms) => { for (let t = 0; t < ms; t += 5) sim.run(5); };
+  const seen = [];
+  sim.onOutput = (port, msg) => {
+    if (port === "USB" && msg[0] === 0xb2 && msg[1] === 64) seen.push(sim.e.sim_tick());
+  };
+  sim.usbIn([0xb0, 32, 6]);                 // the tempo bank, at 120 BPM
+  run(3000);
+  assert.equal(seen.length, 4, "four taps on entering");
+  const gaps = seen.slice(1).map((t, i) => t - seen[i]);
+  assert.ok(gaps.every((g) => Math.abs(g - 500) <= 2), `a beat apart: ${gaps}`);
+
+  seen.length = 0;
+  sim.footswitch(6, true);                  // BPM+: 121, four taps more
+  run(100);
+  sim.footswitch(6, false);
+  run(3000);
+  assert.equal(seen.length, 4, "four taps after the new tempo");
+  assert.ok(Math.abs(seen[3] - seen[2] - 496) <= 2, "at 121 BPM");
+
+  seen.length = 0;
+  for (let i = 0; i < 3; i++) {             // TAP three times, 600 ms apart: 100 BPM
+    sim.footswitch(0, true);
+    run(50);
+    sim.footswitch(0, false);
+    run(550);
+  }
+  run(3000);
+  // the second and third taps set the tempo, so they go out as they are
+  // tapped, and the third starts a run of four
+  assert.equal(seen.length, 5, `the taps relayed and three more: ${seen.length}`);
+  assert.ok(seen.slice(1).every((t, i) => Math.abs(t - seen[i] - 600) <= 2), "at 100 BPM");
+
+  seen.length = 0;
+  for (let i = 0; i < 3; i++) {             // the same tempo tapped again still taps the device
+    sim.footswitch(0, true);
+    run(50);
+    sim.footswitch(0, false);
+    run(550);
+  }
+  run(3000);
+  assert.equal(seen.length, 5);
+  assert.ok(seen.slice(1).every((t, i) => t - seen[i] > 300), "never two taps a moment apart");
+
+  seen.length = 0;
+  sim.usbIn([0xb0, 32, 7]);                 // another bank: no more taps
+  sim.footswitch(6, true);
+  run(100);
+  sim.footswitch(6, false);
+  run(3000);
+  assert.deepEqual(seen, []);
+});

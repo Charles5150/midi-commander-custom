@@ -301,6 +301,11 @@
 #define TAP_MODE_RECORD		(5)
 #define TAP_MODE_PLAYBACK	(6)
 #define TAP_MODE_ERASE		(7)
+// Tap Out (1.25): like a Ramp, turns the CC command right below it into a
+// device's tap: its On value goes out on each of the next byte 2 beats of the
+// pedal's tempo, from the next beat on, and again after every change of tempo
+// until the bank is left. Byte 2 at 0 sends it on every beat. See tempo.c.
+#define TAP_MODE_OUT		(8)
 #define TAP_REPEAT_BIT		(0x80)
 #define CMD_CCINC_NIBBLE	(0x50)	// Relative CC: byte1 = CC | wrap<<7, byte2 = step | repeat<<7, byte3 = down<<7 | start value
 #define CCINC_REPEAT_BIT	(0x80)	// In the step byte of CCInc: repeat while held

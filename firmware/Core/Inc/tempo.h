@@ -89,6 +89,15 @@ void tempo_external_transport(uint8_t b);	// interrupt context, 0xFA / 0xFB / 0x
 void tempo_external_position(uint16_t sixteenths);	// interrupt context, 0xF2
 bool tempo_external_present(void);
 
+/*
+ * Tap out: a device's tap CC sent on the beat, `count` beats after it starts
+ * and after every change of tempo, or on every beat with count 0. Started
+ * again for the same CC it starts over; stopped by a bank change.
+ */
+void tempo_tapout_start(uint8_t channel, uint8_t cc, uint8_t value, uint8_t count);
+void tempo_tapout_stop(uint8_t channel, uint8_t cc);
+void tempo_tapout_stop_all(void);
+
 // True once each time the display should show a changed external tempo.
 bool tempo_take_display_update(void);
 

@@ -477,7 +477,7 @@ def cmd_media(cmd):
 
 
 TAP_MODE_TAP, TAP_MODE_CLOCK, TAP_MODE_SET, TAP_MODE_UP, TAP_MODE_DOWN, \
-    TAP_MODE_RECORD, TAP_MODE_PLAYBACK, TAP_MODE_ERASE = range(8)
+    TAP_MODE_RECORD, TAP_MODE_PLAYBACK, TAP_MODE_ERASE, TAP_MODE_OUT = range(9)
 TAP_REPEAT_BIT = 0x80
 TEMPO_BPM_MIN, TEMPO_BPM_MAX = 30, 300
 
@@ -486,8 +486,13 @@ def cmd_tap(cmd):
     """Tap tempo. KeyMode picks the action: Tap, Clock to start/stop the
     clock, Set to set the tempo to OnValue BPM, or Up/Down to move it by
     OffValue BPM (1 when empty), with Repeat to keep moving while held.
-    Record, Playback and Erase work the bank's recorded presses (1.24)."""
+    Record, Playback and Erase work the bank's recorded presses (1.24).
+    Out turns the CC below it into a device's tap, sent on OnValue beats
+    (4 when empty, 0 for every beat) after each change of tempo (1.25)."""
     text = str(cmd.get("KeyMode_(Key)", "")).strip().upper()
+    if text.startswith("OUT"):
+        taps = max(0, min(127, safe_int(cmd.get("OnValue_(CC/PB)", ""), 4)))
+        return [CMD_TAP_NIBBLE | TAP_MODE_OUT, 0, taps, 0]
     for name, mode in (("RECORD", TAP_MODE_RECORD), ("PLAYBACK", TAP_MODE_PLAYBACK), ("ERASE", TAP_MODE_ERASE)):
         if text.startswith(name):
             return [CMD_TAP_NIBBLE | mode, 0, 0, 0]

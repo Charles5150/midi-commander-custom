@@ -11,7 +11,7 @@ La pedalera lleva un tempo propio: marcado con el pie, fijado por un banco al en
 - los LFO, que mueven un CC arriba y abajo a tempo;
 - las secuencias por pasos, que tocan un CC o una nota paso a paso.
 
-Los comandos de tempo son comandos `Tap`, con una **Action** en el configurador (`KeyMode` en el CSV) que dice cuál: `Tap`, `Clock`, `Set`, `Up`, `Down`, `Up Repeat` o `Down Repeat`, o `Record`, `Playback` o `Erase` para las [pulsaciones grabadas](#grabar-una-serie-de-pulsaciones).
+Los comandos de tempo son comandos `Tap`, con una **Action** en el configurador (`KeyMode` en el CSV) que dice cuál: `Tap`, `Clock`, `Set`, `Up`, `Down`, `Up Repeat` o `Down Repeat`, `Record`, `Playback` o `Erase` para las [pulsaciones grabadas](#grabar-una-serie-de-pulsaciones), o `Out` para [marcar el tempo de un aparato](#marcar-el-tempo-de-un-aparato).
 
 ## Tap tempo
 
@@ -50,6 +50,30 @@ En la demo, el banco 6 tiene BPM+ y BPM- en C y D, y mantener SYNC fija 120 BPM.
 <details><summary>Por dentro</summary>
 
 Se guarda en el nibble bajo del comando `Tap`: 2 para `Set`, con los BPM en los bytes 2 (los 7 bits bajos) y 3 (el resto); 3 para `Up` y 4 para `Down`, con el paso en el byte 2 y su bit alto puesto para repetir. El firmware anterior a 0.37 toma los tres como un tap normal, así que actualiza antes el firmware.
+
+</details>
+
+## Marcar el tempo de un aparato
+
+Mucho equipo toma el tempo de un CC de tap y no del reloj MIDI, o está configurado para no hacerle caso: un Kemper (CC 30), un HX Stomp (CC 64), un Quad Cortex (CC 44), un Strymon (CC 93). `Tap Out` se lo marca él, al tempo de la pedalera.
+
+Pon un comando `Tap` con **Action** `Out` justo encima del CC de tap del aparato, con su número y su valor de encendido, y ese CC pasa a ser el tap del aparato:
+
+- Sale en los **Taps** pulsos siguientes, 4 si está vacío (`OnValue`), a partir del próximo pulso, así que los dos primeros van separados un pulso entero y el aparato lee bien el tempo.
+- Y otra vez tras cada cambio de tempo mientras sigas en el banco: un `Set`, `Up` o `Down`, o tus taps en el botón `Tap` de la propia pedalera. Un tap en la pedalera es un pulso, así que el aparato recibe los taps de tu pie, y luego tantos pulsos más.
+- Con **Taps** a 0 sale en todos los pulsos, hasta que cambias de banco.
+- Salir del banco lo para; ir a la segunda página de un banco no. En un botón empieza al dispararse el botón; con un CC que alterna, apagar el botón lo para.
+- Los pulsos son los mismos en los que parpadea el [LED del tap](#led-del-tap): el tempo de la pedalera, su reloj en marcha, o el reloj del ordenador con `Clock_Follow` activado. El tap sale por USB y DIN, como un CC.
+
+En los [comandos de entrada](04-banks.md#comandos-al-entrar-y-al-salir-de-un-banco) de un banco, debajo de un `Set`, cada canción pone al aparato en su tempo al pisarla. No le pongas también el CC del aparato al botón `Tap` de la pedalera: `Tap Out` ya le pasa tus taps.
+
+El banco 6 de la demo marca el CC 64 del canal 3 cuatro veces al entrar, y otra vez tras TAP, BPM+, BPM- o mantener SYNC.
+
+*Firmware 1.25 o posterior.*
+
+<details><summary>Por dentro</summary>
+
+Nibble bajo 8 del comando `Tap`, con el número de taps en el byte 2, y actúa sobre el comando CC que tiene justo debajo, como un `Ramp` o un `LFO`; el firmware anterior a la 1.25 lo toma como un tap normal. Se pueden marcar hasta cuatro aparatos a la vez. Un pulso que llega a menos de medio pulso del último tap enviado se salta, así que un tap en la pedalera justo en el pulso le llega al aparato una sola vez.
 
 </details>
 

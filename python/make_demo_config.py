@@ -445,6 +445,13 @@ def build() -> Demo:
     d.button(6, "D", "BPM-", None, "A", CommandType="Tap",
              **{"KeyMode_(Key)": "Down Repeat", "OffValue_(CC)": "1"})
     d.long_press(6, "B", CommandType="Tap", **{"KeyMode_(Key)": "Set", "OnValue_(CC/PB)": "120"})
+    # Tap out: entering the bank, and after every change of tempo while in it
+    # (TAP, BPM+, BPM-, SYNC held), CC 64 on channel 3 goes out on four beats,
+    # the tap of a device that takes a tap CC but not the clock (an HX Stomp's)
+    d.on_enter(6, CommandType="Tap", **{"KeyMode_(Key)": "Out", "OnValue_(CC/PB)": "4"})
+    d.on_enter(6, slot="B", CommandType="CC",
+               **{"Channel_(PC/CC/Note/PB)": "3", "Number_(PC/CC/Note)": "64",
+                  "OnValue_(CC/PB)": "127", "OffValue_(CC)": "128"})
     # Hold STRT for a four note arpeggio, locked to the tempo: two Seq
     # commands hold its four steps, an eighth note each, and the note below
     # them plays one step at a time. Hold it again to stop

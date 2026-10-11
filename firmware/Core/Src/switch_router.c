@@ -475,6 +475,7 @@ static void send_tap(const uint8_t *pRom){
 	case TAP_MODE_RECORD:	record_toggle(); return;
 	case TAP_MODE_PLAYBACK:	record_playback_toggle(); return;
 	case TAP_MODE_ERASE:	record_erase(); return;
+	case TAP_MODE_OUT:		return;	// with no CC below it, nothing to tap
 	case TAP_MODE_CLOCK:
 		tempo_clock_toggle();
 		break;
@@ -909,6 +910,7 @@ static void goto_bank(uint8_t bank){
 	}
 	fire_bank_leave_cmds(switch_current_page);
 	reset_bank_buttons(switch_current_page);
+	tempo_tapout_stop_all();	// a page keeps them, a bank change does not
 	switch_current_page = bank;
 	exp_targets_for_bank();
 	update_leds_on_bank_change();
@@ -1444,6 +1446,7 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 		ramp_stop_all();	// or a ramp, LFO or sequence would bring the sound back
 		lfo_stop_all();
 		seq_stop_all();
+		tempo_tapout_stop_all();
 		status = midiCmd_send_panic();
 		break;
 	case CMD_SCENE_NIBBLE:
@@ -2010,6 +2013,10 @@ static inline bool cmd_is_lfo(const uint8_t *pRom){
 	return (pRom[0] & 0xF0) == CMD_NO_CMD_NIBBLE && (pRom[0] & 0x0F) == CMD_LFO_MODE;
 }
 
+static inline bool cmd_is_tapout(const uint8_t *pRom){
+	return pRom[0] == (CMD_TAP_NIBBLE | TAP_MODE_OUT);
+}
+
 // Where the LFO is in its cycle, in thousandths of a clock (24th of a beat)
 static uint32_t lfo_pos(const lfo_t *l){
 	return beat_pos(l->start_beat, l->div, l->offset);
@@ -2563,6 +2570,7 @@ static bool run_list_stack(frame_t *st, uint8_t depth, uint8_t toggle,
 	uint8_t *base = f->base;
 	uint32_t ramp = 0;	// time of a Ramp just above the command, 0 for none
 	const uint8_t *lfo = NULL;	// an LFO just above the command
+	const uint8_t *tapout = NULL;	// a Tap Out just above the command
 	const uint8_t *chan = NULL;	// a Chan just above the command
 	const uint8_t *add = NULL;	// an Exp in Add mode just above the command
 	const uint8_t *nrpn = NULL;	// an NRPN or RPN just above the command
@@ -2581,13 +2589,15 @@ static bool run_list_stack(frame_t *st, uint8_t depth, uint8_t toggle,
 		}
 		uint32_t ramp_ms = ramp;
 		const uint8_t *lfo_cmd = lfo;
+		const uint8_t *tapout_cmd = tapout;
 		const uint8_t *chan_cmd = chan;
 		const uint8_t *add_cmd = add;
 		const uint8_t *nrpn_cmd = nrpn;
 		const uint8_t *seq_run = seq;
 		uint8_t seq_run_cmds = seq_cmds;
-		ramp = 0;	// a Ramp, LFO, Chan, Add or NRPN only reaches the command right below it
+		ramp = 0;	// a Ramp, LFO, Tap Out, Chan, Add or NRPN only reaches the command right below it
 		lfo = NULL;
+		tapout = NULL;
 		chan = NULL;
 		add = NULL;
 		nrpn = NULL;
@@ -2597,6 +2607,10 @@ static bool run_list_stack(frame_t *st, uint8_t depth, uint8_t toggle,
 		}
 		if(cmd_is_lfo(pRom)){
 			lfo = pRom;
+			continue;
+		}
+		if(cmd_is_tapout(pRom)){
+			tapout = pRom;
 			continue;
 		}
 		if(cmd_is_chan(pRom)){
@@ -2622,6 +2636,7 @@ static bool run_list_stack(frame_t *st, uint8_t depth, uint8_t toggle,
 			if(!if_holds(pRom)) skip = true;
 			ramp = ramp_ms;	// an If passes on what was above it, either way round
 			lfo = lfo_cmd;
+			tapout = tapout_cmd;
 			chan = chan_cmd;
 			add = add_cmd;
 			nrpn = nrpn_cmd;
@@ -2692,6 +2707,13 @@ static bool run_list_stack(frame_t *st, uint8_t depth, uint8_t toggle,
 			}
 			lfo_stop(pRom[0] & 0x0F, pRom[1] & 0x7F);	// switched off: then its Off value
 		}
+		if(tapout_cmd && (*pRom & 0xF0) == CMD_CC_NIBBLE){
+			if(!midiCmd_get_cmd_toggle(pRom) || toggle){
+				tempo_tapout_start(pRom[0] & 0x0F, pRom[1] & 0x7F, pRom[2] & 0x7F, tapout_cmd[2] & 0x7F);
+				continue;
+			}
+			tempo_tapout_stop(pRom[0] & 0x0F, pRom[1] & 0x7F);	// switched off: then its Off value
+		}
 		if(seq_run && cmd_takes_steps(pRom)){
 			if(!midiCmd_get_cmd_toggle(pRom) || toggle){
 				seq_start(seq_run, seq_run_cmds, pRom);
@@ -2730,6 +2752,7 @@ static void run_list_up(uint8_t *base, uint8_t first, uint8_t toggle, uint8_t fl
 	base = f->base;
 	uint32_t ramp = 0;
 	bool lfo = false;
+	bool tapout = false;
 	bool seq = false;
 	bool add = false;
 	bool skip = false;
@@ -2758,26 +2781,29 @@ static void run_list_up(uint8_t *base, uint8_t first, uint8_t toggle, uint8_t fl
 			if(!if_holds(pRom)) skip = true;	// asked again, now on the release
 			continue;
 		}
-		if(skip && !cmd_is_ramp(pRom) && !cmd_is_lfo(pRom)
+		if(skip && !cmd_is_ramp(pRom) && !cmd_is_lfo(pRom) && !cmd_is_tapout(pRom)
 				&& !cmd_is_chan(pRom) && !cmd_is_seq(pRom) && !cmd_is_exp_add(pRom)
 				&& !cmd_is_nrpn(pRom)){
 			skip = false;		// the command it held back, and no Off for it
-			ramp = 0; lfo = false; seq = false; add = false; chan = NULL; nrpn = NULL;
+			ramp = 0; lfo = false; tapout = false; seq = false; add = false; chan = NULL; nrpn = NULL;
 			continue;
 		}
 		uint32_t ramp_ms = ramp;
 		bool lfo_above = lfo;
+		bool tapout_above = tapout;
 		bool seq_above = seq;
 		bool add_above = add;
 		const uint8_t *chan_cmd = chan;
 		const uint8_t *nrpn_cmd = nrpn;
 		ramp = cmd_is_ramp(pRom) ? ramp_time_ms(pRom) : 0;
 		lfo = cmd_is_lfo(pRom);
+		tapout = cmd_is_tapout(pRom);
 		seq = cmd_is_seq(pRom);
 		add = cmd_is_exp_add(pRom);
 		chan = cmd_is_chan(pRom) ? pRom : NULL;
 		nrpn = cmd_is_nrpn(pRom) ? pRom : NULL;
 		if(add_above && (*pRom & 0xF0) == CMD_CC_NIBBLE) continue;	// the pedal's, no Off
+		if(tapout_above && (*pRom & 0xF0) == CMD_CC_NIBBLE) continue;	// its taps go on
 		if(lfo_above && (*pRom & 0xF0) == CMD_CC_NIBBLE && !midiCmd_get_cmd_toggle(pRom)){
 			lfo_stop(pRom[0] & 0x0F, pRom[1] & 0x7F);	// released: then its Off value
 		}
@@ -3278,6 +3304,7 @@ static void switch_config(uint8_t target){
 	expression_clear_targets();
 	lfo_stop_all();
 	seq_stop_all();
+	tempo_tapout_stop_all();
 	kemper_reset();		// nothing carried over from the amp that was there
 	gt1000_reset();
 

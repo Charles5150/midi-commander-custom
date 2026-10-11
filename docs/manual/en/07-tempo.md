@@ -11,7 +11,7 @@ The pedal keeps a tempo of its own: tapped with your foot, set by a bank as you 
 - LFOs, which swing a CC up and down in time;
 - step sequences, which play a CC or a note a step at a time.
 
-Tempo commands are `Tap` commands, with an **Action** in the configurator (`KeyMode` in the CSV) saying which: `Tap`, `Clock`, `Set`, `Up`, `Down`, `Up Repeat` or `Down Repeat`, or `Record`, `Playback` or `Erase` for [recorded presses](#recording-a-run-of-presses).
+Tempo commands are `Tap` commands, with an **Action** in the configurator (`KeyMode` in the CSV) saying which: `Tap`, `Clock`, `Set`, `Up`, `Down`, `Up Repeat` or `Down Repeat`, `Record`, `Playback` or `Erase` for [recorded presses](#recording-a-run-of-presses), or `Out` to [tap a device's tempo](#tapping-a-devices-tempo).
 
 ## Tap tempo
 
@@ -50,6 +50,30 @@ The demo's bank 6 has BPM+ and BPM- on C and D, and holding SYNC sets 120 BPM.
 <details><summary>Under the hood</summary>
 
 Stored in the low nibble of the `Tap` command: 2 for `Set`, with the BPM in bytes 2 (low 7 bits) and 3 (the rest); 3 for `Up` and 4 for `Down`, with the step in byte 2 and its top bit set to repeat. Firmware before 0.37 takes all three as a plain tap, so update the firmware first.
+
+</details>
+
+## Tapping a device's tempo
+
+Plenty of gear takes its tempo from a tap CC and not from MIDI clock, or is set to ignore the clock: a Kemper (CC 30), an HX Stomp (CC 64), a Quad Cortex (CC 44), a Strymon (CC 93). `Tap Out` taps it for you, at the pedal's tempo.
+
+Put a `Tap` command with **Action** `Out` right above the device's tap CC, its tap number with its on value, and that CC becomes the device's tap:
+
+- It goes out on the next **Taps** beats, 4 when empty (`OnValue`), from the next beat on, so the first two are a whole beat apart and the device reads the tempo right.
+- And again after every change of tempo while you stay in the bank: a `Set`, `Up` or `Down`, or your taps on the pedal's own `Tap` button. A tap on the pedal is a beat, so the device is tapped with your foot, then for as many beats more.
+- With **Taps** at 0 it goes out on every beat, until the bank changes.
+- Leaving the bank stops it; a bank's second page does not. On a button it starts as the button fires; with a toggling CC, switching the button off stops it.
+- The beats are the ones the [tap LED](#tap-led) flashes on: the pedal's tempo, its running clock, or the host's clock with `Clock_Follow` on. The tap goes to USB and DIN, as a CC does.
+
+In a bank's [commands on entry](04-banks.md#commands-on-entering-and-leaving-a-bank), below a `Set`, every song puts the device on its tempo as you step on it. Don't give the pedal's own `Tap` button the device's CC as well: `Tap Out` passes your taps on already.
+
+The demo's bank 6 taps CC 64 on channel 3 four times on entering, and again after TAP, BPM+, BPM- or holding SYNC.
+
+*Firmware 1.25 or later.*
+
+<details><summary>Under the hood</summary>
+
+Low nibble 8 of the `Tap` command, with the number of taps in byte 2, and it works on the CC command right below it, like a `Ramp` or an `LFO`; firmware before 1.25 takes it as a plain tap. Up to four devices can be tapped at once. A beat less than half a beat after the last tap sent is passed over, so a tap on the pedal right on the beat reaches the device once.
 
 </details>
 

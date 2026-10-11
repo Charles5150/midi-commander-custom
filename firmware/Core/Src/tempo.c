@@ -17,6 +17,7 @@
 #define CLOCKS_PER_BEAT	(24)	// MIDI standard
 
 static uint16_t bpm = 120;
+static uint8_t tempo_sets = 0;	// counts every tempo set, for Tap Out
 static volatile bool clock_running = false;
 
 // Interval between clock bytes, in microseconds, and the accumulator the
@@ -169,6 +170,7 @@ void tempo_set_bpm(uint16_t new_bpm){
 	if(new_bpm < TEMPO_BPM_MIN) new_bpm = TEMPO_BPM_MIN;
 	if(new_bpm > TEMPO_BPM_MAX) new_bpm = TEMPO_BPM_MAX;
 	bpm = new_bpm;
+	tempo_sets++;
 	recalc_interval();
 }
 
@@ -345,6 +347,82 @@ uint32_t tempo_grid_wait(uint8_t beats, uint32_t *target, bool *ext, bool count)
 	return ms + beat_ms;	// a beat late at most, should the clock stall
 }
 
+/*
+ * Tap out. A device that takes a tap CC but not the clock gets one on each
+ * beat the tap LED shows, so the first two are a whole beat apart and the
+ * taps line up with the pedal's own; a tap on the pedal is a beat too, so
+ * tapping the pedal taps the device as well, and the run goes on after it.
+ */
+#define TAPOUT_SLOTS	(4)
+
+typedef struct {
+	uint32_t beat;		// the last beat seen
+	uint32_t sent;		// when the last tap went
+	uint8_t sets;		// the tempo set the run is for
+	uint8_t channel, cc, value;
+	uint8_t count;		// taps a run sends, 0 for every beat
+	uint8_t left;
+	bool active;
+} tapout_t;
+
+static tapout_t tapouts[TAPOUT_SLOTS];
+
+void tempo_tapout_start(uint8_t channel, uint8_t cc, uint8_t value, uint8_t count){
+	tapout_t *t = NULL;
+	for(uint8_t i=0; i<TAPOUT_SLOTS && t == NULL; i++){
+		if(tapouts[i].active && tapouts[i].channel == channel && tapouts[i].cc == cc) t = &tapouts[i];
+	}
+	for(uint8_t i=0; i<TAPOUT_SLOTS && t == NULL; i++){
+		if(!tapouts[i].active) t = &tapouts[i];
+	}
+	if(t == NULL) return;
+	uint32_t ms;
+	tempo_beat_now(&t->beat, &ms);
+	t->sets = tempo_sets;
+	t->sent = HAL_GetTick() - 60000UL;
+	t->channel = channel;
+	t->cc = cc;
+	t->value = value;
+	t->count = count;
+	t->left = count;
+	t->active = true;
+}
+
+void tempo_tapout_stop(uint8_t channel, uint8_t cc){
+	for(uint8_t i=0; i<TAPOUT_SLOTS; i++){
+		if(tapouts[i].channel == channel && tapouts[i].cc == cc) tapouts[i].active = false;
+	}
+}
+
+void tempo_tapout_stop_all(void){
+	for(uint8_t i=0; i<TAPOUT_SLOTS; i++) tapouts[i].active = false;
+}
+
+static void tapout_task(void){
+	uint32_t beat, ms;
+	tempo_beat_now(&beat, &ms);
+	for(uint8_t i=0; i<TAPOUT_SLOTS; i++){
+		tapout_t *t = &tapouts[i];
+		if(!t->active) continue;
+		if(t->sets != tempo_sets){	// a tempo set, even the same again: a new run
+			t->sets = tempo_sets;
+			t->left = t->count;
+		}
+		if(beat == t->beat) continue;
+		t->beat = beat;
+		// A tap on the pedal right on the free beat makes two beats at once:
+		// the device gets one tap, never two a moment apart
+		uint32_t now = HAL_GetTick();
+		if(now - t->sent < 30000UL / (bpm ? bpm : 120)) continue;
+		if(t->count){
+			if(!t->left) continue;
+			t->left--;
+		}
+		midiCmd_send_cc(t->channel, t->cc, t->value);
+		t->sent = now;
+	}
+}
+
 void tempo_task(void){
 	bool ext = tempo_external_present();
 
@@ -377,4 +455,5 @@ void tempo_task(void){
 		}
 		// With passthrough on, the host's clock already reaches DIN: stay quiet
 	}
+	tapout_task();
 }

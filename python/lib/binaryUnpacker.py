@@ -453,6 +453,9 @@ def unpack_command(raw: bytes, cycle_labels=None) -> dict:
             cmd["OffValue_(CC)"] = str(b2 & 0x7F)
         elif mode in (5, 6, 7):
             cmd["KeyMode_(Key)"] = {5: "Record", 6: "Playback", 7: "Erase"}[mode]
+        elif mode == 8:
+            cmd["KeyMode_(Key)"] = "Out"
+            cmd["OnValue_(CC/PB)"] = str(b2 & 0x7F)
         else:
             cmd["KeyMode_(Key)"] = "Tap"
     elif cmd_type == CMD_SYSEX_NIBBLE:
