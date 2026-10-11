@@ -295,6 +295,12 @@
 #define TAP_MODE_SET		(2)
 #define TAP_MODE_UP			(3)
 #define TAP_MODE_DOWN		(4)
+// Recorded runs of presses (1.24), see record.c: Record arms the bank or ends
+// its recording, Playback switches playing them back off and on, Erase drops
+// the bank's recording. The other bytes are 0.
+#define TAP_MODE_RECORD		(5)
+#define TAP_MODE_PLAYBACK	(6)
+#define TAP_MODE_ERASE		(7)
 #define TAP_REPEAT_BIT		(0x80)
 #define CMD_CCINC_NIBBLE	(0x50)	// Relative CC: byte1 = CC | wrap<<7, byte2 = step | repeat<<7, byte3 = down<<7 | start value
 #define CCINC_REPEAT_BIT	(0x80)	// In the step byte of CCInc: repeat while held

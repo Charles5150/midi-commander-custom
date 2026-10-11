@@ -42,7 +42,7 @@ COMMAND_TYPES = [NO_COMMAND, "PC", "PCInc", "CC", "Note", "PB", "CCInc", "Key", 
 SHORT_COMMAND_TYPES = COMMAND_TYPES + ["Cycle"]
 # Leave splits a bank's enter list into the commands on entering and on leaving
 ENTER_COMMAND_TYPES = COMMAND_TYPES + ["Leave"]
-TAP_MODES = ["Tap", "Clock", "Set", "Up", "Down", "Up Repeat", "Down Repeat"]
+TAP_MODES = ["Tap", "Clock", "Set", "Up", "Down", "Up Repeat", "Down Repeat", "Record", "Playback", "Erase"]
 WAIT_MODES = ["Time", "Beat", "Bar", "Count"]
 CCINC_DIRECTIONS = ["Up", "Down", "Up Repeat", "Down Repeat"]
 BANK_MODES = ["GoTo", "Up", "Down", "Config", "NextConfig", "Page", "Back", "Reveal", "Direct", "Lock"]
@@ -244,7 +244,11 @@ COMMAND_SPECS = {
                           **_when(MODE, "Up", "Down", "Up Repeat", "Down Repeat"))],
             "hint_by": MODE,
             "hints": {"Tap": "Tap sets the tempo, Clock starts/stops the MIDI clock",
-                      "Clock": "Tap sets the tempo, Clock starts/stops the MIDI clock"}},
+                      "Clock": "Tap sets the tempo, Clock starts/stops the MIDI clock",
+                      "Record": "records this bank's presses from the next beat on, until pressed again "
+                                "or the clock stops; they play back on their beats whenever the clock runs here",
+                      "Playback": "switches playing back recorded presses off and on",
+                      "Erase": "drops this bank's recorded presses"}},
     "SysEx": {"fields": [_f(NUM, "String", _choice([str(i) for i in range(SYSEX_STRING_COUNT)]))],
               "hint": "edit the bytes in SysEx strings"},
     "Bank": {"fields": [_f(MODE, "Action", _choice(BANK_MODES)),

@@ -74,6 +74,9 @@ uint32_t tempo_grid_wait(uint8_t beats, uint32_t *target, bool *ext, bool count)
  */
 bool tempo_bar_beat(uint8_t per_bar, uint32_t *bar, uint8_t *beat);
 
+// The same, in clocks (24ths of a beat) from the first beat of the run
+bool tempo_song_clock(uint32_t *clocks);
+
 /*
  * Following an external clock (Clock_Follow). The USB receive path reports
  * every clock byte and Start/Continue; the tempo is measured over two beats.

@@ -130,7 +130,7 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
  *   0x0803A800  second extension areas, 2 pages per slot (FLASH_EXT2_ADDR)
  *   0x0803E800  page patch copy 1 page (PATCH_COPY_ADDR)
  *   0x0803F000  page patch log  1 page (PATCH_LOG_ADDR)
- *   0x0803F800  free        1 page
+ *   0x0803F800  recordings  1 page (FLASH_RECORD_ADDR, see record.c)
  *   0x08040000  end
  *
  * The slots are full to the last byte and so are the global bytes, so newer
@@ -292,7 +292,7 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
  *   0x0803B800  slot 1
  *   0x0803C800  slot 2
  *   0x0803D800  slot 3
- *   0x0803E800  page patch copy and log, then 1 free page (see above)
+ *   0x0803E800  page patch copy and log, then the recordings (see above)
  *
  *   [0..3]    EXT2_MARKER
  *   [4]       how each pedal takes over a value it does not hold (1.18), two
@@ -313,6 +313,8 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
 // Where flash_settings_patch() stages a page first, and notes where it goes
 #define PATCH_COPY_ADDR			(FLASH_EXT2_ADDR(CONFIG_SLOTS))
 #define PATCH_LOG_ADDR			(PATCH_COPY_ADDR + FLASH_PAGE_SIZE)
+// The runs of presses recorded on the pedal (1.24), see record.c
+#define FLASH_RECORD_ADDR		(PATCH_LOG_ADDR + FLASH_PAGE_SIZE)
 #define FLASH_IMAGE2_SIZE		(CFG_EXT2_OFF + FLASH_EXT2_PAGES * CFG_PAGE_SIZE)
 #define EXT2_MARKER				(0x32545845U)	// "EXT2", little endian
 #define EXT2_TAKEOVER_OFF		(4)

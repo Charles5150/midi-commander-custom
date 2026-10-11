@@ -15,6 +15,7 @@ src="
   $fw/Core/Src/midi_cmds.c
   $fw/Core/Src/display.c
   $fw/Core/Src/tempo.c
+  $fw/Core/Src/record.c
   $fw/Core/Src/expression.c
   $fw/Core/Src/editor.c
   $fw/Core/Src/kemper.c

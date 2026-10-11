@@ -1209,3 +1209,146 @@ test("the first tap after power on starts the measurement, not timed from the bo
   }
   assert.ok(infoLineIs(sim, "120 BPM"), "two taps half a second apart are 120 BPM");
 });
+
+// The host's clock at 120 BPM, a clock byte every 21 ms, with what the foot
+// does at given clocks: {clock: [switch, down]}
+function hostClock(sim, clocks, at = {}) {
+  for (let n = 0; n < clocks; n++) {
+    for (const [id, down] of at[n] ?? []) sim.footswitch(id, down);
+    sim.usbIn([0xf8]);
+    sim.run(21);
+  }
+}
+
+test("a recorded run of presses plays back on its beats whenever the clock runs in that bank, after a restart too (before 1.24, nothing did)", async () => {
+  const sim = simWithDemo();
+  sim.run(10000);
+  sim.usbIn([0xb0, 32, 13]);                // song 2: REC, PLAY, STOP... and TAP, REC when held
+  sim.run(50);
+  sim.footswitch(7, true);                  // hold TAP: armed, waiting for the clock
+  sim.run(700);
+  sim.footswitch(7, false);
+  sim.run(50);
+  assert.ok(infoLineIs(sim, "REC WAIT"));
+  sim.usbIn([0xfa]);                        // Start
+  // REC a clock before beat 2, a tap; STOP a clock after beat 4, held 20
+  // clocks, short of a long press
+  hostClock(sim, 160, { 47: [[0, true]], 50: [[0, false]], 97: [[2, true]], 117: [[2, false]] });
+  sim.usbIn([0xfc]);                        // Stop: kept
+  sim.run(30);
+  assert.ok(infoLineIs(sim, "SAVED 2"));
+
+  const replay = (s) => {
+    const seen = watch(s);
+    let clock = 0;
+    s.onOutput = (port, msg) => seen.push(`${port} ${msg.map((b) => b.toString(16).padStart(2, "0")).join(" ")} @${clock}`);
+    s.usbIn([0xfa]);
+    for (; clock < 160; clock++) { s.usbIn([0xf8]); s.run(21); }
+    s.usbIn([0xfc]);
+    s.run(30);
+    return seen.filter((m) => m.startsWith("USB b0 0")).map((m) => m.slice(4));
+  };
+  // No foot now: REC on beat 2 (its first clock is clock 48), STOP on beat 4,
+  // held as long as it was; STOP is half of a combination, so it goes out
+  // after the combination's wait, as under a foot. REC was left on, so its
+  // press puts it off.
+  assert.deepEqual(replay(sim), ["b0 01 00 @48", "b0 03 7f @99", "b0 03 00 @116"]);
+
+  const again = simWithDemo(sim.flashNow()); // kept in flash
+  again.run(10000);
+  again.usbIn([0xb0, 32, 13]);
+  again.run(50);
+  const back = replay(again);               // REC's toggle as the pedal kept it
+  assert.match(back[0], /^b0 01 (00|7f) @48$/);
+  assert.deepEqual(back.slice(1), ["b0 03 7f @99", "b0 03 00 @116"]);
+
+  again.usbIn([0xb0, 32, 14]);              // song 3 has nothing recorded
+  again.run(50);
+  assert.deepEqual(replay(again), []);
+});
+
+test("a long press plays back long and a double press double, at any tempo; Playback stops it and Erase drops it", async () => {
+  const row = (section, btn) => `${section}.loc[(${section}.Bank_Number.astype(str) == '13') & (${section}.Button_Identifier.astype(str) == '${btn}')`;
+  const cc = (section, number) => `${row(section, "2")}, ['A_CommandType', 'A_Channel_(PC/CC/Note/PB)', 'A_Number_(PC/CC/Note)', 'A_OnValue_(CC/PB)', 'A_OffValue_(CC)', 'A_Toggle_(CC/PB/Note)']] = ['CC', '1', '${number}', '127', '0', 'N']`;
+  const tapMode = (btn, mode) => `${row("b", btn)}, ['A_CommandType', 'A_KeyMode_(Key)']] = ['Tap', '${mode}']`;
+  const sim = simWithDemo(await flashWith(packDemo([
+    "l = d['LongPress_Settings']", "dp = d['DoublePress_Settings']", "b = d['Button_Settings']",
+    cc("l", 9), cc("dp", 8),                // PLAY: held CC 9, twice CC 8
+    tapMode("4", "Playback"), tapMode("B", "Erase"),
+  ].join("\n"))));
+  sim.run(10000);
+  sim.usbIn([0xb0, 32, 13]);
+  sim.run(50);
+  sim.footswitch(7, true);                  // hold TAP: Record
+  sim.run(700);
+  sim.footswitch(7, false);
+  sim.usbIn([0xfa]);
+  // PLAY held 40 clocks from beat 1, then twice quickly on beat 4
+  hostClock(sim, 130, { 23: [[1, true]], 63: [[1, false]], 95: [[1, true]], 97: [[1, false]], 99: [[1, true]], 101: [[1, false]] });
+  sim.usbIn([0xfc]);
+  sim.run(30);
+  assert.ok(infoLineIs(sim, "SAVED 2"));
+
+  // Played back at 300 BPM, 8 ms a clock: 40 clocks would be too short for a
+  // long press, but it is held past the threshold all the same
+  const replay = () => {
+    const seen = watch(sim);
+    sim.usbIn([0xfa]);
+    for (let n = 0; n < 160; n++) { sim.usbIn([0xf8]); sim.run(8); }
+    sim.usbIn([0xfc]);
+    sim.run(600);
+    return seen.filter((m) => m.startsWith("USB b0 0")).map((m) => m.slice(4));
+  };
+  assert.deepEqual(replay(), ["b0 09 7f", "b0 09 00", "b0 08 7f", "b0 08 00"]);
+
+  tap(sim, 3);                              // Playback off
+  assert.ok(infoLineIs(sim, "PLAY OFF"));
+  assert.deepEqual(replay(), []);
+  tap(sim, 3);
+  assert.ok(infoLineIs(sim, "PLAY ON"));
+  assert.equal(replay().length, 4);
+  tap(sim, 5);                              // Erase
+  assert.ok(infoLineIs(sim, "ERASED"));
+  assert.deepEqual(replay(), []);
+});
+
+test("with the recordings' page full, the next one rewrites it with the latest of each bank (before 1.24, there were none)", async () => {
+  const sim = simWithDemo();
+  sim.run(10000);
+  const clock = (clocks, at = {}) => {
+    for (let n = 0; n < clocks; n++) {
+      for (const [id, down] of at[n] ?? []) sim.footswitch(id, down);
+      sim.usbIn([0xf8]);
+      sim.run(8);                           // 300 BPM
+    }
+  };
+  // UNDO pressed on each of the first `beats` beats
+  const record = (bank, beats) => {
+    sim.usbIn([0xb0, 32, bank]);
+    sim.run(50);
+    sim.footswitch(7, true);
+    sim.run(700);
+    sim.footswitch(7, false);
+    sim.usbIn([0xfa]);
+    const at = {};
+    for (let b = 1; b <= beats; b++) { at[b * 24 - 1] = [[3, true]]; at[b * 24 + 2] = [[3, false]]; }
+    clock(beats * 24 + 30, at);
+    sim.usbIn([0xfc]);
+    sim.run(30);
+    assert.ok(infoLineIs(sim, `SAVED ${beats}`), `bank ${bank}`);
+  };
+  const played = (bank) => {
+    sim.usbIn([0xb0, 32, bank]);
+    sim.run(50);
+    const seen = watch(sim);
+    sim.usbIn([0xfa]);
+    clock(70 * 24);
+    sim.usbIn([0xfc]);
+    sim.run(30);
+    return seen.filter((m) => m === "USB b0 04 7f").length;
+  };
+  for (const bank of [13, 14, 15, 16, 17]) record(bank, 60);   // 364 bytes each
+  record(13, 30);                           // no room left: the page is rewritten
+  assert.equal(played(13), 30, "the new one");
+  for (const bank of [14, 15, 16, 17]) assert.equal(played(bank), 60, `bank ${bank} kept`);
+});

@@ -40,7 +40,7 @@ Then come the command's type and the fields that type has — channel, CC or not
 
 The editor writes these types:
 
-`---` (no command), `PC`, `CC`, `Note`, `Bank`, `Tap`, `Start`, `Stop`, `Panic` and `Wait` (a pause; one [on the beat](06-commands.md#on-the-beat) is left alone).
+`---` (no command), `PC`, `CC`, `Note`, `Bank`, `Tap` (any of its actions, recording included), `Start`, `Stop`, `Panic` and `Wait` (a pause; one [on the beat](06-commands.md#on-the-beat) is left alone).
 
 A command of any other type is shown by name and left exactly as it is until the type field is changed, which replaces it. The double press lists live in an area the tools write as a block: a configuration with no double press commands at all, or written for firmware older than 0.26, has none, so the editor offers only the short and long lists there.
 

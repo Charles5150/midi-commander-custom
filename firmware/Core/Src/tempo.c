@@ -306,6 +306,19 @@ bool tempo_bar_beat(uint8_t per_bar, uint32_t *bar, uint8_t *beat){
 	return true;
 }
 
+bool tempo_song_clock(uint32_t *clocks){
+	bool ext = tempo_external_present();
+	if(ext ? !ext_playing : !clock_running) return false;
+	__disable_irq();
+	int32_t d = (int32_t)(ext ? ext_beat_num - ext_bar_first : int_beat_num - int_bar_first);
+	uint8_t count = ext ? ext_beat_count : clock_beat_count;
+	__enable_irq();
+	if(d < 0) return false;
+	// The beat's first clock leaves its count at 1, its last at 0
+	*clocks = (uint32_t)d * CLOCKS_PER_BEAT + (uint32_t)((count + CLOCKS_PER_BEAT - 1) % CLOCKS_PER_BEAT);
+	return true;
+}
+
 uint32_t tempo_grid_wait(uint8_t beats, uint32_t *target, bool *ext, bool count){
 	*ext = tempo_external_present();
 	__disable_irq();

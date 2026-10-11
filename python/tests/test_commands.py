@@ -297,6 +297,9 @@ class TempoCommandTest(unittest.TestCase):
         self.assertEqual(list(self.tap("Set", bpm="300")), [0x72, 0, 300 & 0x7F, 2])
         self.assertEqual(list(self.tap("Up", step="5")), [0x73, 0, 5, 0])
         self.assertEqual(list(self.tap("Down Repeat", step="1")), [0x74, 0, 0x81, 0])
+        self.assertEqual(list(self.tap("Record")), [0x75, 0, 0, 0])
+        self.assertEqual(list(self.tap("Playback")), [0x76, 0, 0, 0])
+        self.assertEqual(list(self.tap("Erase")), [0x77, 0, 0, 0])
 
     def test_defaults_and_limits(self):
         self.assertEqual(list(self.tap("Set")), [0x72, 0, 120, 0])       # empty: 120
@@ -316,7 +319,7 @@ class TempoCommandTest(unittest.TestCase):
             d = unpacker.unpack_command(self.tap(mode, step="4"))
             self.assertEqual((d["CommandType"], d["KeyMode_(Key)"], d["OffValue_(CC)"]),
                              ("Tap", mode, "4"))
-        for mode in ("Tap", "Clock"):
+        for mode in ("Tap", "Clock", "Record", "Playback", "Erase"):
             self.assertEqual(unpacker.unpack_command(self.tap(mode))["KeyMode_(Key)"], mode)
 
     def test_demo_bank(self):

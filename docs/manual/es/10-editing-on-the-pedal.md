@@ -40,7 +40,7 @@ Después vienen el tipo del comando y los campos que tiene ese tipo —canal, n�
 
 El editor escribe estos tipos:
 
-`---` (sin comando), `PC`, `CC`, `Note`, `Bank`, `Tap`, `Start`, `Stop`, `Panic` y `Wait` (una pausa; uno [a tiempo](06-commands.md#a-tiempo) no se toca).
+`---` (sin comando), `PC`, `CC`, `Note`, `Bank`, `Tap` (con todas sus acciones, también las de grabar), `Start`, `Stop`, `Panic` y `Wait` (una pausa; uno [a tiempo](06-commands.md#a-tiempo) no se toca).
 
 Un comando de cualquier otro tipo se muestra por su nombre y se deja exactamente como está hasta que cambias el campo del tipo, que lo sustituye. Las listas de doble pulsación viven en una zona que las herramientas escriben de una vez: una configuración sin ningún comando de doble pulsación, o escrita para un firmware anterior al 0.26, no la tiene, y ahí el editor solo ofrece las listas corta y larga.
 

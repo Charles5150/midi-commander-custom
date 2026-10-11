@@ -73,8 +73,9 @@ static const char *const type_names[T_COUNT] = {
 static const char *const bank_actions[] = {
 	"Go to", "Up by", "Down by", "Config", "Next cfg", "Page", "Back"};
 #define BANK_ACTIONS	(7)
-static const char *const tap_actions[] = {"Tap", "Clock", "Set BPM", "Up by", "Down by"};
-#define TAP_ACTIONS		(5)
+static const char *const tap_actions[] = {"Tap", "Clock", "Set BPM", "Up by", "Down by",
+	"Record", "Playback", "Erase rec"};
+#define TAP_ACTIONS		(8)
 static const char sw_ids[MIDI_NUM_SWITCHES] = {'1', '2', '3', '4', 'A', 'B', 'C', 'D'};
 
 enum { SCR_CMDS, SCR_SETTINGS, SCR_SETLIST, SCR_COUNT };
@@ -211,7 +212,10 @@ static uint8_t own_fields(const uint8_t *c){
 	case T_TAP:
 		switch(c[0] & 0x0F){
 		case TAP_MODE_TAP:
-		case TAP_MODE_CLOCK:	return 1;
+		case TAP_MODE_CLOCK:
+		case TAP_MODE_RECORD:
+		case TAP_MODE_PLAYBACK:
+		case TAP_MODE_ERASE:	return 1;
 		case TAP_MODE_SET:		return 2;	// the tempo
 		default:				return 3;	// the step and whether it repeats
 		}

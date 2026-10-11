@@ -644,6 +644,13 @@ def build() -> Demo:
     # and this is where its buttons are edited.
     BANKS[GLOBAL_BANK] = ("GLOB", "global")
     d.tap(GLOBAL_BANK, "D", "TAP", "Tap")
+    # Held, it records the song's presses from the next beat on, and held
+    # again keeps them: from then on they play back on their beats whenever
+    # the clock runs in that song. The tap goes out as the switch goes down,
+    # so holding it does not hold the tap back.
+    d.instant_press(GLOBAL_BANK, "D")
+    d.long_press(GLOBAL_BANK, "D", CommandType="Tap", **{"KeyMode_(Key)": "Record"})
+    d.long_label(GLOBAL_BANK, "D", "REC")
     d.cc(GLOBAL_BANK, "C", "MUTE", "69", toggle="Y", light="AlwaysOn")
     d.bank_cmd(GLOBAL_BANK, "A", "HOME", "GoTo", 0)
     # What the two switch combinations run (see COMBOS): the tuner, and the
@@ -665,6 +672,13 @@ def build() -> Demo:
         d.cc(bank, "2", "PLAY", "2", toggle="Y")
         d.cc(bank, "3", "STOP", "3")
         d.cc(bank, "4", "UNDO", "4")
+        # Held, STOP switches playing back recorded presses off and on, and
+        # UNDO drops the song's (TAP held records them); both still go out
+        # as the switch goes down
+        for btn, mode, label in (("3", "Playback", "AUTO"), ("4", "Erase", "ERAS")):
+            d.instant_press(bank, btn)
+            d.long_press(bank, btn, CommandType="Tap", **{"KeyMode_(Key)": mode})
+            d.long_label(bank, btn, label)
         d.bank_cmd(bank, "A", "HOME", "GoTo", 0)
         d.bank_cmd(bank, "B", "PREV", "Down", 1)
         d.bank_cmd(bank, "C", "NEXT", "Up", 1)

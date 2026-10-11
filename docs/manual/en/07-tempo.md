@@ -7,10 +7,11 @@ The pedal keeps a tempo of its own: tapped with your foot, set by a bank as you 
 - the MIDI clock the pedal sends, so a delay or looper behind it follows your foot;
 - the tap LED, flashing on every beat;
 - the bar and beat on the display, and a count-in before a press goes;
+- recorded runs of presses, played back on their beats;
 - LFOs, which swing a CC up and down in time;
 - step sequences, which play a CC or a note a step at a time.
 
-Tempo commands are `Tap` commands, with an **Action** in the configurator (`KeyMode` in the CSV) saying which: `Tap`, `Clock`, `Set`, `Up`, `Down`, `Up Repeat` or `Down Repeat`.
+Tempo commands are `Tap` commands, with an **Action** in the configurator (`KeyMode` in the CSV) saying which: `Tap`, `Clock`, `Set`, `Up`, `Down`, `Up Repeat` or `Down Repeat`, or `Record`, `Playback` or `Erase` for [recorded presses](#recording-a-run-of-presses).
 
 ## Tap tempo
 
@@ -81,12 +82,35 @@ In the demo it is on, in bars of 4: in bank 6, press CLK to start the clock and 
 
 </details>
 
+## Recording a run of presses
+
+A song whose changes come on the same bars every night: the drive on at bar 9, the delay off at bar 25, the looper on the one of the chorus. Play it once with the clock running and the pedal keeps on which beat each switch went down; from then on, whenever the clock runs in that bank, it presses them itself on those beats, and your feet are free for the rest.
+
+- **Record** (`Tap` with **Action** `Record`) arms the bank it is pressed in: `REC WAIT` on the display. The recording begins on the clock's first beat, or at once with the clock running already, `REC`. Every press of the bank's eight buttons is kept with the beat nearest to where it went down, how long it was held, and whether it was a long or a double press.
+- It ends, and is kept, when the clock stops, when you press **Record** again, or when you leave the bank or the configuration: `SAVED` and the number of presses. A press still held then, such as the one that ended it, is left out. With nothing pressed, `REC NONE`, and the bank keeps the recording it had.
+- **Playback.** Whenever the clock runs in a bank with a recording, from its Start, or from wherever the host's Continue picks up, the pedal presses each button on its beat, as a foot would: its commands, LED, toggle and display cell follow, a long press is held past the threshold and a double press tapped twice, whatever the tempo, and a held one is let go after as many beats as it was held. Leaving the bank, or the clock stopping, stops it, and nothing plays back while the on-pedal editor is open. Your feet still work as ever on top of it.
+- A **Playback** button (`Playback`) switches playing back off, `PLAY OFF`, and on again, `PLAY ON`, for every bank. It starts on whenever the pedal is switched on.
+- An **Erase** button (`Erase`) drops the recording of the bank it is pressed in: `ERASED`, or `NO REC` with none.
+- A bank keeps one recording, made over again by recording it again. Each configuration slot has its own, by bank number, and they stay when the slot is written again, until erased.
+- The clock is the pedal's own, or the host's with `Clock_Follow` on, counted as the [bar and beat on the display](#bar-and-beat-on-the-display) are, from its Start. A Record button's LED flashes on the beat while it records or waits to.
+- Up to 128 presses a recording, and about 300 in all, in a page of flash of their own: `REC FULL` when a recording takes no more, `NO ROOM` when there is no room left for it. Making room rewrites the page, which holds the pedal up for a moment, so with the clock running that waits until it stops.
+
+In the demo, every song bank of the setlist records: hold TAP for **Record**, hold UNDO for **Erase** and STOP for **Playback**. Run the clock from the computer, or from bank 6's CLK.
+
+*Firmware 1.24 or later.*
+
+<details><summary>Under the hood</summary>
+
+`Record`, `Playback` and `Erase` are low nibbles 5, 6 and 7 of the `Tap` command, with the other bytes 0; firmware before 1.24 takes them as a plain tap. The recordings are a log in the flash page at `0x0803F800`, which nothing else writes, the tools and a firmware update included: per entry its number of presses, bank, slot and a marker written last, then six bytes a press, its beat, how long it was held in clocks, and the button, double press and kind of hold. The latest entry of a slot and bank is its recording, one of no presses an erased one. A press is played back through the same virtual switches the configurator presses.
+
+</details>
+
 ## Tap LED
 
 The tap button's LED flashes on every beat, so you can see the tempo from the floor.
 
 - Every button of the current bank with a `Tap` command in `Tap` mode, in any of its lists, flashes its LED at the start of each beat, for a quarter of a beat and at most 100 ms, at the `LED_Brightness` level.
-- A `Clock` button flashes the same way, but only while the clock is running, so its LED also tells you the clock is on.
+- A `Clock` button flashes the same way, but only while the clock is running, so its LED also tells you the clock is on. A `Record` button flashes while it records or waits to.
 - The beat it flashes depends on where the tempo comes from:
   - with the clock stopped, the beat runs freely at the tempo and every tap re-phases it, so the flash lands with your foot;
   - with the clock running, the flash is the first of every 24 clock bytes, starting from Start;

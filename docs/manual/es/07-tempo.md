@@ -7,10 +7,11 @@ La pedalera lleva un tempo propio: marcado con el pie, fijado por un banco al en
 - el reloj MIDI que envía la pedalera, para que un delay o un looper que tengas detrás siga a tu pie;
 - el LED del tap, que parpadea en cada pulso;
 - el compás y el tiempo en la pantalla, y una cuenta atrás antes de que salga una pulsación;
+- las series de pulsaciones grabadas, que se repiten en su tiempo;
 - los LFO, que mueven un CC arriba y abajo a tempo;
 - las secuencias por pasos, que tocan un CC o una nota paso a paso.
 
-Los comandos de tempo son comandos `Tap`, con una **Action** en el configurador (`KeyMode` en el CSV) que dice cuál: `Tap`, `Clock`, `Set`, `Up`, `Down`, `Up Repeat` o `Down Repeat`.
+Los comandos de tempo son comandos `Tap`, con una **Action** en el configurador (`KeyMode` en el CSV) que dice cuál: `Tap`, `Clock`, `Set`, `Up`, `Down`, `Up Repeat` o `Down Repeat`, o `Record`, `Playback` o `Erase` para las [pulsaciones grabadas](#grabar-una-serie-de-pulsaciones).
 
 ## Tap tempo
 
@@ -81,12 +82,35 @@ En la demo está activado, en compases de 4: en el banco 6, pisa CLK para arranc
 
 </details>
 
+## Grabar una serie de pulsaciones
+
+Una canción cuyos cambios caen cada noche en los mismos compases: la distorsión en el compás 9, el delay fuera en el 25, el looper en el uno del estribillo. Tócala una vez con el reloj en marcha y la pedalera guarda en qué tiempo bajó cada interruptor; desde entonces, cada vez que el reloj corre en ese banco, los pisa ella sola en esos tiempos, y tus pies quedan libres para lo demás.
+
+- **Record** (`Tap` con **Action** `Record`) prepara el banco en el que se pulsa: `REC WAIT` en la pantalla. La grabación empieza en el primer tiempo del reloj, o en el acto si el reloj ya está en marcha, `REC`. Cada pulsación de los ocho botones del banco se guarda con el tiempo más cercano a cuando bajó, cuánto se mantuvo, y si fue larga o doble.
+- Termina, y se guarda, cuando el reloj se para, cuando vuelves a pulsar **Record**, o cuando sales del banco o de la configuración: `SAVED` y el número de pulsaciones. Una pulsación que sigue pisada entonces, como la que la terminó, se queda fuera. Sin pulsar nada, `REC NONE`, y el banco conserva la grabación que tenía.
+- **Reproducción.** Cada vez que el reloj corre en un banco con grabación, desde su Start o desde donde retome el Continue del ordenador, la pedalera pisa cada botón en su tiempo, como lo haría un pie: siguen sus comandos, su LED, su estado y su casilla de la pantalla, una pulsación larga se mantiene más allá del umbral y una doble se pisa dos veces, sea cual sea el tempo, y una mantenida se suelta tras los mismos tiempos que se mantuvo. Salir del banco, o que el reloj se pare, la detiene, y con el editor de la pedalera abierto no se reproduce nada. Tus pies siguen funcionando como siempre por encima.
+- Un botón **Playback** (`Playback`) desactiva la reproducción, `PLAY OFF`, y la vuelve a activar, `PLAY ON`, en todos los bancos. Al encender la pedalera está activada.
+- Un botón **Erase** (`Erase`) borra la grabación del banco en el que se pulsa: `ERASED`, o `NO REC` si no había.
+- Cada banco guarda una grabación, que se rehace grabándolo otra vez. Cada slot de configuración tiene las suyas, por número de banco, y se quedan cuando se vuelve a escribir el slot, hasta borrarlas.
+- El reloj es el de la pedalera, o el del ordenador con `Clock_Follow` activado, contado como el [compás y tiempo en la pantalla](#compás-y-tiempo-en-la-pantalla), desde su Start. El LED de un botón Record parpadea a tiempo mientras graba o espera para grabar.
+- Hasta 128 pulsaciones por grabación, y unas 300 en total, en una página de flash propia: `REC FULL` cuando una grabación no admite más, `NO ROOM` cuando ya no queda sitio para ella. Hacer sitio reescribe la página, lo que detiene la pedalera un instante, así que con el reloj en marcha espera a que se pare.
+
+En la demo graban todos los bancos de canción del setlist: mantén TAP para **Record**, UNDO para **Erase** y STOP para **Playback**. Pon en marcha el reloj desde el ordenador, o con CLK en el banco 6.
+
+*Firmware 1.24 o posterior.*
+
+<details><summary>Por dentro</summary>
+
+`Record`, `Playback` y `Erase` son los nibbles bajos 5, 6 y 7 del comando `Tap`, con los demás bytes a 0; el firmware anterior a la 1.24 los toma como un tap normal. Las grabaciones son un registro en la página de flash de `0x0803F800`, que nada más escribe, ni las herramientas ni una actualización del firmware: por entrada, su número de pulsaciones, el banco, el slot y una marca escrita al final, y luego seis bytes por pulsación, su tiempo, cuánto se mantuvo en clocks, y el botón, si fue doble y el tipo de pulsación. La última entrada de un slot y un banco es su grabación, y una sin pulsaciones, una borrada. Una pulsación se reproduce por los mismos interruptores virtuales que pulsa el configurador.
+
+</details>
+
 ## LED del tap
 
 El LED del botón de tap parpadea en cada pulso, así que ves el tempo desde el suelo.
 
 - Cada botón del banco actual con un comando `Tap` en modo `Tap`, en cualquiera de sus listas, hace parpadear su LED al principio de cada pulso, durante un cuarto de pulso y como mucho 100 ms, con el nivel de `LED_Brightness`.
-- Un botón `Clock` parpadea igual, pero solo mientras el reloj está en marcha, así que su LED también te dice que el reloj está en marcha.
+- Un botón `Clock` parpadea igual, pero solo mientras el reloj está en marcha, así que su LED también te dice que el reloj está en marcha. Un botón `Record` parpadea mientras graba o espera para grabar.
 - El pulso con el que parpadea depende de dónde sale el tempo:
   - con el reloj parado, el pulso corre libre al tempo y cada tap lo vuelve a poner en fase, así que el destello cae con tu pie;
   - con el reloj en marcha, el destello es el primero de cada 24 bytes de reloj, contando desde el Start;

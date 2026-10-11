@@ -22,6 +22,7 @@
 #include "switch_router.h"
 #include "editor.h"
 #include "latency.h"
+#include "record.h"
 #include <string.h>
 
 void update_leds_on_bank_change(void);
@@ -91,6 +92,7 @@ typedef struct {
 	// Tap LED: bit per bank, the button holds a Tap command in Tap / Clock mode
 	uint32_t tap_blink;
 	uint32_t clock_blink;
+	uint32_t rec_blink;		// a Record command: flashes while recording
 	// How a Listen asked the LED to show the on state, bit per bank, the
 	// LISTEN_ looks split over two masks. A press puts it back to steady.
 	uint32_t listen_look_lo;
@@ -463,12 +465,16 @@ static bool tap_is_step(const uint8_t *pRom){
 /*
  * Tap command: tap the tempo, start or stop the clock, set the tempo to a
  * fixed BPM, or step it up or down. The new tempo shows on the display; the
- * running clock and the free beat pick it up at once.
+ * running clock and the free beat pick it up at once. Or record, play back
+ * or erase a run of presses, see record.c.
  */
 static void send_tap(const uint8_t *pRom){
 	uint16_t bpm = tempo_get_bpm();
 	uint8_t step = pRom[2] & 0x7F;
 	switch(pRom[0] & 0x0F){
+	case TAP_MODE_RECORD:	record_toggle(); return;
+	case TAP_MODE_PLAYBACK:	record_playback_toggle(); return;
+	case TAP_MODE_ERASE:	record_erase(); return;
 	case TAP_MODE_CLOCK:
 		tempo_clock_toggle();
 		break;
@@ -1121,6 +1127,7 @@ static void note_tap_cmd(sw_t *sw, uint8_t page, const uint8_t *pCmd){
 	switch(pCmd[0] & 0x0F){
 	case TAP_MODE_TAP:   sw->tap_blink |= (1UL<<page); break;
 	case TAP_MODE_CLOCK: sw->clock_blink |= (1UL<<page); break;
+	case TAP_MODE_RECORD: sw->rec_blink |= (1UL<<page); break;
 	default: break;	// setting the tempo is no reason to flash
 	}
 }
@@ -1166,6 +1173,7 @@ void sw_led_init(void){
 			a_sw_obj[sw].led_cmd_toggle &= ~(1UL<<page);
 			a_sw_obj[sw].tap_blink &= ~(1UL<<page);
 			a_sw_obj[sw].clock_blink &= ~(1UL<<page);
+			a_sw_obj[sw].rec_blink &= ~(1UL<<page);
 
 			for(int cmd=0; cmd<MIDI_NUM_COMMANDS_PER_SWITCH; cmd++){
 				uint8_t *pCmd = get_rom_pointer(page, sw, cmd);
@@ -3461,6 +3469,17 @@ void sw_virtual_hold(uint8_t id, uint8_t down){
 	virtual_queue_add(id, (uint8_t)(VIRTUAL_NO_LIMIT | (down ? VIRTUAL_DOWN : 0)));
 }
 
+// A recording playing back, from the main loop: kept from the USB interrupt
+void sw_play_switch(uint8_t id, bool down){
+	__disable_irq();
+	virtual_queue_add(id, (uint8_t)(VIRTUAL_NO_LIMIT | (down ? VIRTUAL_DOWN : 0)));
+	__enable_irq();
+}
+
+uint32_t sw_long_press_ms(void){
+	return long_press_threshold_ms();
+}
+
 static void virtual_pin(uint8_t id, GPIO_TypeDef **port, uint16_t *pin, volatile uint16_t **changed){
 	if(id < MIDI_NUM_SWITCHES){
 		*port = sw_pins[id].port;
@@ -4026,6 +4045,7 @@ void handle_switches(void){
 	}
 
 	feedback_task();
+	record_task();	// recorded presses, played back as virtual ones
 	pending_task();	// lists left half way by a Wait
 	ramp_task();	// CC ramps under way
 	lfo_task();		// and LFOs
@@ -4087,6 +4107,7 @@ void handle_switches(void){
 
 			if(switch_down(sw_pins[i].port, sw_pins[i].pin)){
 				// Switch Down
+				record_switch_down((uint8_t)i, sw->press_state == PRESS_WAIT_SECOND);
 				if(locked && !lock_passes(i) && !combo_member(i)){
 					sw->press_state = PRESS_LOCKED;	// does nothing until let go
 					display_show_message("LOCKED");
@@ -4112,6 +4133,8 @@ void handle_switches(void){
 				}
 			} else {
 				// Switch up
+				record_switch_up((uint8_t)i, sw->press_state == PRESS_LONG ? REC_HOLD_LONG
+						: (sw->press_state == PRESS_PENDING && has_long) ? REC_HOLD_SHORT : REC_HOLD_FREE);
 				uint8_t next = PRESS_IDLE;
 				switch(sw->press_state){
 				case PRESS_COMBO_WAIT:	// let go before its partner came: a tap
@@ -4237,9 +4260,11 @@ static void tap_led_task(void){
 	if(!sleep_is_asleep() && tempo_beat_flash()){
 		uint32_t bit = 1UL << switch_current_page;
 		bool clock = tempo_clock_running();
+		bool rec = record_active();
 		for(int i=0; i<8; i++){
 			if((a_sw_obj[i].tap_blink & bit) || get_button_tempo_flash(i)
-					|| (clock && (a_sw_obj[i].clock_blink & bit))){
+					|| (clock && (a_sw_obj[i].clock_blink & bit))
+					|| (rec && (a_sw_obj[i].rec_blink & bit))){
 				mask |= (uint16_t)(1U << i);
 			}
 		}
