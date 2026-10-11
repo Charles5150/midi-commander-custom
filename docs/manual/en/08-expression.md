@@ -12,6 +12,18 @@ Everything about the pedals is in the configurator's **Expression** tab, one pan
 2. Press **Calibrate**, sweep the pedal slowly from heel to toe and back a couple of times, and press **Done**.
 3. The end points are filled in with a small margin, so 0 and 127 are always reached.
 
+While you sweep, a graph next to the pedal draws the raw value as it is read, and on **Done** the configurator says what it makes of the sweep, and what to change:
+
+| What it sees | What it means |
+|---|---|
+| The jack reads nothing | Nothing is plugged in, or the cable is a guitar (TS) cable instead of a stereo (TRS) one, or the pedal is wired with tip and ring the other way round. The end points are left as they were. |
+| The jack stays at the top | The pedal's wiring does not match: set its polarity switch the other way, if it has one. |
+| A jump, from 0 % to 85 % say, without passing in between | The classic polarity fault: set the pedal's polarity switch (TRS / tip-ring) the other way. A sweep that is too quick looks the same, so try again slower first. |
+| Only a small part of the jack's range is used | It works after calibrating, in coarser steps; check the pedal's minimum knob or polarity switch. |
+| Most of the travel sends low values | A logarithmic (audio taper) pot: set **Curve** to **Log** to even it out. **Exp** for the opposite. |
+
+When none of these shows, it says the pedal looks right.
+
 **If a pedal produces no CC**, open the Expression tab and press **Connect live view**:
 
 - if the raw value does not follow the pedal, the problem is the cable or the jack;

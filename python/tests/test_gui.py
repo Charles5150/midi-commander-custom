@@ -62,6 +62,25 @@ class GuiTest(unittest.TestCase):
         self.assertEqual(changes(fake, "/tmp/a.csv"),
                          "Could not read the pedal to say what changes. No matching MIDI device found: none")
 
+    def test_a_calibration_sweep_is_checked(self):
+        # Readings as the live view would bring them in, without a pedal
+        app = self.app
+        app.tabview.set("Expression")
+        w = app.exp_widgets[0]
+        app._calibrate_toggle(0)
+        for raw in [100] * 5 + list(range(100, 4000, 100)) + [4000] * 5:
+            app.calibrating[0].append(raw)
+        app._sweep_draw(w, app.calibrating[0])
+        app._calibrate_toggle(0)
+        app.update()
+        self.assertEqual((w["min"].get(), w["max"].get()), ("217", "3883"))
+        self.assertIn("looks right", w["verdict"].cget("text"))
+        app._calibrate_toggle(0)
+        app.calibrating[0].extend([0, 2, 1, 3] * 10)
+        app._calibrate_toggle(0)
+        self.assertIn("TRS", w["verdict"].cget("text"))
+        self.assertEqual(w["min"].get(), "217")         # left as it was
+
     def test_a_command_from_the_device_dictionary(self):
         import lib.deviceDictionary as dd
         self.app.load_csv(os.path.join(ROOT, "templates", "HX_Stomp.csv"))

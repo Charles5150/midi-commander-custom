@@ -122,7 +122,7 @@ To calibrate a pedal:
 2. Sweep the pedal slowly from heel to toe and back, a couple of times.
 3. Press **Done**.
 
-The end points are filled in with a small margin, so 0 and 127 are always reached.
+The end points are filled in with a small margin, so 0 and 127 are always reached. A graph draws the sweep as you go, and **Done** warns about a cable, a polarity switch or a pot that is not right, and says what to change: see [Connecting and calibrating](08-expression.md#connecting-and-calibrating).
 
 ## SysEx
 

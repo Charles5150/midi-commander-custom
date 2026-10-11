@@ -124,7 +124,7 @@ Para calibrar un pedal:
 2. Recorre el pedal despacio del talón a la punta y vuelta, un par de veces.
 3. Pulsa **Done**.
 
-Los extremos se rellenan con un pequeño margen, para que siempre se llegue a 0 y a 127.
+Los extremos se rellenan con un pequeño margen, para que siempre se llegue a 0 y a 127. Una gráfica dibuja el recorrido mientras lo haces, y **Done** avisa si el cable, el interruptor de polaridad o el potenciómetro no están bien, y dice qué cambiar: mira [Conectar y calibrar](08-expression.md#conectar-y-calibrar).
 
 ## SysEx
 

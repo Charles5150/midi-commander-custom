@@ -12,6 +12,18 @@ Todo lo de los pedales está en la pestaña **Expression** del configurador, con
 2. Pulsa **Calibrate**, mueve el pedal despacio de talón a punta y vuelta un par de veces, y pulsa **Done**.
 3. Los extremos se rellenan con un pequeño margen, para que siempre se lleguen a alcanzar 0 y 127.
 
+Mientras lo mueves, una gráfica junto al pedal dibuja el valor en bruto según se lee, y al pulsar **Done** el configurador dice qué le parece el recorrido y qué cambiar:
+
+| Lo que ve | Lo que significa |
+|---|---|
+| El jack no lee nada | No hay nada enchufado, o el cable es de guitarra (TS) en vez de estéreo (TRS), o el pedal lleva la punta y el anillo al revés. Los extremos se quedan como estaban. |
+| El jack se queda arriba | El cableado del pedal no coincide: pon su interruptor de polaridad al revés, si lo tiene. |
+| Un salto, del 0 % al 85 % por ejemplo, sin pasar por medio | El fallo clásico de polaridad: pon el interruptor de polaridad del pedal (TRS / tip-ring) al revés. Un recorrido demasiado rápido se ve igual, así que prueba antes más despacio. |
+| Solo usa una parte pequeña del rango del jack | Funciona tras calibrar, a pasos más gruesos; revisa la rueda de mínimo o el interruptor de polaridad del pedal. |
+| Casi todo el recorrido envía valores bajos | Un potenciómetro logarítmico (de audio): pon **Curve** en **Log** para igualarlo. **Exp** para el caso contrario. |
+
+Si no ve nada de esto, dice que el pedal parece estar bien.
+
 **Si un pedal no genera ningún CC**, abre la pestaña Expression y pulsa **Connect live view**:
 
 - si el valor en bruto no sigue al pedal, el problema es el cable o el jack;

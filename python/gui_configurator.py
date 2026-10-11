@@ -78,6 +78,7 @@ from lib import bankClipboard as bank_clipboard  # noqa: E402
 from lib import bankReorder as bank_reorder  # noqa: E402
 from lib import deviceDictionary as device_dict  # noqa: E402
 from lib import midiLearn as midi_learn  # noqa: E402
+from lib import pedalCheck as pedal_check  # noqa: E402
 from lib import midiMonitor as midi_monitor  # noqa: E402
 from lib.firmwareUpdate import UpdateError, check_image  # noqa: E402
 from lib.slotIO import pack_sections  # noqa: E402
@@ -242,6 +243,7 @@ PEDAL_TOP_SWITCH_Y, PEDAL_TOP_LED_Y = 95, 168
 PEDAL_BOT_LED_Y, PEDAL_BOT_SWITCH_Y = 422, 495
 PEDAL_SCREEN_ZOOM = 3
 PEDAL_SCREEN_CENTER = (PEDAL_W // 2, (PEDAL_TOP_LED_Y + PEDAL_BOT_LED_Y) // 2)
+SWEEP_W, SWEEP_H = 240, 64       # the calibration sweep plot
 PEDAL_BG = "#242426"            # the tab behind the pedal (CARD)
 PEDAL_BODY = "#1c1c1e"
 PEDAL_BODY_EDGE = "#3a3a3c"
@@ -1253,7 +1255,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.live = None            # MidiCommander while the live pedal view is on
         self.pedal_supported = False  # the connected firmware answers PRESS_BUTTON/GET_STATE
         self.pedal_tick = 0
-        self.calibrating = {}       # pedal index -> [min_seen, max_seen]
+        self.calibrating = {}       # pedal index -> the raw readings of the sweep so far
         self.exp_widgets = {}       # pedal index -> dict of widgets
         self.press_mode = "Short press"
         self.editing_button = None  # (row_index, btn_id) of the button being edited
@@ -2352,6 +2354,15 @@ class MidiCommanderGUI(ctk.CTk):
                                      command=lambda i=i: self._calibrate_toggle(i))
             w["cal"].pack(side="left", padx=(10, 0))
 
+            # The sweep as it is read and what it says about the pedal, shown
+            # from the first Calibrate on (lib/pedalCheck.py)
+            w["sweep"] = ctk.CTkFrame(box, fg_color="transparent")
+            w["plot"] = tk.Canvas(w["sweep"], width=SWEEP_W, height=SWEEP_H, bg=PEDAL_BG, highlightthickness=0)
+            w["plot"].pack(side="left", padx=(0, 10))
+            w["verdict"] = ctk.CTkLabel(w["sweep"], text="", anchor="w", justify="left", wraplength=420)
+            w["verdict"].pack(side="left", fill="x", expand=True)
+            w["head"] = head
+
             row = ctk.CTkFrame(box, fg_color="transparent")
             row.pack(fill="x", padx=8, pady=(2, 8))
             ctk.CTkLabel(row, text="Min ADC").pack(side="left")
@@ -2523,9 +2534,10 @@ class MidiCommanderGUI(ctk.CTk):
                 w["bar"].set(raw / 4095)
                 w["cc"].configure(text=f"CC {cc}")
                 if i in self.calibrating:
-                    lo, hi = self.calibrating[i]
-                    self.calibrating[i] = [min(lo, raw), max(hi, raw)]
-                    w["cal"].configure(text=f"Done ({self.calibrating[i][0]}-{self.calibrating[i][1]})")
+                    seen = self.calibrating[i]
+                    seen.append(raw)
+                    w["cal"].configure(text=f"Done ({min(seen)}-{max(seen)})")
+                    self._sweep_draw(w, seen)
         # The virtual pedal's view of the display, labels and LEDs
         self.pedal_tick += 1
         if self.pedal_supported and self.pedal_tick % PEDAL_STATE_EVERY == 0:
@@ -2691,20 +2703,39 @@ class MidiCommanderGUI(ctk.CTk):
     def _calibrate_toggle(self, i):
         w = self.exp_widgets[i]
         if i not in self.calibrating:
-            self.calibrating[i] = [4095, 0]
+            self.calibrating[i] = []
             w["cal"].configure(text="Done", fg_color=WARN)
+            w["sweep"].pack(fill="x", padx=8, pady=(2, 4), after=w["head"])
+            w["verdict"].configure(text="Sweep the pedal slowly from heel to toe and back, a couple of times.",
+                                   text_color=MUTED)
+            self._sweep_draw(w, [])
             return
-        lo, hi = self.calibrating.pop(i)
+        seen = self.calibrating.pop(i)
         w["cal"].configure(text="Calibrate", fg_color=ACCENT)
-        if hi - lo < 200:
-            messagebox.showwarning(
-                "Calibration", f"Pedal {i + 1} only moved {hi - lo} counts. Move it over its full range and try again."
-            )
+        warnings = pedal_check.check(seen)
+        w["verdict"].configure(text="\n".join(warnings) or "The pedal looks right: it sweeps evenly over its whole travel.",
+                               text_color=WARN if warnings else MUTED)
+        lo, hi = (min(seen), max(seen)) if seen else (0, 0)
+        if hi - lo < pedal_check.STUCK:
             return
         margin = max(20, (hi - lo) * 3 // 100)  # keep the end points reachable
         for key, val in (("min", lo + margin), ("max", hi - margin)):
             w[key].delete(0, "end")
             w[key].insert(0, str(val))
+
+    def _sweep_draw(self, w, seen):
+        """The raw readings of a calibration sweep, the newest at the right."""
+        c = w["plot"]
+        c.delete("all")
+        for frac in (0.25, 0.5, 0.75):
+            y = SWEEP_H - 2 - frac * (SWEEP_H - 4)
+            c.create_line(0, y, SWEEP_W, y, fill=FIELD)
+        shown = seen[-SWEEP_W // 2 :]
+        if len(shown) > 1:
+            pts = []
+            for x, raw in enumerate(shown):
+                pts += [x * 2, SWEEP_H - 2 - raw * (SWEEP_H - 4) / 4095]
+            c.create_line(*pts, fill=ACCENT, width=2)
 
     def _on_close(self):
         if not self._may_discard("Quit"):
