@@ -53,6 +53,16 @@ Bank 5 MEDI, button 2: B: CC Ch 2, CC# 7, On 127 added
 
 It catches the wrong slot or an old file before a gig, and shows what a configuration someone sent you does differently from yours. Both sides are packed as the pedal holds them first, so only what reaches the pedal counts: not the order of the CSV's columns, its comments, or a field the command does not use. A command that moves to another letter shows as changed in both. Reading the slot takes about 7 seconds. It ends with 0 when nothing changes, 1 when something does, 2 when a CSV has a mistake and 3 when the pedal could not be read, as `diff` does. Both configurators show the same list before they write: see [Flash to Device](03-the-configurator.md#sidebar) and [Write to pedal](14-in-the-browser.md#saving-and-writing).
 
+## Cheat_Sheet: a page to print
+
+```bash
+.venv/bin/python python/Cheat_Sheet.py my-config.csv
+.venv/bin/python python/Cheat_Sheet.py my-config.csv --open
+.venv/bin/python python/Cheat_Sheet.py my-config.csv -o sheet.html --device 2="Fender Tone Master Pro"
+```
+
+Writes the configuration as a page to print, `my-config.html` beside the CSV unless `-o` names another: the four-character labels say little to the band or the tech. One block per bank in use, its switches laid out as on the pedal, 1–4 above and A–D below, each with its label, its long press label, and what its short, long and double presses send in words; a command a known device answers to goes by the device's own name, as `HX Stomp: Snapshot 1`. Below a bank, what entering it sends and where its pedals point. Before the banks, the setlist in its order with each song's tempo, from a **Tap Set** in its bank's enter list, the expression pedals, the bank switches and the combinations. `--open` opens it in the browser, whose **Print** makes paper or a PDF of it. The device on a channel is found from the commands, as the configurators do; `--device CHANNEL=NAME` names one they cannot find, any name in their **Device** menu, and can be given more than once. It is packed first, as the pedal holds it, and a configuration with a mistake makes no page and ends with 2. Both configurators make the same page: **Cheat Sheet…** in the [sidebar](03-the-configurator.md#sidebar) and **Cheat sheet** [in the browser](14-in-the-browser.md#saving-and-writing).
+
 ## Backups
 
 `Backup_Slots.py` copies all four slots to a folder in one go, and puts them back.

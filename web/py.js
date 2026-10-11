@@ -5,7 +5,7 @@ const PYODIDE = "https://cdn.jsdelivr.net/pyodide/v314.0.7/full/";
 
 // Everything webBridge.py imports; tests/test_web_bridge.py keeps this complete
 const FILES = [
-  "webBridge.py", "binaryUnpacker.py", "cmdBinaryPacker.py", "configCsv.py", "configDiff.py", "configPacker.py",
+  "webBridge.py", "binaryUnpacker.py", "cheatSheet.py", "cmdBinaryPacker.py", "configCsv.py", "configDiff.py", "configPacker.py",
   "configSchema.py", "deviceDictionary.py", "devices.json", "displayText.py", "flashLayout.py", "settingsBinaryPacker.py",
 ];
 
@@ -111,6 +111,11 @@ export class Tools {
       this._community = JSON.parse(this.bridge.community_json());
     }
     return this._community;
+  }
+
+  // The configuration as a page to print (lib/cheatSheet.py)
+  cheatSheet(sections, chosen) {
+    return this._call(this.bridge.cheat_sheet, JSON.stringify(sections), JSON.stringify(chosen));
   }
 
   // {channel: device} the configuration's commands point to, or the user chose

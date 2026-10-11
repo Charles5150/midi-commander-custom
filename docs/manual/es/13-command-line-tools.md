@@ -53,6 +53,16 @@ Bank 5 MEDI, button 2: B: CC Ch 2, CC# 7, On 127 added
 
 Así pillas la ranura equivocada o un archivo viejo antes de un concierto, y ves qué hace distinto de la tuya una configuración que te han pasado. Los dos lados se empaquetan primero tal como los guarda la pedalera, así que solo cuenta lo que llega a ella: no el orden de las columnas del CSV, sus comentarios ni un campo que el comando no usa. Un comando que pasa a otra letra aparece como cambiado en las dos. Leer la ranura tarda unos 7 segundos. Termina con 0 si no cambia nada, 1 si cambia algo, 2 si un CSV tiene un error y 3 si no se pudo leer la pedalera, como `diff`. Los dos configuradores enseñan la misma lista antes de escribir: mira [Flash to Device](03-the-configurator.md#barra-lateral) y [Write to pedal](14-in-the-browser.md#guardar-y-escribir).
 
+## Cheat_Sheet: una página para imprimir
+
+```bash
+.venv/bin/python python/Cheat_Sheet.py mi-config.csv
+.venv/bin/python python/Cheat_Sheet.py mi-config.csv --open
+.venv/bin/python python/Cheat_Sheet.py mi-config.csv -o hoja.html --device 2="Fender Tone Master Pro"
+```
+
+Escribe la configuración como una página para imprimir, `mi-config.html` junto al CSV salvo que `-o` diga otra: las etiquetas de cuatro caracteres dicen poco a la banda o al técnico. Un bloque por cada banco en uso, con sus pulsadores colocados como en la pedalera, 1–4 arriba y A–D abajo, cada uno con su etiqueta, su etiqueta de pulsación larga y lo que envían sus pulsaciones corta, larga y doble en palabras; un comando que entiende un equipo conocido va con el nombre que le da el equipo, como `HX Stomp: Snapshot 1`. Debajo de un banco, lo que envía al entrar y adónde apuntan sus pedales. Antes de los bancos, el setlist en su orden con el tempo de cada canción, sacado de un **Tap Set** en la lista de entrada de su banco, los pedales de expresión, los pulsadores de banco y las combinaciones. `--open` la abre en el navegador, cuyo **Imprimir** la pasa a papel o a PDF. El equipo de cada canal se deduce de los comandos, como hacen los configuradores; `--device CANAL=NOMBRE` indica uno que no encuentran, cualquier nombre de su menú **Device**, y puede repetirse. Antes se empaqueta tal como lo guarda la pedalera, y una configuración con un error no da página y termina con 2. Los dos configuradores hacen la misma página: **Cheat Sheet…** en la [barra lateral](03-the-configurator.md#barra-lateral) y **Cheat sheet** [en el navegador](14-in-the-browser.md#guardar-y-escribir).
+
 ## Copias de seguridad
 
 `Backup_Slots.py` copia las cuatro ranuras a una carpeta de una vez, y las vuelve a poner.

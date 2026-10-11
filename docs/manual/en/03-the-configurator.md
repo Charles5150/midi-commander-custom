@@ -22,6 +22,7 @@ Two groups, FILE and PEDAL, with the name of the open file at the bottom.
 - **Save CSV** writes the current settings to the open file, and **Save As…** to a new one, which stays the open file from then on.
 - The demo, the sample and the [templates](11-devices.md) come with the tools and are never overwritten: opened, they are a starting point, and the first **Save CSV** asks where to keep your copy.
 - Loading another file or closing the configurator with changes not saved asks first.
+- **Cheat Sheet…** opens the configuration in the browser as a page to print, for the floor, the band or the tech: one block per bank in use with its eight switches laid out as on the pedal, their labels and what each press sends in words, with a known device's own names (`HX Stomp: Snapshot 1`); then the setlist in its order with each song's tempo, the expression pedals, the bank switches and the combinations. The browser's **Print** makes paper or a PDF of it. It shows the settings as they are now, saved or not, and a configuration with a mistake makes none. See [Cheat_Sheet](13-command-line-tools.md#cheat_sheet-a-page-to-print).
 
 **PEDAL**
 

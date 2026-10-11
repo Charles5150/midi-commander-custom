@@ -18,6 +18,7 @@ from lib.configCsv import read_config_csv, write_config_csv
 from lib.configDiff import config_sections, diff, image_sections
 from lib.configPacker import pack_config, pack_flash_image, sysex_problem
 from lib.configSchema import schema
+from lib.cheatSheet import cheat_sheet as _cheat_sheet
 import lib.deviceDictionary as devices
 from lib.displayText import display_text
 # The sizes the page needs to read a slot come from here too
@@ -109,6 +110,11 @@ def device_guess(text: str, chosen: str = "{}") -> str:
 def device_name(device: str, cmd_type: str, number: str, on: str, toggle: str) -> str:
     """The dictionary's name for a command on `device`, or ""."""
     return devices.entry_name(device, cmd_type, number, on, toggle) or ""
+
+
+def cheat_sheet(text: str, chosen: str = "{}") -> str:
+    """The configuration as a page to print, lib/cheatSheet.py."""
+    return _cheat_sheet(_from_json(text), json.loads(chosen))
 
 
 def csv_to_sections(data: bytes) -> str:

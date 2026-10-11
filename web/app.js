@@ -591,6 +591,7 @@ function drawToolbar() {
   const name = $("#config-name");
   name.textContent = state.config ? configName() + (state.dirty ? " • changed" : "") : "No configuration open";
   $("#btn-save").disabled = !state.config || state.busy;
+  $("#btn-print").disabled = !state.config || state.busy;
   $("#btn-write").disabled = !state.config || !state.pedal || state.busy;
   $("#btn-read").disabled = !state.pedal || state.busy || !state.tools;
   $("#btn-backup").disabled = !state.pedal || state.busy || !state.tools;
@@ -935,6 +936,16 @@ function saveCsv() {
   state.fileName = name;
   state.dirty = false;
   renderToolbar();
+}
+
+// The configuration as a page to print, in a tab of its own
+function cheatSheet() {
+  const problem = checkConfig();
+  if (problem) { toast("Fix the configuration first: " + problem, "error"); return; }
+  const page = state.tools.cheatSheet(state.config, state.deviceChosen);
+  const url = URL.createObjectURL(new Blob([page], { type: "text/html" }));
+  if (!window.open(url, "_blank")) download(`${configName().replace(/[^\w-]+/g, "_")}.html`, page);
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
 // --- The pedal -----------------------------------------------------------------
@@ -1465,6 +1476,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("#btn-demo").addEventListener("click", openDemo);
   $("#btn-template").addEventListener("click", openTemplate);
   $("#btn-read").addEventListener("click", readFromPedal);
+  $("#btn-print").addEventListener("click", cheatSheet);
   $("#btn-save").addEventListener("click", saveCsv);
   $("#btn-write").addEventListener("click", writeToPedal);
   $("#btn-backup").addEventListener("click", backupSlots);

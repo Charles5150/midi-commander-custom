@@ -97,6 +97,18 @@ class GuiTest(unittest.TestCase):
                          ("CC", "1", "52", "127", "0", "Y"))
         self.assertEqual(editor.name_label.cget("text"), "HX Stomp: FS4")
 
+    def test_a_cheat_sheet_of_what_is_edited(self):
+        from unittest import mock
+        import gui_configurator as g
+        self.app.load_csv(os.path.join(ROOT, "templates", "HX_Stomp.csv"))
+        self.app.update()
+        with mock.patch.object(g.webbrowser, "open") as browser:
+            self.app.cheat_sheet()
+        page = browser.call_args.args[0][len("file://"):]
+        with open(page, encoding="utf-8") as f:
+            self.assertIn("HX Stomp: Snapshot 1", f.read())
+        os.remove(page)
+
     def test_a_command_from_a_community_device(self):
         import lib.deviceDictionary as dd
         self.app.load_csv(os.path.join(ROOT, "templates", "HX_Stomp.csv"))

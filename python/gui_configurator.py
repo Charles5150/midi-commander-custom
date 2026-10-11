@@ -13,6 +13,7 @@ import re
 import subprocess
 import tempfile
 import sys
+import webbrowser
 from tkinter import filedialog, messagebox
 
 import tkinter as tk
@@ -29,6 +30,7 @@ from lib.cmdBinaryPacker import (  # noqa: E402
     VAR_MODES, VAR_COUNT, VAR_DEFAULT_TOP, IF_TESTS, IF_BUTTON_TESTS, IF_VALUE_TESTS,
     SCENE_BUTTONS, SCENE_MODES, MACRO_LISTS, LISTEN_LOOKS, BUTTON_ACTIONS, CHAN_OUTPUTS, WAIT_BAR_MAX, NRPN_KINDS, NRPN_MAX, SYSEX_MODES, button_mode, command_type,
 )
+from lib.cheatSheet import cheat_sheet  # noqa: E402
 from lib.configCsv import read_config_csv, write_config_csv  # noqa: E402
 from lib.displayText import display_text  # noqa: E402
 from lib.flashLayout import GLOBAL_DEFAULTS, NUM_BANKS, BUTTON_IDS, PRESET_NAME_COUNT, PRESET_NAME_LEN  # noqa: E402
@@ -1334,22 +1336,23 @@ class MidiCommanderGUI(ctk.CTk):
                       fg_color=FIELD, hover_color=FIELD_HOVER).grid(row=0, column=0, sticky="ew", padx=(0, 3))
         ctk.CTkButton(save_row, text="Save As\u2026", command=self.save_csv_as, height=34,
                       fg_color=FIELD, hover_color=FIELD_HOVER).grid(row=0, column=1, sticky="ew", padx=(3, 0))
+        action(5, "Cheat Sheet\u2026", self.cheat_sheet, fg_color=FIELD, hover_color=FIELD_HOVER)
 
-        section(5, "PEDAL")
+        section(6, "PEDAL")
         # Configuration slot used by Read from Device and Flash to Device
         slot_row = ctk.CTkFrame(self.sidebar, fg_color="transparent")
-        slot_row.grid(row=6, column=0, padx=20, pady=4, sticky="ew")
+        slot_row.grid(row=7, column=0, padx=20, pady=4, sticky="ew")
         ctk.CTkLabel(slot_row, text="Slot", font=FONT_BODY).pack(side="left")
         self.slot_selector = ctk.CTkOptionMenu(slot_row, values=SLOT_TARGETS, width=100)
         self.slot_selector.set("Active")
         self.slot_selector.pack(side="right")
-        action(7, "Read from Device", self.read_device, fg_color=FIELD, hover_color=FIELD_HOVER)
-        action(8, "Flash to Device", self.flash_device, fg_color=DANGER, hover_color=DANGER_HOVER,
+        action(8, "Read from Device", self.read_device, fg_color=FIELD, hover_color=FIELD_HOVER)
+        action(9, "Flash to Device", self.flash_device, fg_color=DANGER, hover_color=DANGER_HOVER,
                font=("", 13, "bold"))
-        action(9, "Back Up All Slots\u2026", self.backup_slots, fg_color=FIELD, hover_color=FIELD_HOVER)
-        action(10, "Restore Backup\u2026", self.restore_slots, fg_color=FIELD, hover_color=FIELD_HOVER)
-        action(11, "Update Firmware\u2026", self.update_firmware, fg_color=FIELD, hover_color=FIELD_HOVER)
-        action(12, "Banner Text\u2026", self.banner_text, fg_color=FIELD, hover_color=FIELD_HOVER)
+        action(10, "Back Up All Slots\u2026", self.backup_slots, fg_color=FIELD, hover_color=FIELD_HOVER)
+        action(11, "Restore Backup\u2026", self.restore_slots, fg_color=FIELD, hover_color=FIELD_HOVER)
+        action(12, "Update Firmware\u2026", self.update_firmware, fg_color=FIELD, hover_color=FIELD_HOVER)
+        action(13, "Banner Text\u2026", self.banner_text, fg_color=FIELD, hover_color=FIELD_HOVER)
 
         self.lbl_file = ctk.CTkLabel(self.sidebar, text="no file loaded", font=FONT_SMALL,
                                      text_color=MUTED, wraplength=170, justify="left")
@@ -3551,6 +3554,28 @@ class MidiCommanderGUI(ctk.CTk):
         else:
             messagebox.showinfo("Success", "CSV Saved Successfully!")
         return True
+
+    def cheat_sheet(self):
+        """The configuration as a page to print, opened in the browser."""
+        if self.df_global is None:
+            messagebox.showwarning("Warning", "Please load a CSV file first.")
+            return
+        self._collect()
+        fd, tmp = tempfile.mkstemp(suffix=".csv")
+        os.close(fd)
+        try:
+            self._write_csv(tmp)
+            page = cheat_sheet(read_config_csv(tmp), DeviceContext.chosen)
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("Cheat Sheet", f"No cheat sheet: the configuration has a mistake.\n\n{e}")
+            return
+        finally:
+            os.remove(tmp)
+        name = re.sub(r"[^\w-]+", "_", os.path.splitext(self.loaded_name or "configuration")[0])
+        out = os.path.join(tempfile.gettempdir(), f"{name}-cheat-sheet.html")
+        with open(out, "w", encoding="utf-8") as f:
+            f.write(page)
+        webbrowser.open("file://" + out)
 
     @staticmethod
     def _pack_problem(path):

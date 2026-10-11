@@ -24,6 +24,7 @@ Dos grupos, FILE (archivo) y PEDAL (pedalera), con el nombre del archivo abierto
 - **Save CSV** guarda los ajustes actuales en el archivo abierto, y **Save As…** en uno nuevo, que desde entonces pasa a ser el archivo abierto.
 - La demo, el ejemplo y las [plantillas](11-devices.md) vienen con las herramientas y nunca se sobrescriben: al abrirlos son un punto de partida, y el primer **Save CSV** pregunta dónde guardar tu copia.
 - Cargar otro archivo o cerrar el configurador con cambios sin guardar pregunta antes.
+- **Cheat Sheet…** abre la configuración en el navegador como una página para imprimir, para el suelo, la banda o el técnico: un bloque por cada banco en uso con sus ocho pulsadores colocados como en la pedalera, sus etiquetas y lo que envía cada pulsación en palabras, con los nombres propios de un equipo conocido (`HX Stomp: Snapshot 1`); después el setlist en su orden con el tempo de cada canción, los pedales de expresión, los pulsadores de banco y las combinaciones. El **Imprimir** del navegador la pasa a papel o a PDF. Enseña los ajustes tal como están, guardados o no, y una configuración con un error no da ninguna. Mira [Cheat_Sheet](13-command-line-tools.md#cheat_sheet-una-página-para-imprimir).
 
 **PEDAL**
 
