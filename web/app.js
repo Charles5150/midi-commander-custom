@@ -6,6 +6,7 @@ import { Tools } from "./py.js";
 import { Pedal, Timeout, SWITCHES, LED_LEVELS, SCREEN_WIDTH, SCREEN_HEIGHT, versionAtLeast, isIOS, noWebMidi } from "./pedal.js";
 import { loadImage, flash, Dfu, DFU_FILTER, UpdateError } from "./dfu.js";
 import { Simulator } from "./sim.js";
+import { shareLink, linkedCsv } from "./share.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 
@@ -601,6 +602,7 @@ function drawToolbar() {
   name.textContent = state.config ? configName() + (state.dirty ? " • changed" : "") : "No configuration open";
   $("#btn-save").disabled = !state.config || state.busy;
   $("#btn-print").disabled = !state.config || state.busy;
+  $("#btn-share").disabled = !state.config || state.busy;
   $("#btn-write").disabled = !state.config || !state.pedal || state.busy;
   $("#btn-read").disabled = !state.pedal || state.busy || !state.tools;
   $("#btn-backup").disabled = !state.pedal || state.busy || !state.tools;
@@ -1036,6 +1038,64 @@ function saveCsv() {
   state.fileName = name;
   state.dirty = false;
   renderToolbar();
+}
+
+// The configuration in a link (share.js): opening it loads the configuration
+async function shareConfig() {
+  const problem = checkConfig();
+  if (problem) { toast("Fix the configuration first: " + problem, "error"); return; }
+  let link;
+  try {
+    link = await shareLink(location.href, state.tools.sectionsToCsv(state.config));
+  } catch (e) {
+    toast(`Cannot make the link: ${e.message}`, "error");
+    return;
+  }
+  const field = h("textarea", { class: "share-link", readonly: true, rows: 4, onfocus: (e) => e.target.select() }, link);
+  const copy = h("button", { class: "primary", onclick: async () => {
+    try {
+      await navigator.clipboard.writeText(link);
+      copy.textContent = "Copied";
+    } catch {
+      field.focus();
+      toast("Copy the selected link by hand", "error");
+    }
+  } }, "Copy the link");
+  const share = navigator.share
+    ? h("button", { onclick: () => navigator.share({ title: configName(), url: link }).catch(() => {}) }, "Share…")
+    : null;
+  const kb = (link.length / 1024).toFixed(1);
+  const dlg = h("dialog", { class: "dialog" },
+    h("h3", {}, `Share “${configName()}”`),
+    h("p", {}, "Whoever opens this link gets the configuration open in the configurator, to look at, change, save or write to their pedal. It is all in the link, bank notes and setlists too: nothing is uploaded anywhere."),
+    field,
+    h("p", { class: "hint" }, `${kb} KB long.${link.length > 8000 ? " Some chats and forums cut links this long: if it arrives cut short, send the CSV file instead." : ""}`),
+    h("div", { class: "dialog-buttons" },
+      h("button", { onclick: () => dlg.close() }, "Close"), share, copy));
+  dlg.addEventListener("close", () => dlg.remove());
+  document.body.append(dlg);
+  dlg.showModal();
+}
+
+// A configuration in the page's address, from a shared link
+async function openLinked() {
+  let csv;
+  try {
+    csv = await linkedCsv(location.hash);
+  } catch (e) {
+    toast(`Cannot open the shared configuration: ${e.message}. Ask for the link again, or for the CSV file.`, "error");
+    return;
+  }
+  if (!csv || state.busy || !(await confirmDiscard())) return;
+  try {
+    setConfig(state.tools.csvToSections(csv), "");
+    toast(`Opened the shared configuration “${configName()}”`);
+  } catch (e) {
+    toast(`Cannot open the shared configuration: ${e.message}`, "error");
+    return;
+  }
+  // The address back to the plain page: a reload then keeps no stale copy
+  history.replaceState(null, "", location.pathname + location.search);
 }
 
 // A bank as a song file, to load into a bank of any configuration (lib/songFile.py)
@@ -1758,6 +1818,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("#btn-read").addEventListener("click", readFromPedal);
   $("#btn-print").addEventListener("click", cheatSheet);
   $("#btn-save").addEventListener("click", saveCsv);
+  $("#btn-share").addEventListener("click", shareConfig);
   $("#btn-write").addEventListener("click", writeToPedal);
   $("#btn-backup").addEventListener("click", backupSlots);
   render();
@@ -1772,7 +1833,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
   render();
+  await openLinked();
+  window.addEventListener("hashchange", openLinked);
 });
 
 // For the tests (web/tests): the page's state and its steps
-window.mc = { state, setConfig, connect, simulate, stopSimulation, checkConfig, render };
+window.mc = { state, setConfig, shareConfig, openLinked, connect, simulate, stopSimulation, checkConfig, render };
