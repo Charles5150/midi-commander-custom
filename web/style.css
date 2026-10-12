@@ -279,6 +279,10 @@ canvas.screen { width: 384px; max-width: 100%; image-rendering: pixelated; borde
   display: flex; flex-direction: column; gap: clamp(6px, 1.5vh, 16px); min-height: 70vh;
 }
 .stage:fullscreen { border-radius: 0; min-height: 100vh; box-sizing: border-box; overflow-y: auto; }
+.stage.covering { position: fixed; inset: 0; z-index: 50; border-radius: 0; box-sizing: border-box; overflow-y: auto; }
+.stage-close { display: none; }
+.stage.covering .stage-top { padding-right: 52px; }
+.stage.covering .stage-close { display: block; position: absolute; top: 8px; right: 8px; font-size: 28px; line-height: 1; padding: 4px 12px; background: transparent; color: #a8a8b0; border: 1px solid #44444c; }
 .stage.asleep { opacity: .45; }
 .stage-top { display: flex; justify-content: space-between; gap: 16px; font-size: clamp(18px, 3vw, 34px); color: #a8a8b0; }
 .stage-tempo { font-variant-numeric: tabular-nums; text-align: right; }

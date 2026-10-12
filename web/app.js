@@ -3,7 +3,7 @@
 // built from python/lib/configSchema.py, packing is python/lib (see py.js).
 
 import { Tools } from "./py.js";
-import { Pedal, Timeout, SWITCHES, LED_LEVELS, SCREEN_WIDTH, SCREEN_HEIGHT, versionAtLeast } from "./pedal.js";
+import { Pedal, Timeout, SWITCHES, LED_LEVELS, SCREEN_WIDTH, SCREEN_HEIGHT, versionAtLeast, isIOS, noWebMidi } from "./pedal.js";
 import { loadImage, flash, Dfu, DFU_FILTER, UpdateError } from "./dfu.js";
 import { Simulator } from "./sim.js";
 
@@ -90,6 +90,14 @@ function setBusy(text, done = null, total = null) {
 }
 
 function download(name, text, type = "text/csv") {
+  // On iOS a download may go nowhere in an app's browser: the share sheet saves to Files
+  if (isIOS() && navigator.share && navigator.canShare) {
+    const file = new File([text], name, { type });
+    if (navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file] }).catch(() => {});
+      return;
+    }
+  }
   const url = URL.createObjectURL(new Blob([text], { type }));
   const a = h("a", { href: url, download: name });
   document.body.append(a);
@@ -1080,7 +1088,7 @@ function cheatSheet() {
 // --- The pedal -----------------------------------------------------------------
 async function connect() {
   try {
-    if (!navigator.requestMIDIAccess) throw new Error("this browser has no Web MIDI: use Chrome, Edge or Opera");
+    if (!navigator.requestMIDIAccess) throw new Error(noWebMidi());
     if (!state.midiAccess) {
       state.midiAccess = await navigator.requestMIDIAccess({ sysex: true });
       state.midiAccess.addEventListener("statechange", () => { if (!state.pedal && !state.busy && !state.simulated) setTimeout(() => attach(true), 800); });
@@ -1091,7 +1099,7 @@ async function connect() {
       notice("The browser did not allow MIDI for this page",
         "The configurator needs MIDI devices with SysEx to talk to the pedal, and the browser remembers a refusal. To allow it: click the icon left of the address bar, open the site settings, set “MIDI devices” (in Chrome “Control and reprogram your MIDI devices”) to Allow, then reload the page.");
     } else {
-      toast(e.message || String(e), "error");
+      toast(e.message || (e.code ? "the browser could not start MIDI" : String(e)), "error");
     }
   }
 }
@@ -1499,7 +1507,15 @@ function renderStage(main) {
     used.map(([n, l]) => h("option", { value: n, selected: state.stageList === Number(n) }, `Setlist ${n}${l.name ? " " + l.name : ""}`))) : null;
   if (pick) pick.addEventListener("change", () => { state.stageList = Number(pick.value) || 0; });
   const view = h("div", { class: "stage" });
-  const full = h("button", { onclick: () => (document.fullscreenElement ? document.exitFullscreen() : view.requestFullscreen && view.requestFullscreen().catch(() => {})) }, "Full screen");
+  // Without the Fullscreen API (iPhone, the iOS Web MIDI browsers) the view
+  // covers the page instead, with a button to give it back
+  const cover = () => view.classList.add("covering");
+  const full = h("button", { onclick: () => {
+    if (document.fullscreenElement || document.webkitFullscreenElement) return (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    const enter = view.requestFullscreen || view.webkitRequestFullscreen;
+    if (!enter) return cover();
+    try { Promise.resolve(enter.call(view)).catch(cover); } catch (e) { cover(); }
+  } }, "Full screen");
   main.append(h("div", { class: "stage-bar" }, full, pick,
     h("span", { class: "hint" }, state.config
       ? "Notes are written in the Banks tab. The tempo shows while the pedal sends MIDI clock."
@@ -1510,7 +1526,8 @@ function renderStage(main) {
   const preview = h("div", { class: "stage-preview" }), note = h("div", { class: "stage-note" });
   const next = h("div", { class: "stage-next" });
   const tiles = ["1", "2", "3", "4", "A", "B", "C", "D"].map((id) => h("div", { class: "tile" }, h("span", { class: "id" }, id), h("span", { class: "label" })));
-  view.append(h("div", { class: "stage-top" }, place, tempo), name, info, preview, note, next, h("div", { class: "stage-tiles" }, tiles));
+  view.append(h("button", { class: "stage-close", "aria-label": "Leave full screen", onclick: () => view.classList.remove("covering") }, "×"),
+    h("div", { class: "stage-top" }, place, tempo), name, info, preview, note, next, h("div", { class: "stage-tiles" }, tiles));
 
   stopLive();
   const me = (live = { stop: false, lock: null });
@@ -1642,7 +1659,9 @@ function renderFirmware(main) {
   main.append(h("section", { class: "card firmware" },
     h("h3", {}, "Update the firmware"),
     h("p", {}, "Choose a .dfu file from the project’s releases. The pedal restarts in its update mode by itself (firmware 0.58 or later), the file is written and read back, and the pedal starts again. About 15 seconds; your configurations stay."),
-    usb ? null : h("p", { class: "problem" }, "This browser has no WebUSB: use Chrome, Edge or Opera on a computer."),
+    usb ? null : h("p", { class: "problem" }, isIOS()
+      ? "An iPad or iPhone cannot update the pedal: no browser there has WebUSB. Use Chrome, Edge or Opera on a computer."
+      : "This browser has no WebUSB: use Chrome, Edge or Opera on a computer."),
     state.updateStuck ? h("p", { class: "problem" }, "The last update did not finish. The pedal waits in its update mode, with its screen dark: press Update again, with the same file. It does not need to be connected first.") : null,
     file, info,
     h("div", { class: "buttons" },

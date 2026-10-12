@@ -6,7 +6,7 @@ El configurador web hace en una página del navegador lo mismo que el configurad
 
 **https://charles5150.github.io/midi-commander-custom/**
 
-Hace falta un navegador con Web MIDI y WebUSB: **Chrome**, **Edge** u **Opera**, en un ordenador. Safari no tiene ninguno de los dos. Firefox tiene Web MIDI, mediante un complemento de permiso del sitio que ofrece la primera vez que la página lo pide, pero no WebUSB, así que la actualización del firmware necesita Chrome, Edge u Opera. La página ejecuta dentro del navegador el mismo código Python de las herramientas, con [Pyodide](https://pyodide.org), así que una configuración se comprueba y se empaqueta exactamente igual que en el configurador, y los ficheros CSV son los mismos: uno guardado en uno se abre en el otro. La primera visita descarga unos 20 MB, Python y pandas, que el navegador guarda; a partir de ahí abre en unos segundos.
+Hace falta un navegador con Web MIDI y WebUSB: **Chrome**, **Edge** u **Opera**, en un ordenador. Safari no tiene ninguno de los dos; en un iPad, mira [En un iPad o un iPhone](#en-un-ipad-o-un-iphone). Firefox tiene Web MIDI, mediante un complemento de permiso del sitio que ofrece la primera vez que la página lo pide, pero no WebUSB, así que la actualización del firmware necesita Chrome, Edge u Opera. La página ejecuta dentro del navegador el mismo código Python de las herramientas, con [Pyodide](https://pyodide.org), así que una configuración se comprueba y se empaqueta exactamente igual que en el configurador, y los ficheros CSV son los mismos: uno guardado en uno se abre en el otro. La primera visita descarga unos 20 MB, Python y pandas, que el navegador guarda; a partir de ahí abre en unos segundos.
 
 ## Conectar
 
@@ -72,7 +72,13 @@ La canción en la que estás, legible a unos pasos, para una tablet o un portát
 
 El setlist, la línea de información y las notas salen de la configuración abierta en la página, así que abre la que lleva la pedalera, o léela de la pedalera y abre luego el CSV con las notas. Si el nombre del banco ahí no es el de la pedalera, la vista la toma por otra configuración y muestra solo el banco y los botones de la pedalera. Un banco que está en varios setlists se sitúa en el primero que lo tiene, y sigue en ese mientras los bancos siguientes también estén en él; **Setlist** elige uno a mano.
 
-Las notas se guardan en el CSV, en una columna `Notes` de `Bank_Naming`, y en el archivo de canción guardado desde el banco; la pedalera nunca las tiene, así que escribirlas no cambia nada en ella, y leer una configuración de la pedalera no trae ninguna. El configurador de escritorio las conserva al guardar. En un iPad, Safari no tiene Web MIDI: la página necesita un navegador que lo añada.
+Las notas se guardan en el CSV, en una columna `Notes` de `Bank_Naming`, y en el archivo de canción guardado desde el banco; la pedalera nunca las tiene, así que escribirlas no cambia nada en ella, y leer una configuración de la pedalera no trae ninguna. El configurador de escritorio las conserva al guardar. En un iPad, Safari no tiene Web MIDI: mira [En un iPad o un iPhone](#en-un-ipad-o-un-iphone).
+
+## En un iPad o un iPhone
+
+Safari no tiene Web MIDI, y en iOS todos los navegadores son Safari por dentro. Algunas apps añaden Web MIDI a las páginas que abren: **Web MIDI Browser**, gratis en el App Store, es una. Abre la página en ella y conecta la pedalera al puerto USB-C del iPad, o mediante el adaptador de Lightning a USB 3 para cámaras de Apple con su cargador enchufado; la pedalera funciona con la corriente de su cable USB.
+
+Conectar, leer y escribir slots, editar, **Live pedal** y **Stage** funcionan como en un ordenador. **Full screen** cubre la página en vez de la pantalla, que estas apps no dan a una página, con **×** en la esquina para salir. **Save CSV**, un archivo de canción y la chuleta abren el menú de compartir, donde **Guardar en Archivos** los guarda. El firmware no se puede actualizar: ningún navegador de iOS tiene WebUSB, así que usa un ordenador. La primera visita descarga Python y pandas, unos 20 MB; mejor con wifi.
 
 ## Firmware
 

@@ -25,6 +25,13 @@ const SCREEN_PARTS = (SCREEN_HEIGHT / 8) * 2;
 const SCREEN_PART_BYTES = SCREEN_WIDTH / 2;
 const WRITE_TRIES = 4;                    // see slotIO._write_chunk (#147)
 
+// iPadOS says it is a Mac, but a Mac has no touch screen
+export const isIOS = () => typeof navigator !== "undefined" &&
+  (/iPad|iPhone|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1));
+export const noWebMidi = () => isIOS()
+  ? "Safari has no Web MIDI: on an iPad or iPhone, open this page in a browser app that adds it, such as Web MIDI Browser"
+  : "this browser has no Web MIDI: use Chrome, Edge or Opera";
+
 export class Timeout extends Error {}
 export class NotFound extends Error {}
 
@@ -41,7 +48,10 @@ export function portKind(name) {
 // The port meant for the tools first; never the DIN one, whose SysEx would go
 // out to whatever is plugged in there
 const pedalPort = (ports) => {
-  const found = [...ports.values()].filter((p) => matches(p) && portKind(p.name) !== "din");
+  // forEach, since the iOS Web MIDI browsers' maps have no iterable values()
+  const all = [];
+  ports.forEach((p) => all.push(p));
+  const found = all.filter((p) => matches(p) && portKind(p.name) !== "din");
   return found.find((p) => portKind(p.name) === "config") || found[0];
 };
 
@@ -89,7 +99,10 @@ export class Pedal {
     this.onMessage = null;    // everything else the pedal sends, for a monitor
     this.onGone = null;
     this.pause = 5;           // ms between written blocks; the simulated pedal needs none
-    this._listen = (e) => this._receive(Array.from(e.data));
+    // The iOS Web MIDI browsers give every port's messages to every port's
+    // listeners, calling them with this = the port that received
+    const pedal = this;
+    this._listen = function (e) { if (this === input || this === undefined) pedal._receive(Array.from(e.data)); };
     input.addEventListener("midimessage", this._listen);
     this._state = (e) => {
       if (e.port.id === input.id && e.port.state === "disconnected" && this.onGone) this.onGone();
@@ -100,7 +113,7 @@ export class Pedal {
   // Open the pedal's ports, asking for Web MIDI with SysEx unless given it
   static async open(access = null) {
     if (!access) {
-      if (!navigator.requestMIDIAccess) throw new NotFound("this browser has no Web MIDI: use Chrome, Edge or Opera");
+      if (!navigator.requestMIDIAccess) throw new NotFound(noWebMidi());
       access = await navigator.requestMIDIAccess({ sysex: true });
     }
     const input = pedalPort(access.inputs);

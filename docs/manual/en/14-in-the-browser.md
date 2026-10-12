@@ -6,7 +6,7 @@ The web configurator does in a browser page what the desktop configurator and th
 
 **https://charles5150.github.io/midi-commander-custom/**
 
-It needs a browser with Web MIDI and WebUSB: **Chrome**, **Edge** or **Opera**, on a computer. Safari has neither. Firefox has Web MIDI, through a site permission add-on it offers when the page first asks, but not WebUSB, so the firmware update needs Chrome, Edge or Opera. The page runs the tools' own Python code inside the browser, with [Pyodide](https://pyodide.org), so a configuration is checked and packed exactly as the configurator packs it, and the CSV files are the same: a file saved in one opens in the other. The first visit loads about 20 MB, Python and pandas, which the browser then keeps; after that it opens in a few seconds.
+It needs a browser with Web MIDI and WebUSB: **Chrome**, **Edge** or **Opera**, on a computer. Safari has neither; on an iPad, see [On an iPad or iPhone](#on-an-ipad-or-iphone). Firefox has Web MIDI, through a site permission add-on it offers when the page first asks, but not WebUSB, so the firmware update needs Chrome, Edge or Opera. The page runs the tools' own Python code inside the browser, with [Pyodide](https://pyodide.org), so a configuration is checked and packed exactly as the configurator packs it, and the CSV files are the same: a file saved in one opens in the other. The first visit loads about 20 MB, Python and pandas, which the browser then keeps; after that it opens in a few seconds.
 
 ## Connecting
 
@@ -72,7 +72,13 @@ The song you are on, readable from a few steps away, for a tablet or a laptop on
 
 The setlist, the info line and the notes come from the configuration open in the page, so open the one the pedal runs, or read it from the pedal and then open the CSV with the notes. When the bank's name there is not the pedal's, the view takes it for another configuration and shows the pedal's bank and buttons only. A bank in several setlists is placed in the first that has it, and stays in that one while the next banks are in it too; **Setlist** picks one by hand.
 
-The notes are kept in the CSV, in a `Notes` column of `Bank_Naming`, and in a song file saved from the bank; the pedal never holds them, so writing them changes nothing on it, and reading a configuration from the pedal brings none. The desktop configurator keeps them when it saves. On an iPad, Safari has no Web MIDI: the page needs a browser that adds it.
+The notes are kept in the CSV, in a `Notes` column of `Bank_Naming`, and in a song file saved from the bank; the pedal never holds them, so writing them changes nothing on it, and reading a configuration from the pedal brings none. The desktop configurator keeps them when it saves. On an iPad, Safari has no Web MIDI: see [On an iPad or iPhone](#on-an-ipad-or-iphone).
+
+## On an iPad or iPhone
+
+Safari has no Web MIDI, and on iOS every browser is Safari underneath. Some apps add Web MIDI to the pages they open: **Web MIDI Browser**, free on the App Store, is one. Open the page in it and connect the pedal to the iPad's USB-C port, or through Apple's Lightning to USB 3 camera adapter with its charger plugged in; the pedal runs on the power of its USB cable.
+
+Connecting, reading and writing slots, editing, **Live pedal** and **Stage** work as on a computer. **Full screen** covers the page rather than the screen, which these apps do not give a page, with **×** in the corner to leave it. **Save CSV**, a song file and the cheat sheet open the share sheet, where **Save to Files** keeps them. The firmware cannot be updated: no browser on iOS has WebUSB, so use a computer. The first visit loads Python and pandas, about 20 MB; better on Wi-Fi.
 
 ## Firmware
 

@@ -58,3 +58,31 @@ test("the bank Bank Up and Down are previewing is read from the state, none as 7
   assert.equal(parseState(state(5)).bankName, "SONG");
   assert.deepEqual(parseState(state(5)).toggles.slice(0, 2), [true, false]);
 });
+
+// The MIDIAccess of the iOS Web MIDI browsers (Web MIDI Browser's polyfill):
+// port maps whose values() is not iterable, one listener list shared by every
+// port, called with this = the port that received, thenables for Promises
+function iosAccess(names) {
+  const listeners = [];
+  const port = (name, type) => ({
+    name, type, id: `${type}-${name}`,
+    addEventListener: (t, f) => listeners.push(f),
+    removeEventListener: (t, f) => listeners.splice(listeners.indexOf(f), 1),
+    open() { return { then: (ok) => setTimeout(() => ok(this), 0) }; },
+    receive(data) { listeners.forEach((f) => f.call(this, { data })); },
+  });
+  const map = (list) => ({ size: list.length, forEach: (cb) => list.forEach((p) => cb(p)), values: () => ({ next: () => ({ done: true }) }) });
+  const inputs = names.map((n) => port(n, "input"));
+  return { inputs: map(inputs), outputs: map(names.map((n) => port(n, "output"))), addEventListener() {}, removeEventListener() {}, list: inputs };
+}
+
+test("the pedal is found and heard through the iOS browsers' Web MIDI, other inputs not", async () => {
+  const access = iosAccess(["Keys", "MIDI Commander Custom"]);
+  const pedal = await Pedal.open(access);
+  assert.equal(pedal.input.name, "MIDI Commander Custom");
+  const heard = [];
+  pedal.onMessage = (m) => heard.push(m);
+  access.list[0].receive([0x90, 60, 100]);
+  access.list[1].receive([0xb0, 7, 64]);
+  assert.deepEqual(heard, [[0xb0, 7, 64]]);
+});
