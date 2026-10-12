@@ -2,7 +2,7 @@
 
 [English](../en/09-the-display.md) · **Español**
 
-La pantalla de 128×64 de la pedalera te dice dónde estás y qué está encendido, de un vistazo desde el suelo. Este capítulo trata la pantalla del banco, lo que aparece encima un momento, la vista de directo, los valores en vivo que puede mostrar una etiqueta, el texto que puede poner un ordenador y el banner al encender.
+La pantalla de 128×64 de la pedalera te dice dónde estás y qué está encendido, de un vistazo desde el suelo. Este capítulo trata la pantalla del banco, lo que aparece encima un momento, la vista de directo, el monitor MIDI, los valores en vivo que puede mostrar una etiqueta, el texto que puede poner un ordenador y el banner al encender.
 
 ## La pantalla del banco
 
@@ -27,6 +27,7 @@ Algunas cosas ocupan la pantalla, o parte de ella, un momento y luego devuelven 
 | Al marcar el tempo con el tap, arrancar o parar el reloj, o fijar o subir y bajar el tempo | el tempo, con un `*` delante mientras el reloj está en marcha ([Tempo](07-tempo.md)) |
 | Cuando `Clock_Follow` engancha el reloj del ordenador, o cambia su tempo | `EXT` y el tempo, durante 1,5 segundos |
 | Con un reloj en marcha y `Beat_Counter` activado | el compás, el tiempo y el tempo en lugar de la línea de información, `12.3 120`, mientras corra ([Compás y tiempo en la pantalla](07-tempo.md#compás-y-tiempo-en-la-pantalla)) |
+| MIDI que entra por USB, con `MIDI_Monitor` activado | una marca en la esquina de arriba a la derecha; con `In` o `All`, el mensaje en toda la línea de arriba durante dos segundos ([Monitor MIDI](#monitor-midi)) |
 | Una cuenta atrás (`Wait` `Count`) | los tiempos que faltan en lugar del nombre del banco, de `IN 4` a `IN 1`, hasta que sale la lista ([A tiempo](06-commands.md#a-tiempo)) |
 | Un botón de CC relativo | el número de CC y el valor que se acaba de enviar, en lugar de la línea de información durante 1,5 segundos: `CC7=69`, o `C120=127` para números de CC de tres cifras |
 | Un pedal de expresión moviéndose, con `Display` activado | el valor que envía, `EXP1 64`, o el número del pedal y una barra, en lugar de la línea de información hasta 1,5 segundos después de pararse ([Su valor en la pantalla](08-expression.md#su-valor-en-la-pantalla)) |
@@ -56,6 +57,23 @@ A unos pasos, o con la pedalera en el suelo y tú de pie, las etiquetas de 4 car
 - **Lo que muestra** es lo que mostraría la línea de arriba: el nombre del banco y su línea de información con sus [valores en vivo](#valores-en-vivo), la cuenta atrás en lugar del nombre, el compás y el tiempo o el puesto en el setlist en lugar de la línea de información, `LOCKED`, y el [texto del ordenador](#texto-desde-el-ordenador), que ocupa el sitio del nombre cuando se envía para toda la línea o para el nombre. Un nombre de más de cinco caracteres sale en la fuente grande, once por pantalla, y uno más largo se desplaza como en la línea de arriba.
 - **Los avisos** como el tempo o el valor de un pedal salen en el sitio de la línea de información, en la fuente grande.
 - No se guarda al apagar: la pedalera arranca como diga `Gig_View`. Necesita el firmware 1.32.
+
+## Monitor MIDI
+
+En la prueba de sonido, cuando un aparato no responde, la primera pregunta es si llega MIDI, y el portátil que lo diría está guardado. La pantalla puede responderla. Ajusta `MIDI_Monitor` en la pestaña **Global** del configurador, **MIDI monitor**:
+
+| `MIDI_Monitor` | Lo que muestra la pantalla |
+|---|---|
+| `Off` | nada, como antes. Por defecto. |
+| `Mark` | una marca pequeña en la esquina de arriba a la derecha, encendida mientras entra MIDI por USB y un momento después. La demo la tiene. |
+| `In` | la marca, y el último mensaje recibido en toda la línea de arriba durante dos segundos, en letra pequeña: `IN CC7=100 CH3`. |
+| `All` | la marca, y el último mensaje recibido o enviado: `OUT PC12 CH1` cuando un botón envía un cambio de programa. |
+
+- **Cómo se leen los mensajes:** `CC7=100` un control change y su valor, `PC12` un program change, `ON60=127` y `OFF60` una nota y su velocidad, `AT=9` la presión del canal y `AT60=9` la de una nota, `PB=8192` el pitch bend de 0 a 16383, y luego de `CH1` a `CH16`. Un SysEx sale como `SYSEX`, y `START`, `CONTINUE`, `STOP`, `SPP` (posición en la canción), `SONG` y `TUNE` tal cual.
+- **No se muestran:** el reloj MIDI y el active sensing, que llegan todo el rato y dejarían la marca siempre encendida; el SysEx del propio configurador; y, con `USB_Ports` a 3, lo que entra por el cable del puerto DIN para salir directo por la toma DIN.
+- **Una ráfaga** de mensajes, la automatización de un DAW o un pedal de expresión barriendo, muestra el último; nada espera a la pantalla.
+- **Encima del resto:** el mensaje ocupa el sitio del nombre del banco y de su línea de información y se los devuelve a los dos segundos. El valor de un pedal de expresión se pone encima, porque dice más del pedal. En la [vista de directo](#vista-de-directo) sale en el sitio de la línea de información.
+- Necesita el firmware 1.35. Se guarda en los bits 3-4 del byte global 46, junto a la velocidad del banner y `Gig_View`; los firmwares 1.32 a 1.34 lo ignoran, y uno anterior no muestra el banner cuando está activado.
 
 ## Valores en vivo
 

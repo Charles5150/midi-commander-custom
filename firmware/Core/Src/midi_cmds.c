@@ -10,6 +10,7 @@
 #include "midi_defines.h"
 #include "usbd_midi_if.h"
 #include "ssd1306.h"
+#include "display.h"
 
 
 /*
@@ -279,6 +280,7 @@ static int8_t send_events(uint8_t *events, uint8_t len){
 		uint8_t k = (cin == CIN_PROGRAM_CHANGE || cin == CIN_CHANNEL_PRESSURE) ? 2
 				: (cin == CIN_SINGLE_BYTE) ? 1 : 3;
 		memcpy(&din[n], &events[i + 1], k);
+		display_midi_out(&events[i + 1], k);
 		n += k;
 	}
 	return din_bytes(din, n);
@@ -286,6 +288,7 @@ static int8_t send_events(uint8_t *events, uint8_t len){
 
 // A whole SysEx message, F0 to F7, to the outputs that are on
 void midiCmd_send_sysex(uint8_t *msg, uint8_t len){
+	display_midi_out(msg, 1);
 	if(!(outputs_off & CHAN_NO_USB)) sysex_send_message(msg, len);
 	din_bytes(msg, len);
 }

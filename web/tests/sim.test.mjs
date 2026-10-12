@@ -1833,3 +1833,74 @@ test("the computer writes a button's label, until the bank changes or until it c
   assert.equal(await label(0, 2, "X"), null, "nor a how");
   assert.equal(cellRows(sim), own);
 });
+
+// The demo with MIDI_Monitor, and Gig_View, as given
+async function monitorSim(monitor, gig = "N") {
+  const sim = simWithDemo(await flashWith(packDemo([
+    "g = d['Global_Settings']",
+    `g.loc[g.Label == 'MIDI_Monitor', 'Value'] = '${monitor}'`,
+    `g.loc[g.Label == 'Gig_View', 'Value'] = '${gig}'`,
+  ].join("\n"))));
+  sim.run(10000);
+  return sim;
+}
+
+// The MIDI monitor's mark, in the top right corner
+const markIs = (sim, on) => [0, 1, 2].every((y) => [124, 125, 126, 127].every((x) => lit(sim, x, y) === on));
+
+test("MIDI_Monitor: a mark as MIDI comes in over USB, and the last message received or sent (before 1.35, nothing showed)", async () => {
+  const sim = await monitorSim("In");
+  assert.ok(markIs(sim, false));
+  const pedal = await Pedal.open(sim.access);
+  await running(sim, () => pedal.getState());
+  sim.run(20);
+  assert.ok(infoLineIs(sim, "1/10>S01"), "the tools' own SysEx is not shown");
+  sim.usbIn([0xb2, 7, 100]);
+  sim.run(20);
+  assert.ok(markIs(sim, true), "the mark lights");
+  assert.ok(textAt(sim, 0, 6, "IN CC7=100 CH3"), "the message across the top line");
+  sim.run(200);
+  assert.ok(markIs(sim, false), "the mark goes out by itself");
+  assert.ok(textAt(sim, 0, 6, "IN CC7=100 CH3"), "the message stays a while");
+  sim.run(2000);
+  assert.ok(infoLineIs(sim, "1/10>S01"), "then the bank screen is back");
+  sim.usbIn([0xf8]);
+  sim.run(20);
+  assert.ok(markIs(sim, false), "a clock does not light it");
+  for (const [bytes, text] of [[[0x90, 60, 0], "IN OFF60 CH1"], [[0x9f, 127, 127], "IN ON127=127 CH16"],
+    [[0xcf, 12], "IN PC12 CH16"], [[0xe0, 0x7f, 0x7f], "IN PB=16383 CH1"], [[0xd4, 9], "IN AT=9 CH5"],
+    [[0xf6], "IN TUNE"], [[0xf0, 0x41, 1, 2, 0xf7], "IN SYSEX"]]) {
+    sim.usbIn(bytes);
+    sim.run(20);
+    assert.ok(textAt(sim, 0, 6, text), text);
+  }
+  sim.run(2500);
+  tap(sim, 0);                              // to the looper bank
+  tap(sim, 0);                              // its button 1 sends CC 1
+  assert.ok(!textAt(sim, 0, 6, "OUT"), "In shows nothing sent");
+
+  const all = await monitorSim("All");
+  tap(all, 0);
+  tap(all, 0);
+  assert.ok(textAt(all, 0, 6, "OUT CC1=127 CH1"), "All shows what goes out too");
+  assert.ok(markIs(all, false), "the mark is for what comes in");
+
+  const mark = simWithDemo();               // the demo has Mark
+  mark.run(10000);
+  mark.usbIn([0xb2, 7, 100]);
+  mark.run(20);
+  assert.ok(markIs(mark, true));
+  assert.ok(infoLineIs(mark, "1/10>S01"), "Mark shows no message");
+
+  const off = await monitorSim("Off");
+  off.usbIn([0xb2, 7, 100]);
+  off.run(20);
+  assert.ok(markIs(off, false));
+  assert.ok(infoLineIs(off, "1/10>S01"));
+
+  const gig = await monitorSim("In", "Y");
+  gig.usbIn([0xb2, 7, 100]);
+  gig.run(20);
+  assert.ok(textAt(gig, 15, 48, "IN CC7=100 CH3"), "in the gig view, in the info line's place");
+  assert.ok(markIs(gig, true));
+});

@@ -850,6 +850,7 @@ def global_settings() -> pd.DataFrame:
                 ("Combo_ms", "80"),
                 ("Boot_Banner", "Normal"),
                 ("Gig_View", "N"),
+                ("MIDI_Monitor", "Mark"),
                 ("Bank_Preview", "0"),
                 ("Setlist_Display", "Y"),
             )

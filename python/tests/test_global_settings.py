@@ -616,7 +616,7 @@ class BootBannerTest(unittest.TestCase):
         for value, byte, back in (("Off", 0, "Off"), ("slow", 1, "Slow"), ("Normal", 2, "Normal"),
                                   ("FAST", 3, "Fast"), ("", 0, "Off")):
             packed = self.with_banner(value)
-            self.assertEqual(packed[46], byte, value)
+            self.assertEqual(packed[46] & 0x07, byte, value)     # the demo's MIDI_Monitor above
             got = unpacker.unpack_global_settings(packed)
             self.assertEqual(got[got["Label"] == "Boot_Banner"]["Value"].iloc[0], back, value)
 
@@ -631,7 +631,7 @@ class BootBannerTest(unittest.TestCase):
         self.assertEqual(blank[blank["Label"] == "Boot_Banner"]["Value"].iloc[0], "Off")
 
     def test_demo_shows_it(self):
-        self.assertEqual(pack_csv(DEMO_CSV)[46], 2)
+        self.assertEqual(pack_csv(DEMO_CSV)[46], 0x0A)       # Normal, and MIDI_Monitor Mark
 
 class GigViewTest(unittest.TestCase):
     """The gig view from power on, Gig_View, in the banner's byte (1.32)."""
@@ -650,7 +650,7 @@ class GigViewTest(unittest.TestCase):
     def test_with_the_banner(self):
         for gig, banner, byte in (("Y", "Normal", 0x06), ("N", "Normal", 0x02), ("Y", "Off", 0x04), ("yes", "Fast", 0x07)):
             packed = self.with_settings(Gig_View=gig, Boot_Banner=banner)
-            self.assertEqual(packed[46], byte, (gig, banner))
+            self.assertEqual(packed[46] & 0x07, byte, (gig, banner))
             self.assertEqual(self.value(packed, "Gig_View"), "Y" if gig != "N" else "N")
             self.assertEqual(self.value(packed, "Boot_Banner"), banner)
 
@@ -666,6 +666,34 @@ class GigViewTest(unittest.TestCase):
         self.assertEqual(int(m.group(1), 16), sbp.GIG_VIEW_ON)
         display = firmware_source("Src", "display.c")
         self.assertIn("gig_on = v != 0xFF && (v & GIG_VIEW_ON);", display)
+
+
+class MidiMonitorTest(GigViewTest):
+    """What the display shows of MIDI, MIDI_Monitor, in bits 3-4 of the banner's byte (1.35)."""
+
+    def test_with_the_banner(self):
+        for monitor, byte, back in (("Off", 0x06, "Off"), ("mark", 0x0E, "Mark"), ("In", 0x16, "In"),
+                                    ("ALL", 0x1E, "All"), ("", 0x06, "Off")):
+            packed = self.with_settings(MIDI_Monitor=monitor, Gig_View="Y", Boot_Banner="Normal")
+            self.assertEqual(packed[46], byte, monitor)
+            self.assertEqual(self.value(packed, "MIDI_Monitor"), back)
+            self.assertEqual(self.value(packed, "Gig_View"), "Y")
+            self.assertEqual(self.value(packed, "Boot_Banner"), "Normal")
+        with self.assertRaisesRegex(ValueError, "MIDI_Monitor must be Off, Mark, In or All, not 'Loud'"):
+            self.with_settings(MIDI_Monitor="Loud")
+
+    def test_off_without_it(self):
+        self.assertEqual(self.value(b"\xff" * layout.CONFIG_SIZE, "MIDI_Monitor"), "Off")
+        self.assertEqual(self.value(pack_csv(SAMPLE_CSV), "MIDI_Monitor"), "Off")
+        self.assertEqual(self.value(pack_csv(DEMO_CSV), "MIDI_Monitor"), "Mark")
+
+    def test_firmware(self):
+        from lib import settingsBinaryPacker as sbp
+        defines = firmware_source("Inc", "midi_defines.h")
+        self.assertRegex(defines, rf"#define MIDI_MONITOR_SHIFT\s+\({sbp.MIDI_MONITOR_SHIFT}\)")
+        self.assertRegex(defines, r"#define MIDI_MONITOR_MASK\s+\(0x18\)")
+        for name, value in sbp.MIDI_MONITORS.items():
+            self.assertRegex(defines, rf"#define MONITOR_{name}\s+\({value}\)")
 
 
 class BankPreviewTest(unittest.TestCase):

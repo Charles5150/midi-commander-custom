@@ -133,6 +133,7 @@ GLOBAL_DEFAULTS = {
     "Combo_ms": "80",
     "Boot_Banner": "Off",
     "Gig_View": "N",
+    "MIDI_Monitor": "Off",
     "Bank_Preview": "0",
     "Setlist_Display": "N",
 }

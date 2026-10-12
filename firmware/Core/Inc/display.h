@@ -112,6 +112,15 @@ void display_gig_from_settings(void);	// as the configuration has it
 void display_gig_toggle(void);
 void display_gig_press(void);		// one of the eight buttons went down
 
+/*
+ * MIDI_Monitor (1.35): a message received over USB, from the USB interrupt,
+ * or one the pedal sent; its status byte and the data bytes after it, or the
+ * F0 of a SysEx. The display lights its mark and shows the latest message as
+ * MIDI_Monitor says.
+ */
+void display_midi_in(const uint8_t *data, uint8_t len);
+void display_midi_out(const uint8_t *data, uint8_t len);
+
 // Ask for the current bank screen to be redrawn from the main loop
 // (e.g. after a toggle state changed), without blocking the caller.
 void display_request_refresh(void);

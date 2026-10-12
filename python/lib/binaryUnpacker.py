@@ -217,6 +217,7 @@ def unpack_global_settings(data: bytes) -> pd.DataFrame:
         ("Combo_ms", str(g[45] * 10 if 0 < g[45] < 0xFF else default_int("Combo_ms"))),
         ("Boot_Banner", {1: "Slow", 2: "Normal", 3: "Fast"}.get(g[46] & 0x03 if g[46] != 0xFF else 0, "Off")),
         ("Gig_View", "Y" if g[46] != 0xFF and g[46] & 0x04 else "N"),
+        ("MIDI_Monitor", ("Off", "Mark", "In", "All")[(g[46] >> 3) & 0x03 if g[46] != 0xFF else 0]),
         ("Bank_Preview", str(g[47] if 0 < g[47] <= 60 else 0)),
         ("Setlist_Display", "Y" if g[33] == 2 else "N"),
     ]

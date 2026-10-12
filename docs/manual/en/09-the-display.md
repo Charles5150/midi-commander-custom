@@ -2,7 +2,7 @@
 
 **English** · [Español](../es/09-the-display.md)
 
-The pedal's 128×64 screen tells you where you are and what is on, at a glance from the floor. This chapter covers the bank screen, what shows over it for a moment, the gig view, the live values a label can show, the text a computer can put on it, and the banner at power on.
+The pedal's 128×64 screen tells you where you are and what is on, at a glance from the floor. This chapter covers the bank screen, what shows over it for a moment, the gig view, the MIDI monitor, the live values a label can show, the text a computer can put on it, and the banner at power on.
 
 ## The bank screen
 
@@ -28,6 +28,7 @@ Some things take the screen, or part of it, for a moment and then give the bank 
 | `Clock_Follow` picks up the host's clock, or its tempo changes | `EXT` and the tempo, for 1.5 seconds |
 | A clock running, with `Beat_Counter` on | the bar, the beat and the tempo in place of the info line, `12.3 120`, for as long as it runs ([Bar and beat on the display](07-tempo.md#bar-and-beat-on-the-display)) |
 | A count-in (`Wait` `Count`) | the beats left in place of the bank's name, `IN 4` to `IN 1`, until the list goes ([On the beat](06-commands.md#on-the-beat)) |
+| MIDI coming in over USB, with `MIDI_Monitor` on | a mark in the top right corner; with `In` or `All` the message across the top line for two seconds ([MIDI monitor](#midi-monitor)) |
 | A relative CC button | the CC number and the value just sent, in place of the info line for 1.5 seconds: `CC7=69`, or `C120=127` for three digit CC numbers |
 | An expression pedal moving, with `Display` on | the value it sends, `EXP1 64`, or the pedal's number and a bar, in place of the info line until 1.5 seconds after it stops ([Its value on the display](08-expression.md#its-value-on-the-display)) |
 | A next or previous preset button | the new program's [name](#preset-names), or its number, as `PC 6` |
@@ -56,6 +57,23 @@ From a few steps back, or with the pedal on the floor and you standing, the 4-ch
 - **What it shows** is what the top line would: the bank's name and info line with their [live values](#live-values), the count-in in place of the name, the bar and beat or the place in the setlist in place of the info line, `LOCKED`, and [text from the computer](#text-from-the-computer), which takes the name's place when it is sent for the whole line or for the name. A name of more than five characters shows in the large font, eleven to the screen, and a longer one scrolls as it does on the top line.
 - **Readouts** such as the tempo or a pedal's value show in the info line's place, in the large font.
 - It is not kept across a power cycle: the pedal starts as `Gig_View` says. Needs firmware 1.32.
+
+## MIDI monitor
+
+At soundcheck, when a device does not answer, the first question is whether MIDI is getting through at all, and the laptop that would show it is packed away. The display can answer it. Set `MIDI_Monitor` in the configurator's **Global** tab, **MIDI monitor**:
+
+| `MIDI_Monitor` | What the display shows |
+|---|---|
+| `Off` | nothing, as before. The default. |
+| `Mark` | a small mark in the top right corner, lit while MIDI comes in over USB and for a moment after. The demo has it. |
+| `In` | the mark, and the last message received across the top line for two seconds, in small letters: `IN CC7=100 CH3`. |
+| `All` | the mark, and the last message received or sent: `OUT PC12 CH1` when a button sends a program change. |
+
+- **How messages read:** `CC7=100` a control change and its value, `PC12` a program change, `ON60=127` and `OFF60` a note and its velocity, `AT=9` channel pressure and `AT60=9` a note's, `PB=8192` pitch bend from 0 to 16383, then `CH1` to `CH16`. A SysEx shows as `SYSEX`, and `START`, `CONTINUE`, `STOP`, `SPP` (song position), `SONG` and `TUNE` as such.
+- **Not shown:** the MIDI clock and active sensing, which come all the time and would keep the mark lit; the configurator's own SysEx; and, with `USB_Ports` at 3, what comes in on the DIN port's cable to go straight out of the DIN socket.
+- **A stream** of messages, a DAW's automation or an expression pedal sweeping, shows the latest one; nothing waits for the screen.
+- **Over the rest:** the message stands where the bank's name and info line are and gives them back after two seconds. An expression pedal's value goes over it, since it says more about the pedal. In the [gig view](#gig-view) it shows in the info line's place.
+- Needs firmware 1.35. It is kept in bits 3-4 of global byte 46, beside the banner's speed and `Gig_View`; firmware 1.32 to 1.34 ignores it, and older firmware shows no banner when it is on.
 
 ## Live values
 

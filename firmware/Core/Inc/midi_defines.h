@@ -386,9 +386,15 @@
 #define TWO_WAY_GT1000		(2)	// a Boss GT-1000 or GT-1000CORE (GT1000_Mode)
 #define GLOBAL_SETTINGS_GLOBAL_BANK (44)	// 1-32 = that bank holds the global buttons, 0 = none
 #define GLOBAL_SETTINGS_COMBO (45)		// Two switch window in 10 ms units (0/0xFF = 80 ms)
-#define GLOBAL_SETTINGS_BANNER (46)		// bits: BANNER_SPEED_MASK, GIG_VIEW_ON; 0xFF = none
+#define GLOBAL_SETTINGS_BANNER (46)		// bits: BANNER_SPEED_MASK, GIG_VIEW_ON, MIDI_MONITOR_MASK; 0xFF = none
 #define BANNER_SPEED_MASK	(0x03)	// power on banner: 0 off, 1 slow, 2 normal, 3 fast
 #define GIG_VIEW_ON		(0x04)	// the gig view from power on (Gig_View, 1.32)
+#define MIDI_MONITOR_SHIFT	(3)	// what the display shows of MIDI (MIDI_Monitor, 1.35): MONITOR_
+#define MIDI_MONITOR_MASK	(0x18)
+#define MONITOR_OFF		(0)
+#define MONITOR_MARK		(1)	// a mark in the corner while MIDI comes in over USB
+#define MONITOR_IN		(2)	// and the last message received, for a moment
+#define MONITOR_ALL		(3)	// and the last message received or sent
 #define GLOBAL_SETTINGS_BANK_PREVIEW (47)	// Bank Up/Down only preview: 1-60 = seconds it waits for a button, 0/0xFF off
 #define BANK_PREVIEW_MAX_S	(60)
 

@@ -40,6 +40,10 @@
  *
  * A press of one of the eight buttons shows the labels for GIG_LABELS_MS.
  *
+ * With MIDI_Monitor (1.35) a mark lights in the top right corner while MIDI
+ * comes in over USB, and with In or All the last message received, or sent,
+ * stands across the top line for MONITOR_MS: "IN CC7=100 CH1".
+ *
  * With Kemper_Mode on, the amp's tuner takes the whole screen while it is up:
  * the note twice the size of the large font, and a scale under it with a
  * needle, which is drawn solid and with the note boxed in once it is in tune.
@@ -91,7 +95,9 @@ static uint8_t preview_bank = 0xFF;	// a bank shown before it is confirmed
 static uint32_t overlay_until = 0;
 // The readout shown over the info line until overlay_until; empty while a
 // notice that is not over the bank screen has it
-static char overlay_msg[13];
+static char overlay_msg[19];
+// overlay_msg across the whole top line in the small letters (a MIDI message)
+static bool overlay_wide = false;
 // An expression pedal's value as a bar after overlay_msg, 0xFF for none
 static uint8_t overlay_bar = 0xFF;
 // A pedal's value waiting for the screen to be free (1.29): pedal + 1, 0 none
@@ -99,6 +105,23 @@ static uint8_t pedal_pending = 0;
 static uint8_t pedal_value;
 static bool pedal_bar;
 static uint32_t pedal_tick;
+
+/*
+ * MIDI_Monitor. The last message is one word, written in one go from the USB
+ * interrupt: MONITOR_NEW and MONITOR_SENT, the status byte, the two data
+ * bytes. 0 when none is waiting for the screen.
+ */
+#define MARK_MS		(150)	// lit this long after the last message in
+#define MONITOR_MS	(2000)
+#define MARK_X		(124)
+#define MARK_W		(4)
+#define MARK_H		(3)	// above the letters of the top line
+#define MONITOR_SENT	(0x01)
+#define MONITOR_NEW	(0x80)
+static volatile uint32_t monitor_msg = 0;
+static volatile uint32_t monitor_in_tick;
+static volatile uint8_t monitor_in_seen = 0;
+static uint8_t mark_shown = 0;	// as the buffer has it
 
 /*
  * Host text, one per place; an empty string means the bank's own text. Written
@@ -146,6 +169,7 @@ static uint16_t scroll_px = 0;
 static uint16_t scroll_need = 0;
 static uint32_t scroll_next = 0;
 static void scroll_restart(void);
+static void mark_put(void);
 static void draw_big_char(uint8_t x, uint8_t y, char ch, uint8_t scale, SSD1306_COLOR color);
 
 /*
@@ -795,6 +819,7 @@ static void render_bank(uint8_t bankNumber){
 		draw_bank_switch_cell(bank_switch, 0);
 		draw_bank_switch_cell(bank_switch, 1);
 	}
+	mark_put();
 	live_scan(bankNumber);
 	live_shown_any = live_any;
 	live_shown_sum = live_sum;
@@ -1010,6 +1035,15 @@ static void draw_overlay(void){
 	if(gig_showing()){
 		// In the info line's place, as large as it is
 		fill_rect(0, GIG_INFO_Y, SSD1306_WIDTH, SSD1306_HEIGHT - GIG_INFO_Y, Black);
+		if(overlay_wide){
+			uint8_t w = (uint8_t)(strlen(overlay_msg) * Font_7x10.FontWidth);
+			ssd1306_SetCursor((uint8_t)((SCREEN_SHOWN_W - w) / 2), GIG_INFO_Y + 4);
+			ssd1306_WriteString(overlay_msg, Font_7x10, White);
+			mark_put();
+			ssd1306_UpdateScreen();
+			refresh_pending = 0;
+			return;
+		}
 		uint8_t w = (uint8_t)(strlen(overlay_msg) * Font_11x18.FontWidth);
 		if(overlay_bar == 0xFF){
 			ssd1306_SetCursor((uint8_t)((SCREEN_SHOWN_W - w) / 2), GIG_INFO_Y);
@@ -1020,36 +1054,145 @@ static void draw_overlay(void){
 			fill_rect((uint8_t)(x + 2), GIG_INFO_Y + 3, (uint8_t)(overlay_bar * (SCREEN_SHOWN_W - x - 4) / 127U), 12, White);
 		}
 		ssd1306_WriteString(overlay_msg, Font_11x18, White);
+		mark_put();
 		ssd1306_UpdateScreen();
 		refresh_pending = 0;
 		return;
 	}
-	fill_rect(50, 6, SSD1306_WIDTH - 50, 10, Black);
-	ssd1306_SetCursor(50, 6);
+	if(overlay_wide){
+		fill_rect(0, 0, SSD1306_WIDTH, ROW_TOP_Y - 1, Black);
+		ssd1306_SetCursor(0, 6);
+	} else {
+		fill_rect(50, 6, SSD1306_WIDTH - 50, 10, Black);
+		ssd1306_SetCursor(50, 6);
+	}
 	ssd1306_WriteString(overlay_msg, Font_7x10, White);
 	if(overlay_bar != 0xFF){
 		// A frame from the pedal's number to the edge, filled up to the value
 		ssd1306_DrawRectangle(PEDAL_BAR_X, 7, SCREEN_SHOWN_W - 1, 15, White);
 		fill_rect(PEDAL_BAR_X + 2, 9, (uint8_t)(overlay_bar * (SCREEN_SHOWN_W - PEDAL_BAR_X - 4) / 127U), 5, White);
 	}
+	mark_put();
 	ssd1306_UpdateScreen();
 	refresh_pending = 0;
 }
 
-// bar: an expression pedal's value drawn as a bar after msg, 0xFF for none
-static void show_readout(const char *msg, uint8_t bar){
+/*
+ * bar: an expression pedal's value drawn as a bar after msg, 0xFF for none.
+ * wide: msg across the whole top line, for ms.
+ */
+static void show_readout_for(const char *msg, uint8_t bar, bool wide, uint32_t ms){
 	if(banner_running()) return;	// the banner is not cut short for a readout
 	if(preview_bank != 0xFF) return;	// nor the bank being chosen
 	if(tuner_on) return;			// nor the tuner
 	if(moment_showing) moment_done();
+	// The bank's name comes back from under a whole line readout
+	if(overlay_until && overlay_wide && !wide) refresh_pending = 1;
 	snprintf(overlay_msg, sizeof(overlay_msg), "%s", msg);
 	overlay_bar = bar;
+	overlay_wide = wide;
 	draw_overlay();
-	overlay_until = HAL_GetTick() + OVERLAY_MS;
+	overlay_until = HAL_GetTick() + ms;
+}
+
+static void show_readout(const char *msg, uint8_t bar){
+	show_readout_for(msg, bar, false, OVERLAY_MS);
 }
 
 static void show_overlay(const char *msg){
 	show_readout(msg, 0xFF);
+}
+
+static uint8_t monitor_mode(void){
+	uint8_t v = pGlobalSettings[GLOBAL_SETTINGS_BANNER];
+	return (v == 0xFF) ? MONITOR_OFF : (uint8_t)((v & MIDI_MONITOR_MASK) >> MIDI_MONITOR_SHIFT);
+}
+
+// A running clock or active sensing would keep the mark lit and the line busy
+static bool monitor_skips(const uint8_t *data, uint8_t len){
+	return len == 0 || data[0] < 0x80 || data[0] == 0xF8 || data[0] == 0xFE;
+}
+
+static void monitor_note(const uint8_t *data, uint8_t len, uint32_t flags){
+	uint32_t w = flags | MONITOR_NEW | ((uint32_t)data[0] << 8);
+	if(len > 1) w |= (uint32_t)(data[1] & 0x7F) << 16;
+	if(len > 2) w |= (uint32_t)(data[2] & 0x7F) << 24;
+	monitor_msg = w;
+}
+
+void display_midi_in(const uint8_t *data, uint8_t len){
+	uint8_t mode = monitor_mode();
+	if(mode == MONITOR_OFF || monitor_skips(data, len)) return;
+	monitor_in_tick = HAL_GetTick();
+	monitor_in_seen = 1;
+	if(mode >= MONITOR_IN) monitor_note(data, len, 0);
+}
+
+void display_midi_out(const uint8_t *data, uint8_t len){
+	if(monitor_mode() != MONITOR_ALL || monitor_skips(data, len)) return;
+	monitor_note(data, len, MONITOR_SENT);
+}
+
+static bool mark_wanted(void){
+	return monitor_in_seen && monitor_mode() != MONITOR_OFF && HAL_GetTick() - monitor_in_tick < MARK_MS;
+}
+
+// The mark into the buffer, over what was just drawn there
+static void mark_put(void){
+	mark_shown = mark_wanted();
+	if(mark_shown) fill_rect(MARK_X, 0, MARK_W, MARK_H, White);
+}
+
+static void put_number(char *dst, uint8_t *n, uint8_t max, unsigned v){
+	char num[6];
+	snprintf(num, sizeof(num), "%u", v);
+	put(dst, n, max, num);
+}
+
+// A message as the display shows it: "IN CC7=100 CH1", "OUT PC12 CH16"
+static void monitor_text(uint32_t w, char *out, uint8_t size){
+	static const char names[7][4] = {"OFF", "ON", "AT", "CC", "PC", "AT=", "PB="};
+	unsigned s = (w >> 8) & 0xFF, a = (w >> 16) & 0x7F, b = (w >> 24) & 0x7F;
+	uint8_t n = 0, max = (uint8_t)(size - 1);
+	put(out, &n, max, (w & MONITOR_SENT) ? "OUT " : "IN ");
+	if(s < 0xF0){
+		uint8_t k = (uint8_t)((s >> 4) - 8);
+		if(k == 1 && !b) k = 0;		// velocity 0 is a note off
+		put(out, &n, max, names[k]);
+		put_number(out, &n, max, k == 6 ? a | (b << 7) : a);
+		if(k >= 1 && k <= 3){
+			put(out, &n, max, "=");
+			put_number(out, &n, max, b);
+		}
+		put(out, &n, max, " CH");
+		put_number(out, &n, max, (s & 0x0F) + 1);
+	} else {
+		const char *name = (s == 0xF0) ? "SYSEX" : (s == 0xFA) ? "START" : (s == 0xFB) ? "CONTINUE"
+				: (s == 0xFC) ? "STOP" : (s == 0xF6) ? "TUNE" : (s == 0xFF) ? "RESET"
+				: (s == 0xF2) ? "SPP" : (s == 0xF3) ? "SONG" : "SYS";
+		put(out, &n, max, name);
+		if(s == 0xF2) put_number(out, &n, max, a | (b << 7));
+		else if(s == 0xF3) put_number(out, &n, max, a);
+		else if(name[1] == 'Y') put_number(out, &n, max, s);
+	}
+	out[n] = 0;
+}
+
+// The latest message, the ones before it never drawn
+static void draw_monitor(void){
+	uint32_t primask = __get_PRIMASK();
+	__disable_irq();
+	uint32_t w = monitor_msg;
+	monitor_msg = 0;
+	__set_PRIMASK(primask);
+	char msg[sizeof(overlay_msg)];
+	monitor_text(w, msg, sizeof(msg));
+	show_readout_for(msg, 0xFF, true, MONITOR_MS);
+}
+
+// A notice, not the bank screen, has the screen: no mark on it
+static bool notice_up(void){
+	return overlay_until && !overlay_msg[0] && !moment_showing;
 }
 
 void display_show_tempo(void){
@@ -1209,6 +1352,7 @@ void display_show_upload(void){
  */
 static void draw_moment_text(void){
 	draw_head(current_bank, moment_place, moment_text);
+	mark_put();
 	ssd1306_UpdateScreen();
 }
 
@@ -1344,8 +1488,20 @@ void display_task(void){
 		if(refresh_pending) draw_preview();
 		return;
 	}
+	// The mark comes and goes on its own, the rest of the screen as it is
+	if(!refresh_pending && !notice_up() && mark_wanted() != mark_shown){
+		mark_shown = !mark_shown;
+		fill_rect(MARK_X, 0, MARK_W, MARK_H, mark_shown ? White : Black);
+		ssd1306_UpdateLines(0, 0);
+		return;
+	}
 	if(moment_pending){
 		show_moment_text();
+		return;
+	}
+	// Before an expression pedal's readout, which says more about the pedal
+	if(monitor_msg){
+		draw_monitor();
 		return;
 	}
 	if(pedal_pending){
@@ -1388,6 +1544,7 @@ void display_task(void){
 		draw_bank(current_bank);
 	} else if(beat_changed || scroll_step()){
 		draw_head(current_bank, 0, NULL);
+		mark_put();
 		ssd1306_UpdateScreen();
 	}
 }

@@ -801,6 +801,7 @@ static void handle_sysex_event(uint8_t cin, const uint8_t *data, uint8_t len){
 		// Anything not addressed to us is forwarded (if enabled) or dropped.
 		if(len < 2 || data[0] != SYSEX_START || data[1] != MIDI_MANUF_ID){
 			sysex_foreign = !is_end;
+			if(len && data[0] == SYSEX_START) display_midi_in(data, 1);	// not one of ours
 			kemper_sysex_chunk(data, len, is_end);	// the amp reporting itself
 			gt1000_sysex_chunk(data, len, is_end);
 			thru_push(data, len);
@@ -856,6 +857,8 @@ uint16_t MIDI_DataRx(uint8_t *msg, uint16_t length)
 			if(cable > 2) continue;
 			sysex_use_cable(cable);
 		}
+		// What the display's MIDI monitor shows; a SysEx once, as it starts
+		if(len && data[0] != SYSEX_START && data[0] != SYSEX_END) display_midi_in(data, len);
 
 		switch(cin){
 		case CIN_SYSEX_STARTS_OR_CONTINUES:

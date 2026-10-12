@@ -53,6 +53,9 @@ BANK_CHANGE_MODES = {"OFF": 0, "PC": 1, "CC": 2}
 REMOTE_MODES = {"OFF": 0, "CC": 1, "NOTE": 2}
 BANNER_SPEEDS = {"OFF": 0, "SLOW": 1, "NORMAL": 2, "FAST": 3}
 GIG_VIEW_ON = 0x04  # in the banner's byte: the gig view from power on
+# And in bits 3-4 what the display shows of MIDI (1.35)
+MIDI_MONITOR_SHIFT = 3
+MIDI_MONITORS = {"OFF": 0, "MARK": 1, "IN": 2, "ALL": 3}
 
 def _setting(df, label) -> str:
     """A Global_Settings value as written, "" when it is empty or missing."""
@@ -321,6 +324,13 @@ def pack_global_settings(df):
     gig = str(df.loc["Gig_View", "Value"]).strip() if "Gig_View" in df.index else "N"
     if gig.upper().startswith("Y"):
         bin_list[GLOBAL_SETTINGS_BANNER] |= GIG_VIEW_ON
+    # And what the display shows of MIDI: a mark as it comes in, the last message
+    monitor = str(df.loc["MIDI_Monitor", "Value"]).strip() if "MIDI_Monitor" in df.index else "Off"
+    if monitor in ("", "nan"):
+        monitor = "Off"
+    if monitor.upper() not in MIDI_MONITORS:
+        raise ValueError(f"MIDI_Monitor must be Off, Mark, In or All, not {monitor!r}")
+    bin_list[GLOBAL_SETTINGS_BANNER] |= MIDI_MONITORS[monitor.upper()] << MIDI_MONITOR_SHIFT
 
     # Bank preview: Bank Up / Down only show the bank there, and one of the
     # eight buttons confirms it within this many seconds. 0 or Off = off.
