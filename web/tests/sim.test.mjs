@@ -1610,3 +1610,52 @@ test("a value inside a stored SysEx, with its Roland checksum, from a press, a t
   assert.ok(sent.length > 0 && sent.every((m) => m.startsWith("f0 41 ")), sent.join(", "));
   assert.equal(sent.at(-1), katana(127), "pedal 1 at the toe");
 });
+
+test("an expression pedal cut into zones taps a switch as the foot enters each, and again on entering a bank (before 1.31, only toe and heel)", async () => {
+  // HOME's switches 1-4 send CC 20-23; pedal 1 in four zones, the third tapping nothing
+  const zoned = async (sendOnBank) => simWithDemo(await flashWith(packDemo([
+    "b = d['Button_Settings']",
+    "for k, sw in enumerate('1234'):",
+    "    r = (b.Bank_Number.astype(str) == '0') & (b.Button_Identifier.astype(str) == sw)",
+    "    b.loc[r, ['A_CommandType', 'A_Channel_(PC/CC/Note/PB)', 'A_Number_(PC/CC/Note)', 'A_OnValue_(CC/PB)']] = ['CC', '1', str(20 + k), '127']",
+    "e = d['Expression_Settings']",
+    "e.loc[e.Pedal == '1', ['Min_ADC', 'Max_ADC', 'Output', 'Zones', 'Send_On_Bank']] = ['0', '4095', 'Zones', '1 2 None 4', '" + sendOnBank + "']",
+  ].join("\n"))));
+  const sim = await zoned("N");
+  const seen = watch(sim);
+  const sent = () => seen.splice(0).filter((m) => m.startsWith("USB ")).map((m) => m.slice(4));
+  const move = (value, ms = 300) => { sim.pedal(0, value); sim.run(ms); };
+
+  move(0);
+  assert.deepEqual(sent(), [], "where the pedal is at first taps nothing");
+  move(1500);
+  assert.deepEqual(sent(), ["b0 15 7f"], "into zone 2: switch 2");
+  move(1600);
+  assert.deepEqual(sent(), [], "moving inside it: nothing more");
+  move(2090);
+  assert.deepEqual(sent(), [], "just over the edge of zone 3 is not in it yet");
+  move(1990);
+  assert.deepEqual(sent(), [], "nor back");
+  move(2600);
+  assert.deepEqual(sent(), [], "zone 3 taps nothing");
+  move(4095);
+  assert.deepEqual(sent(), ["b0 17 7f"], "zone 4: switch 4");
+  move(1500, 20);                           // a quick sweep down through zone 2
+  move(0);
+  assert.deepEqual(sent(), ["b0 14 7f"], "only the zone it stops in");
+  assert.deepEqual(seen.filter((m) => / b0 0b /.test(m)), [], "and no CC of a pedal");
+
+  const again = await zoned("Y");
+  const pedal = await Pedal.open(again.access);
+  const seen2 = watch(again);
+  again.pedal(0, 4095);
+  again.run(300);
+  again.usbIn([0xb0, 32, 2]);               // to FX, whose switch 4 sends CC 13
+  again.run(600);
+  assert.equal((await running(again, () => pedal.getState())).bankName, "FX");
+  again.usbIn([0xb0, 32, 0]);               // and back
+  again.run(600);
+  assert.equal((await running(again, () => pedal.getState())).bankName, "HOME");
+  assert.deepEqual(seen2.filter((m) => /^USB b0 (0d|17)/.test(m)).map((m) => m.slice(4)),
+    ["b0 17 7f", "b0 0d 7f", "b0 0d 00", "b0 17 7f"], "with Send on entering a bank, each bank entered taps the zone the pedal is in");
+});

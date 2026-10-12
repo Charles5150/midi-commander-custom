@@ -54,7 +54,8 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
  *   [13]   auto-engage button + 1 (0 none)    [14] auto-engage rest, 10 ms units
  *   [15]   what it sends: EXP_OUT_CC, EXP_OUT_PITCHBEND, EXP_OUT_CC14, EXP_OUT_SPEED,
  *          EXP_OUT_WHEEL, EXP_OUT_ARROWS or EXP_OUT_SWITCHES, or EXP_OUT_SYSEX
- *          plus the number of the stored SysEx string it sends (1.30)
+ *          plus the number of the stored SysEx string it sends (1.30), or
+ *          EXP_OUT_ZONES plus the number of zones, 2-8 (1.31)
  *   Blank flash (0xFF) means "not set" everywhere. The tools used to write
  *   zeros after byte 10, so a range of 0 to 0 means the full range too.
  *
@@ -62,6 +63,11 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
  *   [7..9] say what the box's switches 1 to 3 press: 0-7 the command
  *   switches, SW_VIRTUAL_BANK_DOWN or SW_VIRTUAL_BANK_UP, 0xFF nothing. The
  *   toe, heel and auto-engage switches do not apply.
+ *
+ *   With EXP_OUT_ZONES the travel is cut into 2 to 8 equal zones, and
+ *   [7..14] say what entering zone 1 (the heel) to 8 taps: 0-7 the command
+ *   switches, 0xFF nothing. Nothing else is sent, and the toe, heel and
+ *   auto-engage switches do not apply.
  */
 #define EXP_SETTINGS_STRIDE		(16)
 #define EXP_CURVE_LINEAR		(0)
@@ -75,7 +81,9 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
 #define EXP_OUT_ARROWS			(5)	// no MIDI: the Down (or Up) arrow key, repeated as fast
 #define EXP_OUT_SWITCHES		(6)	// no MIDI: a box of up to three switches on the jack (1.10)
 #define EXP_OUT_SYSEX			(0x10)	// + 0-15: that stored SysEx string, the value in it (1.30)
+#define EXP_OUT_ZONES			(0x20)	// + 2-8: the travel cut into zones, each tapping a switch (1.31)
 #define EXP_BOX_SWITCHES		(3)
+#define EXP_ZONES_MAX			(8)
 
 #define MIDI_NUM_BANKS			(32)
 #define MIDI_NUM_SWITCHES		(8)

@@ -75,6 +75,13 @@ class CheatSheetTest(unittest.TestCase):
         e.loc[row, ["B_CommandType", "B_KeyMode_(Key)", "B_OnValue_(CC/PB)"]] = ["Tap", "Set", "96"]
         self.assertIn("<td>13</td><td>96 BPM</td>", cheat_sheet(sections))
 
+    def test_a_pedal_in_zones(self):
+        sections = read_config_csv(DEMO)
+        e = sections["Expression_Settings"]
+        e.loc[e["Pedal"] == "2", ["Output", "Zones"]] = ["Zones", "A None C"]
+        self.assertIn("<td>Pedal 2</td><td>3 zones, heel first</td><td>zone 1 presses A, zone 3 presses C</td>",
+                      cheat_sheet(sections))
+
     def test_text_is_escaped(self):
         sections = read_config_csv(DEMO)
         set_global(sections, "ConfigName", "R&B <live>")

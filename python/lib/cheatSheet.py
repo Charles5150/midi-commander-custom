@@ -215,6 +215,12 @@ class _Sheet:
                     what = f"{named} ({what})"
             else:
                 what = output
+            if output == "Zones":
+                zones = (r.get("Zones", "") or "").replace(",", " ").replace("/", " ").split()
+                what = f"{len(zones)} zones, heel first"
+                taps = [f"zone {k} presses {sw}" for k, sw in enumerate(zones, 1) if sw.upper() != "NONE"]
+                rows.append(f"<tr><td>Pedal {p}</td><td>{escape(what)}</td><td>{escape(', '.join(taps))}</td></tr>")
+                continue
             what += f", {r.get('Out_Min', '0') or '0'} to {r.get('Out_Max', '127') or '127'}"
             taps = [f"{where} taps press {r[col]}" for col, where in (("Toe_Button", "toe"), ("Heel_Button", "heel"))
                     if r.get(col, "") not in ("", "None")]

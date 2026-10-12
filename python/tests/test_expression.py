@@ -380,6 +380,46 @@ class SwitchBoxTest(unittest.TestCase):
             m = re.search(rf"#define\s+SW_VIRTUAL_BANK_{name}\s+\((\d+)\)", header)
             self.assertEqual(layout.BOX_SWITCH_IDS[int(m.group(1))], name.title())
 
+class ZonesTest(SwitchBoxTest.__base__):
+    """The travel cut into zones, each tapping a switch, Output Zones (firmware 1.31)."""
+
+    setUp = SwitchBoxTest.setUp
+    pack = SwitchBoxTest.pack
+    record = SwitchBoxTest.record
+
+    def test_what_each_zone_taps(self):
+        packed = self.pack(Output="Zones", Zones="1 2 None d", Toe_Button="B", Auto_Button="C")
+        p = self.record(packed)
+        self.assertEqual(p[15], 0x24)
+        self.assertEqual(list(p[7:15]), [0, 1, 0xFF, 7] + [0xFF] * 4)
+        row = unpacker.unpack_config(packed)[4].iloc[1]
+        self.assertEqual((row["Output"], row["Zones"]), ("Zones", "1 2 None D"))
+        # what a pedal's switches would have been is not read back
+        self.assertEqual([row["Toe_Button"], row["Heel_Button"], row["Auto_Button"], row["Out_Max"]],
+                         ["None", "None", "None", "127"])
+        again = packer.pack_expression_settings(unpacker.unpack_config(packed)[4])
+        self.assertEqual(again[layout.EXP_STRIDE:], self.record(packed))
+
+    def test_eight_zones_and_separators(self):
+        p = self.record(self.pack(Output="zones", Zones="A,B,C,D/1 2 3 4"))
+        self.assertEqual((p[15], list(p[7:15])), (0x28, [4, 5, 6, 7, 0, 1, 2, 3]))
+
+    def test_a_pedal_ignores_its_zones(self):
+        packed = self.pack(Zones="1 2 3", Toe_Button="B")
+        self.assertEqual(self.record(packed)[15], 0)
+        self.assertEqual(unpacker.unpack_config(packed)[4].iloc[1]["Zones"], "")
+
+    def test_bad_zones(self):
+        for zones in ("", "1", "1 2 3 4 A B C D 1", "1 E", "1 Up"):
+            with self.subTest(zones), self.assertRaises(ValueError):
+                self.pack(Output="Zones", Zones=zones)
+
+    def test_firmware_agrees(self):
+        text = open(os.path.join(FIRMWARE, "Core", "Inc", "flash_midi_settings.h")).read()
+        self.assertIn(f"#define EXP_OUT_ZONES\t\t\t(0x{packer.EXP_OUT_ZONES:02X})", text)
+        self.assertIn(f"#define EXP_ZONES_MAX\t\t\t({packer.EXP_ZONES_MAX})", text)
+
+
 class ExpCommandTest(unittest.TestCase):
     """Exp commands, which point an expression pedal somewhere else."""
 

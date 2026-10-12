@@ -109,6 +109,20 @@ class GuiTest(unittest.TestCase):
             self.assertIn("HX Stomp: Snapshot 1", f.read())
         os.remove(page)
 
+    def test_a_pedal_in_zones(self):
+        app = self.app
+        app.load_csv(CSVS[0])
+        app.update()
+        w = app.exp_widgets[1]
+        w["output"].set("Zones")
+        w["zones"].set("3")
+        w["zone_1"].set("A")
+        w["zone_3"].set("C")
+        w["zone_4"].set("D")                # past the third: not kept
+        app._collect()
+        self.assertEqual(app.df_exp.at[1, "Zones"], "A None C")
+        app.load_csv(CSVS[0])               # back as it was, for the other tests
+
     def test_a_command_from_a_community_device(self):
         import lib.deviceDictionary as dd
         self.app.load_csv(os.path.join(ROOT, "templates", "HX_Stomp.csv"))

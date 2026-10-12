@@ -73,6 +73,7 @@ Everything the firmware and its tools can do, grouped the way the manual is. Eac
 - **Expression per bank.** Each bank can give each expression pedal its own CC and channel, or silence it, so the same pedal is a wah in one bank and a volume in another.
 - **Expression target from a button.** A command changes what an expression pedal sends, its CC and channel, or silences it, so one pedal can be the wah, then the volume, then a parameter, within the same bank; as a toggle, switching it off gives the pedal back.
 - **Auto-engage wah.** Moving an expression pedal up from the heel switches a button on, and resting at the heel for a moment switches it off again, like the auto-engage wahs of Fractal and Line 6: no stomping on the wah before using it.
+- **A stepped pedal.** An expression pedal's travel can be cut into 2 to 8 zones, each tapping a button as the foot enters it: one of four delay times, a harmony or a scene picked with the foot.
 - **Three more switches on a jack.** A small box of up to three footswitches, wired like an expression pedal and plugged into its jack, holds down switches of the pedal, Bank Down and Up included.
 - **No volume jump after a preset change.** An expression pedal can send where it is as a bank is entered, so the preset the bank calls up takes the volume from your foot.
 - **Expression output range.** A pedal can send only part of the range, 40 to 127 for a volume that never drops to silence for instance, or run backwards; per pedal, and per bank on top of that.

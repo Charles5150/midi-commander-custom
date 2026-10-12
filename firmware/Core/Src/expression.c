@@ -59,6 +59,9 @@
  * the jack at its own level, and each level holds down a switch of the pedal.
  * See switch_box.
  *
+ * Or its travel is cut into 2 to 8 zones, and entering one taps a switch: a
+ * delay time, a harmony or a scene picked with the foot (1.31). See zones.
+ *
  * When a bank, an Exp command or a button leaves a CC at a value the pedal
  * does not stand at, the pedal can pick it up from there instead of jumping
  * to where the foot is. See takeover.
@@ -139,6 +142,8 @@ typedef struct {
   uint8_t out_mode;     // EXP_OUT_CC ... EXP_OUT_SWITCHES or EXP_OUT_SYSEX
   uint8_t sysex;        // EXP_OUT_SYSEX: the stored string it sends
   uint8_t box[EXP_BOX_SWITCHES]; // EXP_OUT_SWITCHES: the switch each level holds down, NO_BUTTON for none
+  uint8_t zones;        // EXP_OUT_ZONES: how many, 2-8
+  uint8_t zone[EXP_ZONES_MAX]; // and the switch entering each taps, NO_BUTTON for none
 } exp_cal_t;
 
 // What a pedal sends at the moment
@@ -173,6 +178,9 @@ typedef struct {
   bool pickup;           // taking a value over, see takeover
   uint16_t pickup_value; // the value it takes over, in the resolution of target_kind
   uint16_t pickup_from;  // the pedal's own value when it started
+  uint8_t zone;          // zones: the zone it is in, 0xFF before the first reading
+  uint8_t zone_seen;     // the zone of the last reading
+  bool zone_again;       // a bank was entered: tap the zone's switch again
 } exp_pedal_t;
 
 static exp_pedal_t pedals[EXP_PEDAL_COUNT];
@@ -309,7 +317,15 @@ static void load_calibration(uint32_t i)
   for (uint32_t k = 0; k < EXP_BOX_SWITCHES; k++) {
       c->box[k] = (c->out_mode == EXP_OUT_SWITCHES && p[7 + k] < SW_VIRTUAL_COUNT) ? p[7 + k] : NO_BUTTON;
   }
-  if (c->out_mode == EXP_OUT_SWITCHES) {
+  // Zones: what entering each taps
+  c->zones = p[15] & 0x0FU;
+  if ((p[15] & 0xF0U) == EXP_OUT_ZONES && c->zones >= 2U && c->zones <= EXP_ZONES_MAX) {
+      c->out_mode = EXP_OUT_ZONES;
+      for (uint32_t k = 0; k < EXP_ZONES_MAX; k++) {
+          c->zone[k] = (k < c->zones && p[7 + k] < MIDI_NUM_SWITCHES) ? p[7 + k] : NO_BUTTON;
+      }
+  }
+  if (c->out_mode == EXP_OUT_SWITCHES || c->out_mode == EXP_OUT_ZONES) {
       c->toe_button = NO_BUTTON;
       c->heel_button = NO_BUTTON;
       c->auto_button = NO_BUTTON;
@@ -655,6 +671,65 @@ static void switch_box(exp_pedal_t *p, uint32_t sample)
   p->box_down = level;
 }
 
+// Send on entering a bank, among the global flags, which older firmware leaves
+// alone; read each time, so the on-pedal editor changes it at once
+static bool sends_on_bank(uint32_t i)
+{
+  uint8_t flags = pGlobalSettings[GLOBAL_SETTINGS_LED_FEEDBACK];
+  return flags != 0xFFU && (flags & EXP_SEND_ON_BANK(i));
+}
+
+/*
+ * Zones: the travel, as the pedal's curve gives it, cut into equal parts, and
+ * the foot moving into one taps its switch in the current bank, as the toe
+ * and heel switches do: a Program Change picking one of four delay times, or
+ * a scene. Nothing else is sent.
+ *
+ * A zone counts once the pedal is ZONE_MARGIN into it, so resting on an edge
+ * does not go back and forth, and once two readings running agree, so a
+ * sweep from heel to toe taps the last zone only, not each on the way. The
+ * first reading taps nothing: the pedal is where it was left. With Send on
+ * entering a bank, entering one taps the zone the pedal is in, after the
+ * bank's enter commands.
+ */
+#define ZONE_MARGIN (3)
+
+static uint8_t zone_of(const exp_cal_t *c, int32_t v)
+{
+  if (v < 0) v = 0;
+  if (v > 127) v = 127;
+  return (uint8_t)((uint32_t)v * c->zones / 128U);
+}
+
+static void zones(exp_pedal_t *p, uint32_t i, uint8_t v)
+{
+  const exp_cal_t *c = &p->cal;
+  uint8_t z = zone_of(c, v);
+  if (p->zone != 0xFFU && z != p->zone
+      && zone_of(c, (int32_t)v - ZONE_MARGIN) != zone_of(c, (int32_t)v + ZONE_MARGIN)) {
+      z = p->zone;   // not far enough in yet
+  }
+
+  uint8_t bank = sw_get_home_bank();
+  if (bank != p->bank) {
+      if (p->bank != 0xFFU && sends_on_bank(i)) p->zone_again = true;
+      p->bank = bank;
+  }
+
+  bool steady = (z == p->zone_seen);
+  p->zone_seen = z;
+  if (!steady) return;
+  if (p->zone == 0xFFU) {
+      p->zone = z;
+      p->zone_again = false;
+      return;
+  }
+  if (z == p->zone && !p->zone_again) return;
+  p->zone = z;
+  p->zone_again = false;
+  if (c->zone[z] != NO_BUTTON) sw_trigger_button(c->zone[z]);
+}
+
 /*
  * Takeover, set per pedal (Takeover): what happens when the pedal's CC holds a
  * value other than the one the pedal last sent it. A bank or an Exp command
@@ -721,6 +796,9 @@ void expression_init(void)
     box_release(&pedals[i]);	// with the switches of the configuration left
     load_calibration(i);
     pedals[i].box_seen = 0;
+    pedals[i].zone = 0xFFU;
+    pedals[i].zone_seen = 0xFFU;
+    pedals[i].zone_again = false;
     pedals[i].last_sent_midi = 0xFFU;
     pedals[i].last_sent_value = 0xFFFFU;
     pedals[i].target_kind = SEND_CC7;
@@ -882,6 +960,11 @@ static void process_pedal(uint32_t i)
       }
   }
 
+  if (p->cal.out_mode == EXP_OUT_ZONES) {
+      zones(p, i, midi_value);
+      return;
+  }
+
   // The wah goes on before the first position reaches it
   auto_engage(p, overrides[i].active, midi_value);
 
@@ -920,14 +1003,11 @@ static void process_pedal(uint32_t i)
 
   // Send on entering a bank: whatever the target, and to the added CCs too,
   // so a preset the enter commands called up takes the pedal's position. A
-  // page keeps its bank, so turning one sends nothing. The flag is among the
-  // global ones, which older firmware leaves alone, and is read here so the
-  // on-pedal editor changes it at once.
+  // page keeps its bank, so turning one sends nothing.
   uint8_t bank = sw_get_home_bank();
   bool forced = false;
   if (bank != p->bank) {
-      uint8_t flags = pGlobalSettings[GLOBAL_SETTINGS_LED_FEEDBACK];
-      if (p->bank != 0xFFU && flags != 0xFFU && (flags & EXP_SEND_ON_BANK(i))) {
+      if (p->bank != 0xFFU && sends_on_bank(i)) {
           p->last_sent_value = 0xFFFFU;
           for (uint32_t k = 0; k < EXP_EXTRA_CCS; k++) extras[i][k].last = 0x80U;
           forced = true;

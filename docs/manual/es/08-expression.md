@@ -185,6 +185,28 @@ En la pestaña Expression, elige un botón de **toe** (punta) y el nivel que deb
 
 *Firmware 0.15 o posterior.*
 
+## Zonas: un pedal por tramos
+
+Los pulsadores de punta y talón le dan al pedal dos puntos; las zonas le dan hasta ocho. Pon su **Sends** en **Zones** (`Output` `Zones`), di cuántas, de 2 a 8, y qué botón pulsa al entrar en cada una, empezando por el talón (`Zones`, por ejemplo `1 2 3 4`). Mueve el pedal y cada zona en la que te paras pulsa su botón: uno de cuatro tiempos de delay, un intervalo de armonía, una escena, un preset, elegidos con el pie en lugar de con cuatro pulsadores.
+
+- Las zonas son partes iguales del recorrido, tal como lo da la **Curve** del pedal: la primera empieza en el talón y la última llega a la punta.
+- El pedal pulsa un botón del **banco actual**, y envía lo que envíe ese botón, igual que los pulsadores de punta y talón. Dales a los botones pulsaciones simples (un Program Change, un CC con un solo valor, una escena): un toggle se encendería y apagaría al entrar y salir.
+- Una zona cuenta cuando el pedal ha entrado un poco en ella, así que un pie apoyado en un borde no pulsa de un lado a otro; y cuando se lee igual dos veces, con unos 25 ms entre una y otra, así que un barrido rápido del talón a la punta pulsa la zona en la que se para, no cada una por la que pasa.
+- Donde está el pedal al encender, o después de escribir una configuración, no pulsa nada: una zona se pulsa cuando el pie entra en ella.
+- Una zona en **None** no pulsa nada, para dejar libre una parte del recorrido.
+- Con **Send on entering a bank** (`Send_On_Bank`), al entrar en un banco se pulsa la zona en la que está el pedal, después de los comandos de entrada del banco, así que un banco de delays empieza en el tiempo que tienes bajo el pie.
+- El pedal no envía nada más: ningún CC, y no se aplican sus pulsadores de punta y talón, el auto-engage, el destino de un banco ni los comandos `Exp`.
+
+En un hilo del foro de Morningstar los músicos piden justo esto, [comandos según la posición del pedal](https://forum.morningstar.io/t/any-approach-to-send-midi-commands-based-on-expression-pedal-position-range/8567).
+
+*Firmware 1.31 o posterior. Probado en la pedalera simulada, que ejecuta el propio firmware de la pedalera, con el pedal movido desde el ordenador.*
+
+<details><summary>Por dentro</summary>
+
+La posición del pedal, de 0 a 127 después de la curva, se corta en zonas iguales: zona = posición × zonas / 128. Un paso a otra zona solo cuenta cuando las posiciones 3 por debajo y 3 por encima dan la misma zona, y cuando dos lecturas seguidas coinciden. Se guarda en el registro de calibración del jack: `Output` 0x20 más el número de zonas, y los bytes 7 a 14, que un pedal usa para sus pulsadores, su rango y el auto-engage, guardan lo que pulsan las zonas 1 a 8: 0–7 para 1–D y 0xFF para ninguna. Un firmware anterior toma ese registro por el de un pedal de CC.
+
+</details>
+
 ## Una caja de pulsadores en el jack
 
 Un jack no necesita un pedal: una cajita de hasta tres pulsadores enchufada en su lugar le da a la pedalera tres pulsadores más, sin tocar nada por dentro. Pon el **Sends** del jack en **Switches** (`Output` `Switches`) y elige qué mantiene pulsado cada pulsador de la caja: **1**–**4**, **A**–**D**, o Bank **Down** o **Up** (`Box_1`, `Box_2`, `Box_3`).
@@ -349,11 +371,12 @@ Opcional; dos filas, `Pedal` 1 y 2.
 | `Out_Min`, `Out_Max` | 0–127 | Valores que se envían en el talón y en la punta. Por defecto 0 y 127. |
 | `Auto_Button` | None o 1–4, A–D | Botón que se enciende cuando el pedal sale del talón y se apaga tras quedarse ahí (auto-engage). |
 | `Auto_Off_ms` | 10–2540 | Cuánto tiempo tiene que quedarse el pedal en el talón antes de que se apague ese botón. Por defecto 500. |
-| `Output` | CC, PitchBend, CC14, Speed, Wheel, Arrows, Switches o SysEx 0–15 | Qué envía el pedal: su CC con 7 bits, Pitch Bend, una pareja de CC de 14 bits, [un mensaje SysEx guardado](#un-parámetro-por-sysex) con su valor dentro, nada más que la [velocidad de los LFO y las secuencias](#velocidad-de-los-lfo-y-las-secuencias), o [scroll en el ordenador](#hacer-scroll-en-el-ordenador); Switches para una [caja de pulsadores](#una-caja-de-pulsadores-en-el-jack) en el jack. Por defecto CC. |
+| `Output` | CC, PitchBend, CC14, Speed, Wheel, Arrows, Switches, Zones o SysEx 0–15 | Qué envía el pedal: su CC con 7 bits, Pitch Bend, una pareja de CC de 14 bits, [un mensaje SysEx guardado](#un-parámetro-por-sysex) con su valor dentro, nada más que la [velocidad de los LFO y las secuencias](#velocidad-de-los-lfo-y-las-secuencias), o [scroll en el ordenador](#hacer-scroll-en-el-ordenador); Switches para una [caja de pulsadores](#una-caja-de-pulsadores-en-el-jack) en el jack; Zones para [pulsar un botón en cada zona](#zonas-un-pedal-por-tramos). Por defecto CC. |
 | `Send_On_Bank` | Y / N | Enviar la posición del pedal al entrar en un banco, después de sus comandos de entrada. Por defecto N. Firmware 0.87. |
 | `Takeover` | Jump, CatchUp o Scaled | Qué hace el pedal con un CC que se dejó en un valor distinto del del pie: saltar al pie, esperar a que el pie llegue a él, o seguir desde él. Por defecto Jump. Firmware 1.18. |
 | `Display` | Off, Number o Bar | Qué muestra la pantalla mientras se mueve el pedal: nada, el valor enviado o una barra. Por defecto Off. Firmware 1.29. |
 | `Box_1`, `Box_2`, `Box_3` | None, 1–4, A–D, Down o Up | Con `Output` Switches, el pulsador que mantiene pisado cada pulsador de la caja. Por defecto None. Firmware 1.10. |
+| `Zones` | De 2 a 8 entre None, 1–4, A–D | Con `Output` Zones, el botón que pulsa la entrada en cada zona, empezando por el talón, separados por espacios: `1 2 None 4`. Firmware 1.31. |
 
 ### BankExpression_Settings
 

@@ -13,7 +13,7 @@ import pandas as pd
 
 from lib.configPacker import (
     BANK_SWITCH_LABELED, COMBO_COLUMNS, MIDI_MAP_COLUMNS, MIDI_MAP_OUT_TYPES, MIDI_MAP_RUN, MIDI_MAP_TYPES,
-    PRESET_NAME_COLUMNS, EXP_OUT_SYSEX, sysex_text,
+    PRESET_NAME_COLUMNS, EXP_OUT_SYSEX, EXP_OUT_ZONES, EXP_ZONES_MAX, sysex_text,
 )
 from lib.flashLayout import (
     NUM_BANKS, BUTTON_IDS, default_int, EXP_BUTTON_IDS, BOX_SWITCH_IDS, LABEL_LEN, GLOBAL_SIZE, CMD_SIZE,
@@ -653,6 +653,15 @@ def unpack_expression_settings(data: bytes) -> pd.DataFrame:
         if p[15] == EXP_OUT_SWITCHES:
             box = list(p[7:10])
             p = bytes(p[:7]) + bytes([0xFF, 0xFF, 120]) + bytes(p[10:13]) + bytes([0]) + bytes(p[14:])
+        # Zones keep what entering each taps in bytes 7 to 14
+        zones, output = "", None
+        if p[15] & 0xF0 == EXP_OUT_ZONES and 2 <= p[15] & 0x0F <= EXP_ZONES_MAX:
+            zones = " ".join(EXP_BUTTON_IDS[b] if b < len(EXP_BUTTON_IDS) else "None"
+                             for b in p[7:7 + (p[15] & 0x0F)])
+            output = "Zones"
+            p = bytes(p[:7]) + bytes([0xFF, 0xFF, 120, 7, 0, 127, 0, 50]) + bytes(p[15:])
+        if output is None:
+            output = f"SysEx {p[15] & 0x0F}" if p[15] & 0xF0 == EXP_OUT_SYSEX else EXP_OUTPUT_NAMES.get(p[15], "CC")
         rows.append(
             {
                 "Pedal": str(i + 1),
@@ -669,12 +678,13 @@ def unpack_expression_settings(data: bytes) -> pd.DataFrame:
                 "Out_Max": str(out_max),
                 "Auto_Button": EXP_BUTTON_IDS[p[13] - 1] if 1 <= p[13] <= 8 else "None",
                 "Auto_Off_ms": str(p[14] * 10 if p[14] not in (0, 0xFF) else 500),
-                "Output": f"SysEx {p[15] & 0x0F}" if p[15] & 0xF0 == EXP_OUT_SYSEX else EXP_OUTPUT_NAMES.get(p[15], "CC"),
+                "Output": output,
                 "Send_On_Bank": "Y" if data[35] != 0xFF and data[35] & (0x04 << i) else "N",
                 "Takeover": EXP_TAKEOVER_NAMES.get((takeover >> (2 * i)) & 3, "Jump"),
                 "Display": EXP_DISPLAY_NAMES.get((shows >> (2 * i)) & 3, "Off"),
                 **{f"Box_{k + 1}": BOX_SWITCH_IDS[b] if b < len(BOX_SWITCH_IDS) else "None"
                    for k, b in enumerate(box)},
+                "Zones": zones,
             }
         )
     return pd.DataFrame(rows)

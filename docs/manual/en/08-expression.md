@@ -185,6 +185,28 @@ In the Expression tab, name a **toe** button and the level the pedal must reach 
 
 *Firmware 0.15 or later.*
 
+## Zones: a stepped pedal
+
+The toe and heel switches give a pedal two points; zones give it up to eight. Set its **Sends** to **Zones** (`Output` `Zones`), say how many, 2 to 8, and which button entering each taps, heel first (`Zones`, such as `1 2 3 4`). Sweep the pedal and each zone you stop in taps its button: one of four delay times, a harmony interval, a scene, a preset, picked with the foot instead of four switches.
+
+- The zones are equal parts of the travel, as the pedal's **Curve** gives it: the first is from the heel, the last runs to the toe.
+- The pedal taps a button of the **current bank**, sending whatever that button sends, as the toe and heel switches do. Give the buttons plain presses (a Program Change, a CC with one value, a scene): a toggle would switch on and off as you go in and out.
+- A zone counts once the pedal is a little way into it, so a foot resting on an edge does not tap back and forth; and once it reads the same twice, some 25 ms apart, so a quick sweep from heel to toe taps the zone it stops in, not each one it passes.
+- Where the pedal is at power on, or after a configuration is written, taps nothing: a zone is tapped when the foot moves into it.
+- A zone left at **None** taps nothing, for a part of the travel kept free.
+- With **Send on entering a bank** (`Send_On_Bank`), entering a bank taps the zone the pedal is in, after the bank's enter commands, so a bank of delays starts on the time under your foot.
+- The pedal sends nothing else: no CC, and its toe and heel switches, auto-engage, a bank's target and `Exp` commands do not apply.
+
+On a Morningstar forum thread players ask for exactly this, [commands by expression position](https://forum.morningstar.io/t/any-approach-to-send-midi-commands-based-on-expression-pedal-position-range/8567).
+
+*Firmware 1.31 or later. Tried in the simulated pedal, which runs the pedal's own firmware, with the pedal moved from the computer.*
+
+<details><summary>Under the hood</summary>
+
+The pedal's position, 0 to 127 after the curve, is cut into equal zones: zone = position × zones / 128. A move to another zone counts only when the positions 3 below and 3 above give the same zone, and when two readings running agree. Stored in the jack's calibration record: `Output` 0x20 plus the number of zones, and bytes 7 to 14, which a pedal uses for its switches, range and auto-engage, hold what zones 1 to 8 tap, 0–7 for 1–D, 0xFF for none. Older firmware takes such a record for a CC pedal.
+
+</details>
+
 ## A box of switches on the jack
 
 A jack needs no pedal in it: a small box of up to three footswitches plugged in instead gives the pedal three more switches, with nothing changed inside it. Set the jack's **Sends** to **Switches** (`Output` `Switches`) and say what each of the box's switches holds down: **1**–**4**, **A**–**D**, or Bank **Down** or **Up** (`Box_1`, `Box_2`, `Box_3`).
@@ -349,11 +371,12 @@ Optional; two rows, `Pedal` 1 and 2.
 | `Out_Min`, `Out_Max` | 0–127 | Values sent at the heel and at the toe. Defaults 0 and 127. |
 | `Auto_Button` | None or 1–4, A–D | Button switched on as the pedal leaves the heel and off after resting there (auto-engage). |
 | `Auto_Off_ms` | 10–2540 | How long the pedal must rest at the heel before that button goes off. Default 500. |
-| `Output` | CC, PitchBend, CC14, Speed, Wheel, Arrows, Switches or SysEx 0–15 | What the pedal sends: its CC with 7 bits, Pitch Bend, a 14-bit CC pair, [a stored SysEx message](#a-sysex-parameter) with its value in it, nothing but the [speed of the LFOs and sequences](#speed-of-the-lfos-and-sequences), or [scrolling on the computer](#scrolling-on-the-computer); Switches for a [box of switches](#a-box-of-switches-on-the-jack) in the jack. Default CC. |
+| `Output` | CC, PitchBend, CC14, Speed, Wheel, Arrows, Switches, Zones or SysEx 0–15 | What the pedal sends: its CC with 7 bits, Pitch Bend, a 14-bit CC pair, [a stored SysEx message](#a-sysex-parameter) with its value in it, nothing but the [speed of the LFOs and sequences](#speed-of-the-lfos-and-sequences), or [scrolling on the computer](#scrolling-on-the-computer); Switches for a [box of switches](#a-box-of-switches-on-the-jack) in the jack; Zones to [tap a button in each zone](#zones-a-stepped-pedal). Default CC. |
 | `Send_On_Bank` | Y / N | Send the pedal's position as a bank is entered, after its enter commands. Default N. Firmware 0.87. |
 | `Takeover` | Jump, CatchUp or Scaled | What the pedal does with a CC left at another value than the foot's: jump to the foot, wait for the foot to reach it, or go on from it. Default Jump. Firmware 1.18. |
 | `Display` | Off, Number or Bar | What the display shows while the pedal moves: nothing, the value sent, or a bar. Default Off. Firmware 1.29. |
 | `Box_1`, `Box_2`, `Box_3` | None, 1–4, A–D, Down or Up | With `Output` Switches, the switch each of the box's switches holds down. Default None. Firmware 1.10. |
+| `Zones` | 2 to 8 of None, 1–4, A–D | With `Output` Zones, the button entering each zone taps, heel first, apart by spaces: `1 2 None 4`. Firmware 1.31. |
 
 ### BankExpression_Settings
 

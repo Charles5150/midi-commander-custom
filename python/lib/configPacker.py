@@ -50,7 +50,9 @@ EXP_CURVES = {"LINEAR": 0, "LOG": 1, "EXP": 2}
 EXP_OUTPUTS = {"CC": 0, "PITCHBEND": 1, "CC14": 2, "SPEED": 3, "WHEEL": 4, "ARROWS": 5, "SWITCHES": 6}
 EXP_OUT_SWITCHES = 6
 EXP_OUT_SYSEX = 0x10   # + the stored SysEx string (firmware 1.30)
-EXP_OUTPUT_CHOICES = (["CC", "PitchBend", "CC14", "Speed", "Wheel", "Arrows", "Switches"]
+EXP_OUT_ZONES = 0x20   # + the number of zones, 2-8 (firmware 1.31)
+EXP_ZONES_MAX = 8
+EXP_OUTPUT_CHOICES = (["CC", "PitchBend", "CC14", "Speed", "Wheel", "Arrows", "Switches", "Zones"]
                       + [f"SysEx {i}" for i in range(16)])
 # How a pedal takes over a CC left at another value (firmware 1.18)
 EXP_TAKEOVERS = {"JUMP": 0, "CATCHUP": 1, "SCALED": 2}
@@ -62,7 +64,7 @@ EXP_DEFAULTS = {
     "Toe_Level": "120", "Heel_Level": "7", "Out_Min": "0", "Out_Max": "127",
     "Auto_Button": "None", "Auto_Off_ms": "500", "Output": "CC", "Send_On_Bank": "N", "Takeover": "Jump",
     "Display": "Off",
-    "Box_1": "None", "Box_2": "None", "Box_3": "None",
+    "Box_1": "None", "Box_2": "None", "Box_3": "None", "Zones": "",
 }
 BOX_COLUMNS = ["Box_1", "Box_2", "Box_3"]
 
@@ -581,11 +583,31 @@ def expression_display(df) -> int:
     return 0xF0 | modes[0] | modes[1] << 2
 
 
+def zone_buttons(text, i=0) -> list:
+    """A Zones cell, "1 2 3 4" or "None A B", heel first: the switch entering
+    each zone taps, 0xFF for none."""
+    names = _cell(text).replace(",", " ").replace("/", " ").split()
+    if not 2 <= len(names) <= EXP_ZONES_MAX:
+        raise ValueError(f"Expression pedal {i + 1}: Zones must list 2 to {EXP_ZONES_MAX} switches, "
+                         f"heel first, as 1 2 3 4 or None A B, not {text!r}")
+    out = []
+    for name in names:
+        if name.upper() in ("NONE", "-"):
+            out.append(0xFF)
+        elif name.upper() in EXP_BUTTON_IDS:
+            out.append(EXP_BUTTON_IDS.index(name.upper()))
+        else:
+            raise ValueError(f"Expression pedal {i + 1}: in Zones, {name!r} is not a switch: "
+                             f"{', '.join(EXP_BUTTON_IDS)} or None")
+    return out
+
+
 def pack_expression_settings(df) -> bytes:
     """Two 16 byte records: min/max ADC (LE), curve, invert, channel, toe and
     heel buttons and levels, output range, auto-engage button and off delay,
     output kind. With Output Switches the jack holds a box of switches, and
-    bytes 7 to 9 say what its switches hold down instead."""
+    bytes 7 to 9 say what its switches hold down instead; with Output Zones
+    bytes 7 to 14 say what entering each zone taps."""
     rows = {}
     if df is not None:
         for _, row in df.iterrows():
@@ -633,11 +655,13 @@ def pack_expression_settings(df) -> bytes:
         sysex = out_text[5:] if out_text.startswith("SYSEX") else None
         if sysex is not None and sysex.isdigit() and int(sysex) < SYSEX_STRING_COUNT:
             output = EXP_OUT_SYSEX | int(sysex)
+        elif out_text == "ZONES":
+            output = EXP_OUT_ZONES
         elif out_text in EXP_OUTPUTS:
             output = EXP_OUTPUTS[out_text]
         else:
             raise ValueError(f"Expression pedal {i + 1}: Output must be CC, PitchBend, CC14, Speed, Wheel, Arrows, "
-                             f"Switches or SysEx 0-15, not {get('Output')!r}")
+                             f"Switches, Zones or SysEx 0-15, not {get('Output')!r}")
         if output == EXP_OUT_SWITCHES:
             box = []
             for col in BOX_COLUMNS:
@@ -652,6 +676,11 @@ def pack_expression_settings(df) -> bytes:
                 box.append(BOX_SWITCH_IDS.index(names[text.upper()]))
             toe_btn, heel_btn, toe_level = box
             auto_btn = 0
+        if output == EXP_OUT_ZONES:
+            zones = zone_buttons(get("Zones"), i)
+            output |= len(zones)
+            zones += [0xFF] * (EXP_ZONES_MAX - len(zones))
+            toe_btn, heel_btn, toe_level, heel_level, out_min, out_max, auto_btn, auto_off = zones
 
         out += bytes([lo & 0xFF, lo >> 8, hi & 0xFF, hi >> 8, curve, invert, channel,
                       toe_btn, heel_btn, toe_level, heel_level,

@@ -1598,7 +1598,7 @@ class MidiCommanderGUI(ctk.CTk):
             )
             for col, default in (("Out_Min", "0"), ("Out_Max", "127"), ("Auto_Button", "None"), ("Auto_Off_ms", "500"),
                                  ("Output", "CC"), ("Send_On_Bank", "N"), ("Takeover", "Jump"), ("Display", "Off"),
-                                 ("Box_1", "None"), ("Box_2", "None"), ("Box_3", "None")):
+                                 ("Box_1", "None"), ("Box_2", "None"), ("Box_3", "None"), ("Zones", "")):
                 if col not in self.df_exp.columns:
                     self.df_exp[col] = default
             self.populate_expression()
@@ -2481,6 +2481,19 @@ class MidiCommanderGUI(ctk.CTk):
                                            clean(r.get(f"Box_{k + 1}")) or "None", width=75)
                 w[f"box_{k + 1}"].pack(side="left")
 
+            zone_row = ctk.CTkFrame(box, fg_color="transparent")
+            zone_row.pack(fill="x", padx=8, pady=(0, 8))
+            zones = (clean(r.get("Zones")) or "").replace(",", " ").split()
+            ctk.CTkLabel(zone_row, text="Sending Zones,").pack(side="left")
+            w["zones"] = Option(zone_row, [str(n) for n in range(2, 9)],
+                                str(len(zones)) if 2 <= len(zones) <= 8 else "4", width=55)
+            w["zones"].pack(side="left", padx=(6, 2))
+            ctk.CTkLabel(zone_row, text="of them, heel first, tap").pack(side="left", padx=(6, 2))
+            for k in range(8):
+                w[f"zone_{k + 1}"] = Option(zone_row, ["None"] + BUTTON_IDS,
+                                            zones[k] if k < len(zones) else "None", width=62)
+                w[f"zone_{k + 1}"].pack(side="left", padx=(0, 2))
+
             self.exp_widgets[i] = w
 
         Help(
@@ -2512,6 +2525,11 @@ class MidiCommanderGUI(ctk.CTk):
             "Send on entering a bank: as a bank is entered, after its enter commands, the pedal sends "
             "where it is, so a preset called up takes the volume from the pedal, not from the "
             "preset. Leave it off for a jack with no pedal in it, which would send its heel value.\n"
+            "Zones: the travel is cut into 2 to 8 equal zones, and moving the pedal into one taps the "
+            "button set for it, heel first, in the current bank: one of four delay times, harmonies "
+            "or scenes picked with the foot. Nothing else is sent; a zone counts once the pedal is "
+            "a little way into it, and a quick sweep taps only the zone it stops in. With Send on "
+            "entering a bank, a bank entered taps the zone the pedal is in.\n"
             "Switches: the jack holds a box of up to three switches instead of a pedal, and each "
             "holds down a switch of the pedal, 1-4, A-D or Bank Down and Up, as if by foot. The "
             "manual shows how to wire one.",
@@ -3445,6 +3463,9 @@ class MidiCommanderGUI(ctk.CTk):
             self.df_exp.at[i, "Display"] = w["display"].value()
             for k in range(1, 4):
                 self.df_exp.at[i, f"Box_{k}"] = w[f"box_{k}"].value()
+            if w["output"].value() == "Zones":
+                self.df_exp.at[i, "Zones"] = " ".join(w[f"zone_{k + 1}"].value()
+                                                      for k in range(int(w["zones"].value())))
 
     def apply_bank_changes(self):
         """Bank names and per bank expression settings back into their frames."""

@@ -375,6 +375,8 @@ EXPRESSION_FIELDS = [
     {"col": "Box_1", "label": "Box switch 1 holds", **_choice(["None"] + BUTTON_IDS + ["Down", "Up"], blank="None")},
     {"col": "Box_2", "label": "Box switch 2 holds", **_choice(["None"] + BUTTON_IDS + ["Down", "Up"], blank="None")},
     {"col": "Box_3", "label": "Box switch 3 holds", **_choice(["None"] + BUTTON_IDS + ["Down", "Up"], blank="None")},
+    # Sends Zones: what entering each zone taps, heel first, as "1 2 3 4"
+    {"col": "Zones", "label": "Zones tap", "kind": "text", "max": 31},
 ]
 
 SECTION_COLUMNS = {
