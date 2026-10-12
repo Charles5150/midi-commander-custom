@@ -46,7 +46,7 @@ TAP_MODES = ["Tap", "Clock", "Set", "Up", "Down", "Up Repeat", "Down Repeat", "R
              "Out", "Save"]
 WAIT_MODES = ["Time", "Beat", "Bar", "Count"]
 CCINC_DIRECTIONS = ["Up", "Down", "Up Repeat", "Down Repeat"]
-BANK_MODES = ["GoTo", "Up", "Down", "Config", "NextConfig", "Page", "Back", "Reveal", "Direct", "Lock"]
+BANK_MODES = ["GoTo", "Up", "Down", "Config", "NextConfig", "Page", "Back", "Reveal", "Direct", "Lock", "GigView"]
 CONFIG_SLOT_NAMES = ["1", "2", "3", "4"]
 KEY_MODES = ["Normal", "Down", "Up"]
 KEY_NAMES = (
@@ -77,6 +77,7 @@ GLOBAL_GROUPS = [
     ("Configuration", [
         ("ConfigName", "Configuration name", "shown on the display at boot, 16 characters"),
         ("Boot_Banner", "Banner at power on", "the pedal's Banner Text or this name, then the version, cross the display; any switch skips it"),
+        ("Gig_View", "Gig view", "the song's name and info line in large letters in place of the labels; a press shows the labels for 3 s"),
         ("MIDI_Channel", "MIDI channel", "used by the expression pedals"),
         ("Global_Channel", "Global channel", "every command goes out on it, whatever channel it carries"),
         ("Exp1_CC", "Expression pedal 1 CC", "1-127"),
@@ -142,7 +143,7 @@ GLOBAL_FIELDS = {
     "MIDI_Channel": _choice(CHANNELS),
     **{label: CHECK for label in ("RealTime_Passthrough", "USB_MIDI_Thru", "Remember_State",
                                   "Setlist_Mode", "Setlist_Display", "Clock_Follow", "LED_Feedback", "Link_Toggles",
-                                  "Edit_Lock", "Kemper_Mode", "GT1000_Mode", "Skip_Same_PC")},
+                                  "Edit_Lock", "Gig_View", "Kemper_Mode", "GT1000_Mode", "Skip_Same_PC")},
     "Bank_Up_LED_Mode": _choice(LED_MODES),
     "Bank_Down_LED_Mode": _choice(LED_MODES),
     "Exp1_CC": _int(1, 127),
@@ -275,7 +276,8 @@ COMMAND_SPECS = {
                        "Back": "the bank you came from",
                        "Reveal": "while held, the buttons show their long press labels",
                        "Direct": "two presses choose any bank: its group of eight, then the bank",
-                       "Lock": "locks every switch but those holding a Lock, which unlocks; best in a combination"}},
+                       "Lock": "locks every switch but those holding a Lock, which unlocks; best in a combination",
+                       "GigView": "the song's name in large letters in place of the labels, or the labels back"}},
     "MMC": {"fields": [_f(MODE, "Action", _choice(MMC_COMMANDS), default="Play"),
                        _f(ON, "At (s)", _int(0, MMC_LOCATE_MAX), default="0", **_when(MODE, "Locate"))],
             "hint": "MIDI Machine Control, to every device"},

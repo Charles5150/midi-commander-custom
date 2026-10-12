@@ -88,6 +88,17 @@ void display_tuner(bool on);
 void display_tuner_note(uint8_t note);		// a MIDI note number
 void display_tuner_deviance(uint16_t value);	// 0 to 16383, 8192 in tune
 
+/*
+ * The gig view (1.32): the song's name and its info line in large letters,
+ * to read standing, in place of the button labels. A press of one of the
+ * eight buttons brings the labels back for a moment; entering a bank keeps
+ * the gig view, to show the new song. Gig_View has it on from power on, and a
+ * Bank command with the action GigView turns it on or off.
+ */
+void display_gig_from_settings(void);	// as the configuration has it
+void display_gig_toggle(void);
+void display_gig_press(void);		// one of the eight buttons went down
+
 // Ask for the current bank screen to be redrawn from the main loop
 // (e.g. after a toggle state changed), without blocking the caller.
 void display_request_refresh(void);

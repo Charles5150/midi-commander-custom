@@ -2,7 +2,7 @@
 
 **English** · [Español](../es/09-the-display.md)
 
-The pedal's 128×64 screen tells you where you are and what is on, at a glance from the floor. This chapter covers the bank screen, what shows over it for a moment, the live values a label can show, the text a computer can put on it, and the banner at power on.
+The pedal's 128×64 screen tells you where you are and what is on, at a glance from the floor. This chapter covers the bank screen, what shows over it for a moment, the gig view, the live values a label can show, the text a computer can put on it, and the banner at power on.
 
 ## The bank screen
 
@@ -42,6 +42,20 @@ While a bank preview shows, readouts such as the tempo are skipped, and text fro
 ### When it goes dark
 
 With `Sleep_After_Min` set, the display and the LEDs switch off after that many minutes with nobody touching the pedal. Any press or expression pedal movement brings them back, and the press that wakes it still does its job. They also go off while the computer the pedal is connected to sleeps, and come back when it wakes. A bank changed from the computer while the pedal sleeps changes in the dark: the LEDs show it when the pedal wakes. See the [global settings](12-configuration-file.md#global_settings).
+
+## Gig view
+
+From a few steps back, or with the pedal on the floor and you standing, the 4-character labels are hard to read, and what you look for between songs is which song you are on. The gig view gives the whole screen to the song: the bank's name in letters twice the size of the large font, and its info line in the large font under it.
+
+![The gig view: the song's name and its info line in large letters](../images/gig-view-en.svg)
+
+- **Turn it on and off** with a `Bank` command whose **Action** is `GigView`, best in a [combination](05-buttons.md#two-switches-together) or a long press, so it does not take a button of its own. The demo does it with **3+C**, in every bank.
+- **From power on:** tick **Gig view** in the configurator's **Global** tab, `Gig_View` in the CSV.
+- **A press brings the labels back.** Press any of the eight buttons and it does its job as always, and the labels and toggle states come back for three seconds, then the song again.
+- **Entering a bank keeps it,** so the next song's name shows as soon as you get there. A bank preview shows as it always does.
+- **What it shows** is what the top line would: the bank's name and info line with their [live values](#live-values), the count-in in place of the name, the bar and beat or the place in the setlist in place of the info line, `LOCKED`, and [text from the computer](#text-from-the-computer), which takes the name's place when it is sent for the whole line or for the name. A name of more than five characters shows in the large font, eleven to the screen, and a longer one scrolls as it does on the top line.
+- **Readouts** such as the tempo or a pedal's value show in the info line's place, in the large font.
+- It is not kept across a power cycle: the pedal starts as `Gig_View` says. Needs firmware 1.32.
 
 ## Live values
 

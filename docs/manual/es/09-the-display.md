@@ -2,7 +2,7 @@
 
 [English](../en/09-the-display.md) · **Español**
 
-La pantalla de 128×64 de la pedalera te dice dónde estás y qué está encendido, de un vistazo desde el suelo. Este capítulo trata la pantalla del banco, lo que aparece encima un momento, los valores en vivo que puede mostrar una etiqueta, el texto que puede poner un ordenador y el banner al encender.
+La pantalla de 128×64 de la pedalera te dice dónde estás y qué está encendido, de un vistazo desde el suelo. Este capítulo trata la pantalla del banco, lo que aparece encima un momento, la vista de directo, los valores en vivo que puede mostrar una etiqueta, el texto que puede poner un ordenador y el banner al encender.
 
 ## La pantalla del banco
 
@@ -42,6 +42,20 @@ Mientras se ve una vista previa de banco, los avisos como el del tempo se saltan
 ### Cuándo se apaga
 
 Con `Sleep_After_Min` puesto, la pantalla y los LEDs se apagan tras ese número de minutos sin que nadie toque la pedalera. Cualquier pulsación o movimiento de un pedal de expresión los vuelve a encender, y la pulsación que la despierta sigue haciendo su trabajo. También se apagan mientras duerme el ordenador al que está conectada la pedalera, y vuelven cuando se despierta. Un banco que cambia el ordenador mientras la pedalera duerme cambia a oscuras: los LEDs lo muestran cuando se despierta. Mira los [ajustes globales](12-configuration-file.md#global_settings).
+
+## Vista de directo
+
+A unos pasos, o con la pedalera en el suelo y tú de pie, las etiquetas de 4 caracteres se leen mal, y lo que buscas entre canciones es en qué canción estás. La vista de directo da toda la pantalla a la canción: el nombre del banco en letras del doble del tamaño de la fuente grande, y su línea de información en la fuente grande debajo.
+
+![La vista de directo: el nombre de la canción y su línea de información en letras grandes](../images/gig-view-es.svg)
+
+- **Se activa y desactiva** con un comando `Bank` cuya **Action** es `GigView`, mejor en una [combinación](05-buttons.md#dos-pulsadores-a-la-vez) o en una pulsación larga, para que no ocupe un botón propio. La demo lo hace con **3+C**, en todos los bancos.
+- **Desde el encendido:** marca **Gig view** en la pestaña **Global** del configurador, `Gig_View` en el CSV.
+- **Una pulsación devuelve las etiquetas.** Pulsa cualquiera de los ocho botones y hace lo de siempre, y las etiquetas y el estado de los toggles vuelven durante tres segundos; luego, otra vez la canción.
+- **Al entrar en un banco se mantiene,** así que el nombre de la siguiente canción aparece en cuanto llegas. La vista previa de un banco se ve como siempre.
+- **Lo que muestra** es lo que mostraría la línea de arriba: el nombre del banco y su línea de información con sus [valores en vivo](#valores-en-vivo), la cuenta atrás en lugar del nombre, el compás y el tiempo o el puesto en el setlist en lugar de la línea de información, `LOCKED`, y el [texto del ordenador](#texto-desde-el-ordenador), que ocupa el sitio del nombre cuando se envía para toda la línea o para el nombre. Un nombre de más de cinco caracteres sale en la fuente grande, once por pantalla, y uno más largo se desplaza como en la línea de arriba.
+- **Los avisos** como el tempo o el valor de un pedal salen en el sitio de la línea de información, en la fuente grande.
+- No se guarda al apagar: la pedalera arranca como diga `Gig_View`. Necesita el firmware 1.32.
 
 ## Valores en vivo
 

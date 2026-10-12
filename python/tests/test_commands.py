@@ -722,6 +722,25 @@ class BackCommandTest(unittest.TestCase):
                          ("PREV", "Bank", "Back"))
         self.assertEqual(norm(row["A_OnValue_(CC/PB)"]), "")
 
+class GigViewCommandTest(unittest.TestCase):
+    """A Bank GigView turns the gig view on and off (1.32)."""
+
+    def test_command(self):
+        self.assertEqual(cbp.cmd_bank({"KeyMode_(Key)": "GigView", "OnValue_(CC/PB)": "3"}), [0x4A, 0, 0, 0])
+        self.assertEqual(cbp.cmd_bank({"KeyMode_(Key)": "Gig View"}), [0x4A, 0, 0, 0])
+        cmd = unpacker.unpack_command(bytes([0x4A, 0, 0, 0]))
+        self.assertEqual((cmd["CommandType"], cmd["KeyMode_(Key)"], cmd["OnValue_(CC/PB)"]),
+                         ("Bank", "GigView", ""))
+        from lib.configSchema import BANK_MODES
+        self.assertIn("GigView", BANK_MODES)
+
+    def test_firmware(self):
+        self.assertRegex(firmware_source("Inc", "midi_defines.h"), r"#define BANK_MODE_GIG\s+\(10\)")
+        router = firmware_source("Src", "switch_router.c")
+        self.assertIn("case BANK_MODE_GIG:         display_gig_toggle(); break;", router)
+        self.assertIn("display_gig_press();", router)
+
+
 class BankLockTest(unittest.TestCase):
     """Locking the switches with a Bank Lock, best in a combination (1.21)."""
 

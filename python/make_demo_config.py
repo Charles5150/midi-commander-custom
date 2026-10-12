@@ -54,12 +54,14 @@ GLOBAL_BANK = 30    # the bank set aside for the buttons that are the same every
 PAGE_BANK = 31      # the second page of the first song
 # Two switches pressed together: 3+4 toggles the tuner in every bank, except
 # on the first song, where the same pair clears the looper instead. B+C locks
-# the switches, and unlocks them, in every bank.
+# the switches, and unlocks them, in every bank, and 3+C turns the gig view on
+# and off.
 COMBOS = [
     {"Switches": "3+4", "Bank": "All", "Run_Bank": str(GLOBAL_BANK), "Run_Button": "B", "Run_List": "Short"},
     {"Switches": "3+4", "Bank": str(SETLIST_FROM), "Run_Bank": str(GLOBAL_BANK), "Run_Button": "4",
      "Run_List": "Short"},
     {"Switches": "B+C", "Bank": "All", "Run_Bank": str(GLOBAL_BANK), "Run_Button": "3", "Run_List": "Short"},
+    {"Switches": "3+C", "Bank": "All", "Run_Bank": str(GLOBAL_BANK), "Run_Button": "2", "Run_List": "Short"},
 ]
 # Names for the programs of the amp on channel 1: bank 3 shows the one you are
 # on in its info line, as NEXT and PREV step through them
@@ -692,10 +694,11 @@ def build() -> Demo:
     d.cc(GLOBAL_BANK, "C", "MUTE", "69", toggle="Y", light="AlwaysOn")
     d.bank_cmd(GLOBAL_BANK, "A", "HOME", "GoTo", 0)
     # What the two switch combinations run (see COMBOS): the tuner, and the
-    # looper's clear on the first song, and the lock
+    # looper's clear on the first song, the lock and the gig view
     d.cc(GLOBAL_BANK, "B", "TUNR", "68", toggle="Y")
     d.cc(GLOBAL_BANK, "4", "CLR", "5")
     d.bank_cmd(GLOBAL_BANK, "3", "LOCK", "Lock", "")
+    d.bank_cmd(GLOBAL_BANK, "2", "GIG", "GigView", "")
 
     # --- banks 12..29: a setlist, each selecting its patch on entry ----------
     for bank in range(SETLIST_FROM, GLOBAL_BANK):
@@ -840,6 +843,7 @@ def global_settings() -> pd.DataFrame:
                 ("Global_Bank", str(GLOBAL_BANK)),
                 ("Combo_ms", "80"),
                 ("Boot_Banner", "Normal"),
+                ("Gig_View", "N"),
                 ("Bank_Preview", "0"),
                 ("Setlist_Display", "Y"),
             )

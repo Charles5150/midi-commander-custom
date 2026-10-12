@@ -1659,3 +1659,70 @@ test("an expression pedal cut into zones taps a switch as the foot enters each, 
   assert.deepEqual(seen2.filter((m) => /^USB b0 (0d|17)/.test(m)).map((m) => m.slice(4)),
     ["b0 17 7f", "b0 0d 7f", "b0 0d 00", "b0 17 7f"], "with Send on entering a bank, each bank entered taps the zone the pedal is in");
 });
+
+// The 11x18 font of the firmware, as font7x10: 18 rows a character from ' ' on
+const font11x18 = (() => {
+  const src = fs.readFileSync(path.join(root, "firmware/Middlewares/stm32-ssd1306-master/ssd1306/fonts/11x18.txt"), "utf8");
+  return src.split("\n").filter((line) => /^[#.]{11}$/.test(line))
+    .map((line) => parseInt(line.replace(/#/g, "1").replace(/\./g, "0").padEnd(16, "0"), 2));
+})();
+
+// Whether the band of rows y..y+18*scale holds just this text in the large
+// font, each pixel a square of scale, in the middle of the screen; the font
+// has capitals only, and draws a small letter as its capital
+function gigLineIs(sim, y, text, scale = 1) {
+  text = text.toUpperCase();
+  const w = 11 * scale, x0 = Math.floor((128 - text.length * w) / 2);
+  for (let x = 0; x < 128; x++) {
+    for (let row = 0; row < 18 * scale; row++) {
+      const i = Math.floor((x - x0) / w), ch = text.charCodeAt(i);
+      const want = x >= x0 && i < text.length
+        && Boolean((font11x18[(ch - 32) * 18 + Math.floor(row / scale)] << Math.floor(((x - x0) % w) / scale)) & 0x8000);
+      if (lit(sim, x, y + row) !== want) return false;
+    }
+  }
+  return true;
+}
+
+const gigView = (sim, name, info) => gigLineIs(sim, 2, name, 2) && gigLineIs(sim, 44, info);
+
+test("3+C turns the demo's gig view on: the song's name and info line large, the labels back for a moment on a press (before 1.32, no gig view)", async () => {
+  const sim = simWithDemo();
+  sim.run(10000);                           // the power on banner goes by first
+  const seen = watch(sim);
+  pair(sim, 2, 6);
+  assert.ok(gigView(sim, "HOME", "1/10>S01"), "the bank's name twice the large font, its info line under it");
+  assert.deepEqual(seen.splice(0), [], "the gig view itself sends nothing");
+
+  tap(sim, 0);                              // LOOP: entering a bank keeps the gig view
+  assert.ok(gigView(sim, "LOOP", "looper"), "the new bank's name at once");
+  tap(sim, 1);                              // PLAY
+  assert.deepEqual(seen.splice(0), ["USB b0 02 7f", "DIN b0 02 7f"], "the press does what it does");
+  assert.ok(infoLineIs(sim, "looper"), "and the labels come back");
+  sim.run(2000);
+  assert.ok(infoLineIs(sim, "looper"), "for a moment");
+  sim.run(1000);
+  assert.ok(gigView(sim, "LOOP", "looper"), "then the gig view again");
+
+  pair(sim, 2, 6);
+  assert.ok(infoLineIs(sim, "looper"), "3+C again: the labels for good");
+  sim.run(4000);
+  assert.ok(infoLineIs(sim, "looper"));
+
+  const host = simWithDemo();
+  host.run(10000);
+  pair(host, 2, 6);
+  host.usbIn([0xf0, 0x7d, 0x48, 2, 1, ..."HEROES".split("").map((c) => c.charCodeAt(0)), 0xf7]);
+  host.run(200);
+  assert.ok(gigLineIs(host, 11, "HEROES") && gigLineIs(host, 44, "1/10>S01"),
+    "the computer's song name, in the large font when twice its size does not fit");
+});
+
+test("Gig_View has the gig view on from power on", async () => {
+  const sim = simWithDemo(await flashWith(packDemo([
+    "g = d['Global_Settings']",
+    "g.loc[g.Label == 'Gig_View', 'Value'] = 'Y'",
+  ].join("\n"))));
+  sim.run(10000);
+  assert.ok(gigView(sim, "HOME", "1/10>S01"));
+});

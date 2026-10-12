@@ -841,13 +841,13 @@ class ComboTest(unittest.TestCase):
 
     def test_demo(self):
         """3+4 is the tuner everywhere, and on the first song the looper's clear;
-        B+C locks the switches everywhere."""
+        B+C locks the switches everywhere, and 3+C turns the gig view on and off."""
         sections = read_config_csv(DEMO_CSV)
         combos = sections[packer.COMBO_SECTION]
-        self.assertEqual(combos["Switches"].tolist(), ["3+4", "3+4", "B+C"])
-        self.assertEqual(combos["Bank"].tolist(), ["All", "12", "All"])
+        self.assertEqual(combos["Switches"].tolist(), ["3+4", "3+4", "B+C", "3+C"])
+        self.assertEqual(combos["Bank"].tolist(), ["All", "12", "All", "All"])
         buttons = sections["Button_Settings"]
-        for (_, c), kind in zip(combos.iterrows(), ("CC", "CC", "Bank")):
+        for (_, c), kind in zip(combos.iterrows(), ("CC", "CC", "Bank", "Bank")):
             row = buttons[(buttons["Bank_Number"].astype(str) == c["Run_Bank"])
                           & (buttons["Button_Identifier"] == c["Run_Button"])].iloc[0]
             self.assertEqual(norm(row["A_CommandType"]), kind, c.to_dict())

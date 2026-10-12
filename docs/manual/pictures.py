@@ -666,8 +666,60 @@ def editor(lang):
     return svg(width, fy + 50, "\n".join(parts), t["title"])
 
 
+# --- Gig view ------------------------------------------------------------------
+
+GIG_VIEW = {
+    "en": {
+        "title": "Gig view: the song, readable standing",
+        "step1": "The bank screen", "step1b": "labels too small to read from afar",
+        "step2": "3+C: the gig view", "step2b": "the song's name and info line, large",
+        "step3": "Any button: the labels", "step3b": "the press does its job as always",
+        "press_pair": "3 + C", "press_any": "1–4, A–D",
+        "back": "three seconds later, or on entering a bank: the gig view again, with that bank's song",
+    },
+    "es": {
+        "title": "Vista de directo: la canción, legible de pie",
+        "step1": "La pantalla del banco", "step1b": "etiquetas muy pequeñas para leerlas de lejos",
+        "step2": "3+C: la vista de directo", "step2b": "el nombre de la canción y su información, en grande",
+        "step3": "Cualquier botón: las etiquetas", "step3b": "la pulsación hace lo de siempre",
+        "press_pair": "3 + C", "press_any": "1–4, A–D",
+        "back": "a los tres segundos, o al entrar en un banco: otra vez la vista de directo, con la canción de ese banco",
+    },
+}
+
+
+def gig_view(lang):
+    t = GIG_VIEW[lang]
+    scale, sw = 2, 256
+    y = 110
+    xs = [48, 424, 800]
+    width = xs[2] + sw + 48
+    parts = [text(width / 2, 50, t["title"], 24, TEXT, "700")]
+    for x, name in zip(xs, ("labels", "on", "press")):
+        parts.append(oled(load_screen("gig-view-" + name), x, y, scale))
+    for i, (x, a, b) in enumerate(zip(xs, (t["step1"], t["step2"], t["step3"]), (t["step1b"], t["step2b"], t["step3b"]))):
+        cx = x + sw / 2
+        parts.append(f'<circle cx="{x + 7}" cy="{y - 36}" r="15" fill="{ACCENT}"/>')
+        parts.append(text(x + 7, y - 30.5, str(i + 1), 16, BG, "700"))
+        parts.append(text(cx, y + 128 + 44, a, 16, TEXT, "600"))
+        parts.append(text(cx, y + 128 + 66, b, 14, MUTED))
+    for x, label in ((xs[0] + sw + 8, t["press_pair"]), (xs[1] + sw + 8, t["press_any"])):
+        mid = (x + x + 104) / 2 + 2
+        parts.append(footswitch(mid, y + 34, 24, lit=True))
+        parts.append(text(mid, y + 82, label, 13, ACCENT, "700"))
+        parts.append(arrow(mid - 30, y + 104, mid + 28, y + 104))
+    # and back to the song
+    by = y + 128 + 112
+    x1, x2 = xs[2] + sw / 2, xs[1] + sw / 2
+    parts.append(f'<path d="M{x1},{by - 20} C{x1},{by + 10} {x2},{by + 10} {x2},{by - 16}" fill="none" stroke="{MUTED}" '
+                 f'stroke-width="2.5" stroke-dasharray="7 6" marker-end="url(#head-{MUTED[1:]})"/>')
+    parts.append(text((x1 + x2) / 2, by + 26, t["back"], 13, MUTED))
+    return svg(width, by + 50, "\n".join(parts), t["title"])
+
+
 PICTURES = {"bank-preview": bank_preview, "press-types": press_types, "setlist": setlist, "midi-routes": midi_routes,
-            "command-list": command_list, "display-gallery": display_gallery, "editor": editor}
+            "command-list": command_list, "display-gallery": display_gallery, "editor": editor,
+            "gig-view": gig_view}
 
 
 def main():

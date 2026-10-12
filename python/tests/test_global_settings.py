@@ -607,8 +607,9 @@ class BootBannerTest(unittest.TestCase):
         m = re.search(r"#define\s+GLOBAL_SETTINGS_BANNER\s+\((\d+)\)", self.source("Inc", "midi_defines.h"))
         self.assertIsNotNone(m)
         self.assertEqual(int(m.group(1)), sbp.GLOBAL_SETTINGS_BANNER)
-        # The firmware takes 1..3 and nothing else as a speed
-        self.assertIn("speed == 0 || speed > 3", self.source("Src", "display.c"))
+        # The firmware takes the speed from the low two bits, none from erased flash
+        self.assertIn("uint8_t speed = (v == 0xFF) ? 0 : (v & BANNER_SPEED_MASK);", self.source("Src", "display.c"))
+        self.assertRegex(self.source("Inc", "midi_defines.h"), r"#define BANNER_SPEED_MASK\s+\(0x03\)")
         self.assertEqual(sorted(sbp.BANNER_SPEEDS.values()), [0, 1, 2, 3])
 
     def test_speeds(self):
@@ -631,6 +632,41 @@ class BootBannerTest(unittest.TestCase):
 
     def test_demo_shows_it(self):
         self.assertEqual(pack_csv(DEMO_CSV)[46], 2)
+
+class GigViewTest(unittest.TestCase):
+    """The gig view from power on, Gig_View, in the banner's byte (1.32)."""
+
+    def with_settings(self, **values):
+        sections = read_config_csv(DEMO_CSV)
+        df = sections["Global_Settings"].copy()
+        for label, value in values.items():
+            df.at[df.index[df["Label"] == label][0], "Value"] = value
+        return pack_config({**sections, "Global_Settings": df})
+
+    def value(self, packed, label):
+        got = unpacker.unpack_global_settings(packed)
+        return got[got["Label"] == label]["Value"].iloc[0]
+
+    def test_with_the_banner(self):
+        for gig, banner, byte in (("Y", "Normal", 0x06), ("N", "Normal", 0x02), ("Y", "Off", 0x04), ("yes", "Fast", 0x07)):
+            packed = self.with_settings(Gig_View=gig, Boot_Banner=banner)
+            self.assertEqual(packed[46], byte, (gig, banner))
+            self.assertEqual(self.value(packed, "Gig_View"), "Y" if gig != "N" else "N")
+            self.assertEqual(self.value(packed, "Boot_Banner"), banner)
+
+    def test_off_without_it(self):
+        self.assertEqual(pack_csv(SAMPLE_CSV)[46], 0)
+        self.assertEqual(self.value(b"\xff" * layout.CONFIG_SIZE, "Gig_View"), "N")
+        self.assertEqual(self.value(pack_csv(DEMO_CSV), "Gig_View"), "N")
+
+    def test_firmware(self):
+        from lib import settingsBinaryPacker as sbp
+        defines = firmware_source("Inc", "midi_defines.h")
+        m = re.search(r"#define GIG_VIEW_ON\s+\((0x[0-9A-F]+)\)", defines)
+        self.assertEqual(int(m.group(1), 16), sbp.GIG_VIEW_ON)
+        display = firmware_source("Src", "display.c")
+        self.assertIn("gig_on = v != 0xFF && (v & GIG_VIEW_ON);", display)
+
 
 class BankPreviewTest(unittest.TestCase):
     """Bank Up / Down only show a bank until a button confirms it (0.66)."""

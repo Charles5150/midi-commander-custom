@@ -213,7 +213,8 @@ def unpack_global_settings(data: bytes) -> pd.DataFrame:
         ("GT1000_Mode", "Y" if g[43] == 2 else "N"),
         ("Global_Bank", str(g[44] - 1) if 1 <= g[44] <= 32 else "Off"),
         ("Combo_ms", str(g[45] * 10 if 0 < g[45] < 0xFF else default_int("Combo_ms"))),
-        ("Boot_Banner", {1: "Slow", 2: "Normal", 3: "Fast"}.get(g[46], "Off")),
+        ("Boot_Banner", {1: "Slow", 2: "Normal", 3: "Fast"}.get(g[46] & 0x03 if g[46] != 0xFF else 0, "Off")),
+        ("Gig_View", "Y" if g[46] != 0xFF and g[46] & 0x04 else "N"),
         ("Bank_Preview", str(g[47] if 0 < g[47] <= 60 else 0)),
         ("Setlist_Display", "Y" if g[33] == 2 else "N"),
     ]
@@ -477,10 +478,10 @@ def unpack_command(raw: bytes, cycle_labels=None) -> dict:
         cmd["CommandType"] = "Bank"
         mode = b0 & 0x0F
         cmd["KeyMode_(Key)"] = {1: "Up", 2: "Down", 3: "Config", 4: "NextConfig", 5: "Page", 6: "Back",
-                                 7: "Reveal", 8: "Direct", 9: "Lock"}.get(mode, "GoTo")
+                                 7: "Reveal", 8: "Direct", 9: "Lock", 10: "GigView"}.get(mode, "GoTo")
         if mode == 3:
             cmd["OnValue_(CC/PB)"] = str(min(b1, 3) + 1)   # slots are 1-4 for people
-        elif mode in (4, 6, 7, 8, 9):
+        elif mode in (4, 6, 7, 8, 9, 10):
             cmd["OnValue_(CC/PB)"] = ""
         else:
             cmd["OnValue_(CC/PB)"] = str(b1)

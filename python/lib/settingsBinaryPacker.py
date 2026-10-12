@@ -52,6 +52,7 @@ GLOBAL_SETTINGS_DOUBLE_STORED = 37
 BANK_CHANGE_MODES = {"OFF": 0, "PC": 1, "CC": 2}
 REMOTE_MODES = {"OFF": 0, "CC": 1, "NOTE": 2}
 BANNER_SPEEDS = {"OFF": 0, "SLOW": 1, "NORMAL": 2, "FAST": 3}
+GIG_VIEW_ON = 0x04  # in the banner's byte: the gig view from power on
 
 def _setting(df, label) -> str:
     """A Global_Settings value as written, "" when it is empty or missing."""
@@ -316,6 +317,10 @@ def pack_global_settings(df):
     if banner.upper() not in BANNER_SPEEDS:
         raise ValueError(f"Boot_Banner must be Off, Slow, Normal or Fast, not {banner!r}")
     bin_list[GLOBAL_SETTINGS_BANNER] = BANNER_SPEEDS[banner.upper()]
+    # Its byte also says whether the gig view is on from power on (1.32)
+    gig = str(df.loc["Gig_View", "Value"]).strip() if "Gig_View" in df.index else "N"
+    if gig.upper().startswith("Y"):
+        bin_list[GLOBAL_SETTINGS_BANNER] |= GIG_VIEW_ON
 
     # Bank preview: Bank Up / Down only show the bank there, and one of the
     # eight buttons confirms it within this many seconds. 0 or Off = off.

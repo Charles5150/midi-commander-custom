@@ -1488,6 +1488,7 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 		case BANK_MODE_REVEAL:      set_reveal(true); break;
 		case BANK_MODE_DIRECT:      direct_show(PREVIEW_DIRECT); break;
 		case BANK_MODE_LOCK:        set_locked(!locked); break;
+		case BANK_MODE_GIG:         display_gig_toggle(); break;
 		default: pending_bank = (pRom[1] < MIDI_NUM_BANKS) ? pRom[1] : 0xFF; break;
 		}
 		break;
@@ -3392,6 +3393,7 @@ static void switch_config(uint8_t target){
 	kemper_reset();		// nothing carried over from the amp that was there
 	gt1000_reset();
 
+	display_gig_from_settings();
 	display_setBankName(0);
 	display_show_config(slot);
 	state_store_mark_dirty();
@@ -4243,6 +4245,7 @@ void handle_switches(void){
 			if(switch_down(sw_pins[i].port, sw_pins[i].pin)){
 				// Switch Down
 				record_switch_down((uint8_t)i, sw->press_state == PRESS_WAIT_SECOND);
+				display_gig_press();	// the labels, for a moment
 				if(locked && !lock_passes(i) && !combo_member(i)){
 					sw->press_state = PRESS_LOCKED;	// does nothing until let go
 					display_show_message("LOCKED");

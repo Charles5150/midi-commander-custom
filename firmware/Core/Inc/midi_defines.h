@@ -335,6 +335,7 @@
 #define BANK_MODE_REVEAL	(7)	// Bank command low nibble: show the long press labels while held
 #define BANK_MODE_DIRECT	(8)	// Bank command low nibble: choose a bank with two presses, group then bank
 #define BANK_MODE_LOCK		(9)	// Bank command low nibble: lock every switch but those holding this command, or unlock
+#define BANK_MODE_GIG		(10)	// Bank command low nibble: the gig view on the display, on or off (1.32)
 #define CONFIG_NEXT		(0x80)
 #define CMD_SCENE_NIBBLE	(0xA0)	// Scene: byte1 = buttons affected (bit 0 = button 1 .. bit 7 = D), byte2 = wanted states
 #define SCENE_SAVE		(1)	// Scene low nibble: store the toggles now into the first scene of byte 2's button (bits 0-2) and list (bits 4-5)
@@ -381,7 +382,9 @@
 #define TWO_WAY_GT1000		(2)	// a Boss GT-1000 or GT-1000CORE (GT1000_Mode)
 #define GLOBAL_SETTINGS_GLOBAL_BANK (44)	// 1-32 = that bank holds the global buttons, 0 = none
 #define GLOBAL_SETTINGS_COMBO (45)		// Two switch window in 10 ms units (0/0xFF = 80 ms)
-#define GLOBAL_SETTINGS_BANNER (46)		// Power on banner: 0/0xFF off, 1 slow, 2 normal, 3 fast
+#define GLOBAL_SETTINGS_BANNER (46)		// bits: BANNER_SPEED_MASK, GIG_VIEW_ON; 0xFF = none
+#define BANNER_SPEED_MASK	(0x03)	// power on banner: 0 off, 1 slow, 2 normal, 3 fast
+#define GIG_VIEW_ON		(0x04)	// the gig view from power on (Gig_View, 1.32)
 #define GLOBAL_SETTINGS_BANK_PREVIEW (47)	// Bank Up/Down only preview: 1-60 = seconds it waits for a button, 0/0xFF off
 #define BANK_PREVIEW_MAX_S	(60)
 

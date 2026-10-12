@@ -32,6 +32,14 @@
  * for a button's value, $N for a preset's name, and so on, see expand(). The
  * screen is drawn again whenever one of those it shows changes.
  *
+ * In the gig view (1.32) the screen holds the song's name and its info line
+ * only, the name twice the size of the large font when it fits:
+ *
+ *   y  2..37  the bank name, or the host's text for it or for the whole line
+ *   y 44..61  the info line in 11x18
+ *
+ * A press of one of the eight buttons shows the labels for GIG_LABELS_MS.
+ *
  * With Kemper_Mode on, the amp's tuner takes the whole screen while it is up:
  * the note twice the size of the large font, and a scale under it with a
  * needle, which is drawn solid and with the note boxed in once it is in tune.
@@ -65,6 +73,14 @@
 #define LABEL10_CHAR_W	(6)
 
 static volatile uint8_t refresh_pending = 0;
+
+// The gig view, and until when a press has the labels back (0: not)
+#define GIG_LABELS_MS	(3000)
+#define GIG_NAME_Y	(2)
+#define GIG_NAME_SCALE	(2)
+#define GIG_INFO_Y	(44)
+static uint8_t gig_on = 0;
+static uint32_t gig_labels_until = 0;
 static uint8_t current_bank = 0;
 
 // A transient overlay (the tempo readout) shown instead of the bank info
@@ -126,6 +142,7 @@ static uint16_t scroll_px = 0;
 static uint16_t scroll_need = 0;
 static uint32_t scroll_next = 0;
 static void scroll_restart(void);
+static void draw_big_char(uint8_t x, uint8_t y, char ch, uint8_t scale, SSD1306_COLOR color);
 
 /*
  * The power on banner, drawn on the rows BANNER_Y..+18: only the pages that
@@ -195,8 +212,9 @@ void display_init(void){
  * the configuration's name, without trailing spaces, then the version. It clears what the boot drew.
  */
 static uint8_t banner_start(void){
-	uint8_t speed = pGlobalSettings[GLOBAL_SETTINGS_BANNER];
-	if(speed == 0 || speed > 3) return 0;
+	uint8_t v = pGlobalSettings[GLOBAL_SETTINGS_BANNER];
+	uint8_t speed = (v == 0xFF) ? 0 : (v & BANNER_SPEED_MASK);
+	if(speed == 0) return 0;
 
 	// The pedal's own text when it has one, otherwise the configuration's name
 	const char *own = 0;
@@ -228,6 +246,7 @@ static uint8_t banner_start(void){
 }
 
 void display_setConfigName(void){
+	display_gig_from_settings();
 	if(banner_start()) return;
     ssd1306_SetCursor(10, 34);
     for(int i=0; i<16; i++){
@@ -538,8 +557,7 @@ static void draw_text(uint8_t x, uint8_t y, uint8_t w, const char *text, FontDef
  * place. A whole line text hides both. override, when not NULL, stands for
  * the host text of place over_place (a text shown for a moment).
  */
-static void draw_top(uint8_t bank, uint8_t over_place, const char *override){
-	const char *text[DISPLAY_TEXT_PLACES];
+static void top_texts(uint8_t bank, uint8_t over_place, const char *override, const char *text[DISPLAY_TEXT_PLACES]){
 	for(uint8_t p=0; p<DISPLAY_TEXT_PLACES; p++){
 		text[p] = (override && p == over_place) ? override : host_text[p];
 	}
@@ -548,6 +566,11 @@ static void draw_top(uint8_t bank, uint8_t over_place, const char *override){
 		if(!text[DISPLAY_TEXT_INFO][0]) text[DISPLAY_TEXT_INFO] = beat_text[0] ? beat_text : setlist_text;
 		if(sw_locked()) text[DISPLAY_TEXT_INFO] = "LOCKED";	// over anything else there
 	}
+}
+
+static void draw_top(uint8_t bank, uint8_t over_place, const char *override){
+	const char *text[DISPLAY_TEXT_PLACES];
+	top_texts(bank, over_place, override, text);
 	// A moment's text in the bank name or info shows even over a whole line
 	if(override && over_place <= DISPLAY_TEXT_NAME){
 		text[DISPLAY_TEXT_LINE_LARGE] = text[DISPLAY_TEXT_LINE_SMALL] = "";
@@ -580,6 +603,74 @@ static void draw_top(uint8_t bank, uint8_t over_place, const char *override){
 		bank_text(bank, true, own);
 		ssd1306_WriteString(own, Font_7x10, White);
 	}
+}
+
+// The gig view shows, rather than the labels
+static bool gig_showing(void){
+	return gig_on && !gig_labels_until && preview_bank == 0xFF;
+}
+
+// A text without the spaces around it, in out
+static const char *trimmed(const char *src, char *out, uint8_t max){
+	while(*src == ' ') src++;
+	uint8_t n = 0;
+	while(src[n] && n < max){
+		out[n] = src[n];
+		n++;
+	}
+	while(n && out[n-1] == ' ') n--;
+	out[n] = 0;
+	return out;
+}
+
+// In the large font across the screen, in the middle when it fits
+static void draw_gig_line(uint8_t y, const char *text){
+	uint16_t w = (uint16_t)strlen(text) * Font_11x18.FontWidth;
+	draw_text(w < SCREEN_SHOWN_W ? (uint8_t)((SCREEN_SHOWN_W - w) / 2) : 0, y, SCREEN_SHOWN_W, text, Font_11x18);
+}
+
+/*
+ * The gig view's screen: the song's name, the host's whole line text before
+ * its text for the name, and the info line under it. As draw_top, override
+ * stands for the host text of over_place.
+ */
+static void draw_gig(uint8_t bank, uint8_t over_place, const char *override){
+	const char *text[DISPLAY_TEXT_PLACES];
+	top_texts(bank, over_place, override, text);
+	ssd1306_Fill(Black);
+	scroll_need = 0;
+
+	char own[9], name[DISPLAY_TEXT_MAX + 1], info[DISPLAY_TEXT_MAX + 1];
+	const char *src = text[DISPLAY_TEXT_LINE_LARGE][0] ? text[DISPLAY_TEXT_LINE_LARGE]
+			: text[DISPLAY_TEXT_LINE_SMALL][0] ? text[DISPLAY_TEXT_LINE_SMALL] : text[DISPLAY_TEXT_NAME];
+	if(!src[0]){
+		bank_text(bank, false, own);
+		src = own;
+	}
+	trimmed(src, name, DISPLAY_TEXT_MAX);
+	uint8_t big = Font_11x18.FontWidth * GIG_NAME_SCALE;
+	uint8_t len = (uint8_t)strlen(name);
+	if(len * big <= SCREEN_SHOWN_W){
+		uint8_t x = (uint8_t)((SCREEN_SHOWN_W - len * big) / 2);
+		for(uint8_t i=0; i<len; i++){
+			draw_big_char((uint8_t)(x + i * big), GIG_NAME_Y, name[i], GIG_NAME_SCALE, White);
+		}
+	} else {
+		draw_gig_line(GIG_NAME_Y + 9, name);
+	}
+
+	src = text[DISPLAY_TEXT_INFO];
+	if(!src[0]){
+		bank_text(bank, true, own);
+		src = own;
+	}
+	draw_gig_line(GIG_INFO_Y, trimmed(src, info, DISPLAY_TEXT_MAX));
+}
+
+// The top line, or in the gig view the whole screen, as it stands
+static void draw_head(uint8_t bank, uint8_t over_place, const char *override){
+	if(gig_showing()) draw_gig(bank, over_place, override);
+	else draw_top(bank, over_place, override);
 }
 
 // A long text starts scrolling from the beginning the next time it is drawn
@@ -665,14 +756,14 @@ static void render_bank(uint8_t bankNumber){
 	setlist_update();
 
 	ssd1306_Fill(Black);
-	draw_top(bankNumber, 0, NULL);
+	draw_head(bankNumber, 0, NULL);
 	scroll_start(fresh);
 
-	for(uint8_t sw=0; sw<MIDI_NUM_SWITCHES; sw++){
+	for(uint8_t sw=0; !gig_showing() && sw<MIDI_NUM_SWITCHES; sw++){
 		draw_cell(bankNumber, sw);
 	}
 	const uint8_t *bank_switch = ten_cell_labels();
-	if(bank_switch){
+	if(bank_switch && !gig_showing()){
 		draw_bank_switch_cell(bank_switch, 0);
 		draw_bank_switch_cell(bank_switch, 1);
 	}
@@ -700,6 +791,7 @@ void display_setBankName(uint8_t bankNumber){
 	if(bankNumber != current_bank) drop_bank_text();
 	current_bank = bankNumber;
 	overlay_until = 0;	// the new bank takes the place of a readout
+	gig_labels_until = 0;	// and of the labels a press brought back
 	refresh_pending = 1;
 }
 
@@ -793,6 +885,30 @@ void display_request_refresh(void){
 	refresh_pending = 1;
 }
 
+void display_gig_from_settings(void){
+	uint8_t v = pGlobalSettings[GLOBAL_SETTINGS_BANNER];
+	gig_on = v != 0xFF && (v & GIG_VIEW_ON);
+	gig_labels_until = 0;
+	refresh_pending = 1;
+}
+
+void display_gig_toggle(void){
+	gig_on = !gig_on;
+	gig_labels_until = 0;	// the press that turned it on does not hide it
+	scroll_restart();
+	refresh_pending = 1;
+}
+
+void display_gig_press(void){
+	if(!gig_on) return;
+	if(!gig_labels_until){
+		scroll_restart();
+		refresh_pending = 1;
+	}
+	gig_labels_until = HAL_GetTick() + GIG_LABELS_MS;
+	if(!gig_labels_until) gig_labels_until = 1;
+}
+
 /*
  * The editor's screen. Six rows of Font_7x10 fit in the 64 pixels: the title,
  * then the lines, with the cursor row drawn the other way round so it stands
@@ -841,6 +957,23 @@ void display_editor_end(void){
 // The readout over the info line, the bank screen under it as it is now
 static void draw_overlay(void){
 	if(refresh_pending) render_bank(current_bank);	// a bank just entered, under the readout
+	if(gig_showing()){
+		// In the info line's place, as large as it is
+		fill_rect(0, GIG_INFO_Y, SSD1306_WIDTH, SSD1306_HEIGHT - GIG_INFO_Y, Black);
+		uint8_t w = (uint8_t)(strlen(overlay_msg) * Font_11x18.FontWidth);
+		if(overlay_bar == 0xFF){
+			ssd1306_SetCursor((uint8_t)((SCREEN_SHOWN_W - w) / 2), GIG_INFO_Y);
+		} else {
+			ssd1306_SetCursor(0, GIG_INFO_Y);
+			uint8_t x = (uint8_t)(w + 4);
+			ssd1306_DrawRectangle(x, GIG_INFO_Y + 1, SCREEN_SHOWN_W - 1, GIG_INFO_Y + 16, White);
+			fill_rect((uint8_t)(x + 2), GIG_INFO_Y + 3, (uint8_t)(overlay_bar * (SCREEN_SHOWN_W - x - 4) / 127U), 12, White);
+		}
+		ssd1306_WriteString(overlay_msg, Font_11x18, White);
+		ssd1306_UpdateScreen();
+		refresh_pending = 0;
+		return;
+	}
 	fill_rect(50, 6, SSD1306_WIDTH - 50, 10, Black);
 	ssd1306_SetCursor(50, 6);
 	ssd1306_WriteString(overlay_msg, Font_7x10, White);
@@ -1003,7 +1136,7 @@ void display_show_upload(void){
  * A long one stays up until it has scrolled to its end.
  */
 static void draw_moment_text(void){
-	draw_top(current_bank, moment_place, moment_text);
+	draw_head(current_bank, moment_place, moment_text);
 	ssd1306_UpdateScreen();
 }
 
@@ -1171,12 +1304,18 @@ void display_task(void){
 		if(moment_showing) moment_done();
 		refresh_pending = 1;
 	}
+	// The labels a press brought back give way to the gig view again
+	if(gig_labels_until && (int32_t)(HAL_GetTick() - gig_labels_until) >= 0){
+		gig_labels_until = 0;
+		scroll_restart();
+		refresh_pending = 1;
+	}
 	bool beat_changed = beat_update();
 	if(!refresh_pending && live_changed()) refresh_pending = 1;
 	if(refresh_pending){
 		draw_bank(current_bank);
 	} else if(beat_changed || scroll_step()){
-		draw_top(current_bank, 0, NULL);
+		draw_head(current_bank, 0, NULL);
 		ssd1306_UpdateScreen();
 	}
 }
