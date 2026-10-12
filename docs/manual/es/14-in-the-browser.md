@@ -76,7 +76,7 @@ Las notas se guardan en el CSV, en una columna `Notes` de `Bank_Naming`, y en el
 
 ## En un iPad o un iPhone
 
-Safari no tiene Web MIDI, y en iOS todos los navegadores son Safari por dentro. Algunas apps añaden Web MIDI a las páginas que abren: **Web MIDI Browser**, gratis en el App Store, es una. Abre la página en ella y conecta la pedalera al puerto USB-C del iPad, o mediante el adaptador de Lightning a USB 3 para cámaras de Apple con su cargador enchufado; la pedalera funciona con la corriente de su cable USB.
+Safari no tiene Web MIDI, y en iOS todos los navegadores son Safari por dentro. Algunas apps añaden Web MIDI a las páginas que abren: **Web MIDI Browser**, gratis en el App Store, es una. Activa **SysEx** en sus ajustes, que viene desactivado, y luego abre la página en ella y conecta la pedalera al puerto USB-C del iPad, o mediante el adaptador de Lightning a USB 3 para cámaras de Apple con su cargador enchufado; la pedalera funciona con la corriente de su cable USB.
 
 Conectar, leer y escribir slots, editar, **Live pedal** y **Stage** funcionan como en un ordenador. **Full screen** cubre la página en vez de la pantalla, que estas apps no dan a una página, con **×** en la esquina para salir. **Save CSV**, un archivo de canción y la chuleta abren el menú de compartir, donde **Guardar en Archivos** los guarda. El firmware no se puede actualizar: ningún navegador de iOS tiene WebUSB, así que usa un ordenador. La primera visita descarga Python y pandas, unos 20 MB; mejor con wifi.
 

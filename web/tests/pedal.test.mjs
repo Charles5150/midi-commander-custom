@@ -86,3 +86,9 @@ test("the pedal is found and heard through the iOS browsers' Web MIDI, other inp
   access.list[1].receive([0xb0, 7, 64]);
   assert.deepEqual(heard, [[0xb0, 7, 64]]);
 });
+
+test("MIDI without SysEx is refused, saying so", async () => {
+  const access = iosAccess(["MIDI Commander Custom"]);
+  access.sysexEnabled = false;
+  await assert.rejects(Pedal.open(access), /without SysEx/);
+});

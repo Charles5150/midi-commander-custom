@@ -116,6 +116,10 @@ export class Pedal {
       if (!navigator.requestMIDIAccess) throw new NotFound(noWebMidi());
       access = await navigator.requestMIDIAccess({ sysex: true });
     }
+    // The iOS Web MIDI browsers give MIDI without SysEx until their settings allow it
+    if (access.sysexEnabled === false) throw new NotFound(isIOS()
+      ? "this browser gives MIDI without SysEx: turn SysEx on in the app's settings, then reload the page"
+      : "the browser gave MIDI without SysEx, which the configurator needs");
     const input = pedalPort(access.inputs);
     const output = pedalPort(access.outputs);
     if (!input || !output) throw new NotFound("no Midi Commander found: check the USB cable, and close other programs using it");
