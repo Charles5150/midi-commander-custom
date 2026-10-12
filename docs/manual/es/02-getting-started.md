@@ -96,6 +96,7 @@ En el configurador es donde se monta una configuración y se envía a la pedaler
 2. Carga un punto de partida:
    - el configurador se abre con `python/demo-all-features.csv`, una configuración que usa todas las funciones, con etiquetas que dicen qué hace cada botón;
    - o una de las [plantillas](11-devices.md) listas para un Fractal FM3, Line 6 HX Stomp, Helix, Helix Stadium o POD Go, Neural DSP Quad Cortex o Nano Cortex, IK Multimedia TONEX, Valeton GP-200, Eventide H90, pedal Strymon, Hotone Ampero II, Boss RC-600 o Kemper Player, o MainStage, Gig Performer, Cantabile o Ableton Live, con **Load CSV…**;
+   - o **Your Rig…**, para [varios aparatos a la vez](11-devices.md#tu-equipo-varios-aparatos-a-la-vez), cada uno en su canal;
    - o **Read from Device**, para partir de lo que tiene ahora la pedalera.
 3. Edítala.
 4. Pulsa **Flash to Device**.

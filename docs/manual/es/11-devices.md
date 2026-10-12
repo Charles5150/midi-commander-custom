@@ -12,9 +12,22 @@ Hay configuraciones listas en `python/templates/` que ponen los controles princi
 .venv/bin/python python/CSV_to_Flash.py python/templates/FM3.csv
 ```
 
-Cada una la genera un script a partir del mapa MIDI del propio equipo, así que otro canal u otro CC es cambiar una constante y volver a ejecutar el script, como explica cada apartado. O cambia los botones en el configurador como en cualquier otra configuración.
+Cada una la genera un script a partir del mapa MIDI del propio equipo, así que otro canal u otro CC es cambiar una constante y volver a ejecutar el script, como explica cada apartado. O cambia los botones en el configurador como en cualquier otra configuración. Para más de un aparato, mira [Tu equipo](#tu-equipo-varios-aparatos-a-la-vez).
 
 Los mismos mapas MIDI están en `python/lib/devices.json`, que leen los dos configuradores: **Device** en un comando elige uno de ellos por su nombre, y un CC ya escrito muestra su nombre, como explica [El configurador](03-the-configurator.md#desde-el-mapa-midi-de-un-equipo). Un equipo que aún no está son unas pocas líneas ahí.
+
+## Tu equipo: varios aparatos a la vez
+
+Casi todos los equipos tienen más de un aparato: un modelador y un delay, un ampli y un looper, un programa en el ordenador y un pedal en el suelo. **Your Rig…** en la barra lateral del configurador de escritorio, y **Your rig** en [el navegador](14-in-the-browser.md#abrir-una-configuración), hacen una configuración para hasta cuatro de ellos a partir de sus plantillas. Elige primero el aparato principal y luego los demás, cada uno con el canal MIDI que tiene puesto:
+
+- **La plantilla del aparato principal es la configuración**: sus presets en los bancos, su looper y sus pulsadores, con todo lo que envía pasado a su canal.
+- **Cada uno de los demás trae el banco de su plantilla que lo controla**, sus pulsadores, su looper o sus pistas, en su propio canal y con su nombre en la línea de información. Va a un banco que la plantilla principal deja vacío o, si no hay ninguno, en lugar del último banco de presets del aparato principal. Si la plantilla principal sigue un setlist, el banco se añade al final, para que Bank Up y Down lleguen a él.
+- **Changes preset with the banks** (cambia de preset con los bancos), marcado, hace que otro aparato siga al principal: entrar en un banco que carga el programa 5 del aparato principal carga también su programa 5. Guarda en cada aparato el sonido que necesita cada canción con el mismo número. Las plantillas principales que no cargan ningún programa al entrar, como la del Kemper Player, no tienen nada que seguir, y el asistente lo dice.
+- **Dos aparatos no pueden compartir canal**: todo sale por USB y por DIN a la vez, así que el canal es lo que los distingue.
+
+Al terminar, el configurador dice qué poner en cada aparato: su canal y lo que necesita su plantilla, que los aparatos DIN se encadenan del MIDI THRU de uno al MIDI IN del siguiente, y qué aparatos escuchan todos los canales de fábrica, como el Ampero II y la GP-200, y necesitan uno propio. El resultado es una configuración nueva, para cambiarla a tu gusto y guardarla con tu nombre. Un solo aparato en el canal 1 abre su plantilla tal cual.
+
+Desde un terminal, [Rig.py](13-command-line-tools.md#rig-una-configuración-para-tus-aparatos) hace lo mismo.
 
 ## Plantilla para Fractal Audio FM3
 

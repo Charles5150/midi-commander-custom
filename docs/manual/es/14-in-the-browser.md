@@ -30,7 +30,7 @@ Lleva el tiempo como la pedalera, milisegundo a milisegundo, pero la ejecuta el 
 - **Read from pedal** lee un slot, el que está en marcha u otro.
 - **Open CSV** abre un fichero de configuración, del configurador o de las herramientas de línea de comandos.
 - **Demo** abre la configuración de demostración, que usa todas las funciones.
-- **Template** abre una de las plantillas que vienen con las herramientas, hechas para un aparato o un programa: una Quad Cortex, un BigSky, Ableton Live y el resto de [las plantillas](11-devices.md). Se abre sin nombre de fichero, así que **Save CSV** le pone el de la configuración.
+- **Your rig** abre una de las plantillas que vienen con las herramientas, hechas para un aparato o un programa: una Quad Cortex, un BigSky, Ableton Live y el resto de [las plantillas](11-devices.md). Hasta tres aparatos más, cada uno en su canal, le añaden sus pulsadores o su looper en bancos propios, como explica [Tu equipo](11-devices.md#tu-equipo-varios-aparatos-a-la-vez), y luego una lista dice qué poner en cada aparato. Se abre sin nombre de fichero, así que **Save CSV** le pone el de la configuración.
 
 La página de inicio tiene los mismos cuatro, y ninguno se puede pulsar mientras se lee o se escribe la pedalera.
 

@@ -72,6 +72,15 @@ Writes the configuration as a page to print, `my-config.html` beside the CSV unl
 
 **save** writes bank 12 as a [song file](04-banks.md#songs-a-bank-in-a-file-of-its-own), named after the bank unless `-o` names another, with the lists it runs in other banks, its SysEx strings and the names of its programs. **load** puts the song into bank 5 of the configuration and writes the result to the file `-o` names, leaving the configuration given as it was; then it lists what moved or needs a look, as the configurators do before loading. A song that does not fit says why and ends with 2, writing nothing.
 
+## Rig: a configuration for your devices
+
+```bash
+.venv/bin/python python/Rig.py HX_Stomp:1 TimeLine:2 BigSky:3 -o my-rig.csv
+.venv/bin/python python/Rig.py --list
+```
+
+Makes a configuration for the devices on your board, as **Your Rig…** in the configurators does: each device as its template is named and the MIDI channel it is set to, the main one first, up to four; see [Your rig](11-devices.md#your-rig-several-devices-at-once). The others change preset with the main one unless `--no-follow` is given. Then it lists what to set on each device. `--list` gives the template names. A device or channel with a mistake, two devices on one channel, or a rig with no bank left ends with 2, writing nothing.
+
 ## Backups
 
 `Backup_Slots.py` copies all four slots to a folder in one go, and puts them back.

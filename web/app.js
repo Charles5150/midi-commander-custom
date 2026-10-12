@@ -633,13 +633,13 @@ function draw() {
 function welcome() {
   return h("section", { class: "welcome" },
     h("h2", {}, "Configure your Midi Commander in the browser"),
-    h("p", {}, "Nothing to install. Connect the pedal to read its configuration, open a CSV file made with the configurator, or start from the demo or a device’s template."),
+    h("p", {}, "Nothing to install. Connect the pedal to read its configuration, open a CSV file made with the configurator, or start from the demo or from the devices on your board."),
     state.toolsError ? toolsFailed() : state.tools ? null : h("p", { class: "hint" }, "Loading the configurator’s Python… the first time takes a few seconds."),
     h("div", { class: "buttons" },
       h("button", { id: "start-read", class: "primary", disabled: !state.pedal || !state.tools || state.busy, onclick: readFromPedal }, "Read from the pedal"),
       h("button", { id: "start-open", disabled: !state.tools || state.busy, onclick: openFile }, "Open a CSV file"),
       h("button", { id: "start-demo", disabled: !state.tools || state.busy, onclick: openDemo }, "Open the demo"),
-      h("button", { id: "start-template", disabled: !state.tools || state.busy, onclick: openTemplate }, "Start from a template")),
+      h("button", { id: "start-template", disabled: !state.tools || state.busy, onclick: openTemplate }, "Start from your devices")),
     h("p", { class: "hint" }, "No pedal at hand? Try without a pedal: the pedal’s own firmware runs in the page, with the demo in it, and everything here works on it as on the real one."),
     h("p", { class: "hint" }, "Chrome, Edge or Opera on a computer: they have Web MIDI and WebUSB. Firefox has Web MIDI, through a site permission add-on it offers when you connect, but no WebUSB, so no firmware update. The page asks to use MIDI devices with SysEx when you connect."));
 }
@@ -909,25 +909,48 @@ async function openDemo() {
 }
 
 // The templates that come with the tools (python/templates), one per device:
-// templates/index.json lists them, since a web server lists no folder
+// templates/index.json lists them, since a web server lists no folder. Up to
+// four devices, each on its channel, make one configuration (lib/rigWizard.py)
 async function openTemplate() {
   if (state.busy || !(await confirmDiscard())) return;
-  let names;
+  let names, titles;
   try {
-    names = JSON.parse(new TextDecoder().decode(await state.tools.fetchFile("templates/index.json")));
+    names = JSON.parse(new TextDecoder().decode(await state.tools.fetchFile("templates/index.json"))).map((n) => n.replace(/\.csv$/, ""));
+    titles = state.tools.rigTitles(names);
   } catch (e) {
     toast(`Cannot list the templates: ${e.message}. Check the internet connection and try again.`, "error");
     return;
   }
-  const sel = h("select", {}, names.map((n) => h("option", { value: n }, n.replace(/\.csv$/, "").replace(/_/g, " "))));
-  if (!(await confirmDialog("Start from a template", [labelled("Device", sel),
-    h("p", { class: "hint" }, "A configuration made for that device, to change as you like. Save it under your own name.")], "Open"))) return;
-  const name = sel.value;
+  const order = [...names].sort((a, b) => titles[a].localeCompare(titles[b]));
+  const channels = () => h("select", {}, Array.from({ length: 16 }, (_, i) => h("option", { value: String(i + 1) }, String(i + 1))));
+  const rows = [0, 1, 2, 3].map((i) => {
+    const device = h("select", {}, [...(i ? [h("option", { value: "" }, "—")] : []), ...order.map((n) => h("option", { value: n }, titles[n]))]);
+    const channel = channels();
+    channel.value = String(i + 1);
+    const follow = h("input", { type: "checkbox", checked: true });
+    return { device, channel, follow, el: h("div", { class: "rig-row" },
+      named(device, i ? `Device ${i + 1}` : "Main device"), named(channel, `Channel of device ${i + 1}`),
+      i ? h("label", { class: "check" }, follow, " changes preset with the banks") : null) };
+  });
+  if (!(await confirmDialog("Start from your devices", [
+    h("p", { class: "hint" }, "The main device first, then up to three more, each on the MIDI channel it is set to. The main device’s template makes the configuration; each of the others brings its footswitches or looper in a bank of its own."),
+    h("div", { class: "rig" }, h("div", { class: "rig-row rig-head" }, h("span", {}, "Device"), h("span", {}, "Channel")), ...rows.map((r) => r.el)),
+    h("p", { class: "hint" }, "Everything goes out of both USB and DIN, so each device needs a channel of its own. Change it all as you like afterwards, and save it under your own name.")], "Make it"))) return;
+  const picked = rows.filter((r) => r.device.value);
   try {
-    setConfig(state.tools.csvToSections(await state.tools.fetchFile(`templates/${name}`)), "");
-    toast(`Opened the ${name.replace(/\.csv$/, "").replace(/_/g, " ")} template`);
+    const parts = await Promise.all(picked.map(async (r) => ({
+      template: r.device.value, channel: r.channel.value, follow: r.follow.checked,
+      csv: new TextDecoder().decode(await state.tools.fetchFile(`templates/${r.device.value}.csv`)),
+    })));
+    const rig = state.tools.buildRig(parts);
+    setConfig(rig.sections, "");
+    state.dirty = parts.length > 1 || parts[0].channel !== "1";
+    renderToolbar();
+    await confirmDialog(parts.length > 1 ? "Your rig" : `The ${titles[parts[0].template]} template`, [
+      h("p", {}, "Set up on the devices:"),
+      h("ul", {}, rig.notes.map((n) => h("li", {}, n[0].toUpperCase() + n.slice(1) + ".")))], "OK");
   } catch (e) {
-    toast(`Cannot open the template ${name}: ${e.message}`, "error");
+    toast(`Cannot make that configuration: ${e.message}`, "error");
   }
 }
 

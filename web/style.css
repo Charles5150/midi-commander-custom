@@ -282,6 +282,12 @@ dialog.dialog { border: 1px solid var(--line); border-radius: 12px; background: 
 dialog.dialog::backdrop { background: rgba(0,0,0,.4); }
 .dialog-buttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 dialog.dialog .community-devices { width: 100%; margin: 4px 0 8px; }
+.rig { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
+.rig-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.rig-row select:first-child { flex: 1 1 160px; min-width: 0; }
+.rig-row .check { margin: 0; font-size: 13px; }
+.rig-head { color: var(--muted); font-size: 12.5px; }
+.rig-head span:first-child { flex: 1 1 160px; }
 ul.changes { max-height: 40vh; overflow-y: auto; margin: 8px 0; padding-left: 20px; font-size: 13px; }
 ul.changes:empty { display: none; }
 

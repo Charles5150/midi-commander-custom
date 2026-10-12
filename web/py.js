@@ -6,7 +6,7 @@ const PYODIDE = "https://cdn.jsdelivr.net/pyodide/v314.0.7/full/";
 // Everything webBridge.py imports; tests/test_web_bridge.py keeps this complete
 const FILES = [
   "webBridge.py", "bankClipboard.py", "bankReorder.py", "binaryUnpacker.py", "cheatSheet.py", "cmdBinaryPacker.py", "configCsv.py", "configDiff.py", "configPacker.py",
-  "configSchema.py", "deviceDictionary.py", "devices.json", "displayText.py", "flashLayout.py", "settingsBinaryPacker.py", "songFile.py",
+  "configSchema.py", "deviceDictionary.py", "devices.json", "displayText.py", "flashLayout.py", "rigWizard.py", "settingsBinaryPacker.py", "songFile.py",
 ];
 
 // Published, the tools' files sit next to the page; in the repository, in python/
@@ -121,6 +121,16 @@ export class Tools {
   // {sections, notes}: a song file's bytes loaded into a bank
   loadSong(sections, bytes, bank) {
     return JSON.parse(this._call(this.bridge.load_song, JSON.stringify(sections), bytes, bank));
+  }
+
+  // {template: device name} for template names
+  rigTitles(names) {
+    return JSON.parse(this._call(this.bridge.rig_titles, JSON.stringify(names)));
+  }
+
+  // {sections, notes}: a configuration for the devices on a board, [{template, csv, channel, follow}]
+  buildRig(parts) {
+    return JSON.parse(this._call(this.bridge.build_rig, JSON.stringify(parts)));
   }
 
   // The configuration as a page to print (lib/cheatSheet.py)

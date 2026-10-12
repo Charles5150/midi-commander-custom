@@ -84,6 +84,7 @@ from lib import bankReorder as bank_reorder  # noqa: E402
 from lib import deviceDictionary as device_dict  # noqa: E402
 from lib import midiLearn as midi_learn  # noqa: E402
 from lib import pedalCheck as pedal_check  # noqa: E402
+from lib import rigWizard as rig_wizard  # noqa: E402
 from lib import songFile as song_file  # noqa: E402
 from lib import midiMonitor as midi_monitor  # noqa: E402
 from lib.firmwareUpdate import UpdateError, check_image  # noqa: E402
@@ -1340,23 +1341,24 @@ class MidiCommanderGUI(ctk.CTk):
                       fg_color=FIELD, hover_color=FIELD_HOVER).grid(row=0, column=0, sticky="ew", padx=(0, 3))
         ctk.CTkButton(save_row, text="Save As\u2026", command=self.save_csv_as, height=34,
                       fg_color=FIELD, hover_color=FIELD_HOVER).grid(row=0, column=1, sticky="ew", padx=(3, 0))
-        action(5, "Cheat Sheet\u2026", self.cheat_sheet, fg_color=FIELD, hover_color=FIELD_HOVER)
+        action(5, "Your Rig\u2026", self.rig_wizard, fg_color=FIELD, hover_color=FIELD_HOVER)
+        action(6, "Cheat Sheet\u2026", self.cheat_sheet, fg_color=FIELD, hover_color=FIELD_HOVER)
 
-        section(6, "PEDAL")
+        section(7, "PEDAL")
         # Configuration slot used by Read from Device and Flash to Device
         slot_row = ctk.CTkFrame(self.sidebar, fg_color="transparent")
-        slot_row.grid(row=7, column=0, padx=20, pady=4, sticky="ew")
+        slot_row.grid(row=8, column=0, padx=20, pady=4, sticky="ew")
         ctk.CTkLabel(slot_row, text="Slot", font=FONT_BODY).pack(side="left")
         self.slot_selector = ctk.CTkOptionMenu(slot_row, values=SLOT_TARGETS, width=100)
         self.slot_selector.set("Active")
         self.slot_selector.pack(side="right")
-        action(8, "Read from Device", self.read_device, fg_color=FIELD, hover_color=FIELD_HOVER)
-        action(9, "Flash to Device", self.flash_device, fg_color=DANGER, hover_color=DANGER_HOVER,
+        action(9, "Read from Device", self.read_device, fg_color=FIELD, hover_color=FIELD_HOVER)
+        action(10, "Flash to Device", self.flash_device, fg_color=DANGER, hover_color=DANGER_HOVER,
                font=("", 13, "bold"))
-        action(10, "Back Up All Slots\u2026", self.backup_slots, fg_color=FIELD, hover_color=FIELD_HOVER)
-        action(11, "Restore Backup\u2026", self.restore_slots, fg_color=FIELD, hover_color=FIELD_HOVER)
-        action(12, "Update Firmware\u2026", self.update_firmware, fg_color=FIELD, hover_color=FIELD_HOVER)
-        action(13, "Banner Text\u2026", self.banner_text, fg_color=FIELD, hover_color=FIELD_HOVER)
+        action(11, "Back Up All Slots\u2026", self.backup_slots, fg_color=FIELD, hover_color=FIELD_HOVER)
+        action(12, "Restore Backup\u2026", self.restore_slots, fg_color=FIELD, hover_color=FIELD_HOVER)
+        action(13, "Update Firmware\u2026", self.update_firmware, fg_color=FIELD, hover_color=FIELD_HOVER)
+        action(14, "Banner Text\u2026", self.banner_text, fg_color=FIELD, hover_color=FIELD_HOVER)
 
         self.lbl_file = ctk.CTkLabel(self.sidebar, text="no file loaded", font=FONT_SMALL,
                                      text_color=MUTED, wraplength=170, justify="left")
@@ -2001,6 +2003,77 @@ class MidiCommanderGUI(ctk.CTk):
         self.bank_selector.set(bank)
         self.on_bank_change(bank)
         self._show_file()
+
+    # --- A configuration for the devices on a board ----------------------------------
+    def rig_wizard(self):
+        """Up to four devices, each on its channel, made into a configuration
+        from their templates (lib/rigWizard.py)."""
+        if not self._may_discard("Your Rig"):
+            return
+        names = rig_wizard.templates(TEMPLATES_DIR)
+        by_title = {rig_wizard.title(n): n for n in names}
+        titles = sorted(by_title, key=str.lower)
+        win = ctk.CTkToplevel(self)
+        win.title("Your Rig")
+        win.transient(self)
+        ctk.CTkLabel(
+            win, font=FONT_SMALL, text_color=MUTED, justify="left", wraplength=480,
+            text="The main device first, then up to three more, each on the MIDI channel it is set to. The "
+                 "main device's template makes the configuration; each of the others brings its footswitches "
+                 "or looper in a bank of its own. Everything goes out of both USB and DIN, so each device "
+                 "needs a channel of its own.",
+        ).pack(padx=16, pady=(14, 8), anchor="w")
+        grid = ctk.CTkFrame(win, fg_color="transparent")
+        grid.pack(padx=16, pady=4, fill="x")
+        rows = []
+        for i in range(rig_wizard.MAX_DEVICES):
+            ctk.CTkLabel(grid, text="Main device" if i == 0 else f"Device {i + 1}", font=FONT_BODY).grid(
+                row=i, column=0, padx=(0, 8), pady=3, sticky="w")
+            device = ctk.CTkOptionMenu(grid, values=titles if i == 0 else ["\u2014"] + titles, width=170)
+            device.set(titles[0] if i == 0 else "\u2014")
+            device.grid(row=i, column=1, pady=3)
+            channel = ctk.CTkOptionMenu(grid, values=[str(c) for c in range(1, 17)], width=64)
+            channel.set(str(i + 1))
+            channel.grid(row=i, column=2, padx=8, pady=3)
+            follow = ctk.CTkCheckBox(grid, text="changes preset with the banks", font=FONT_SMALL) if i else None
+            if follow:
+                follow.select()
+                follow.grid(row=i, column=3, pady=3, sticky="w")
+            rows.append((device, channel, follow))
+
+        def make():
+            parts = [{"template": by_title[d.get()], "sections": rig_wizard.load_template(by_title[d.get()], TEMPLATES_DIR),
+                      "channel": c.get(), "follow": bool(f and f.get())}
+                     for d, c, f in rows if d.get() in by_title]
+            try:
+                sections, notes = rig_wizard.build_rig(parts)
+            except (OSError, ValueError, KeyError) as e:
+                messagebox.showerror("Your Rig", str(e), parent=win)
+                return
+            win.destroy()
+            self.make_rig(sections, notes, parts)
+
+        buttons = ctk.CTkFrame(win, fg_color="transparent")
+        buttons.pack(padx=16, pady=(8, 14), fill="x")
+        ctk.CTkButton(buttons, text="Make it", width=100, command=make).pack(side="right")
+        ctk.CTkButton(buttons, text="Cancel", width=100, fg_color=FIELD, hover_color=FIELD_HOVER,
+                      command=win.destroy).pack(side="left")
+        win.grab_set()
+        win.rows, win.make = rows, make     # for the tests
+        self.rig_window = win
+
+    def make_rig(self, sections, notes, parts, show=True):
+        """Open what the rig wizard made, and say what to set on the devices."""
+        self._load(sections)
+        self.current_csv_path = None
+        one = len(parts) == 1 and str(parts[0]["channel"]) == "1"
+        self.loaded_name = f"{parts[0]['template']}.csv" if one else "rig.csv"
+        self._show_file()
+        # A template as it comes is saved; a rig made of it is new
+        self.saved_text = self._config_text() if one else ""
+        if show:
+            messagebox.showinfo("Your Rig", "Set up on the devices:\n"
+                                + "".join(f"\n\u2022 {n[0].upper()}{n[1:]}." for n in notes))
 
     def _drop_editors(self):
         """Forget the open editors, whose rows were just replaced or renumbered.

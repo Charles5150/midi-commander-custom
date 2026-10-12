@@ -72,6 +72,15 @@ Escribe la configuración como una página para imprimir, `mi-config.html` junto
 
 **save** guarda el banco 12 como [archivo de canción](04-banks.md#canciones-un-banco-en-un-archivo-propio), con el nombre del banco salvo que `-o` diga otro, junto con las listas que ejecuta en otros bancos, sus cadenas SysEx y los nombres de sus programas. **load** pone la canción en el banco 5 de la configuración y escribe el resultado en el archivo que diga `-o`, sin tocar la configuración de partida; después lista lo que se ha movido o conviene revisar, como hacen los configuradores antes de cargar. Una canción que no cabe dice por qué y termina con 2, sin escribir nada.
 
+## Rig: una configuración para tus aparatos
+
+```bash
+.venv/bin/python python/Rig.py HX_Stomp:1 TimeLine:2 BigSky:3 -o mi-equipo.csv
+.venv/bin/python python/Rig.py --list
+```
+
+Hace una configuración para los aparatos de tu equipo, como **Your Rig…** en los configuradores: cada aparato con el nombre de su plantilla y el canal MIDI que tiene puesto, primero el principal, hasta cuatro; mira [Tu equipo](11-devices.md#tu-equipo-varios-aparatos-a-la-vez). Los demás cambian de preset con el principal salvo que se dé `--no-follow`. Luego dice qué poner en cada aparato. `--list` da los nombres de las plantillas. Un aparato o un canal con un error, dos aparatos en el mismo canal o un equipo sin bancos libres termina con 2 y no escribe nada.
+
 ## Copias de seguridad
 
 `Backup_Slots.py` copia las cuatro ranuras a una carpeta de una vez, y las vuelve a poner.

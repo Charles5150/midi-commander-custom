@@ -30,7 +30,7 @@ It keeps time as the pedal does, a millisecond at a time, but the browser runs i
 - **Read from pedal** reads a slot, the running one or another.
 - **Open CSV** opens a configuration file, from the configurator or the command line tools.
 - **Demo** opens the demo configuration, which uses every feature.
-- **Template** opens one of the templates that come with the tools, made for a device or a program: a Quad Cortex, a BigSky, Ableton Live and the rest of [the templates](11-devices.md). It opens with no file name, so **Save CSV** names it after the configuration.
+- **Your rig** opens one of the templates that come with the tools, made for a device or a program: a Quad Cortex, a BigSky, Ableton Live and the rest of [the templates](11-devices.md). Up to three more devices, each on its channel, add their footswitches or looper to it in banks of their own, as [Your rig](11-devices.md#your-rig-several-devices-at-once) explains, and a list then says what to set on each device. It opens with no file name, so **Save CSV** names it after the configuration.
 
 The start page has the same four, and none of them can be pressed while the pedal is being read or written.
 

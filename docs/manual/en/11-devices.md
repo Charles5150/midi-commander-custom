@@ -12,9 +12,22 @@ Ready-made configurations under `python/templates/` put a device's main controls
 .venv/bin/python python/CSV_to_Flash.py python/templates/FM3.csv
 ```
 
-Each is built by a script from the device's own MIDI map, so a different channel or CC is a constant to change and the script to run again, as each section says. Or change the buttons in the configurator like any other configuration.
+Each is built by a script from the device's own MIDI map, so a different channel or CC is a constant to change and the script to run again, as each section says. Or change the buttons in the configurator like any other configuration. For more than one device, see [Your rig](#your-rig-several-devices-at-once).
 
 The same MIDI maps are in `python/lib/devices.json`, which both configurators read: **Device** on a command picks one of them by name, and a CC already written shows its name, as [The configurator](03-the-configurator.md#from-a-devices-midi-map) explains. A device not listed yet is a few lines there.
+
+## Your rig: several devices at once
+
+Most boards have more than one device: a modeler and a delay, an amp and a looper, a program on the computer and a pedal on the floor. **Your Rig…** in the desktop configurator's sidebar, and **Your rig** in [the browser](14-in-the-browser.md#opening-a-configuration), make one configuration for up to four of them from their templates. Pick the main device first, then the others, each with the MIDI channel it is set to:
+
+- **The main device's template is the configuration**: its presets in the banks, its looper and its footswitches, with everything it sends moved to its channel.
+- **Each of the others brings the bank of its template that controls it**, its footswitches, its looper or its tracks, on its own channel, and with its name on the info line. It goes into a bank the main template leaves empty, or else in place of the main device's last preset bank. When the main template follows a setlist, the bank goes at the end of it, so Bank Up and Down reach it.
+- **Changes preset with the banks**, ticked, makes another device follow the main one: entering a bank that loads the main device's program 5 loads its program 5 as well. Save on each device the sound each song needs under the same number. Main templates that load no program on entering, such as the Kemper Player's, have nothing to follow, and the wizard says so.
+- **Two devices cannot share a channel**: everything goes out of both USB and DIN, so the channel is what tells them apart.
+
+When it is made, the configurator lists what to set on each device: its channel and what its template needs, that the DIN devices are chained from one's MIDI THRU to the next one's MIDI IN, and which devices listen on every channel out of the box, as the Ampero II and the GP-200 do, and need a channel of their own. The result is a new configuration, to change as you like and save under your own name. One device on channel 1 opens its template as it comes.
+
+From a terminal, [Rig.py](13-command-line-tools.md#rig-a-configuration-for-your-devices) makes the same.
 
 ## Fractal Audio FM3 template
 

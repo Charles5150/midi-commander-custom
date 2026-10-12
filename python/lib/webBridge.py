@@ -20,6 +20,7 @@ from lib.configPacker import pack_config, pack_flash_image, sysex_problem
 from lib.configSchema import schema
 from lib.cheatSheet import cheat_sheet as _cheat_sheet
 import lib.deviceDictionary as devices
+import lib.rigWizard as rig
 import lib.songFile as songs
 from lib.displayText import display_text
 # The sizes the page needs to read a slot come from here too
@@ -193,6 +194,21 @@ def save_song(text: str, bank: int) -> str:
 def load_song(text: str, data: bytes, bank: int) -> str:
     """{"sections", "notes"}: sections JSON with a song file's bytes loaded into bank."""
     sections, notes = songs.load_song(_from_json(text), _read_csv(data), bank)
+    # Through a CSV and back, as the page keeps them
+    csv = sections_to_csv(_to_json({k: v for k, v in sections.items() if v is not None}))
+    return json.dumps({"sections": json.loads(csv_to_sections(csv.encode("utf-8"))), "notes": notes})
+
+
+def rig_titles(names: str) -> str:
+    """{template: the device's name} for a JSON list of template names."""
+    return json.dumps({n: rig.title(n) for n in json.loads(names)})
+
+
+def build_rig(parts: str) -> str:
+    """{"sections", "notes"}: a configuration for the devices of a JSON list of
+    {"template", "csv" (its text), "channel", "follow"} (lib/rigWizard.py)."""
+    devices = [{**p, "sections": _read_csv(p["csv"].encode("utf-8"))} for p in json.loads(parts)]
+    sections, notes = rig.build_rig(devices)
     # Through a CSV and back, as the page keeps them
     csv = sections_to_csv(_to_json({k: v for k, v in sections.items() if v is not None}))
     return json.dumps({"sections": json.loads(csv_to_sections(csv.encode("utf-8"))), "notes": notes})

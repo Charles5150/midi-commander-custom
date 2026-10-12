@@ -143,6 +143,25 @@ class GuiTest(unittest.TestCase):
         self.assertEqual(buttons[(buttons["Bank_Number"] == "20") & (buttons["Button_Identifier"] == "1")]["Label"].iloc[0], "REC")
         app.load_csv(CSVS[0])               # back as it was, for the other tests
 
+    def test_a_rig(self):
+        from unittest import mock
+        import gui_configurator as g
+        app = self.app
+        app.saved_text = app._config_text()
+        app.rig_wizard()
+        win = app.rig_window
+        (main, ch1, _), (other, ch2, follow) = win.rows[:2]
+        main.set("HX Stomp")
+        other.set("TimeLine")
+        with mock.patch.object(g.messagebox, "showinfo") as info:
+            win.make()
+        app.update()
+        self.assertIn("Bank 29 holds the TimeLine's FS, in place of the HX Stomp's 10C.", info.call_args.args[1])
+        banks = app.df_banks.set_index("Bank_Number")
+        self.assertEqual(banks.at["29", "Bank_Info_Small"], "TimeLine")
+        self.assertTrue(app._unsaved())
+        app.load_csv(CSVS[0])               # back as it was, for the other tests
+
     def test_a_command_from_a_community_device(self):
         import lib.deviceDictionary as dd
         self.app.load_csv(os.path.join(ROOT, "templates", "HX_Stomp.csv"))

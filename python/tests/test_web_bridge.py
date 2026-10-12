@@ -135,6 +135,19 @@ class SchemaTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "not a song"):
             wb.load_song(live, read(CSVS[0]), 5)
 
+    def test_a_rig_through_the_page(self):
+        def device(name, channel, follow=True):
+            text = read(os.path.join(ROOT, "templates", f"{name}.csv")).decode("utf-8")
+            return {"template": name, "csv": text, "channel": channel, "follow": follow}
+        self.assertEqual(json.loads(wb.rig_titles('["HX_Stomp", "MainStage"]')),
+                         {"HX_Stomp": "HX Stomp", "MainStage": "MainStage"})
+        rig = json.loads(wb.build_rig(json.dumps([device("HX_Stomp", "1"), device("TimeLine", "2")])))
+        self.assertIn("bank 29 holds the TimeLine's FS, in place of the HX Stomp's 10C", rig["notes"])
+        self.assertIn(["29", "FS", "TimeLine"], rig["sections"]["Bank_Naming"]["rows"])
+        self.assertEqual(wb.check(json.dumps(rig["sections"])), "")
+        with self.assertRaisesRegex(ValueError, "both on channel 1"):
+            wb.build_rig(json.dumps([device("HX_Stomp", "1"), device("TimeLine", "1")]))
+
     def test_the_page_loads_every_module_it_needs(self):
         """web/app.js lists the Python files it copies into Pyodide."""
         with open(os.path.join(WEB, "py.js"), encoding="utf-8") as f:
