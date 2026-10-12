@@ -63,6 +63,15 @@ Así pillas la ranura equivocada o un archivo viejo antes de un concierto, y ves
 
 Escribe la configuración como una página para imprimir, `mi-config.html` junto al CSV salvo que `-o` diga otra: las etiquetas de cuatro caracteres dicen poco a la banda o al técnico. Un bloque por cada banco en uso, con sus pulsadores colocados como en la pedalera, 1–4 arriba y A–D abajo, cada uno con su etiqueta, su etiqueta de pulsación larga y lo que envían sus pulsaciones corta, larga y doble en palabras; un comando que entiende un equipo conocido va con el nombre que le da el equipo, como `HX Stomp: Snapshot 1`. Debajo de un banco, lo que envía al entrar y adónde apuntan sus pedales. Antes de los bancos, el setlist en su orden con el tempo de cada canción, sacado de un **Tap Set** en la lista de entrada de su banco, los pedales de expresión, los pulsadores de banco y las combinaciones. `--open` la abre en el navegador, cuyo **Imprimir** la pasa a papel o a PDF. El equipo de cada canal se deduce de los comandos, como hacen los configuradores; `--device CANAL=NOMBRE` indica uno que no encuentran, cualquier nombre de su menú **Device**, y puede repetirse. Antes se empaqueta tal como lo guarda la pedalera, y una configuración con un error no da página y termina con 2. Los dos configuradores hacen la misma página: **Cheat Sheet…** en la [barra lateral](03-the-configurator.md#barra-lateral) y **Cheat sheet** [en el navegador](14-in-the-browser.md#guardar-y-escribir).
 
+## Song: un banco como archivo
+
+```bash
+.venv/bin/python python/Song.py save mi-config.csv 12
+.venv/bin/python python/Song.py load otra-config.csv S01_song_1.song.csv 5 -o otra-con-cancion.csv
+```
+
+**save** guarda el banco 12 como [archivo de canción](04-banks.md#canciones-un-banco-en-un-archivo-propio), con el nombre del banco salvo que `-o` diga otro, junto con las listas que ejecuta en otros bancos, sus cadenas SysEx y los nombres de sus programas. **load** pone la canción en el banco 5 de la configuración y escribe el resultado en el archivo que diga `-o`, sin tocar la configuración de partida; después lista lo que se ha movido o conviene revisar, como hacen los configuradores antes de cargar. Una canción que no cabe dice por qué y termina con 2, sin escribir nada.
+
 ## Copias de seguridad
 
 `Backup_Slots.py` copia las cuatro ranuras a una carpeta de una vez, y las vuelve a poner.

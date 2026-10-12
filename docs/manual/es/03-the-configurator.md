@@ -51,6 +51,8 @@ Lo que editas se guarda en memoria solo al cambiar de botón, de banco o de pest
 
 **Copy button** y **Paste button** hacen lo mismo con un solo botón: elige el botón que quieres copiar, pulsa **Copy button**, elige el que quieres sustituir, en el mismo banco o en otro, y pulsa **Paste button**. Su etiqueta, modo de LED, grupo, las cuatro casillas y sus comandos de pulsación corta, larga y doble pasan a ser los del botón copiado. Pegar pide confirmación antes.
 
+**Save song…** guarda el banco que se ve en un archivo propio, con lo que ejecuta en otros bancos, sus cadenas SysEx y los nombres de sus programas, y **Load song…** pone un archivo de canción en el banco que se ve, de esta configuración o de cualquier otra. Al cargar, lista lo que se ha movido o conviene revisar y pregunta antes de reemplazar el banco, nombre incluido. Mira [Canciones](04-banks.md#canciones-un-banco-en-un-archivo-propio).
+
 ### Aprender por MIDI
 
 En vez de buscar qué CC envía un mando, deja que el configurador lo oiga. Pulsa **Learn** junto al tipo de comando de una casilla (el botón se pone naranja y dice **Stop**) y mueve el mando o pulsa el botón en el aparato. El primer Program Change, Control Change, nota, Pitch Bend o Channel Pressure que llegue rellena la casilla: su tipo, canal y número, y su valor si la casilla no tenía, así que un botón aprendido de un aparato que envía 127 envía 127. La casilla dice qué ha llegado y por qué puerto.

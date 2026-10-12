@@ -671,7 +671,10 @@ function renderBanks(main) {
     labelled("Name", fieldControl({ kind: "text", max: 4, display: true }, () => cell(naming.sec, naming.row, "Bank_Name_Large"),
       (v) => { setCell(naming.sec, naming.row, "Bank_Name_Large", v); $(".bank-list .active").lastChild.textContent = v || "—"; })),
     labelled("Info line", fieldControl({ kind: "text", max: 8, display: true }, () => cell(naming.sec, naming.row, "Bank_Info_Small"),
-      (v) => setCell(naming.sec, naming.row, "Bank_Info_Small", v))));
+      (v) => setCell(naming.sec, naming.row, "Bank_Info_Small", v))),
+    h("div", { class: "song-buttons" },
+      h("button", { onclick: saveSong, title: "This bank and what it runs, as a file to load into a bank of any configuration" }, "Save song"),
+      h("button", { onclick: loadSong, title: "Replace this bank with a song file" }, "Load song")));
 
   // The eight buttons as on the pedal: 1-4 on top, A-D underneath
   const btnSec = section("Button_Settings");
@@ -936,6 +939,43 @@ function saveCsv() {
   state.fileName = name;
   state.dirty = false;
   renderToolbar();
+}
+
+// A bank as a song file, to load into a bank of any configuration (lib/songFile.py)
+function saveSong() {
+  const problem = checkConfig();
+  if (problem) { toast("Fix the configuration first: " + problem, "error"); return; }
+  try {
+    const { name, text } = state.tools.saveSong(state.config, state.bank);
+    download(name, "\ufeff" + text);
+  } catch (e) {
+    toast(`Bank ${state.bank} cannot be saved as a song: ${e.message}`, "error");
+  }
+}
+
+function loadSong() {
+  const bank = state.bank;
+  const input = h("input", { type: "file", accept: ".csv,text/csv" });
+  input.addEventListener("change", async () => {
+    const file = input.files[0];
+    if (!file) return;
+    let loaded;
+    try {
+      loaded = state.tools.loadSong(state.config, new Uint8Array(await file.arrayBuffer()), bank);
+    } catch (e) {
+      toast(`${file.name} does not go into bank ${bank}: ${e.message}`, "error");
+      return;
+    }
+    const notes = loaded.notes.map((n) => n[0].toUpperCase() + n.slice(1) + ".");
+    if (!(await confirmDialog("Load song", [`Replace everything in bank ${bank}, its name included, with ${file.name}?`,
+      ...(notes.length ? [h("ul", {}, notes.map((n) => h("li", {}, n)))] : [])], "Load"))) return;
+    state.config = loaded.sections;
+    state.bank = bank;
+    changed();
+    render();
+    toast(`${file.name} is in bank ${bank}`);
+  });
+  input.click();
 }
 
 // The configuration as a page to print, in a tab of its own

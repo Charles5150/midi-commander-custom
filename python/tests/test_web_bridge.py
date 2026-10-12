@@ -122,6 +122,19 @@ class SchemaTest(unittest.TestCase):
         demo = set(read_config_csv(CSVS[0])["Global_Settings"]["Label"])
         self.assertEqual(demo - labels, set())
 
+    def test_a_song_through_the_page(self):
+        demo = wb.csv_to_sections(read(CSVS[0]))
+        saved = json.loads(wb.save_song(demo, 12))
+        self.assertEqual(saved["name"], "S01_song_1.song.csv")
+        live = wb.csv_to_sections(read(os.path.join(ROOT, "templates", "Ableton_Live.csv")))
+        loaded = json.loads(wb.load_song(live, saved["text"].encode("utf-8"), 5))
+        self.assertIn("bank 30 button 4 was empty here and now holds what the song runs there", loaded["notes"])
+        naming = loaded["sections"]["Bank_Naming"]
+        self.assertIn(["5", "S01", "song 1"], naming["rows"])
+        self.assertEqual(wb.check(json.dumps(loaded["sections"])), "")
+        with self.assertRaisesRegex(ValueError, "not a song"):
+            wb.load_song(live, read(CSVS[0]), 5)
+
     def test_the_page_loads_every_module_it_needs(self):
         """web/app.js lists the Python files it copies into Pyodide."""
         with open(os.path.join(WEB, "py.js"), encoding="utf-8") as f:

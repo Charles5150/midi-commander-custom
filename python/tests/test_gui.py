@@ -123,6 +123,26 @@ class GuiTest(unittest.TestCase):
         self.assertEqual(app.df_exp.at[1, "Zones"], "A None C")
         app.load_csv(CSVS[0])               # back as it was, for the other tests
 
+    def test_a_song_saved_and_loaded(self):
+        app = self.app
+        app.load_csv(CSVS[0])
+        app.bank_selector.set("12")
+        app.on_bank_change("12")
+        with tempfile.TemporaryDirectory() as tmp:
+            song = os.path.join(tmp, "s.song.csv")
+            app.save_song(song)
+            app.bank_selector.set("20")
+            app.on_bank_change("20")
+            app.load_song(song, ask=False)
+        app.update()
+        self.assertEqual(app.bank_selector.get(), "20")
+        names = app.df_banks.set_index("Bank_Number")
+        self.assertEqual(names.at["20", "Bank_Name_Large"], "S01")
+        self.assertTrue(app._unsaved())
+        buttons = app.df_buttons
+        self.assertEqual(buttons[(buttons["Bank_Number"] == "20") & (buttons["Button_Identifier"] == "1")]["Label"].iloc[0], "REC")
+        app.load_csv(CSVS[0])               # back as it was, for the other tests
+
     def test_a_command_from_a_community_device(self):
         import lib.deviceDictionary as dd
         self.app.load_csv(os.path.join(ROOT, "templates", "HX_Stomp.csv"))

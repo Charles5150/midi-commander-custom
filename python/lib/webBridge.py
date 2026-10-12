@@ -14,35 +14,18 @@ from math import ceil
 import pandas as pd
 
 import lib.binaryUnpacker as unpacker
-from lib.configCsv import read_config_csv, write_config_csv
+from lib.configCsv import SECTION_ARGS, read_config_csv, write_config_csv
 from lib.configDiff import config_sections, diff, image_sections
 from lib.configPacker import pack_config, pack_flash_image, sysex_problem
 from lib.configSchema import schema
 from lib.cheatSheet import cheat_sheet as _cheat_sheet
 import lib.deviceDictionary as devices
+import lib.songFile as songs
 from lib.displayText import display_text
 # The sizes the page needs to read a slot come from here too
 from lib.flashLayout import (  # noqa: F401
     CONFIG_SIZE, DOUBLE_PRESS_OFFSET, DOUBLE_PRESS_SIZE, EXT2_OFFSET, EXT2_SIZE, FLASH_PAGE_SIZE, SLOT_PAGES,
 )
-
-# The sections in the order a CSV has them, and write_config_csv's name for each
-SECTION_ARGS = [
-    ("Global_Settings", "df_global"),
-    ("Bank_Naming", "df_banks"),
-    ("Button_Settings", "df_buttons"),
-    ("LongPress_Settings", "df_long_press"),
-    ("DoublePress_Settings", "df_double_press"),
-    ("Expression_Settings", "df_expression"),
-    ("BankEnter_Settings", "df_bank_enter"),
-    ("SysEx_Strings", "df_sysex"),
-    ("BankSwitch_Settings", "df_bank_switch"),
-    ("Setlist", "df_setlist"),
-    ("BankExpression_Settings", "df_bank_expression"),
-    ("Combo_Settings", "df_combos"),
-    ("MidiMap_Settings", "df_midi_map"),
-    ("Preset_Names", "df_preset_names"),
-]
 
 
 def _bytes(data) -> bytes:
@@ -117,15 +100,19 @@ def cheat_sheet(text: str, chosen: str = "{}") -> str:
     return _cheat_sheet(_from_json(text), json.loads(chosen))
 
 
-def csv_to_sections(data: bytes) -> str:
-    """A configuration CSV's bytes, as sections JSON."""
+def _read_csv(data) -> dict:
     with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
         f.write(_bytes(data))
         path = f.name
     try:
-        sections = read_config_csv(path)
+        return read_config_csv(path)
     finally:
         os.unlink(path)
+
+
+def csv_to_sections(data: bytes) -> str:
+    """A configuration CSV's bytes, as sections JSON."""
+    sections = _read_csv(data)
     missing = [n for n, _ in SECTION_ARGS[:3] if n not in sections]
     if missing:
         raise ValueError(f"this is not a Midi Commander configuration: it has no {', '.join(missing)} section{'s' if len(missing) > 1 else ''}")
@@ -195,3 +182,17 @@ def changes(data: bytes, image: bytes, text: str) -> str:
     a JSON list of lines; [] when the slot already holds it."""
     pack(text)   # says what is wrong, where, as a write would
     return json.dumps(diff(image_sections(_bytes(data), _bytes(image)), config_sections(_from_json(text))))
+
+
+def save_song(text: str, bank: int) -> str:
+    """{"name", "text"}: a bank of sections JSON as a song file (lib/songFile.py)."""
+    sections = _from_json(text)
+    return json.dumps({"name": songs.file_name(sections, bank), "text": songs.save_song(sections, bank)})
+
+
+def load_song(text: str, data: bytes, bank: int) -> str:
+    """{"sections", "notes"}: sections JSON with a song file's bytes loaded into bank."""
+    sections, notes = songs.load_song(_from_json(text), _read_csv(data), bank)
+    # Through a CSV and back, as the page keeps them
+    csv = sections_to_csv(_to_json({k: v for k, v in sections.items() if v is not None}))
+    return json.dumps({"sections": json.loads(csv_to_sections(csv.encode("utf-8"))), "notes": notes})

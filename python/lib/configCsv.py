@@ -51,6 +51,30 @@ def read_config_csv(path: str) -> dict:
     return sections
 
 
+# The sections in the order a CSV has them, and write_config_csv's name for each
+SECTION_ARGS = [
+    ("Global_Settings", "df_global"),
+    ("Bank_Naming", "df_banks"),
+    ("Button_Settings", "df_buttons"),
+    ("LongPress_Settings", "df_long_press"),
+    ("DoublePress_Settings", "df_double_press"),
+    ("Expression_Settings", "df_expression"),
+    ("BankEnter_Settings", "df_bank_enter"),
+    ("SysEx_Strings", "df_sysex"),
+    ("BankSwitch_Settings", "df_bank_switch"),
+    ("Setlist", "df_setlist"),
+    ("BankExpression_Settings", "df_bank_expression"),
+    ("Combo_Settings", "df_combos"),
+    ("MidiMap_Settings", "df_midi_map"),
+    ("Preset_Names", "df_preset_names"),
+]
+
+
+def write_sections(path: str, sections: dict, note: str) -> None:
+    """write_config_csv for sections as read_config_csv gives them."""
+    write_config_csv(path, note=note, **{arg: sections.get(name) for name, arg in SECTION_ARGS})
+
+
 def write_config_csv(
     path: str,
     df_global: pd.DataFrame,

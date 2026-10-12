@@ -172,6 +172,7 @@ details.card[open] > summary { margin-bottom: 10px; }
 .bank-list button .num { color: var(--muted); width: 20px; text-align: right; }
 .bank-list button.active { background: var(--field); font-weight: 600; }
 .bank-head { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-bottom: 12px; }
+.song-buttons { display: flex; gap: 8px; margin-left: auto; }
 
 .pedal-grid {
   display: grid;

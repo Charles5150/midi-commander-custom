@@ -58,6 +58,22 @@ On stage, the display can tell you where you are in the set. Tick **… and show
 
 `Setlist_Mode` `Y` in `Global_Settings` turns it on, `N` (the default) off, and `Setlist_Display` `Y` shows the place in it (firmware 0.94). The `Setlist` section is optional: rows of `Position` and `Bank_Number` (0–31). Up to 32 entries, ordered by `Position`, so rows may be in any order and positions may skip numbers; invalid bank numbers are dropped.
 
+## Songs: a bank in a file of its own
+
+A song set up once can go into any set. **Save song** writes one bank to a small file, and **Load song** puts a song file into a bank of any configuration, yours or a bandmate's. A set is then built from a library of songs instead of copying banks by hand.
+
+The file holds the bank's name and info line, its buttons with their labels, LED modes and flags and their short, long and double press commands, the commands sent on entering and leaving it, its tempo among them, its expression pedal settings and the [combinations](05-buttons.md#two-switches-together) that count only in it. And what those point at elsewhere:
+
+- **Lists in other banks.** A [`Macro`](06-commands.md#macros), a [`Button`](06-commands.md#pressing-another-button) or a combination that runs a button of another bank takes that button's list along, and so on for the lists that one runs. Loading puts each in the same place, when that place is empty or holds the same. If it holds something else, everything the song runs in that bank goes to a bank of the configuration that is empty and that nothing goes to, the highest, and the song's commands follow it. With no such bank the song does not load.
+- **SysEx strings.** Each string the song sends keeps its number when that string is free or holds the same bytes here, and otherwise takes another one: the same bytes, an empty one, or one only the bank being replaced sent. With all 16 in use the song does not load.
+- **Program names.** The [names](09-the-display.md#preset-names) of the programs it sends go in where the configuration has none for them; a program already named otherwise keeps its name.
+
+A command that names the song's own bank is made to name the one it goes into. A `Bank` command going to another bank, or an `If` asking for one, is kept as it is: those numbers mean whatever is in that bank here. The configurator lists them before loading, with anything else that moved, and asks before it replaces the bank. A song that would leave the configuration unable to be written, too many combinations or cycle labels, does not load, and says why. Loading does not add the bank to the [setlist](#setlist); put it there yourself.
+
+In the configurator, **Save song…** and **Load song…** are in the [Buttons tab](03-the-configurator.md#buttons), beside **Copy bank**, and work on the bank shown. In the browser they are beside the bank's name. From the command line, [Song](13-command-line-tools.md#song-a-bank-as-a-file).
+
+A song file is a configuration CSV with only the bank's rows, and the rows it runs in other banks: it can be read and changed in a spreadsheet. Its name is the bank's name and info line, as `S01_song_1.song.csv`.
+
 ## Bank preview
 
 In the middle of a song, a foot that brushes Bank Up changes the patch, and the song with it. With the bank preview on, Bank Up and Bank Down only *show* the bank they would go to and send nothing; one of the eight buttons takes you there.

@@ -63,6 +63,15 @@ It catches the wrong slot or an old file before a gig, and shows what a configur
 
 Writes the configuration as a page to print, `my-config.html` beside the CSV unless `-o` names another: the four-character labels say little to the band or the tech. One block per bank in use, its switches laid out as on the pedal, 1–4 above and A–D below, each with its label, its long press label, and what its short, long and double presses send in words; a command a known device answers to goes by the device's own name, as `HX Stomp: Snapshot 1`. Below a bank, what entering it sends and where its pedals point. Before the banks, the setlist in its order with each song's tempo, from a **Tap Set** in its bank's enter list, the expression pedals, the bank switches and the combinations. `--open` opens it in the browser, whose **Print** makes paper or a PDF of it. The device on a channel is found from the commands, as the configurators do; `--device CHANNEL=NAME` names one they cannot find, any name in their **Device** menu, and can be given more than once. It is packed first, as the pedal holds it, and a configuration with a mistake makes no page and ends with 2. Both configurators make the same page: **Cheat Sheet…** in the [sidebar](03-the-configurator.md#sidebar) and **Cheat sheet** [in the browser](14-in-the-browser.md#saving-and-writing).
 
+## Song: a bank as a file
+
+```bash
+.venv/bin/python python/Song.py save my-config.csv 12
+.venv/bin/python python/Song.py load other-config.csv S01_song_1.song.csv 5 -o other-with-song.csv
+```
+
+**save** writes bank 12 as a [song file](04-banks.md#songs-a-bank-in-a-file-of-its-own), named after the bank unless `-o` names another, with the lists it runs in other banks, its SysEx strings and the names of its programs. **load** puts the song into bank 5 of the configuration and writes the result to the file `-o` names, leaving the configuration given as it was; then it lists what moved or needs a look, as the configurators do before loading. A song that does not fit says why and ends with 2, writing nothing.
+
 ## Backups
 
 `Backup_Slots.py` copies all four slots to a folder in one go, and puts them back.

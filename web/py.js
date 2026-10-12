@@ -5,8 +5,8 @@ const PYODIDE = "https://cdn.jsdelivr.net/pyodide/v314.0.7/full/";
 
 // Everything webBridge.py imports; tests/test_web_bridge.py keeps this complete
 const FILES = [
-  "webBridge.py", "binaryUnpacker.py", "cheatSheet.py", "cmdBinaryPacker.py", "configCsv.py", "configDiff.py", "configPacker.py",
-  "configSchema.py", "deviceDictionary.py", "devices.json", "displayText.py", "flashLayout.py", "settingsBinaryPacker.py",
+  "webBridge.py", "bankClipboard.py", "bankReorder.py", "binaryUnpacker.py", "cheatSheet.py", "cmdBinaryPacker.py", "configCsv.py", "configDiff.py", "configPacker.py",
+  "configSchema.py", "deviceDictionary.py", "devices.json", "displayText.py", "flashLayout.py", "settingsBinaryPacker.py", "songFile.py",
 ];
 
 // Published, the tools' files sit next to the page; in the repository, in python/
@@ -111,6 +111,16 @@ export class Tools {
       this._community = JSON.parse(this.bridge.community_json());
     }
     return this._community;
+  }
+
+  // {name, text}: a bank as a song file (lib/songFile.py)
+  saveSong(sections, bank) {
+    return JSON.parse(this._call(this.bridge.save_song, JSON.stringify(sections), bank));
+  }
+
+  // {sections, notes}: a song file's bytes loaded into a bank
+  loadSong(sections, bytes, bank) {
+    return JSON.parse(this._call(this.bridge.load_song, JSON.stringify(sections), bytes, bank));
   }
 
   // The configuration as a page to print (lib/cheatSheet.py)

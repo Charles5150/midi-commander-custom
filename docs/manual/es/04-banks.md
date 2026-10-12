@@ -58,6 +58,22 @@ En el escenario, la pantalla puede decirte por dónde vas del repertorio. Marca 
 
 `Setlist_Mode` `Y` en `Global_Settings` lo activa, y `N` (lo predeterminado) lo desactiva; `Setlist_Display` `Y` muestra el puesto en la lista (firmware 0.94). La sección `Setlist` es opcional: filas de `Position` y `Bank_Number` (0–31). Hasta 32 puestos, ordenados por `Position`, así que las filas pueden ir en cualquier orden y los puestos pueden saltarse números; los números de banco no válidos se descartan.
 
+## Canciones: un banco en un archivo propio
+
+Una canción preparada una vez vale para cualquier repertorio. **Save song** guarda un banco en un archivo pequeño, y **Load song** pone un archivo de canción en un banco de cualquier configuración, la tuya o la de alguien de la banda. Un repertorio se monta así con una biblioteca de canciones, sin copiar bancos a mano.
+
+El archivo lleva el nombre y la línea de información del banco, sus botones con sus etiquetas, modos de LED y opciones y sus comandos de pulsación corta, larga y doble, los comandos que envía al entrar y al salir, su tempo entre ellos, sus ajustes de los pedales de expresión y las [combinaciones](05-buttons.md#dos-pulsadores-a-la-vez) que solo cuentan en él. Y aquello a lo que apuntan en otros sitios:
+
+- **Listas de otros bancos.** Un [`Macro`](06-commands.md#macros), un [`Button`](06-commands.md#pulsar-otro-botón) o una combinación que ejecuta un botón de otro banco se lleva la lista de ese botón, y lo mismo con las listas que ejecute esa. Al cargar, cada una va al mismo sitio cuando está vacío o tiene lo mismo. Si tiene otra cosa, todo lo que la canción ejecuta en ese banco va a un banco de la configuración que esté vacío y al que nada vaya, el más alto, y los comandos de la canción lo siguen. Si no hay ninguno, la canción no se carga.
+- **Cadenas SysEx.** Cada cadena que envía la canción conserva su número si esa cadena está libre o tiene los mismos bytes, y si no toma otra: una con los mismos bytes, una vacía o una que solo enviaba el banco que se reemplaza. Con las 16 en uso, la canción no se carga.
+- **Nombres de programa.** Los [nombres](09-the-display.md#nombres-de-preset) de los programas que envía entran donde la configuración no tiene ninguno; un programa que ya tiene otro nombre lo conserva.
+
+Un comando que nombra el banco de la propia canción pasa a nombrar el banco en el que entra. Un comando `Bank` que va a otro banco, o un `If` que pregunta por otro, se queda como está: esos números significan lo que haya en ese banco aquí. El configurador los lista antes de cargar, con todo lo que se haya movido, y pregunta antes de reemplazar el banco. Una canción que dejaría la configuración sin poder escribirse, por demasiadas combinaciones o etiquetas de ciclo, no se carga, y dice por qué. Cargarla no añade el banco al [setlist](#setlist); ponlo tú.
+
+En el configurador, **Save song…** y **Load song…** están en la [pestaña **Buttons**](03-the-configurator.md#buttons), junto a **Copy bank**, y trabajan con el banco que se ve. En el navegador están junto al nombre del banco. Desde la línea de comandos, [Song](13-command-line-tools.md#song-un-banco-como-archivo).
+
+Un archivo de canción es un CSV de configuración con solo las filas del banco y las que ejecuta en otros bancos: se puede leer y cambiar en una hoja de cálculo. Su nombre es el nombre del banco y su línea de información, como `S01_song_1.song.csv`.
+
 ## Vista previa de banco
 
 En mitad de una canción, un pie que roza Bank Up cambia el patch, y con él la canción. Con la vista previa activada, Bank Up y Bank Down solo *enseñan* el banco al que irían y no envían nada; uno de los ocho botones te lleva allí.

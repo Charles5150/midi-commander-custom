@@ -84,6 +84,7 @@ from lib import bankReorder as bank_reorder  # noqa: E402
 from lib import deviceDictionary as device_dict  # noqa: E402
 from lib import midiLearn as midi_learn  # noqa: E402
 from lib import pedalCheck as pedal_check  # noqa: E402
+from lib import songFile as song_file  # noqa: E402
 from lib import midiMonitor as midi_monitor  # noqa: E402
 from lib.firmwareUpdate import UpdateError, check_image  # noqa: E402
 from lib.slotIO import pack_sections  # noqa: E402
@@ -1440,6 +1441,10 @@ class MidiCommanderGUI(ctk.CTk):
             fg_color=FIELD, hover_color=FIELD_HOVER
         )
         self.paste_bank_button.pack(side="left", padx=6)
+        ctk.CTkButton(top, text="Save song…", width=100, command=self.save_song,
+                      fg_color=FIELD, hover_color=FIELD_HOVER).pack(side="left", padx=(20, 6))
+        ctk.CTkButton(top, text="Load song…", width=100, command=self.load_song,
+                      fg_color=FIELD, hover_color=FIELD_HOVER).pack(side="left", padx=6)
         ctk.CTkButton(top, text="Copy button", width=100, command=self.copy_button,
                       fg_color=FIELD, hover_color=FIELD_HOVER).pack(side="left", padx=(20, 6))
         self.paste_button_button = ctk.CTkButton(
@@ -1937,6 +1942,62 @@ class MidiCommanderGUI(ctk.CTk):
         self.on_bank_change(target)
         if self.enter_bank_selector.get():
             self._on_enter_bank_change(self.enter_bank_selector.get())
+
+    # --- A bank as a song file, lib/songFile.py ------------------------------------
+    def _sections(self):
+        """The configuration as edited, as read_config_csv gives it."""
+        self._collect()
+        fd, tmp = tempfile.mkstemp(suffix=".csv")
+        os.close(fd)
+        try:
+            self._write_csv(tmp)
+            return read_config_csv(tmp)
+        finally:
+            os.remove(tmp)
+
+    def save_song(self, path=None):
+        if self.df_buttons is None:
+            return
+        bank = clean(self.bank_selector.get())
+        sections = self._sections()
+        try:
+            text = song_file.save_song(sections, bank)
+        except ValueError as e:
+            messagebox.showerror("Save song", f"Bank {bank} cannot be saved as a song.\n\n{e}")
+            return
+        path = path or filedialog.asksaveasfilename(
+            title=f"Save bank {bank} as a song", defaultextension=".csv",
+            initialfile=song_file.file_name(sections, bank), filetypes=[("Song files", "*.song.csv"), ("CSV Files", "*.csv")])
+        if not path:
+            return
+        with open(path, "w", encoding="utf-8", newline="") as f:
+            f.write(text)
+
+    def load_song(self, path=None, ask=True):
+        if self.df_buttons is None:
+            return
+        bank = clean(self.bank_selector.get())
+        path = path or filedialog.askopenfilename(
+            title=f"Load a song into bank {bank}", filetypes=[("Song files", "*.song.csv"), ("CSV Files", "*.csv")])
+        if not path:
+            return
+        try:
+            loaded, notes = song_file.load_song(self._sections(), read_config_csv(path), bank)
+        except (OSError, ValueError, KeyError) as e:
+            messagebox.showerror("Load song", f"{os.path.basename(path)} does not go into bank {bank}: {e}.")
+            return
+        said = "".join(f"\n• {n[0].upper()}{n[1:]}." for n in notes)
+        if ask and not messagebox.askyesno(
+                "Load song", f"Replace everything in bank {bank}, its name included, with {os.path.basename(path)}?"
+                + (f"\n{said}" if said else "")):
+            return
+        chosen = dict(DeviceContext.chosen)
+        self._load(loaded)
+        DeviceContext.chosen.update(chosen)
+        DeviceContext.update(loaded)
+        self.bank_selector.set(bank)
+        self.on_bank_change(bank)
+        self._show_file()
 
     def _drop_editors(self):
         """Forget the open editors, whose rows were just replaced or renumbered.

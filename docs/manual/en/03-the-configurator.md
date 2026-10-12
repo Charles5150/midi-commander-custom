@@ -49,6 +49,8 @@ Edits are kept in memory automatically when you switch button, bank or tab.
 
 **Copy button** and **Paste button** do the same for a single button: pick the button to copy, press **Copy button**, pick the one to replace, in the same bank or another, and press **Paste button**. Its label, LED mode, group, the four boxes and its short, long and double press commands all become the copied button's. Pasting asks for confirmation first.
 
+**Save song…** writes the bank shown to a file of its own, with what it runs in other banks, its SysEx strings and the names of its programs, and **Load song…** puts a song file into the bank shown, of this configuration or any other. Loading lists what moved or needs a look and asks before it replaces the bank, its name included. See [Songs](04-banks.md#songs-a-bank-in-a-file-of-its-own).
+
 ### MIDI learn
 
 Rather than look up which CC a knob sends, let the configurator hear it. Press **Learn** beside a slot's command type, the button turns orange and reads **Stop**, then move the knob or press the button on the device. The first Program Change, Control Change, Note, Pitch Bend or Channel Pressure that arrives fills the slot: its type, channel and number, and its value if the slot had none, so a button learned from a device that sends 127 sends 127. The slot says what arrived and from which port.
