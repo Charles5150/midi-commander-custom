@@ -54,9 +54,41 @@ On stage, the display can tell you where you are in the set. Tick **… and show
 - On a [second page](#second-page), the place is that of the bank the page belongs to.
 - A text from the computer in the info line, the bar and beat of a running clock (`Beat_Counter`) and the readouts such as the tempo still show over it.
 
+### Several setlists
+
+The long set for the club, the short one for the festival, the acoustic one: a configuration holds up to four setlists, and you pick tonight's from the floor. In the **Setlist** tab, **Setlist 1** to **Setlist 4** choose the one you edit, and **Name** gives it up to eight characters to show.
+
+The pedal follows setlist 1 until a `Bank` command with the action **Setlist** picks another:
+
+- **Setlist** `1` to `4` follows that one, from its first song: the pedal goes to that song's bank, and the display shows `SETLIST 2` and the name for a moment.
+- **Setlist** `Next` goes on to the next setlist that has songs, and from the last back to the first.
+- A setlist with no songs is not taken: the info line says `NO SONGS` and the pedal stays where it was.
+
+The pedal remembers the setlist it follows when switched off, whatever `Remember_State` says, as it remembers the configuration, and goes back to setlist 1 when you change to another configuration. The [editor on the pedal](10-editing-on-the-pedal.md#reordering-the-setlist) reorders the one it follows.
+
+In the demo, A and B pressed together go on to the next setlist: the 10 songs of `FULL SET`, or the 4 of `ACOUSTIC`.
+
+*Firmware 1.33 or later.*
+
 ### In the CSV
 
 `Setlist_Mode` `Y` in `Global_Settings` turns it on, `N` (the default) off, and `Setlist_Display` `Y` shows the place in it (firmware 0.94). The `Setlist` section is optional: rows of `Position` and `Bank_Number` (0–31). Up to 32 entries, ordered by `Position`, so rows may be in any order and positions may skip numbers; invalid bank numbers are dropped.
+
+With several setlists, a `List` column says which, 1–4, empty being 1, and a `Name` column names the setlist on any one of its rows. Both are left out when only the first setlist is used, so a CSV written before 1.33 reads as it always did.
+
+```
+Position,Bank_Number,List,Name
+1,0,1,FULL SET
+2,12,1,
+1,12,2,ACOUSTIC
+2,13,2,
+```
+
+<details><summary>Under the hood</summary>
+
+Setlist 1 is where the only one always was, in the slot. Setlists 2 to 4 take 32 bytes each in the second extension area, from byte 2464, and then the four names 8 bytes each, from byte 2560; erased flash is no song and no name, which is all a configuration written before 1.33 holds there. The `Setlist` action is low nibble 11 of the `Bank` command, with the setlist 0–3 in byte 1, or `0x7F` for `Next`; firmware before 1.33 takes it as `GoTo` bank 0. The setlist followed is saved in the byte after the marker of each entry of the journal where the pedal keeps its bank, toggles and configuration.
+
+</details>
 
 ## Songs: a bank in a file of its own
 
@@ -107,6 +139,7 @@ Any button can move you between banks with a `Bank` command, alongside whatever 
 | `Reveal` | While held, every button shows the label of its long press; see [Labels for the long press](05-buttons.md#labels-for-the-long-press). |
 | `Direct` | Two presses choose any bank: its group of eight, then the bank; see [Any bank in two presses](#any-bank-in-two-presses). |
 | `Lock` | Locks every switch, or unlocks them; see [Locking the switches](05-buttons.md#locking-the-switches). |
+| `Setlist` | Follows another setlist, 1–4 or `Next`, from its first song; see [Several setlists](#several-setlists). |
 
 The change happens after the button's remaining commands have been sent, so a button can send MIDI and then move to another bank. In the CSV it is `CommandType` `Bank`, with the action in `KeyMode` and the bank or the number of banks in `OnValue`; nothing else in the command is used.
 

@@ -18,6 +18,8 @@ typedef struct {
 	uint16_t bpm;
 	uint8_t bank;
 	uint8_t slot;
+	uint8_t setlist;	// followed, 0-3
+	uint8_t spare[3];	// zero: the checksum goes over whole words
 } live_state_t;
 
 // Call once at boot, first thing: true when this start is the watchdog's and

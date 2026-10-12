@@ -54,9 +54,41 @@ En el escenario, la pantalla puede decirte por dónde vas del repertorio. Marca 
 - En una [segunda página](#segunda-página), el puesto es el del banco al que pertenece la página.
 - Un texto del ordenador en la línea de información, el compás y el tiempo de un reloj en marcha (`Beat_Counter`) y las lecturas como el tempo siguen apareciendo encima.
 
+### Varios setlists
+
+El repertorio largo para la sala, el corto para el festival, el acústico: una configuración guarda hasta cuatro setlists, y eliges el de esta noche desde el suelo. En la pestaña **Setlist**, **Setlist 1** a **Setlist 4** eligen el que editas, y **Name** le da un nombre de hasta ocho caracteres para la pantalla.
+
+La pedalera sigue el setlist 1 hasta que un comando `Bank` con la acción **Setlist** elige otro:
+
+- **Setlist** `1` a `4` sigue ese, desde su primera canción: la pedalera va al banco de esa canción, y la pantalla muestra un momento `SETLIST 2` y el nombre.
+- **Setlist** `Next` pasa al siguiente setlist que tenga canciones, y del último vuelve al primero.
+- Un setlist sin canciones no se toma: la línea de información dice `NO SONGS` y la pedalera se queda donde estaba.
+
+La pedalera recuerda al apagarla el setlist que sigue, diga lo que diga `Remember_State`, igual que recuerda la configuración, y vuelve al setlist 1 cuando cambias a otra configuración. El [editor de la pedalera](10-editing-on-the-pedal.md#reordenar-el-setlist) reordena el que sigue.
+
+En la demo, A y B pulsados a la vez pasan al siguiente setlist: las 10 canciones de `FULL SET`, o las 4 de `ACOUSTIC`.
+
+*Firmware 1.33 o posterior.*
+
 ### En el CSV
 
 `Setlist_Mode` `Y` en `Global_Settings` lo activa, y `N` (lo predeterminado) lo desactiva; `Setlist_Display` `Y` muestra el puesto en la lista (firmware 0.94). La sección `Setlist` es opcional: filas de `Position` y `Bank_Number` (0–31). Hasta 32 puestos, ordenados por `Position`, así que las filas pueden ir en cualquier orden y los puestos pueden saltarse números; los números de banco no válidos se descartan.
+
+Con varios setlists, una columna `List` dice cuál, 1–4, y vacía es 1, y una columna `Name` pone nombre al setlist en una cualquiera de sus filas. Las dos se omiten cuando solo se usa el primer setlist, así que un CSV escrito antes de la 1.33 se lee como siempre.
+
+```
+Position,Bank_Number,List,Name
+1,0,1,FULL SET
+2,12,1,
+1,12,2,ACOUSTIC
+2,13,2,
+```
+
+<details><summary>Por dentro</summary>
+
+El setlist 1 está donde siempre estuvo el único, en el slot. Los setlists 2 a 4 ocupan 32 bytes cada uno en la segunda área de extensión, desde el byte 2464, y después los cuatro nombres, de 8 bytes cada uno, desde el byte 2560; la flash borrada es ninguna canción y ningún nombre, que es todo lo que una configuración escrita antes de la 1.33 tiene ahí. La acción `Setlist` es el nibble bajo 11 del comando `Bank`, con el setlist 0–3 en el byte 1, o `0x7F` para `Next`; un firmware anterior a la 1.33 la toma como `GoTo` al banco 0. El setlist que se sigue se guarda en el byte que va tras la marca de cada entrada del diario donde la pedalera guarda su banco, sus toggles y su configuración.
+
+</details>
 
 ## Canciones: un banco en un archivo propio
 
@@ -107,6 +139,7 @@ Cualquier botón puede moverte entre bancos con un comando `Bank`, además de lo
 | `Reveal` | Mientras lo mantienes, cada botón muestra la etiqueta de su pulsación larga; ver [Etiquetas de la pulsación larga](05-buttons.md#etiquetas-de-la-pulsación-larga). |
 | `Direct` | Dos pulsaciones eligen cualquier banco: su grupo de ocho y luego el banco; ver [Cualquier banco en dos pulsaciones](#cualquier-banco-en-dos-pulsaciones). |
 | `Lock` | Bloquea todos los pulsadores, o los desbloquea; ver [Bloquear los pulsadores](05-buttons.md#bloquear-los-pulsadores). |
+| `Setlist` | Sigue otro setlist, 1–4 o `Next`, desde su primera canción; ver [Varios setlists](#varios-setlists). |
 
 El cambio se hace después de enviar el resto de comandos del botón, así que un botón puede enviar MIDI y luego llevarte a otro banco. En el CSV es `CommandType` `Bank`, con la acción en `KeyMode` y el banco o el número de bancos en `OnValue`; nada más del comando se usa.
 

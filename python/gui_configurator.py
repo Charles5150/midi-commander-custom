@@ -48,6 +48,8 @@ from lib.configPacker import (  # noqa: E402
     BANK_EXP_COLUMNS,
     empty_bank_expression_settings,
     empty_setlist,
+    setlist_frame,
+    setlists,
     empty_sysex_strings,
     COMBO_SECTION,
     COMBO_COUNT,
@@ -217,7 +219,7 @@ def is_reference_csv(path):
 # --- Value sets -------------------------------------------------------------
 # Shared with the web configurator: see lib/configSchema.py
 from lib.configSchema import (  # noqa: E402
-    BANK_MODES, BANKS, BUTTON_GROUPS, CCINC_DIRECTIONS, CHANNELS, CMD_FIELDS,
+    BANK_MODES, BANKS, BUTTON_GROUPS, CCINC_DIRECTIONS, CHANNELS, CMD_FIELDS, SETLIST_CHOICES,
     COMMAND_TYPES, CONFIG_SLOT_NAMES, ENTER_COMMAND_TYPES, GLOBAL_FIELDS, GLOBAL_GROUPS, KEY_MODES,
     KEY_NAMES, LED_MODES, MODIFIERS, NO_COMMAND, SHORT_COMMAND_TYPES, SLOTS, TAP_MODES, THIS_BANK,
     WAIT_MODES,
@@ -847,6 +849,11 @@ class SlotEditor:
             elif mode == "GigView":
                 ctk.CTkLabel(self.params, text="(the gig view on the display, on or off)",
                              text_color=MUTED).pack(side="left", padx=8)
+            elif mode == "Setlist":
+                self._label("Setlist")
+                v = Option(self.params, SETLIST_CHOICES, self.initial.get("OnValue_(CC/PB)") or "1", width=70)
+                ctk.CTkLabel(self.params, text="(followed from its first song; Next, the next with songs)",
+                             text_color=MUTED).pack(side="right", padx=8)
             else:
                 self._label("Banks")
                 v = IntEntry(self.params, 1, 31, self.initial.get("OnValue_(CC/PB)") or "8", width=55)
@@ -2167,13 +2174,12 @@ class MidiCommanderGUI(ctk.CTk):
 
         # The bank names in the choices moved with the banks
         choices = self._bank_choices()
-        order = [clean(b) for b in self.df_setlist["Bank_Number"]] if self.df_setlist is not None else []
-        for i, w in enumerate(self.setlist_widgets):
-            w.configure(values=choices)
-            try:
-                put(w, choices[int(order[i]) + 1] if i < len(order) else NO_COMMAND)
-            except (ValueError, IndexError):
-                put(w, NO_COMMAND)
+        try:
+            self.setlist_lists = setlists(self.df_setlist)
+        except ValueError:
+            pass
+        if self.setlist_widgets:
+            self._show_setlist()
         banks = choices[1:]
         rows = [r for _, r in self.df_combos.iterrows() if clean(r.get("Switches"))] if self.df_combos is not None else []
         for i, widgets in enumerate(self.combo_widgets):
@@ -3232,10 +3238,28 @@ class MidiCommanderGUI(ctk.CTk):
             "The order Bank Up and Bank Down follow when Follow the setlist is on in the Global tab.",
             "Relative Bank commands follow it too; GoTo still jumps to an exact bank. From a bank "
             "that is not in the list, Up enters at the first entry and Down at the last. Up to 32 "
-            "entries; the list ends at the first empty row.",
+            "entries; the list ends at the first empty row. Up to four setlists, one for each show: "
+            "the pedal follows the first until a Bank command with the action Setlist picks another, "
+            "and shows its name as it does.",
         ).pack(anchor="w", padx=10, pady=(10, 6))
+        top = ctk.CTkFrame(tab, fg_color="transparent")
+        top.pack(fill="x", padx=10, pady=(0, 6))
+        self.setlist_lists = setlists(None)
+        self.setlist_shown = 1
+        self.setlist_choice = ctk.CTkSegmentedButton(
+            top, values=[f"Setlist {n}" for n in self.setlist_lists], command=self._pick_setlist)
+        self.setlist_choice.set("Setlist 1")
+        self.setlist_choice.pack(side="left")
+        ctk.CTkLabel(top, text="Name").pack(side="left", padx=(16, 6))
+        self.setlist_name = ctk.CTkEntry(top, width=110, placeholder_text="8 characters")
+        self.setlist_name.pack(side="left")
         self.setlist_frame = ctk.CTkScrollableFrame(tab)
         self.setlist_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+
+    def _pick_setlist(self, value):
+        self._keep_setlist()
+        self.setlist_shown = int(value.split()[-1])
+        self._show_setlist()
 
     def _bank_choices(self):
         names = {}
@@ -3248,41 +3272,49 @@ class MidiCommanderGUI(ctk.CTk):
         for w in self.setlist_frame.winfo_children():
             w.destroy()
         self.setlist_widgets = []
+        try:
+            self.setlist_lists = setlists(self.df_setlist)
+        except ValueError:
+            self.setlist_lists = setlists(None)
         choices = self._bank_choices()
-        entries = []
-        if self.df_setlist is not None:
-            for _, r in self.df_setlist.iterrows():
-                try:
-                    pos = float(clean(r.get("Position")))
-                    bank = int(float(clean(r.get("Bank_Number"))))
-                except ValueError:
-                    continue
-                if 0 <= bank < NUM_BANKS:
-                    entries.append((pos, bank))
-        order = [b for _, b in sorted(entries, key=lambda e: e[0])]
         for i in range(SETLIST_MAX):
             line = ctk.CTkFrame(self.setlist_frame, fg_color="transparent")
             line.pack(fill="x", pady=2)
             ctk.CTkLabel(line, text=f"{i + 1:>2}", width=28, font=BOLD).pack(side="left")
-            current = choices[order[i] + 1] if i < len(order) else NO_COMMAND
-            w = Option(line, choices, current, width=200)
+            w = Option(line, choices, NO_COMMAND, width=200)
             w.pack(side="left", padx=6)
             self.setlist_widgets.append(w)
+        self._show_setlist()
 
-    def apply_setlist_changes(self):
-        if not self.setlist_widgets:
-            return
-        rows = []
+    def _show_setlist(self):
+        """The setlist picked, into the rows and the name."""
+        choices = self._bank_choices()
+        name, banks = self.setlist_lists[self.setlist_shown]
+        self.setlist_choice.set(f"Setlist {self.setlist_shown}")
+        self.setlist_name.delete(0, "end")
+        self.setlist_name.insert(0, name)
+        for i, w in enumerate(self.setlist_widgets):
+            w.configure(values=choices)
+            w.set(choices[banks[i] + 1] if i < len(banks) else NO_COMMAND)
+
+    def _keep_setlist(self):
+        """The rows and the name, into the setlist picked."""
+        banks = []
         for w in self.setlist_widgets:
             v = w.value()
             if v == NO_COMMAND:
                 break
             try:
-                bank = int(v.split()[0])
+                banks.append(int(v.split()[0]))
             except (ValueError, IndexError):
                 break
-            rows.append({"Position": str(len(rows) + 1), "Bank_Number": str(bank)})
-        self.df_setlist = pd.DataFrame(rows, columns=["Position", "Bank_Number"])
+        self.setlist_lists[self.setlist_shown] = (self.setlist_name.get().strip(), banks)
+
+    def apply_setlist_changes(self):
+        if not self.setlist_widgets:
+            return
+        self._keep_setlist()
+        self.df_setlist = setlist_frame(self.setlist_lists)
 
     # --- Combos tab ----------------------------------------------------------------
     COMBO_LISTS = ["Short", "Long", "Double"]

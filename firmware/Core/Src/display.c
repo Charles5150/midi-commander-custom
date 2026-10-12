@@ -1086,6 +1086,28 @@ void display_show_config(uint8_t slot){
 	refresh_pending = 0;
 }
 
+void display_show_setlist(uint8_t which, const uint8_t *name){
+	banner_on = 0;
+	char title[12];
+	snprintf(title, sizeof(title), "SETLIST %u", (unsigned)(which + 1));
+
+	ssd1306_Fill(Black);
+	ssd1306_SetCursor(0, 8);
+	ssd1306_WriteString(title, Font_11x18, White);
+	if(name){
+		ssd1306_SetCursor(0, 38);
+		for(int i=0; i<SETLIST_NAME_LEN; i++){
+			char c = (char)name[i];
+			ssd1306_WriteChar((c >= ' ' && c <= '~') ? c : ' ', Font_11x18, White);
+		}
+	}
+	ssd1306_UpdateScreen();
+
+	overlay_msg[0] = 0;
+	overlay_until = HAL_GetTick() + OVERLAY_MS;
+	refresh_pending = 0;
+}
+
 // Safe mode at power on, over the bank screen until it has been read
 // A word in large type and a line under it, for a few seconds after boot
 static void show_notice(const char *big, const char *small){

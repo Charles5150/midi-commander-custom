@@ -184,14 +184,15 @@ int main(void)
   // holds one. Every configuration pointer follows from here. After the
   // watchdog restarted it, the state it had that moment wins over the saved
   // one: see restart_state.c
-  uint8_t saved_bank = 0, saved_slot = 0;
+  uint8_t saved_bank = 0, saved_slot = 0, saved_setlist = 0;
   uint32_t saved_toggles[8] = {0}, saved_long[8] = {0}, saved_double[8] = {0};
-  bool have_state = state_store_load(&saved_bank, saved_toggles, saved_long, saved_double, &saved_slot);
+  bool have_state = state_store_load(&saved_bank, saved_toggles, saved_long, saved_double, &saved_slot, &saved_setlist);
   live_state_t live;
   bool restarted = restart_state_load(&live);
   if(restarted){
 	  saved_bank = live.bank;
 	  saved_slot = live.slot;
+	  saved_setlist = live.setlist;
 	  memcpy(saved_toggles, live.toggles, sizeof(saved_toggles));
 	  memcpy(saved_long, live.long_toggles, sizeof(saved_long));
 	  memcpy(saved_double, live.double_toggles, sizeof(saved_double));
@@ -223,6 +224,10 @@ int main(void)
   if(!safe_mode && (restarted || (pGlobalSettings[GLOBAL_SETTINGS_REMEMBER_STATE] == 1
 		  && have_state)) && saved_slot == flash_settings_active_slot()){
     sw_restore_state(saved_bank, saved_toggles, saved_long, saved_double);
+  }
+  // The setlist followed comes back whatever Remember_State says, as the slot
+  if((have_state || restarted) && saved_slot == flash_settings_active_slot()){
+    sw_setlist_restore(saved_setlist);
   }
   display_setBankName(sw_get_current_page());
 

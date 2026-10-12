@@ -19,7 +19,8 @@
  *   [12n+1]       active configuration slot
  *   [12n+2]       marker, written as the final halfword so a torn write
  *                 leaves an entry that is skipped
- *   [12n+3]       padding
+ *   [12n+3]       the setlist followed, 0-3 (1.33); 0xFF before, which is
+ *                 the first
  *
  * The marker doubles as a format version: entries written by firmware with a
  * different layout carry another marker and are ignored. The one exception is
@@ -34,7 +35,7 @@
  * music stops (a flush, before an upload or sleep, does not wait).
  *
  * The slot is saved whatever Remember_State says, since the pedal must come
- * back on the configuration it was left on; the bank and toggles are only
+ * back on the configuration it was left on, and so is the setlist followed; the bank and toggles are only
  * restored when that configuration asks for it.
  */
 
@@ -53,6 +54,7 @@
 #define STATE_BANK_OFF		(STATE_MASK_SETS * STATE_MASK_BYTES)
 #define STATE_SLOT_OFF		(STATE_BANK_OFF + 1U)
 #define STATE_MARKER_OFF	(STATE_BANK_OFF + 2U)
+#define STATE_SETLIST_OFF	(STATE_BANK_OFF + 3U)
 #define STATE_ENTRY_SIZE	(STATE_BANK_OFF + 4U)
 #define STATE_ENTRIES		(STATE_REGION_SIZE / STATE_ENTRY_SIZE)
 #define STATE_MARKER		(0xA9U)		// 0xA8 had no double press masks, 0xA7 no slot
@@ -64,6 +66,7 @@
 static uint32_t next_free = STATE_ENTRIES + 1; // Forces a scan on first use
 static uint8_t last_saved_bank = 0xFF;
 static uint8_t last_saved_slot = 0xFF;
+static uint8_t last_saved_setlist = 0;
 static uint32_t last_saved_toggles[MIDI_NUM_SWITCHES];
 static uint32_t last_saved_long[MIDI_NUM_SWITCHES];
 static uint32_t last_saved_double[MIDI_NUM_SWITCHES];
@@ -115,6 +118,7 @@ static void scan(void){
 	next_free = STATE_ENTRIES;
 	last_saved_bank = 0xFF;
 	last_saved_slot = 0xFF;
+	last_saved_setlist = 0;
 	const uint8_t *first = entry_ptr(0);
 	if(first[STATE_MARKER_OFF] != STATE_MARKER && entry_is_valid(first, OLD_BANK_OFF, OLD_MARKER)){
 		scan_old();
@@ -139,6 +143,7 @@ static void scan(void){
 		if(entry_is_valid(e, STATE_BANK_OFF, STATE_MARKER)){
 			last_saved_bank = e[STATE_BANK_OFF];
 			last_saved_slot = e[STATE_SLOT_OFF];
+			last_saved_setlist = (e[STATE_SETLIST_OFF] < SETLIST_COUNT) ? e[STATE_SETLIST_OFF] : 0;
 			read_masks(e, last_saved_toggles);
 			read_masks(e + STATE_MASK_BYTES, last_saved_long);
 			read_masks(e + 2U * STATE_MASK_BYTES, last_saved_double);
@@ -151,13 +156,14 @@ static inline bool enabled(void){
 }
 
 bool state_store_load(uint8_t *bank, uint32_t toggles[8], uint32_t long_toggles[8],
-		uint32_t double_toggles[8], uint8_t *slot){
+		uint32_t double_toggles[8], uint8_t *slot, uint8_t *setlist){
 	scan();
 	if(last_saved_bank == 0xFF){
 		return false;
 	}
 	*bank = last_saved_bank;
 	*slot = last_saved_slot;
+	*setlist = last_saved_setlist;
 	memcpy(toggles, last_saved_toggles, sizeof(last_saved_toggles));
 	memcpy(long_toggles, last_saved_long, sizeof(last_saved_long));
 	memcpy(double_toggles, last_saved_double, sizeof(last_saved_double));
@@ -191,7 +197,7 @@ static HAL_StatusTypeDef write_masks(uint32_t addr, const uint32_t *masks){
 	return status;
 }
 
-static void write_entry(uint8_t bank, uint8_t slot, const uint32_t *toggles,
+static void write_entry(uint8_t bank, uint8_t slot, uint8_t setlist, const uint32_t *toggles,
 		const uint32_t *long_toggles, const uint32_t *double_toggles, bool quiet){
 	// Interrupts off, and the time the erase stalls the processor given back
 	// to the tick after: see flash_hold()
@@ -217,7 +223,7 @@ static void write_entry(uint8_t bank, uint8_t slot, const uint32_t *toggles,
 	if(status == HAL_OK){
 		// Last, so an interrupted write leaves no marker and the entry is skipped
 		status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_HALFWORD, addr + STATE_MARKER_OFF,
-				(uint16_t)(STATE_MARKER | 0xFF00U));
+				(uint16_t)(STATE_MARKER | (setlist << 8)));
 	}
 
 	flash_release(start);
@@ -226,6 +232,7 @@ static void write_entry(uint8_t bank, uint8_t slot, const uint32_t *toggles,
 	if(status == HAL_OK){
 		last_saved_bank = bank;
 		last_saved_slot = slot;
+		last_saved_setlist = setlist;
 		memcpy(last_saved_toggles, toggles, sizeof(last_saved_toggles));
 		memcpy(last_saved_long, long_toggles, sizeof(last_saved_long));
 		memcpy(last_saved_double, double_toggles, sizeof(last_saved_double));
@@ -241,9 +248,10 @@ static void save(bool now){
 	}
 
 	uint8_t slot = flash_settings_active_slot();
-	bool slot_changed = (slot != last_saved_slot);
+	uint8_t setlist = sw_setlist_active();
+	bool slot_changed = (slot != last_saved_slot) || (setlist != last_saved_setlist);
 
-	// Without Remember_State only a change of configuration is worth a write
+	// Without Remember_State only a change of configuration or setlist is worth a write
 	if(!enabled() && !slot_changed){
 		dirty = 0;
 		return;
@@ -270,7 +278,7 @@ static void save(bool now){
 		state_store_mark_dirty();	// full: the erase waits for the music to stop
 		return;
 	}
-	write_entry(bank, slot, toggles, long_toggles, double_toggles, quiet);
+	write_entry(bank, slot, setlist, toggles, long_toggles, double_toggles, quiet);
 }
 
 void state_store_task(void){

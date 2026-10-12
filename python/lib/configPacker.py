@@ -14,7 +14,7 @@ from lib.flashLayout import (
     SYSEX_STRING_COUNT, SYSEX_STRING_MAX, BANK_SWITCH_LISTS, SETLIST_MAX, COMBO_COUNT,
     DOUBLE_PRESS_OFFSET, EXT2_OFFSET, EXT2_MARKER, EXT2_MAP_OFFSET, MIDI_MAP_COUNT, MIDI_MAP_STRIDE,
     EXT2_TAKEOVER_OFFSET, EXT2_EXP_DISPLAY_OFFSET,
-    EXT2_BANK_SWITCH_LABELS_SIZE, PRESET_NAME_LEN, PRESET_NAME_COUNT,
+    EXT2_BANK_SWITCH_LABELS_SIZE, PRESET_NAME_LEN, PRESET_NAME_COUNT, SETLIST_COUNT, SETLIST_NAME_LEN,
 )
 
 LONG_PRESS_SECTION = "LongPress_Settings"
@@ -214,24 +214,87 @@ def empty_setlist():
     return pd.DataFrame(columns=["Position", "Bank_Number"])
 
 
-def pack_setlist(df):
-    """Up to SETLIST_MAX bank numbers ordered by Position, padded with 0xFF.
+def setlists(df) -> dict:
+    """{list 1-4: (name, [banks in order])} of a Setlist frame, or of its rows
+    as dicts. A row's List
+    is the setlist it is in (firmware 1.33), 1 when empty, as in a CSV made
+    before there were several; its Name names that setlist, on any of its rows.
 
     Rows may be in any order and may skip positions; invalid bank numbers are
     dropped rather than stored, since the firmware stops at the first one.
     """
-    entries = []
+    entries = {n: [] for n in range(1, SETLIST_COUNT + 1)}
+    names = {n: "" for n in entries}
     if df is not None:
-        for _, row in df.iterrows():
+        rows = df.to_dict("records") if hasattr(df, "to_dict") else list(df)
+        for i, row in enumerate(rows, start=1):
+            which = _cell(row.get("List")) or "1"
+            with _at(f"{SETLIST_SECTION} row {i}"):
+                try:
+                    n = int(float(which))
+                except ValueError:
+                    n = 0
+                if n not in entries:
+                    raise ValueError(f"List must be 1-{SETLIST_COUNT}, not {which!r}")
+                name = _cell(row.get("Name"))
+                if name:
+                    if names[n] and names[n] != name:
+                        raise ValueError(f"setlist {n} is named both {names[n]!r} and {name!r}")
+                    names[n] = name
             try:
                 pos = float(str(row.get("Position", "")).strip())
                 bank = int(float(str(row.get("Bank_Number", "")).strip()))
             except ValueError:
                 continue
             if 0 <= bank < NUM_BANKS:
-                entries.append((pos, bank))
-    banks = [b for _, b in sorted(entries, key=lambda e: e[0])][:SETLIST_MAX]
-    return bytes(banks + [0xFF] * (SETLIST_MAX - len(banks)))
+                entries[n].append((pos, bank))
+    return {n: (names[n], [b for _, b in sorted(e, key=lambda e: e[0])][:SETLIST_MAX])
+            for n, e in entries.items()}
+
+
+def setlist_frame(lists: dict):
+    """A Setlist frame from {list: (name, [banks])}; the List and Name columns
+    only when a configuration uses them, so one with a single setlist reads
+    as it always did."""
+    import pandas as pd
+
+    several = any(banks for n, (_, banks) in lists.items() if n != 1)
+    named = any(name for name, _ in lists.values())
+    columns = ["Position", "Bank_Number"] + (["List"] if several or named else []) + (["Name"] if named else [])
+    rows = []
+    for n in sorted(lists):
+        name, banks = lists[n]
+        if name and not banks:
+            banks = [None]    # the name needs a row to stand on
+        for i, b in enumerate(banks):
+            row = {"Position": str(i + 1) if b is not None else "", "Bank_Number": "" if b is None else str(b)}
+            if "List" in columns:
+                row["List"] = str(n)
+            if "Name" in columns:
+                row["Name"] = name if i == 0 else ""
+            rows.append(row)
+    return pd.DataFrame(rows, columns=columns)
+
+
+def _banks_bytes(banks) -> bytes:
+    return bytes(list(banks) + [0xFF] * (SETLIST_MAX - len(banks)))
+
+
+def pack_setlist(df):
+    """The first setlist, the one in the slot: up to SETLIST_MAX bank numbers
+    ordered by Position, padded with 0xFF."""
+    return _banks_bytes(setlists(df)[1][1])
+
+
+def pack_ext2_setlists(df) -> bytes:
+    """Setlists 2 to 4 for the second extension area (firmware 1.33), then the
+    names of all four, space padded; erased where there is none."""
+    lists = setlists(df)
+    out = b"".join(_banks_bytes(lists[n][1]) for n in range(2, SETLIST_COUNT + 1))
+    for n in range(1, SETLIST_COUNT + 1):
+        name = lists[n][0]
+        out += display_bytes(name, SETLIST_NAME_LEN) if name else b"\xff" * SETLIST_NAME_LEN
+    return out
 
 
 def empty_combos():
@@ -456,7 +519,8 @@ def pack_ext2(sections: dict):
     parts = [pack_midi_map(sections.get(MIDI_MAP_SECTION)),
              pack_long_labels(sections.get(LONG_PRESS_SECTION)),
              pack_bank_switch_labels(sections.get(BANK_SWITCH_SECTION)),
-             pack_preset_names(sections.get(PRESET_NAMES_SECTION))]
+             pack_preset_names(sections.get(PRESET_NAMES_SECTION)),
+             pack_ext2_setlists(sections.get(SETLIST_SECTION))]
     takeover = expression_takeover(sections.get(EXPRESSION_SECTION))
     shows = expression_display(sections.get(EXPRESSION_SECTION))
     if takeover == 0xFF and shows == 0xFF and all(p.count(0xFF) == len(p) for p in parts):

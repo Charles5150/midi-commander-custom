@@ -17,6 +17,7 @@ from html import escape
 
 import lib.deviceDictionary as devices
 from lib.configDiff import command_text, config_sections
+from lib.configPacker import setlists
 from lib.configSchema import CMD_FIELDS, MODIFIERS, NO_COMMAND, SLOTS
 from lib.flashLayout import BUTTON_IDS
 
@@ -188,17 +189,19 @@ class _Sheet:
         return "; ".join(parts)
 
     def setlist(self) -> str:
-        banks = [r["Bank_Number"] for r in self.s.get("Setlist", []) if r.get("Bank_Number", "")]
-        if not banks:
-            return ""
-        rows = []
-        for i, bank in enumerate(banks, 1):
-            name, info = self.names.get(bank, ("", ""))
-            tempo = self.tempo(bank)
-            rows.append(f"<tr><td>{i}</td><td>{escape(name)}</td><td>{escape(info)}</td><td>{bank}</td>"
-                        f"<td>{tempo and tempo + ' BPM'}</td></tr>")
-        return ("<h2>Setlist</h2><table><tr><th>#</th><th>Song</th><th>Info</th><th>Bank</th><th>Tempo</th></tr>"
-                + "".join(rows) + "</table>")
+        lists = {n: v for n, v in setlists(self.s.get("Setlist", [])).items() if v[1]}
+        out = []
+        for n, (title, banks) in lists.items():
+            rows = []
+            for i, bank in enumerate(map(str, banks), 1):
+                name, info = self.names.get(bank, ("", ""))
+                tempo = self.tempo(bank)
+                rows.append(f"<tr><td>{i}</td><td>{escape(name)}</td><td>{escape(info)}</td><td>{bank}</td>"
+                            f"<td>{tempo and tempo + ' BPM'}</td></tr>")
+            head = "Setlist" if list(lists) == [1] else f"Setlist {n}"
+            out.append(f"<h2>{head}{escape(': ' + title) if title else ''}</h2><table><tr><th>#</th><th>Song</th>"
+                       "<th>Info</th><th>Bank</th><th>Tempo</th></tr>" + "".join(rows) + "</table>")
+        return "".join(out)
 
     def pedals(self) -> str:
         rows = []

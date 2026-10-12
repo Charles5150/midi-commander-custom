@@ -14,7 +14,7 @@ A configuration is a CSV with several sections, each introduced by a line starti
 | `SysEx_Strings` | Sixteen stored SysEx messages | [Commands](06-commands.md#sysex_strings) |
 | `BankEnter_Settings` | What each bank sends on entry and leaving | [Banks](04-banks.md#bankenter_settings) |
 | `BankSwitch_Settings` | What Bank Up and Bank Down send | [Banks](04-banks.md#bankswitch_settings) |
-| `Setlist` | The order Bank Up / Down follow | [Banks](04-banks.md#setlist) |
+| `Setlist` | The order Bank Up / Down follow, up to four setlists | [Banks](04-banks.md#setlist) |
 | `Expression_Settings`, `BankExpression_Settings` | The two expression pedals, and per bank | [Expression pedals](08-expression.md) |
 | `MidiMap_Settings` | What comes in over USB, translated | [Templates and devices](11-devices.md#midimap_settings) |
 | `Preset_Names` | Names for programs 0–127, for `$N` in a label | [The display](09-the-display.md#preset-names) |
@@ -42,7 +42,7 @@ A file written by hand packs as written or says what is wrong and where. `Comman
 | 10 | Bank navigation from buttons, absolute and relative; B, PREV, goes back to the bank you came from |
 | 11 | Several commands chained on one button, short versus long press, and a cycle button stepping through four amp channels (D), and a boost that latches on a tap and is momentary when held (4). Entering the bank sends CC 59 127 and leaving it CC 59 0; holding A mutes channels 1, 2 and 3 with one CC |
 | 12–29 | A setlist: each bank selects its patch on entry and has looper controls, REC and PLAY linked with bank 1's and each other's (`Link_Toggles`). On song 1 (bank 12), D is PG 2, which shows bank 31 as its second page; on the other songs D is a global button, the tap from bank 30 |
-| 30 | The bank set aside for the global buttons (`Global_Bank`): the tap on D, a mute toggle on C and HOME on A. Also the lists the two combinations run: a tuner toggle on B (CC 68) and the looper's clear on 4 (CC 5) |
+| 30 | The bank set aside for the global buttons (`Global_Bank`): the tap on D, a mute toggle on C and HOME on A. Also the lists the two combinations run: a tuner toggle on B (CC 68) and the looper's clear on 4 (CC 5), and SET on 1, which A+B run: the next [setlist](04-banks.md#several-setlists), `FULL SET` or `ACOUSTIC` |
 | 31 | Song 1's second page: seven toggles, FX1 to FX7 on CC 60–66, and BACK on D. Entering the page sends CC 70 127 and going back CC 70 0 |
 
 Both expression pedals are configured, one linear and one logarithmic and inverted, with the toe and heel acting as switches. Pedal 1 auto-engages button D, the WAH in bank 8 (and TRK4 in bank 1), switching it off after 600 ms at the heel. Pedal 2 sends a 14-bit CC pair, CC 4 and 36. CC 102–111 on channel 16 press the ten switches from the computer. Switches 3 and 4 pressed together toggle the tuner in every bank, except on song 1, where the same pair clears the looper. Bank 2 turns pedal 1 into a modulation wheel held between 20 and 100, and bank 7 silences it and makes pedal 2 a volume on channel 2 that never drops below 40, CC 7 and 39. Regenerate the file with `python3 python/make_demo_config.py` after adding a feature, so it keeps covering everything.

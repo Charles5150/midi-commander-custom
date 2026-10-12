@@ -182,6 +182,10 @@ SCENE_SAVE = 1
 
 # Bank command modes, packed in the low nibble of byte 0
 BANK_MODES = {"GOTO": 0, "UP": 1, "DOWN": 2}
+# Setlists a configuration holds (firmware 1.33); a Bank Setlist command's
+# byte 1 is one of them, 0-3, or SETLIST_NEXT
+SETLIST_COUNT = 4
+SETLIST_NEXT = 0x7F
 
 # USB HID Consumer Control usage IDs (usage page 0x0C) for media keys
 MEDIA_KEYS = {
@@ -591,8 +595,18 @@ def cmd_bank(cmd):
     buttons choose a group of eight banks and then one of them, no value.
     Lock: locks every switch but those holding a Lock, or unlocks, no value.
     GigView: the gig view on the display, on or off, no value (firmware 1.32).
+    Setlist: follow setlist 1-4 of OnValue from its first song, or with Next
+    the next one holding songs (firmware 1.33).
     """
     mode_text = str(cmd.get("KeyMode_(Key)", "")).strip().upper().replace(" ", "")
+    if mode_text.startswith("SETLIST"):
+        value = str(cmd.get("OnValue_(CC/PB)", "") or "").strip()
+        if value.lower() == "next":
+            return [CMD_BANK_NIBBLE | 11, SETLIST_NEXT, 0, 0]
+        which = safe_int(value) if value not in ("", "nan") else 1
+        if not 1 <= which <= SETLIST_COUNT:
+            raise ValueError(f"Bank Setlist takes setlist 1-{SETLIST_COUNT} or Next, not {value!r}")
+        return [CMD_BANK_NIBBLE | 11, which - 1, 0, 0]
     if mode_text.startswith("GIG"):
         return [CMD_BANK_NIBBLE | 10, 0, 0, 0]
     if mode_text.startswith("LOCK"):

@@ -13,7 +13,7 @@ Used by Diff_Config.py and by both configurators before they write a slot.
 import math
 
 from lib.binaryUnpacker import unpack_sections
-from lib.configPacker import pack_config, pack_flash_image
+from lib.configPacker import pack_config, pack_flash_image, setlists
 from lib.configSchema import (
     BUTTON_FIELDS, CMD_FIELDS, COMMAND_SPECS, EXPRESSION_FIELDS, GLOBAL_FIELDS, GLOBAL_GROUPS, NO_COMMAND,
     SECTION_COLUMNS, SLOTS,
@@ -186,11 +186,14 @@ def diff(old: dict, new: dict) -> list:
     for (program,), a, b in pairs("Preset_Names", ["Program"]):
         lines.append(f"Preset name {program}: " + _change("name", a.get("Name", ""), b.get("Name", "")))
 
-    def order(section):
-        return [r.get("Bank_Number", "") for r in section if r.get("Bank_Number", "")]
-    setlist_a, setlist_b = order(old.get("Setlist", [])), order(new.get("Setlist", []))
-    if setlist_a != setlist_b:
-        lines.append("Setlist: " + _change("banks", " ".join(setlist_a), " ".join(setlist_b)))
+    lists_a, lists_b = setlists(old.get("Setlist", [])), setlists(new.get("Setlist", []))
+    for n in lists_a:
+        (name_a, banks_a), (name_b, banks_b) = lists_a[n], lists_b[n]
+        what = "Setlist" if n == 1 else f"Setlist {n}"
+        if banks_a != banks_b:
+            lines.append(f"{what}: " + _change("banks", " ".join(map(str, banks_a)), " ".join(map(str, banks_b))))
+        if name_a != name_b:
+            lines.append(f"{what}: " + _change("name", name_a, name_b))
 
     for section, name in (("Combo_Settings", "Combination"), ("MidiMap_Settings", "MIDI map row")):
         a, b = old.get(section, []), new.get(section, [])

@@ -321,6 +321,10 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
  *   [1440..]  preset names (1.20), PRESET_NAME_LEN chars per program 0-127,
  *             space padded, for $N in a label; erased flash or spaces is no
  *             name, and the program's number shows instead
+ *   [2464..]  setlists 2 to 4 (1.33), SETLIST_MAX bank numbers each, as the
+ *             first one in the slot; erased flash is an empty list
+ *   [2560..]  the names of setlists 1 to 4, SETLIST_NAME_LEN chars each, space
+ *             padded; erased flash or spaces is no name
  */
 #define FLASH_EXT2_PAGES		(2)
 #define FLASH_EXT2_ADDR(n)		(FLASH_BANNER_ADDR + FLASH_PAGE_SIZE + (n) * FLASH_EXT2_PAGES * FLASH_PAGE_SIZE)
@@ -347,6 +351,11 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
 #define PRESET_NAME_LEN			(8)
 #define PRESET_NAME_COUNT		(128)
 #define EXT2_PRESET_NAMES_OFF	(EXT2_BANK_SW_LABELS_OFF + EXT2_BANK_SW_LABELS_SIZE)
+#define SETLIST_COUNT			(4)
+#define SETLIST_NAME_LEN		(8)
+#define EXT2_SETLISTS_OFF		(EXT2_PRESET_NAMES_OFF + PRESET_NAME_COUNT * PRESET_NAME_LEN)
+#define EXT2_SETLIST_NAMES_OFF	(EXT2_SETLISTS_OFF + (SETLIST_COUNT - 1) * SETLIST_MAX)
+#define EXT2_SIZE				(EXT2_SETLIST_NAMES_OFF + SETLIST_COUNT * SETLIST_NAME_LEN)
 
 /*
  * MIDI map: what a message arriving over USB turns into. Every entry that
@@ -384,6 +393,10 @@ const uint8_t *flash_settings_long_labels(void);
 const uint8_t *flash_settings_bank_switch_labels(void);
 // The active slot's preset names, or NULL
 const uint8_t *flash_settings_preset_names(void);
+// Setlist 0-3 of the active slot, SETLIST_MAX banks ended by one that is not
+// a bank, or NULL when its tools wrote none; and its name, or NULL
+const uint8_t *flash_settings_setlist(uint8_t n);
+const uint8_t *flash_settings_setlist_name(uint8_t n);
 // How pedal 0 or 1 takes over a value it does not hold: EXP_TAKEOVER_
 uint8_t flash_settings_exp_takeover(uint8_t pedal);
 // What the display shows while pedal 0 or 1 moves: EXP_DISPLAY_

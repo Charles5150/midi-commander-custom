@@ -29,6 +29,7 @@ from lib.configPacker import (  # noqa: E402
     empty_bank_switch_settings,
     empty_expression_settings,
     empty_sysex_strings,
+    setlist_frame,
 )
 
 OUT = os.path.join(HERE, "demo-all-features.csv")
@@ -54,14 +55,15 @@ GLOBAL_BANK = 30    # the bank set aside for the buttons that are the same every
 PAGE_BANK = 31      # the second page of the first song
 # Two switches pressed together: 3+4 toggles the tuner in every bank, except
 # on the first song, where the same pair clears the looper instead. B+C locks
-# the switches, and unlocks them, in every bank, and 3+C turns the gig view on
-# and off.
+# the switches, and unlocks them, in every bank, 3+C turns the gig view on
+# and off, and A+B goes on to the next setlist.
 COMBOS = [
     {"Switches": "3+4", "Bank": "All", "Run_Bank": str(GLOBAL_BANK), "Run_Button": "B", "Run_List": "Short"},
     {"Switches": "3+4", "Bank": str(SETLIST_FROM), "Run_Bank": str(GLOBAL_BANK), "Run_Button": "4",
      "Run_List": "Short"},
     {"Switches": "B+C", "Bank": "All", "Run_Bank": str(GLOBAL_BANK), "Run_Button": "3", "Run_List": "Short"},
     {"Switches": "3+C", "Bank": "All", "Run_Bank": str(GLOBAL_BANK), "Run_Button": "2", "Run_List": "Short"},
+    {"Switches": "A+B", "Bank": "All", "Run_Bank": str(GLOBAL_BANK), "Run_Button": "1", "Run_List": "Short"},
 ]
 # Names for the programs of the amp on channel 1: bank 3 shows the one you are
 # on in its info line, as NEXT and PREV step through them
@@ -90,6 +92,9 @@ MIDI_MAP = [
 # The order Bank Up/Down follow with Setlist_Mode on: home, then songs out of
 # numeric order, which is the point of having a setlist at all
 DEMO_SETLIST = [0, 12, 15, 13, 14, 18, 16, 17, 19, 20]
+# A second show, shorter, which A+B picks: the setlists are named, and the
+# display shows the name as it changes to one
+DEMO_SETLISTS = {1: ("FULL SET", DEMO_SETLIST), 2: ("ACOUSTIC", [12, 13, 17, 21])}
 
 
 def blank_button_rows():
@@ -694,11 +699,12 @@ def build() -> Demo:
     d.cc(GLOBAL_BANK, "C", "MUTE", "69", toggle="Y", light="AlwaysOn")
     d.bank_cmd(GLOBAL_BANK, "A", "HOME", "GoTo", 0)
     # What the two switch combinations run (see COMBOS): the tuner, and the
-    # looper's clear on the first song, the lock and the gig view
+    # looper's clear on the first song, the lock, the gig view and the setlist
     d.cc(GLOBAL_BANK, "B", "TUNR", "68", toggle="Y")
     d.cc(GLOBAL_BANK, "4", "CLR", "5")
     d.bank_cmd(GLOBAL_BANK, "3", "LOCK", "Lock", "")
     d.bank_cmd(GLOBAL_BANK, "2", "GIG", "GigView", "")
+    d.bank_cmd(GLOBAL_BANK, "1", "SET", "Setlist", "Next")
 
     # --- banks 12..29: a setlist, each selecting its patch on entry ----------
     for bank in range(SETLIST_FROM, GLOBAL_BANK):
@@ -872,10 +878,7 @@ def main() -> int:
         df_bank_enter=d.enter,
         df_sysex=d.sysex,
         df_bank_switch=d.bank_switch_frame,
-        df_setlist=pd.DataFrame(
-            [{"Position": str(i + 1), "Bank_Number": str(b)} for i, b in enumerate(DEMO_SETLIST)],
-            columns=["Position", "Bank_Number"],
-        ),
+        df_setlist=setlist_frame(DEMO_SETLISTS),
         df_combos=pd.DataFrame(COMBOS, columns=COMBO_COLUMNS),
         df_midi_map=pd.DataFrame(MIDI_MAP, columns=MIDI_MAP_COLUMNS),
         df_preset_names=pd.DataFrame(PRESET_NAMES, columns=PRESET_NAME_COLUMNS),

@@ -14,7 +14,7 @@ Una configuración es un CSV con varias secciones, cada una introducida por una 
 | `SysEx_Strings` | Dieciséis mensajes SysEx guardados | [Comandos](06-commands.md#sysex_strings) |
 | `BankEnter_Settings` | Lo que envía cada banco al entrar y al salir | [Bancos](04-banks.md#bankenter_settings) |
 | `BankSwitch_Settings` | Lo que envían Bank Up y Bank Down | [Bancos](04-banks.md#bankswitch_settings) |
-| `Setlist` | El orden que siguen Bank Up / Down | [Bancos](04-banks.md#setlist) |
+| `Setlist` | El orden que siguen Bank Up / Down, hasta cuatro setlists | [Bancos](04-banks.md#setlist) |
 | `Expression_Settings`, `BankExpression_Settings` | Los dos pedales de expresión, y por banco | [Pedales de expresión](08-expression.md) |
 | `MidiMap_Settings` | Lo que llega por USB, traducido | [Plantillas y equipos](11-devices.md#midimap_settings) |
 | `Preset_Names` | Nombres para los programas 0–127, para `$N` en una etiqueta | [La pantalla](09-the-display.md#nombres-de-preset) |
@@ -42,7 +42,7 @@ Un archivo escrito a mano se empaqueta tal como está escrito o dice qué está 
 | 10 | Navegar entre bancos desde botones, absoluta y relativa; B, PREV, vuelve al banco de donde venías |
 | 11 | Varios comandos encadenados en un botón, pulsación corta frente a larga, un botón de ciclo que recorre cuatro canales de ampli (D) y un boost que se enclava con un toque y es momentáneo si lo mantienes (4). Al entrar en el banco se envía CC 59 127 y al salir CC 59 0; mantener A silencia los canales 1, 2 y 3 con un solo CC |
 | 12–29 | Un setlist: cada banco selecciona su patch al entrar y tiene controles de looper, con REC y PLAY enlazados con los del banco 1 y entre sí (`Link_Toggles`). En la canción 1 (banco 12), D es PG 2, que muestra el banco 31 como su segunda página; en las demás canciones D es un botón global, el tap del banco 30 |
-| 30 | El banco reservado para los botones globales (`Global_Bank`): el tap en D, un toggle de mute en C y HOME en A. También las listas que ejecutan las dos combinaciones: un toggle de afinador en B (CC 68) y el borrado del looper en 4 (CC 5) |
+| 30 | El banco reservado para los botones globales (`Global_Bank`): el tap en D, un toggle de mute en C y HOME en A. También las listas que ejecutan las dos combinaciones: un toggle de afinador en B (CC 68) y el borrado del looper en 4 (CC 5), y SET en 1, que ejecutan A+B: el siguiente [setlist](04-banks.md#varios-setlists), `FULL SET` o `ACOUSTIC` |
 | 31 | La segunda página de la canción 1: siete toggles, FX1 a FX7 en los CC 60–66, y BACK en D. Al entrar en la página se envía CC 70 127 y al volver CC 70 0 |
 
 Los dos pedales de expresión están configurados, uno lineal y otro logarítmico e invertido, con la punta y el talón funcionando como pulsadores. El pedal 1 activa solo el botón D, el WAH del banco 8 (y TRK4 en el banco 1), y lo apaga tras 600 ms en el talón. El pedal 2 envía una pareja de CC de 14 bits, CC 4 y 36. Los CC 102–111 por el canal 16 pulsan los diez pulsadores desde el ordenador. Los pulsadores 3 y 4 pisados a la vez activan y desactivan el afinador en todos los bancos, salvo en la canción 1, donde la misma pareja borra el looper. El banco 2 convierte el pedal 1 en una rueda de modulación entre 20 y 100, y el banco 7 lo silencia y hace del pedal 2 un volumen por el canal 2 que nunca baja de 40, CC 7 y 39. Regenera el archivo con `python3 python/make_demo_config.py` después de añadir una función, para que siga cubriéndolo todo.

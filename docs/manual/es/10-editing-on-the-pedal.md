@@ -88,6 +88,7 @@ Así que para añadir una canción, ve primero a su banco, abre el editor, pasa 
 
 - La lista se guarda al salir el cursor de la línea, como todo en el editor, y una canción puesta a `---` desaparece al guardarse.
 - El orden solo cuenta mientras `SETLIST` en los ajustes está en `Yes` o `Shown`, igual que el [setlist](04-banks.md#setlist) que escribe el configurador; la pantalla está ahí de todos modos.
+- Con [varios setlists](04-banks.md#varios-setlists), la pantalla edita el que sigue la pedalera, y su título dice cuál, `EDIT SETLIST2`; para editar otro, elígelo antes. Un setlist sin canciones no se puede elegir, así que empiézalo en el configurador (firmware 1.33).
 - **Bank Down** y **Bank Up** no hacen nada en esta pantalla.
 
 *Firmware 1.23 o posterior.*

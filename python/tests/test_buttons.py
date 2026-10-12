@@ -76,7 +76,7 @@ class DoublePressTest(unittest.TestCase):
     def test_without_double_press_image_is_the_config(self):
         sections = {k: v for k, v in self.sections.items()
                     if k not in (packer.DOUBLE_PRESS_SECTION, packer.MIDI_MAP_SECTION,
-                                 packer.PRESET_NAMES_SECTION)}
+                                 packer.PRESET_NAMES_SECTION, packer.SETLIST_SECTION)}
         sections[packer.LONG_PRESS_SECTION] = sections[packer.LONG_PRESS_SECTION].assign(Long_Label="")
         sections[packer.BANK_SWITCH_SECTION] = sections[packer.BANK_SWITCH_SECTION].assign(Label="")
         sections[packer.EXPRESSION_SECTION] = sections[packer.EXPRESSION_SECTION].assign(Takeover="Jump", Display="Off")
@@ -844,10 +844,10 @@ class ComboTest(unittest.TestCase):
         B+C locks the switches everywhere, and 3+C turns the gig view on and off."""
         sections = read_config_csv(DEMO_CSV)
         combos = sections[packer.COMBO_SECTION]
-        self.assertEqual(combos["Switches"].tolist(), ["3+4", "3+4", "B+C", "3+C"])
-        self.assertEqual(combos["Bank"].tolist(), ["All", "12", "All", "All"])
+        self.assertEqual(combos["Switches"].tolist(), ["3+4", "3+4", "B+C", "3+C", "A+B"])
+        self.assertEqual(combos["Bank"].tolist(), ["All", "12", "All", "All", "All"])
         buttons = sections["Button_Settings"]
-        for (_, c), kind in zip(combos.iterrows(), ("CC", "CC", "Bank", "Bank")):
+        for (_, c), kind in zip(combos.iterrows(), ("CC", "CC", "Bank", "Bank", "Bank")):
             row = buttons[(buttons["Bank_Number"].astype(str) == c["Run_Bank"])
                           & (buttons["Button_Identifier"] == c["Run_Button"])].iloc[0]
             self.assertEqual(norm(row["A_CommandType"]), kind, c.to_dict())

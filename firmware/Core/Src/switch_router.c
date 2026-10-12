@@ -1033,26 +1033,74 @@ void sw_request_list(uint8_t bank, uint8_t which, bool on){
  * the bank numbers. The list ends at the first entry that is not a valid bank,
  * so erased flash (0xFF) is simply an empty list. Absolute jumps (GoTo, bank
  * change from MIDI) are unaffected.
+ *
+ * A configuration holds up to SETLIST_COUNT of them (1.33), one a show; a
+ * Bank command in BANK_MODE_SETLIST picks the one followed, which the pedal
+ * remembers through power off (state_store.c) until the configuration changes.
  */
-static uint8_t setlist_len(void){
-	uint8_t v = pGlobalSettings[GLOBAL_SETTINGS_SETLIST_MODE];
-	if(v != 1 && v != SETLIST_SHOWN) return 0;
+static uint8_t setlist_active;
+static bool setlist_notice;	// show which, once the bank change is through
+
+static const uint8_t *setlist_banks(uint8_t which){
+	const uint8_t *l = flash_settings_setlist(which);
+	return l ? l : flash_settings_setlist(0);
+}
+
+static uint8_t setlist_count(const uint8_t *l){
 	uint8_t n = 0;
-	while(n < SETLIST_MAX && pSetlist[n] < MIDI_NUM_BANKS) n++;
+	while(n < SETLIST_MAX && l[n] < MIDI_NUM_BANKS) n++;
 	return n;
 }
 
+static uint8_t setlist_len(void){
+	uint8_t v = pGlobalSettings[GLOBAL_SETTINGS_SETLIST_MODE];
+	if(v != 1 && v != SETLIST_SHOWN) return 0;
+	return setlist_count(setlist_banks(setlist_active));
+}
+
+uint8_t sw_setlist_active(void){
+	return setlist_active;
+}
+
+void sw_setlist_restore(uint8_t which){
+	setlist_active = (which < SETLIST_COUNT) ? which : 0;
+}
+
+/*
+ * Follow setlist `which`, or the next one holding songs for SETLIST_NEXT,
+ * from its first song. A list with no songs is not taken: it says so.
+ */
+static void setlist_select(uint8_t which){
+	if(which == SETLIST_NEXT){
+		which = 0xFF;
+		for(uint8_t k=1; k<=SETLIST_COUNT; k++){
+			uint8_t s = (uint8_t)((setlist_active + k) % SETLIST_COUNT);
+			if(flash_settings_setlist(s) && setlist_count(flash_settings_setlist(s))){ which = s; break; }
+		}
+	}
+	const uint8_t *l = (which < SETLIST_COUNT) ? flash_settings_setlist(which) : NULL;
+	if(!l || !setlist_count(l)){
+		display_show_message("NO SONGS");
+		return;
+	}
+	setlist_active = which;
+	pending_bank = l[0];
+	setlist_notice = true;
+	state_store_mark_dirty();
+}
+
 static uint8_t setlist_step(uint8_t n, uint8_t from, int16_t delta){
+	const uint8_t *l = setlist_banks(setlist_active);
 	int16_t idx = -1;
 	for(uint8_t i=0; i<n; i++){
-		if(pSetlist[i] == from){ idx = i; break; }
+		if(l[i] == from){ idx = i; break; }
 	}
 	// Off the list: Up enters at the start, Down at the end
-	if(idx < 0) return pSetlist[(delta >= 0) ? 0 : n - 1];
+	if(idx < 0) return l[(delta >= 0) ? 0 : n - 1];
 	int16_t j = idx + delta;
 	while(j < 0) j += n;
 	while(j >= n) j -= n;
-	return pSetlist[j];
+	return l[j];
 }
 
 /*
@@ -1062,11 +1110,12 @@ static uint8_t setlist_step(uint8_t n, uint8_t from, int16_t delta){
  */
 uint8_t sw_setlist_place(uint8_t *count, uint8_t *next){
 	if(pGlobalSettings[GLOBAL_SETTINGS_SETLIST_MODE] != SETLIST_SHOWN) return 0;
+	const uint8_t *l = setlist_banks(setlist_active);
 	uint8_t n = setlist_len(), bank = home_bank();
 	for(uint8_t i=0; i<n; i++){
-		if(pSetlist[i] != bank) continue;
+		if(l[i] != bank) continue;
 		*count = n;
-		*next = (i + 1 < n) ? pSetlist[i + 1] : 0xFF;
+		*next = (i + 1 < n) ? l[i + 1] : 0xFF;
 		return i + 1;
 	}
 	return 0;
@@ -1489,6 +1538,7 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 		case BANK_MODE_DIRECT:      direct_show(PREVIEW_DIRECT); break;
 		case BANK_MODE_LOCK:        set_locked(!locked); break;
 		case BANK_MODE_GIG:         display_gig_toggle(); break;
+		case BANK_MODE_SETLIST:     setlist_select(pRom[1]); break;
 		default: pending_bank = (pRom[1] < MIDI_NUM_BANKS) ? pRom[1] : 0xFF; break;
 		}
 		break;
@@ -1700,6 +1750,10 @@ static void apply_pending_bank(void){
 		uint8_t target = pending_bank;
 		pending_bank = 0xFF;
 		goto_bank(target);
+	}
+	if(setlist_notice){
+		setlist_notice = false;
+		display_show_setlist(setlist_active, flash_settings_setlist_name(setlist_active));
 	}
 }
 
@@ -3379,6 +3433,7 @@ static void switch_config(uint8_t target){
 	combo_toggle = 0;
 	combo_held = 0xFF;
 	locked = false;		// the new one may hold no Lock to undo it
+	setlist_active = 0;	// its shows are others
 	pending_bank = 0xFF;
 	pending_page = 0xFF;
 

@@ -28,6 +28,8 @@ uint8_t sw_preview_bank(void);	// the bank previewed, 0xFF when none
 #define PREVIEW_DIRECT	(0x80)
 #define DIRECT_GROUP	(8)	// banks per group
 uint8_t sw_setlist_place(uint8_t *count, uint8_t *next);	// place in the setlist shown, 0 for none
+uint8_t sw_setlist_active(void);	// the setlist followed, 0-3 (1.33)
+void sw_setlist_restore(uint8_t which);	// at power on, the one saved
 bool sw_locked(void);	// the switches are locked, see BANK_MODE_LOCK
 uint8_t sw_count_in(void);	// beats before a count-in (Wait Count) goes, 0 for none
 void sw_get_toggle_states(uint32_t out[8]);

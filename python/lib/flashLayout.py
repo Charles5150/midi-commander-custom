@@ -4,7 +4,7 @@ The layout is firmware/Core/Inc/flash_midi_settings.h's; test_roundtrip checks
 the two agree. The packer, the unpacker and the tools take it from here.
 """
 
-from lib.cmdBinaryPacker import CYCLE_LABEL_COUNT, CYCLE_LABEL_LEN, MIDI_NUM_COMMANDS_PER_SWITCH
+from lib.cmdBinaryPacker import CYCLE_LABEL_COUNT, CYCLE_LABEL_LEN, MIDI_NUM_COMMANDS_PER_SWITCH, SETLIST_COUNT
 
 NUM_BANKS = 32
 BUTTON_IDS = ["1", "2", "3", "4", "A", "B", "C", "D"]
@@ -87,7 +87,12 @@ EXT2_BANK_SWITCH_LABELS_SIZE = 16
 PRESET_NAME_LEN = 8
 PRESET_NAME_COUNT = 128
 EXT2_PRESET_NAMES_OFFSET = EXT2_BANK_SWITCH_LABELS_OFFSET + EXT2_BANK_SWITCH_LABELS_SIZE
-EXT2_SIZE = EXT2_PRESET_NAMES_OFFSET + PRESET_NAME_COUNT * PRESET_NAME_LEN
+# Setlists 2 to 4 (firmware 1.33), after those, SETLIST_MAX banks each as the
+# first one in the slot; then the names of all four, SETLIST_NAME_LEN chars
+SETLIST_NAME_LEN = 8
+EXT2_SETLISTS_OFFSET = EXT2_PRESET_NAMES_OFFSET + PRESET_NAME_COUNT * PRESET_NAME_LEN
+EXT2_SETLIST_NAMES_OFFSET = EXT2_SETLISTS_OFFSET + (SETLIST_COUNT - 1) * SETLIST_MAX
+EXT2_SIZE = EXT2_SETLIST_NAMES_OFFSET + SETLIST_COUNT * SETLIST_NAME_LEN
 
 # What a Global_Settings row reads as when it is missing, and what an erased
 # or out of range byte unpacks to

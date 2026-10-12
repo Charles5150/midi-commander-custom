@@ -34,6 +34,8 @@ void display_show_tempo(void);
 void display_show_cc(uint8_t cc, uint8_t value);
 // Full screen notice after switching configuration: its number and name
 void display_show_config(uint8_t slot);
+// The setlist now followed, 0-3, and its name (NULL or spaces for none)
+void display_show_setlist(uint8_t which, const uint8_t *name);
 void display_show_safe_mode(void);
 // After the watchdog restarted the pedal, see restart_state.c
 void display_show_restarted(void);

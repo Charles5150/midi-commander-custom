@@ -88,6 +88,7 @@ So to add a song, go to its bank first, open the editor, go to the setlist, put 
 
 - The list is written when the cursor leaves the line, as anything else in the editor, and a song set to `---` goes when it is written.
 - The order only counts while `SETLIST` in the settings is `Yes` or `Shown`, as in the [setlist](04-banks.md#setlist) the configurator writes; the screen is there either way.
+- With [several setlists](04-banks.md#several-setlists), the screen edits the one the pedal follows, and its title says which, `EDIT SETLIST2`; to edit another, pick it first. A setlist with no songs cannot be picked, so start it in the configurator (firmware 1.33).
 - **Bank Down** and **Bank Up** do nothing on this screen.
 
 *Firmware 1.23 or later.*

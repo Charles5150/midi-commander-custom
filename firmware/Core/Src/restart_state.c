@@ -66,12 +66,14 @@ bool restart_state_by_watchdog(void){
 
 void restart_state_task(void){
 	live_state_t s;
+	memset(&s, 0, sizeof(s));
 	sw_get_toggle_states(s.toggles);
 	sw_get_long_toggle_states(s.long_toggles);
 	sw_get_double_toggle_states(s.double_toggles);
 	s.bpm = tempo_get_bpm();
 	s.bank = sw_get_home_bank();	// a page shown is left, as at power on
 	s.slot = flash_settings_active_slot();
+	s.setlist = sw_setlist_active();
 
 	if(copy.magic == RESTART_MAGIC && memcmp(&s, &copy.state, sizeof(s)) == 0) return;
 	copy.magic = 0;		// a lock-up halfway through leaves no valid copy

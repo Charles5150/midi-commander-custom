@@ -25,7 +25,9 @@
  * END line to add after them. 3 and 4 change the song's bank, and below the
  * first bank is "---", which takes it out of the list; A and B move it one
  * place earlier or later; C puts the bank the pedal is on in before it. The
- * list is written when the cursor leaves its line, as one 32 byte patch.
+ * list is written when the cursor leaves its line, as one 32 byte patch. It is
+ * the setlist the pedal follows: a configuration with several (1.33) has the
+ * others edited by picking them first, with a Bank command.
  *
  * The double press lists are offered only when the configuration has them:
  * they live in an area the tools write as a block, which a configuration
@@ -471,6 +473,12 @@ static void setting_text(const setting_t *s, uint8_t v, char *out, uint8_t size)
 
 static void load_setlist(void);
 
+// The setlist the pedal follows, which the setlist screen edits
+static const uint8_t *edited_setlist(void){
+	const uint8_t *l = flash_settings_setlist(sw_setlist_active());
+	return l ? l : pSetlist;
+}
+
 static void save(void){
 	bool wrote = false;
 
@@ -507,7 +515,7 @@ static void save(void){
 		for(uint8_t i=0; i<ed.songs; i++){
 			if(ed.setlist[i] != SONG_OUT) list[n++] = ed.setlist[i];
 		}
-		wrote |= flash_settings_patch(pSetlist, list, SETLIST_MAX);
+		wrote |= flash_settings_patch((uint8_t*)edited_setlist(), list, SETLIST_MAX);
 		ed.list_dirty = false;
 		load_setlist();
 	}
@@ -522,10 +530,11 @@ static void save(void){
 
 // The list as the firmware reads it: up to the first byte that is no bank
 static void load_setlist(void){
+	const uint8_t *l = edited_setlist();
 	memset(ed.setlist, 0xFF, SETLIST_MAX);
 	ed.songs = 0;
-	while(ed.songs < SETLIST_MAX && pSetlist[ed.songs] < MIDI_NUM_BANKS){
-		ed.setlist[ed.songs] = pSetlist[ed.songs];
+	while(ed.songs < SETLIST_MAX && l[ed.songs] < MIDI_NUM_BANKS){
+		ed.setlist[ed.songs] = l[ed.songs];
 		ed.songs++;
 	}
 	ed.list_dirty = false;
@@ -698,7 +707,12 @@ static void redraw(void){
 
 	static const char *const screen_names[SCR_COUNT] = {"COMMANDS", "SETTINGS", "SETLIST"};
 	bool dirty = ed.cmd_dirty || ed.label_dirty || ed.set_dirty || ed.list_dirty;
-	snprintf(title, sizeof(title), "EDIT %-8s %s", screen_names[ed.screen], dirty ? "*" : " ");
+	char screen[9];
+	snprintf(screen, sizeof(screen), "%s", screen_names[ed.screen]);
+	if(ed.screen == SCR_SETLIST && edited_setlist() != pSetlist){
+		snprintf(screen, sizeof(screen), "SETLIST%u", (unsigned)(sw_setlist_active() + 1));
+	}
+	snprintf(title, sizeof(title), "EDIT %-8s %s", screen, dirty ? "*" : " ");
 
 	display_editor(title, (const char (*)[DISPLAY_EDIT_COLS + 1])lines, shown,
 			(uint8_t)(ed.field - ed.top));

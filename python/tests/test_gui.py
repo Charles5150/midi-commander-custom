@@ -162,6 +162,24 @@ class GuiTest(unittest.TestCase):
         self.assertTrue(app._unsaved())
         app.load_csv(CSVS[0])               # back as it was, for the other tests
 
+    def test_several_setlists(self):
+        from lib.configPacker import setlists
+        app = self.app
+        app.load_csv(CSVS[0])
+        app.update()
+        self.assertEqual(app.setlist_name.get(), "FULL SET")
+        app._pick_setlist("Setlist 2")
+        self.assertEqual(app.setlist_name.get(), "ACOUSTIC")
+        self.assertEqual([w.value().split()[0] for w in app.setlist_widgets[:5]], ["12", "13", "17", "21", "(none)"])
+        app.setlist_widgets[4].set(app.setlist_widgets[0].cget("values")[3])     # bank 2 at the end
+        app._pick_setlist("Setlist 3")
+        app.setlist_name.insert(0, "SPARE")
+        app.apply_setlist_changes()
+        self.assertEqual(setlists(app.df_setlist), {1: ("FULL SET", [0, 12, 15, 13, 14, 18, 16, 17, 19, 20]),
+                                                    2: ("ACOUSTIC", [12, 13, 17, 21, 2]), 3: ("SPARE", []),
+                                                    4: ("", [])})
+        app.load_csv(CSVS[0])               # back as it was, for the other tests
+
     def test_a_command_from_a_community_device(self):
         import lib.deviceDictionary as dd
         self.app.load_csv(os.path.join(ROOT, "templates", "HX_Stomp.csv"))

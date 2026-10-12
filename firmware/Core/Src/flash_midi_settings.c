@@ -55,6 +55,10 @@ _Static_assert(EXT2_LONG_LABELS_OFF + CFG_BUTTONS * BUTTON_LABEL_LEN <= FLASH_EX
 		"the long press labels do not fit in the second extension area");
 _Static_assert(EXT2_BANK_SW_LABELS_OFF + EXT2_BANK_SW_LABELS_SIZE <= FLASH_EXT2_PAGES * FLASH_PAGE_SIZE,
 		"the bank switch labels do not fit in the second extension area");
+_Static_assert(EXT2_SIZE <= FLASH_EXT2_PAGES * FLASH_PAGE_SIZE,
+		"the setlists do not fit in the second extension area");
+_Static_assert(EXT2_SETLISTS_OFF / FLASH_PAGE_SIZE == (EXT2_SETLIST_NAMES_OFF - 1) / FLASH_PAGE_SIZE,
+		"the setlists straddle two pages, which the on-pedal editor cannot patch");
 
 _Static_assert(PATCH_LOG_ADDR + FLASH_PAGE_SIZE <= FLASH_BASE + 256U * 1024U,
 		"the page patch copy and log do not fit in 256 kB");
@@ -131,6 +135,16 @@ const uint8_t *flash_settings_bank_switch_labels(void){
 
 const uint8_t *flash_settings_preset_names(void){
 	return ext2_part(EXT2_PRESET_NAMES_OFF);
+}
+
+const uint8_t *flash_settings_setlist(uint8_t n){
+	if(n == 0) return pSetlist;
+	if(n >= SETLIST_COUNT) return NULL;
+	return ext2_part((uint16_t)(EXT2_SETLISTS_OFF + (n - 1U) * SETLIST_MAX));
+}
+
+const uint8_t *flash_settings_setlist_name(uint8_t n){
+	return n < SETLIST_COUNT ? ext2_part((uint16_t)(EXT2_SETLIST_NAMES_OFF + n * SETLIST_NAME_LEN)) : NULL;
 }
 
 uint8_t flash_settings_exp_takeover(uint8_t pedal){
@@ -326,6 +340,7 @@ static bool patch_page_ok(uint32_t page){
 	for(uint8_t s = 0; s < CONFIG_SLOTS; s++){
 		if(page >= slot_base(s) && page < slot_base(s) + FLASH_SETTINGS_SIZE) return true;
 		if(page >= FLASH_EXT_ADDR(s) && page < FLASH_EXT_ADDR(s) + FLASH_DOUBLE_PAGES * FLASH_PAGE_SIZE) return true;
+		if(page >= FLASH_EXT2_ADDR(s) && page < FLASH_EXT2_ADDR(s) + FLASH_EXT2_PAGES * FLASH_PAGE_SIZE) return true;
 	}
 	return false;
 }
@@ -368,11 +383,13 @@ bool flash_settings_patch(uint8_t *dst, const uint8_t *data, uint8_t len){
 	uint32_t address = (uint32_t)dst;
 	uint32_t base = slot_base(active_slot);
 	uint32_t ext = FLASH_EXT_ADDR(active_slot);
+	uint32_t ext2 = FLASH_EXT2_ADDR(active_slot);
 
 	if(len == 0) return false;
 	bool in_slot = address >= base && address + len <= base + FLASH_SETTINGS_SIZE;
 	bool in_ext = address >= ext && address + len <= ext + FLASH_DOUBLE_PAGES * CFG_PAGE_SIZE;
-	if(!in_slot && !in_ext) return false;
+	bool in_ext2 = address >= ext2 && address + len <= ext2 + FLASH_EXT2_PAGES * CFG_PAGE_SIZE;
+	if(!in_slot && !in_ext && !in_ext2) return false;
 
 	uint32_t page = address & ~(uint32_t)(CFG_PAGE_SIZE - 1);
 	uint32_t at = address - page;

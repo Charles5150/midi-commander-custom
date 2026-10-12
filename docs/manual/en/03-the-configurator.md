@@ -114,7 +114,7 @@ A name for each program 0–127, up to 8 characters, in four columns. A label, a
 
 ## Setlist
 
-The order Bank Up / Down follow when **Follow the setlist** (`Setlist_Mode`) is on: one drop-down per position, listing every bank by number and name. The list ends at the first empty row. See [Setlist](04-banks.md#setlist).
+The order Bank Up / Down follow when **Follow the setlist** (`Setlist_Mode`) is on: one drop-down per position, listing every bank by number and name. The list ends at the first empty row. **Setlist 1** to **Setlist 4** above choose which of the four you edit, and **Name** names it. See [Setlist](04-banks.md#setlist).
 
 ## Expression
 

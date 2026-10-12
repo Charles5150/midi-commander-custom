@@ -101,8 +101,8 @@ test("the demo written over SysEx reads back the same", async () => {
   assert.deepEqual((await pedal.selectSlot(null)).valid, [0]);
   // As the page takes them from the tools (py.js): the double press area,
   // then the second extension area with the MIDI map, the long press labels,
-  // the bank switches' labels and the preset names
-  const sizes = { config: demo.config.length, double: 10240, doubleOffset: 12 * 2048, ext2Offset: 17 * 2048, ext2: 16 + 32 * 12 + 32 * 8 * 4 + 16 + 128 * 8 };
+  // the bank switches' labels, the preset names and the setlists
+  const sizes = { config: demo.config.length, double: 10240, doubleOffset: 12 * 2048, ext2Offset: 17 * 2048, ext2: 16 + 32 * 12 + 32 * 8 * 4 + 16 + 128 * 8 + 3 * 32 + 4 * 8 };
   const back = await running(sim, () => pedal.readImage(firmwareVersion, sizes));
   assert.deepEqual(back.data, demo.config);
   assert.deepEqual(back.image, demo.image);
@@ -1725,4 +1725,67 @@ test("Gig_View has the gig view on from power on", async () => {
   ].join("\n"))));
   sim.run(10000);
   assert.ok(gigView(sim, "HOME", "1/10>S01"));
+});
+
+// Text in the 11x18 font with its top left corner at x, y
+function largeTextAt(sim, x, y, text) {
+  for (let i = 0; i < text.length; i++) {
+    for (let row = 0; row < 18; row++) {
+      for (let c = 0; c < 11; c++) {
+        const want = Boolean((font11x18[(text.charCodeAt(i) - 32) * 18 + row] << c) & 0x8000);
+        if (lit(sim, x + i * 11 + c, y + row) !== want) return false;
+      }
+    }
+  }
+  return true;
+}
+
+test("A+B goes on to the demo's second setlist, named, from its first song, and the pedal keeps it through a restart (before 1.33, one setlist)", async () => {
+  const sim = simWithDemo();
+  sim.run(10000);                           // the power on banner goes by first
+  const pedal = await Pedal.open(sim.access);
+  assert.ok(infoLineIs(sim, "1/10>S01"), "the first setlist");
+  pair(sim, 4, 5);
+  assert.ok(largeTextAt(sim, 0, 8, "SETLIST 2") && largeTextAt(sim, 0, 38, "ACOUSTIC"), "its number and its name");
+  assert.equal((await running(sim, () => pedal.getState())).bank, 12, "its first song");
+  sim.run(1500);
+  assert.ok(infoLineIs(sim, "1/4>S02"), "its place in it, and the next song");
+  tap(sim, 9);
+  assert.ok(infoLineIs(sim, "2/4>S06"), "Bank Up follows it");
+  assert.equal((await running(sim, () => pedal.getState())).bank, 13);
+
+  holdBoth(sim);                            // the editor's setlist screen edits it
+  tap(sim, 7);
+  tap(sim, 7);
+  assert.ok(textAt(sim, 0, 0, "EDIT SETLIST2"));
+  holdBoth(sim);
+
+  sim.run(3000);                            // saved
+  const again = simWithDemo(sim.flashNow());
+  again.run(10000);
+  assert.ok(infoLineIs(again, "2/4>S06"), "back on the second setlist, where it was");
+  const other = await Pedal.open(again.access);
+  tap(again, 9);
+  tap(again, 9);
+  tap(again, 9);
+  assert.equal((await running(again, () => other.getState())).bank, 12, "round the second setlist");
+
+  pair(again, 4, 5);                        // no third: round to the first
+  assert.ok(largeTextAt(again, 0, 8, "SETLIST 1") && largeTextAt(again, 0, 38, "FULL SET"));
+  assert.equal((await running(again, () => other.getState())).bank, 0);
+});
+
+test("a Bank Setlist command to a setlist with no songs says so and leaves the pedal where it is", async () => {
+  const sim = simWithDemo(await flashWith(packDemo([
+    "b = d['Button_Settings']",
+    "b.loc[(b.Bank_Number == '30') & (b.Button_Identifier == '1'), 'A_OnValue_(CC/PB)'] = '3'",
+  ].join("\n"))));
+  sim.run(10000);
+  const pedal = await Pedal.open(sim.access);
+  tap(sim, 9);
+  pair(sim, 4, 5);
+  assert.ok(infoLineIs(sim, "NO SONGS"));
+  assert.equal((await running(sim, () => pedal.getState())).bank, 12);
+  sim.run(2000);
+  assert.ok(infoLineIs(sim, "2/10>S04"), "still on the first setlist");
 });

@@ -116,7 +116,7 @@ Un nombre para cada programa 0–127, de hasta 8 caracteres, en cuatro columnas.
 
 ## Setlist
 
-El orden que siguen Bank Up / Down cuando **Follow the setlist** (`Setlist_Mode`) está activado: un desplegable por posición, con cada banco por número y nombre. La lista termina en la primera fila vacía. Mira [Setlist](04-banks.md#setlist).
+El orden que siguen Bank Up / Down cuando **Follow the setlist** (`Setlist_Mode`) está activado: un desplegable por posición, con cada banco por número y nombre. La lista termina en la primera fila vacía. **Setlist 1** a **Setlist 4**, encima, eligen cuál de los cuatro editas, y **Name** le pone nombre. Mira [Setlist](04-banks.md#setlist).
 
 ## Expression
 

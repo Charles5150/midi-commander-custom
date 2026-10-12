@@ -13,7 +13,7 @@ import pandas as pd
 
 from lib.configPacker import (
     BANK_SWITCH_LABELED, COMBO_COLUMNS, MIDI_MAP_COLUMNS, MIDI_MAP_OUT_TYPES, MIDI_MAP_RUN, MIDI_MAP_TYPES,
-    PRESET_NAME_COLUMNS, EXP_OUT_SYSEX, EXP_OUT_ZONES, EXP_ZONES_MAX, sysex_text,
+    PRESET_NAME_COLUMNS, EXP_OUT_SYSEX, EXP_OUT_ZONES, EXP_ZONES_MAX, sysex_text, setlist_frame,
 )
 from lib.flashLayout import (
     NUM_BANKS, BUTTON_IDS, default_int, EXP_BUTTON_IDS, BOX_SWITCH_IDS, LABEL_LEN, GLOBAL_SIZE, CMD_SIZE,
@@ -25,10 +25,12 @@ from lib.flashLayout import (
     DOUBLE_PRESS_SIZE, EXT2_OFFSET, EXT2_MARKER, EXT2_MAP_OFFSET, MIDI_MAP_COUNT, EXT2_TAKEOVER_OFFSET, EXT2_EXP_DISPLAY_OFFSET,
     MIDI_MAP_STRIDE, EXT2_LONG_LABELS_OFFSET, EXT2_BANK_SWITCH_LABELS_OFFSET, EXT2_SIZE,
     EXT2_PRESET_NAMES_OFFSET, PRESET_NAME_LEN, PRESET_NAME_COUNT,
+    EXT2_SETLISTS_OFFSET, EXT2_SETLIST_NAMES_OFFSET, SETLIST_COUNT, SETLIST_NAME_LEN,
 )
 
 from lib.cmdBinaryPacker import (
     CMD_NO_CMD_NIBBLE,
+    SETLIST_NEXT,
     CMD_WAIT_MODE,
     CMD_RAMP_MODE,
     CMD_CYCLE_MODE,
@@ -478,9 +480,11 @@ def unpack_command(raw: bytes, cycle_labels=None) -> dict:
         cmd["CommandType"] = "Bank"
         mode = b0 & 0x0F
         cmd["KeyMode_(Key)"] = {1: "Up", 2: "Down", 3: "Config", 4: "NextConfig", 5: "Page", 6: "Back",
-                                 7: "Reveal", 8: "Direct", 9: "Lock", 10: "GigView"}.get(mode, "GoTo")
+                                 7: "Reveal", 8: "Direct", 9: "Lock", 10: "GigView", 11: "Setlist"}.get(mode, "GoTo")
         if mode == 3:
             cmd["OnValue_(CC/PB)"] = str(min(b1, 3) + 1)   # slots are 1-4 for people
+        elif mode == 11:
+            cmd["OnValue_(CC/PB)"] = "Next" if b1 == SETLIST_NEXT else str(min(b1, SETLIST_COUNT - 1) + 1)
         elif mode in (4, 6, 7, 8, 9, 10):
             cmd["OnValue_(CC/PB)"] = ""
         else:
@@ -738,15 +742,29 @@ def unpack_bank_switch_settings(data: bytes) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=columns)
 
 
-def unpack_setlist(data: bytes) -> pd.DataFrame:
-    """Bank numbers in setlist order; the list ends at the first invalid entry."""
-    rows = []
-    for i in range(SETLIST_MAX):
-        bank = data[SETLIST_OFFSET + i]
+def _setlist_banks(raw: bytes) -> list:
+    """A stored setlist's banks; it ends at the first invalid entry."""
+    banks = []
+    for bank in raw[:SETLIST_MAX]:
         if bank >= NUM_BANKS:
             break
-        rows.append({"Position": str(i + 1), "Bank_Number": str(bank)})
-    return pd.DataFrame(rows, columns=["Position", "Bank_Number"])
+        banks.append(bank)
+    return banks
+
+
+def unpack_setlist(data: bytes) -> pd.DataFrame:
+    """Bank numbers in setlist order: the first setlist, from the slot, and
+    when `data` goes on to the second extension area the other three and the
+    names (firmware 1.33)."""
+    lists = {1: ("", _setlist_banks(bytes(data[SETLIST_OFFSET:SETLIST_OFFSET + SETLIST_MAX])))}
+    ext = bytes(data[EXT2_OFFSET:EXT2_OFFSET + EXT2_SIZE])
+    if ext.startswith(EXT2_MARKER) and len(ext) >= EXT2_SIZE:
+        for n in range(1, SETLIST_COUNT + 1):
+            name = ext[EXT2_SETLIST_NAMES_OFFSET + (n - 1) * SETLIST_NAME_LEN:][:SETLIST_NAME_LEN]
+            name = "" if name == b"\xff" * SETLIST_NAME_LEN else name.decode("ascii", "replace").rstrip()
+            banks = lists[1][1] if n == 1 else _setlist_banks(ext[EXT2_SETLISTS_OFFSET + (n - 2) * SETLIST_MAX:])
+            lists[n] = (name, banks)
+    return setlist_frame(lists)
 
 
 def unpack_combos(data: bytes) -> pd.DataFrame:

@@ -336,6 +336,8 @@
 #define BANK_MODE_DIRECT	(8)	// Bank command low nibble: choose a bank with two presses, group then bank
 #define BANK_MODE_LOCK		(9)	// Bank command low nibble: lock every switch but those holding this command, or unlock
 #define BANK_MODE_GIG		(10)	// Bank command low nibble: the gig view on the display, on or off (1.32)
+#define BANK_MODE_SETLIST	(11)	// Bank command low nibble: setlist byte 1 (0-3) or SETLIST_NEXT, from its first song (1.33)
+#define SETLIST_NEXT		(0x7F)
 #define CONFIG_NEXT		(0x80)
 #define CMD_SCENE_NIBBLE	(0xA0)	// Scene: byte1 = buttons affected (bit 0 = button 1 .. bit 7 = D), byte2 = wanted states
 #define SCENE_SAVE		(1)	// Scene low nibble: store the toggles now into the first scene of byte 2's button (bits 0-2) and list (bits 4-5)

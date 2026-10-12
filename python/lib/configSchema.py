@@ -25,7 +25,7 @@ from lib.configPacker import (
     BUTTON_IDS, COMBO_COLUMNS, COMBO_COUNT, MIDI_MAP_COLUMNS, MIDI_MAP_COUNT, MIDI_MAP_OUT_TYPES,
     MIDI_MAP_TYPES, NUM_BANKS, EXP_OUTPUT_CHOICES, PRESET_NAME_COLUMNS, SETLIST_MAX, SYSEX_STRING_COUNT,
 )
-from lib.flashLayout import PRESET_NAME_COUNT, PRESET_NAME_LEN
+from lib.flashLayout import PRESET_NAME_COUNT, PRESET_NAME_LEN, SETLIST_COUNT, SETLIST_NAME_LEN
 
 CHANNELS = [str(i) for i in range(1, 17)]
 BANKS = [str(b) for b in range(NUM_BANKS)]
@@ -46,7 +46,9 @@ TAP_MODES = ["Tap", "Clock", "Set", "Up", "Down", "Up Repeat", "Down Repeat", "R
              "Out", "Save"]
 WAIT_MODES = ["Time", "Beat", "Bar", "Count"]
 CCINC_DIRECTIONS = ["Up", "Down", "Up Repeat", "Down Repeat"]
-BANK_MODES = ["GoTo", "Up", "Down", "Config", "NextConfig", "Page", "Back", "Reveal", "Direct", "Lock", "GigView"]
+BANK_MODES = ["GoTo", "Up", "Down", "Config", "NextConfig", "Page", "Back", "Reveal", "Direct", "Lock", "GigView",
+              "Setlist"]
+SETLIST_CHOICES = ["1", "2", "3", "4", "Next"]
 CONFIG_SLOT_NAMES = ["1", "2", "3", "4"]
 KEY_MODES = ["Normal", "Down", "Up"]
 KEY_NAMES = (
@@ -270,14 +272,16 @@ COMMAND_SPECS = {
     "Bank": {"fields": [_f(MODE, "Action", _choice(BANK_MODES)),
                         _f(ON, "Bank", _choice(BANKS), **_when(MODE, "GoTo", "Page")),
                         _f(ON, "Slot", _choice(CONFIG_SLOT_NAMES), default="1", **_when(MODE, "Config")),
-                        _f(ON, "Banks", _int(1, 31), default="8", **_when(MODE, "Up", "Down"))],
+                        _f(ON, "Banks", _int(1, 31), default="8", **_when(MODE, "Up", "Down")),
+                        _f(ON, "Setlist", _choice(SETLIST_CHOICES), default="1", **_when(MODE, "Setlist"))],
              "hint_by": MODE,
              "hints": {"NextConfig": "next slot holding a configuration",
                        "Back": "the bank you came from",
                        "Reveal": "while held, the buttons show their long press labels",
                        "Direct": "two presses choose any bank: its group of eight, then the bank",
                        "Lock": "locks every switch but those holding a Lock, which unlocks; best in a combination",
-                       "GigView": "the song's name in large letters in place of the labels, or the labels back"}},
+                       "GigView": "the song's name in large letters in place of the labels, or the labels back",
+                       "Setlist": "follow this setlist from its first song; Next, the next one with songs"}},
     "MMC": {"fields": [_f(MODE, "Action", _choice(MMC_COMMANDS), default="Play"),
                        _f(ON, "At (s)", _int(0, MMC_LOCATE_MAX), default="0", **_when(MODE, "Locate"))],
             "hint": "MIDI Machine Control, to every device"},
@@ -435,6 +439,8 @@ def schema() -> dict:
         "expressionFields": EXPRESSION_FIELDS,
         "sectionColumns": SECTION_COLUMNS,
         "setlistMax": SETLIST_MAX,
+        "setlistCount": SETLIST_COUNT,
+        "setlistNameLen": SETLIST_NAME_LEN,
         "comboCount": COMBO_COUNT,
         "comboColumns": COMBO_COLUMNS,
         "midiMapCount": MIDI_MAP_COUNT,

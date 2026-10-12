@@ -249,12 +249,13 @@ EXPORT(sim_boot) void sim_boot(uint32_t reset_flags){
 	display_init();
 	flash_settings_recover();
 
-	uint8_t saved_slot = 0;
-	bool have_state = state_store_load(&boot_bank, boot_toggles, boot_long, boot_double, &saved_slot);
+	uint8_t saved_slot = 0, saved_setlist = 0;
+	bool have_state = state_store_load(&boot_bank, boot_toggles, boot_long, boot_double, &saved_slot, &saved_setlist);
 	boot_restarted = restart_state_load(&live);
 	if(boot_restarted){
 		boot_bank = live.bank;
 		saved_slot = live.slot;
+		saved_setlist = live.setlist;
 		memcpy(boot_toggles, live.toggles, sizeof(boot_toggles));
 		memcpy(boot_long, live.long_toggles, sizeof(boot_long));
 		memcpy(boot_double, live.double_toggles, sizeof(boot_double));
@@ -267,6 +268,9 @@ EXPORT(sim_boot) void sim_boot(uint32_t reset_flags){
 	leds_init();
 	sw_init();
 	sw_led_init();
+	if((have_state || boot_restarted) && saved_slot == flash_settings_active_slot()){
+		sw_setlist_restore(saved_setlist);
+	}
 
 	boot_restore = (boot_restarted || (pGlobalSettings[GLOBAL_SETTINGS_REMEMBER_STATE] == 1 && have_state))
 			&& saved_slot == flash_settings_active_slot();

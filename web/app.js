@@ -803,10 +803,54 @@ function renderSysex(main) {
     table(sec, "Index", "#", state.schema.sectionColumns.SysEx_Strings));
 }
 
+// The setlists of the Setlist section, {1..4: {name, banks}}: banks by
+// position, "" where there is none. A row's List is 1 when empty.
+function setlistsOf(sec) {
+  const lists = {};
+  for (let n = 1; n <= state.schema.setlistCount; n++) lists[n] = { name: "", banks: Array(state.schema.setlistMax).fill("") };
+  for (const row of sec ? sec.rows : []) {
+    const list = lists[Number(cell(sec, row, "List") || 1)];
+    if (!list) continue;
+    if (cell(sec, row, "Name")) list.name = cell(sec, row, "Name");
+    const pos = Number(cell(sec, row, "Position")), bank = cell(sec, row, "Bank_Number");
+    if (bank !== "" && pos >= 1 && pos <= state.schema.setlistMax) list.banks[pos - 1] = bank;
+  }
+  return lists;
+}
+
+// Back into the section, with List and Name only when they are used, as the
+// tools write it
+function writeSetlists(lists) {
+  const used = Object.entries(lists);
+  const several = used.some(([n, l]) => n !== "1" && l.banks.some((b) => b !== ""));
+  const named = used.some(([, l]) => l.name);
+  const columns = ["Position", "Bank_Number", ...(several || named ? ["List"] : []), ...(named ? ["Name"] : [])];
+  const rows = [];
+  for (const [n, l] of used) {
+    const songs = l.banks.map((b, i) => [String(i + 1), b]).filter(([, b]) => b !== "");
+    if (l.name && !songs.length) songs.push(["", ""]);
+    songs.forEach(([pos, bank], i) => rows.push(columns.map((c) => ({ Position: pos, Bank_Number: bank, List: n, Name: i ? "" : l.name }[c]))));
+  }
+  state.config.Setlist = { columns, rows };
+  changed();
+}
+
 function renderSetlist(main) {
-  const sec = ensureRows("Setlist", "Position", state.schema.setlistMax, { Bank_Number: "" });
-  main.append(h("p", { class: "hint" }, "The order Bank Up and Bank Down follow when Follow the setlist (Global) is on. Empty positions end it."),
-    table(sec, "Position", "Position", state.schema.sectionColumns.Setlist));
+  const lists = setlistsOf(section("Setlist"));
+  const n = state.setlist || 1, list = lists[n];
+  const spec = state.schema.sectionColumns.Setlist[0];
+  const picks = h("div", { class: "subtabs" }, Object.keys(lists).map((k) => h("button", {
+    class: String(n) === k ? "active" : "", "aria-pressed": String(n) === k ? "true" : "false",
+    onclick: () => { state.setlist = Number(k); render(); },
+  }, `Setlist ${k}`)));
+  const name = h("input", { type: "text", maxlength: state.schema.setlistNameLen, value: list.name, "aria-label": `Name of setlist ${n}`, placeholder: "no name" });
+  name.addEventListener("change", () => { list.name = name.value.trim(); writeSetlists(lists); });
+  main.append(h("p", { class: "hint" }, "The order Bank Up and Bank Down follow when Follow the setlist (Global) is on. Up to four, one for each show: the pedal follows the first until a Bank command with the action Setlist picks another, and shows its name as it does."),
+    picks, h("label", { class: "field" }, "Name ", name),
+    h("table", { class: "grid" },
+      h("thead", {}, h("tr", {}, h("th", {}, "Position"), h("th", {}, spec.label))),
+      h("tbody", {}, list.banks.map((b, i) => h("tr", {}, h("td", { class: "key" }, String(i + 1)),
+        h("td", {}, named(fieldControl(spec, () => list.banks[i], (v) => { list.banks[i] = v; writeSetlists(lists); }), `${spec.label}, setlist ${n} position ${i + 1}`)))))));
 }
 
 function renderCombos(main) {

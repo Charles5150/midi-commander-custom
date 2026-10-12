@@ -535,11 +535,11 @@ class TakeoverTest(unittest.TestCase):
             self.pack_with("Smooth", "Jump")
 
     def test_written_alone_when_nothing_else_needs_the_area(self):
-        # A configuration with no MIDI map, long press or bank switch labels
-        # or preset names gets the area for Takeover alone, and none without it
+        # A configuration with no MIDI map, long press or bank switch labels,
+        # preset names or setlists past the first gets the area for Takeover alone, and none without it
         sections = {k: v for k, v in self.sections.items()
                     if k not in (packer.MIDI_MAP_SECTION, packer.LONG_PRESS_SECTION, packer.BANK_SWITCH_SECTION,
-                                 packer.PRESET_NAMES_SECTION)}
+                                 packer.PRESET_NAMES_SECTION, packer.SETLIST_SECTION)}
         sections[packer.EXPRESSION_SECTION] = sections[packer.EXPRESSION_SECTION].assign(Display="Off")
         plain = self.pack_with("Jump", "Jump", sections)
         self.assertLessEqual(len(plain), layout.EXT2_OFFSET)
@@ -601,7 +601,7 @@ class DisplayTest(unittest.TestCase):
     def test_written_alone_when_nothing_else_needs_the_area(self):
         sections = {k: v for k, v in self.sections.items()
                     if k not in (packer.MIDI_MAP_SECTION, packer.LONG_PRESS_SECTION, packer.BANK_SWITCH_SECTION,
-                                 packer.PRESET_NAMES_SECTION)}
+                                 packer.PRESET_NAMES_SECTION, packer.SETLIST_SECTION)}
         df = sections[packer.EXPRESSION_SECTION].assign(Takeover="Jump")
         sections = {**sections, packer.EXPRESSION_SECTION: df}
         self.assertLessEqual(len(self.pack_with("Off", "Off", sections)), layout.EXT2_OFFSET)

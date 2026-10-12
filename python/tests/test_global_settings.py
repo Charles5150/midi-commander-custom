@@ -818,7 +818,7 @@ class PresetNamesTest(unittest.TestCase):
         self.assertIn("#define PRESET_NAME_LEN			(8)", header)
         self.assertIn("#define PRESET_NAME_COUNT		(128)", header)
         self.assertIn("#define EXT2_PRESET_NAMES_OFF	(EXT2_BANK_SW_LABELS_OFF + EXT2_BANK_SW_LABELS_SIZE)", header)
-        self.assertEqual(layout.EXT2_SIZE, layout.EXT2_PRESET_NAMES_OFFSET + 128 * 8)
+        self.assertEqual(layout.EXT2_SETLISTS_OFFSET, layout.EXT2_PRESET_NAMES_OFFSET + 128 * 8)
         self.assertLessEqual(layout.EXT2_SIZE, layout.EXT2_PAGES * 2048)
 
     def test_round_trip(self):
@@ -831,7 +831,7 @@ class PresetNamesTest(unittest.TestCase):
         names = ext[layout.EXT2_PRESET_NAMES_OFFSET:]
         self.assertEqual(names[:8], b"Clean   ")
         self.assertEqual(names[8:16], b"\xff" * 8)       # no name: erased
-        self.assertEqual(names[-8:], b"Lead Boo")       # cut at 8
+        self.assertEqual(names[127 * 8:128 * 8], b"Lead Boo")       # cut at 8
         back = unpacker.unpack_preset_names(image)
         self.assertEqual(back.values.tolist(), [["0", "Clean"], ["127", "Lead Boo"]])
 
@@ -862,7 +862,7 @@ class PresetNamesTest(unittest.TestCase):
             write_config_csv(out, frames[0], frames[1], frames[2],
                              df_preset_names=unpacker.unpack_preset_names(image))
             again = read_config_csv(out)
-        names = slice(layout.EXT2_OFFSET + layout.EXT2_PRESET_NAMES_OFFSET, None)
+        names = slice(layout.EXT2_OFFSET + layout.EXT2_PRESET_NAMES_OFFSET, layout.EXT2_OFFSET + layout.EXT2_SETLISTS_OFFSET)
         self.assertEqual(packer.pack_flash_image(again)[names], image[names])
 
     def test_web_bridge(self):
