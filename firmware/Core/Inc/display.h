@@ -70,6 +70,17 @@ void display_show_program(uint8_t program);
 uint8_t display_host_text(uint8_t place, uint8_t how, const uint8_t *text, uint8_t len);
 
 /*
+ * A button's label from the host over SysEx, called from the USB interrupt:
+ * button 0-7, DISPLAY_LABEL_BANK_DOWN or _UP, or DISPLAY_LABEL_ALL; how
+ * TEXT_KEEP_BANK or TEXT_KEEP_ALWAYS. An empty label gives the button back
+ * its own. Returns 0 for a button or how it does not know.
+ */
+#define DISPLAY_LABEL_BANK_DOWN	(8)
+#define DISPLAY_LABEL_BANK_UP	(9)
+#define DISPLAY_LABEL_ALL	(0x7F)
+uint8_t display_host_label(uint8_t button, uint8_t how, const uint8_t *text, uint8_t len);
+
+/*
  * The on-pedal editor's screen: a title and up to DISPLAY_EDIT_ROWS lines of
  * small text, with one of them inverted as the cursor. While it is up nothing
  * else draws, so the bank screen, the tempo readout and the host's text wait

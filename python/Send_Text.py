@@ -9,6 +9,11 @@
     Send_Text.py --place line ""                back to what the bank shows
     Send_Text.py --hex "Sweet Child"            only print the SysEx message
 
+    Send_Text.py --button A DLY                 button A's label, until the bank changes (1.34)
+    Send_Text.py --button A --keep always DLY   until the computer changes it
+    Send_Text.py --button A ""                  back to its own label
+    Send_Text.py --button all ""                every button back to its own
+
     Send_Text.py --banner "The Band  612 345 678"   store the power on banner's own text (0.63)
     Send_Text.py --banner ""                    clear it: the banner shows the configuration's name
     Send_Text.py --banner                       print the text the pedal holds
@@ -23,7 +28,8 @@ when Boot_Banner is on.
 import argparse
 import sys
 
-from lib.midiDevice import BANNER_TEXT_MAX, TEXT_FITS, TEXT_KEEP, TEXT_MAX, TEXT_PLACES, DeviceNotFound, DeviceTimeout, MidiCommander, banner_sysex, text_sysex
+from lib.midiDevice import (BANNER_TEXT_MAX, LABEL_KEEP, LABEL_MAX, TEXT_FITS, TEXT_KEEP, TEXT_MAX, TEXT_PLACES,
+                            DeviceNotFound, DeviceTimeout, MidiCommander, banner_sysex, label_sysex, text_sysex)
 
 
 def main() -> int:
@@ -36,6 +42,9 @@ def main() -> int:
     parser.add_argument("--keep", default="bank", choices=list(TEXT_KEEP),
                         help="bank: until the bank changes (the default); always: until "
                              "replaced; moment: a second and a half")
+    parser.add_argument("--button", metavar="BUTTON",
+                        help=f"put the text on a button's label instead, up to {LABEL_MAX} characters: "
+                             "1-4, A-D, Down, Up or all; --keep bank or always (firmware 1.34)")
     parser.add_argument("--hex", action="store_true", help="print the SysEx message instead of sending it")
     parser.add_argument("--banner", action="store_true",
                         help=f"store the text as the power on banner's own, up to {BANNER_TEXT_MAX} "
@@ -46,6 +55,8 @@ def main() -> int:
         return banner(args)
     if args.text is None:
         parser.error("the text is missing")
+    if args.button is not None:
+        return label(args)
 
     msg = text_sysex(args.text, args.place, args.keep)
     if len(args.text) > TEXT_MAX:
@@ -65,6 +76,29 @@ def main() -> int:
         return 1
     except DeviceTimeout:
         print("The pedal did not answer. Writing on the display needs firmware 0.46.")
+        return 2
+    return 0
+
+
+def label(args) -> int:
+    try:
+        msg = label_sysex(args.button, args.text, args.keep)
+    except ValueError as e:
+        print(e, file=sys.stderr)
+        return 3
+    if len(args.text) > LABEL_MAX:
+        print(f"A label shows up to {LABEL_MAX} characters, 4 in the ten cell layout", file=sys.stderr)
+    if args.hex:
+        print(" ".join(f"{b:02X}" for b in msg))
+        return 0
+    try:
+        with MidiCommander() as dev:
+            dev.set_label(args.button, args.text, args.keep)
+    except DeviceNotFound as e:
+        print(e)
+        return 1
+    except DeviceTimeout:
+        print("The pedal did not answer. A button's label from the computer needs firmware 1.34.")
         return 2
     return 0
 

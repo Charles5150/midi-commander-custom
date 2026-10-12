@@ -166,6 +166,38 @@ The pedal answers `F0 7D 49 place how F7`, and ignores a place or `how` it does 
 
 </details>
 
+### Button labels
+
+A script or a DAW that drives the pedal can also write each button's label: the scene it just named, the effect it moved to button A. The button still sends what the configuration says; only its label changes. *Needs firmware 1.34 or later.*
+
+- A label from the computer has up to five characters, in the small letters past four, as a [live value](#live-values) does. In the [ten cell layout](04-banks.md#what-the-bank-switches-send) the cells take four, Bank Down and Bank Up included, which the computer can write too while they show.
+- It stays until the bank changes, or until the computer changes it, wherever you go.
+- An empty label gives the button back its own, and one message can give all of them back.
+- A toggle still shows inverted while it is on, and the [gig view](#gig-view) hides the labels as always.
+
+```bash
+.venv/bin/python python/Send_Text.py --button A DLY                 # button A, until the bank changes
+.venv/bin/python python/Send_Text.py --button 1 --keep always Lead  # button 1, until the computer changes it
+.venv/bin/python python/Send_Text.py --button all ""                # every button back to its own label
+.venv/bin/python python/Send_Text.py --button A --hex DLY           # only print the bytes, for a host to send
+```
+
+`--button` is `1`–`4`, `A`–`D`, `Down`, `Up` or `all`, and `--keep` is `bank` (the default) or `always`.
+
+<details><summary>Under the hood</summary>
+
+```
+F0 7D 52 button how label... F7
+```
+
+`button` is `00`–`03` for 1–4, `04`–`07` for A–D, `08` for Bank Down, `09` for Bank Up and `7F` for all of them. `how` is `00` until the bank changes and `01` until the host changes it. The label bytes are `20`–`7E`; past five, they are cut off.
+
+For example, `F0 7D 52 04 00 44 4C 59 F7` writes **DLY** on button A until the bank changes.
+
+The pedal answers `F0 7D 53 button how F7`, and ignores a button or `how` it does not know. Labels from the computer are not kept through power off, and `GET_STATE` still reports the configuration's.
+
+</details>
+
 ## The banner's own text
 
 At power on, with `Boot_Banner` on, the [banner](12-configuration-file.md#global_settings) crosses the display with the configuration's name. The pedal can hold a text of its own to show instead: up to 60 characters of plain ASCII, such as a band, a show or a phone number in case the pedal gets lost.

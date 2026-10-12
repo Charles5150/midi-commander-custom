@@ -69,6 +69,8 @@
 #define SYSEX_RSP_GET_LATENCY	(79) // presses timed (2 bytes), slowest, then the last up to 16, oldest first; microseconds in 3 bytes each
 #define SYSEX_CMD_SET_PEDAL	(80) // pedal 0-1, 1 hold it at the position that follows (high 7, low 7 bits, 0 heel to 16383 toe) or 0 give it back its jack
 #define SYSEX_RSP_SET_PEDAL	(81) // echoes the pedal and hold
+#define SYSEX_CMD_SET_LABEL	(82) // button (0-7 1..4, A..D, 8 Bank Down, 9 Bank Up, 0x7F all), how (0 until the bank changes, 1 kept), then the label
+#define SYSEX_RSP_SET_LABEL	(83) // echoes the button and how
 
 #define SYSEX_START (0xF0)
 #define SYSEX_END	(0xF7)

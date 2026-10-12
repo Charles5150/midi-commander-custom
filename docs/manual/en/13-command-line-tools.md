@@ -110,9 +110,10 @@ Slots with no file in the folder are left as they are. A restored backup gives t
 ```bash
 .venv/bin/python python/Send_Text.py "Sweet Child"
 .venv/bin/python python/Send_Text.py --banner "The Band  612 345 678"
+.venv/bin/python python/Send_Text.py --button A DLY
 ```
 
-Puts a text on the pedal's top line, or prints the SysEx bytes for a host to send with `--hex`; with `--banner` it reads, stores or clears the banner's own text. See [Text from the computer](09-the-display.md#text-from-the-computer) and [The banner's own text](09-the-display.md#the-banners-own-text).
+Puts a text on the pedal's top line, or prints the SysEx bytes for a host to send with `--hex`; with `--banner` it reads, stores or clears the banner's own text, and with `--button` it writes a button's label (firmware 1.34). See [Text from the computer](09-the-display.md#text-from-the-computer), [Button labels](09-the-display.md#button-labels) and [The banner's own text](09-the-display.md#the-banners-own-text).
 
 ## Kemper_Sim: a Kemper to try Kemper_Mode without one
 

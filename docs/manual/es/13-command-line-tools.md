@@ -110,9 +110,10 @@ Las ranuras sin archivo en la carpeta se quedan como están. Una copia restaurad
 ```bash
 .venv/bin/python python/Send_Text.py "Sweet Child"
 .venv/bin/python python/Send_Text.py --banner "The Band  612 345 678"
+.venv/bin/python python/Send_Text.py --button A DLY
 ```
 
-Pone un texto en la línea de arriba de la pedalera, o con `--hex` imprime los bytes SysEx para que los envíe otro programa; con `--banner` lee, guarda o borra el texto propio del banner. Mira [Texto desde el ordenador](09-the-display.md#texto-desde-el-ordenador) y [El texto propio del banner](09-the-display.md#el-texto-propio-del-banner).
+Pone un texto en la línea de arriba de la pedalera, o con `--hex` imprime los bytes SysEx para que los envíe otro programa; con `--banner` lee, guarda o borra el texto propio del banner, y con `--button` escribe la etiqueta de un botón (firmware 1.34). Mira [Texto desde el ordenador](09-the-display.md#texto-desde-el-ordenador), [Etiquetas de los botones](09-the-display.md#etiquetas-de-los-botones) y [El texto propio del banner](09-the-display.md#el-texto-propio-del-banner).
 
 ## Kemper_Sim: un Kemper para probar Kemper_Mode sin tenerlo
 

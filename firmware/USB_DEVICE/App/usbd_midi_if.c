@@ -412,6 +412,27 @@ void sysex_set_text(uint8_t* data_packet_start, uint8_t text_len){
 	sysex_answer(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
 }
 
+/*
+ * A button's label from the host: F0 7D 82 button how label... F7, the label
+ * everything between how and the end byte.
+ */
+void sysex_set_label(uint8_t* data_packet_start, uint8_t text_len){
+	uint8_t button = data_packet_start[0];
+	uint8_t how = data_packet_start[1];
+	if(!display_host_label(button, how, data_packet_start + 2, text_len)){
+		return;
+	}
+
+	uint8_t *p = midi_msg_tx_buffer;
+	*(p++) = SYSEX_START;
+	*(p++) = MIDI_MANUF_ID;
+	*(p++) = SYSEX_RSP_SET_LABEL;
+	*(p++) = button;
+	*(p++) = how;
+	*(p++) = SYSEX_END;
+	sysex_answer(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
+}
+
 void sysex_get_version(void){
 	const char *version = FIRMWARE_VERSION;
 	uint8_t *p = midi_msg_tx_buffer;
@@ -574,6 +595,12 @@ void process_sysex_message(void){
 		// F0 7D 72 place how F7 = 6 bytes, then the text
 		if(sysex_rx_counter >= 6){
 			sysex_set_text(&(pSysexHead->start_parameters), sysex_rx_counter - 6);
+		}
+		break;
+	case SYSEX_CMD_SET_LABEL:
+		// F0 7D 82 button how F7 = 6 bytes, then the label
+		if(sysex_rx_counter >= 6){
+			sysex_set_label(&(pSysexHead->start_parameters), sysex_rx_counter - 6);
 		}
 		break;
 	case SYSEX_CMD_GET_VERSION:

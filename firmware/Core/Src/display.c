@@ -107,6 +107,10 @@ static uint32_t pedal_tick;
  */
 static char host_text[DISPLAY_TEXT_PLACES][DISPLAY_TEXT_MAX + 1];
 static uint8_t host_keep[DISPLAY_TEXT_PLACES];
+// Labels from the host in place of the buttons' own, Bank Down and Up last
+#define HOST_LABELS	(MIDI_NUM_SWITCHES + 2)
+static char host_label[HOST_LABELS][BUTTON_LABEL_LEN + 2];
+static uint8_t host_label_keep[HOST_LABELS];
 // A text shown for a moment only, waiting for the main loop to draw it
 static char moment_text[DISPLAY_TEXT_MAX + 1];
 static uint8_t moment_place = 0;
@@ -327,6 +331,16 @@ static void label_text(const uint8_t *src, char buf[BUTTON_LABEL_LEN + 1]){
 	buf[n] = 0;
 }
 
+// src into dst, up to max characters and the NUL
+static void copy_cut(char *dst, const char *src, uint8_t max){
+	uint8_t n = 0;
+	while(n < max && src[n]){
+		dst[n] = src[n];
+		n++;
+	}
+	dst[n] = 0;
+}
+
 static void get_label(uint8_t bank, uint8_t sw, char buf[BUTTON_LABEL_LEN + 1]){
 	label_text(sw_button_label(bank, sw), buf);
 }
@@ -366,7 +380,12 @@ static void draw_label_cell(uint8_t col, bool top, bool ten, const char *label, 
 // Bank Down (0) or Bank Up (1) in the fifth column
 static void draw_bank_switch_cell(const uint8_t *labels, uint8_t which){
 	char label[BUTTON_LABEL_LEN + 1];
-	label_text(labels + which * BUTTON_LABEL_LEN, label);
+	const char *host = host_label[MIDI_NUM_SWITCHES + which];
+	if(host[0]){
+		copy_cut(label, host, BUTTON_LABEL_LEN);
+	} else {
+		label_text(labels + which * BUTTON_LABEL_LEN, label);
+	}
 	if(label[0] == 0) strcpy(label, which ? "UP" : "DN");
 	draw_label_cell(4, which == 1, true, label, false);
 }
@@ -464,9 +483,15 @@ static void expand(const char *src, char *dst, uint8_t max, uint8_t bank, uint8_
 static void button_text(uint8_t bank, uint8_t sw, char out[BUTTON_LABEL_LEN + 2]){
 	static const char ids[MIDI_NUM_SWITCHES] = {'1','2','3','4','A','B','C','D'};
 	char label[BUTTON_LABEL_LEN + 1];
-	get_label(bank, sw, label);
 	// The wide cells take one more character, in the small letters
-	expand(label, out, ten_cell_labels() ? BUTTON_LABEL_LEN : BUTTON_LABEL_LEN + 1, bank, sw);
+	uint8_t max = ten_cell_labels() ? BUTTON_LABEL_LEN : BUTTON_LABEL_LEN + 1;
+	if(bank == current_bank && host_label[sw][0]){
+		// The host's, as it came: no live values in it
+		copy_cut(out, host_label[sw], max);
+		return;
+	}
+	get_label(bank, sw, label);
+	expand(label, out, max, bank, sw);
 	if(out[0] == 0){
 		out[0] = ids[sw];
 		out[1] = 0;
@@ -523,6 +548,9 @@ static void draw_cell(uint8_t bank, uint8_t sw){
 static void drop_bank_text(void){
 	for(uint8_t p=0; p<DISPLAY_TEXT_PLACES; p++){
 		if(host_keep[p] == TEXT_KEEP_BANK) host_text[p][0] = 0;
+	}
+	for(uint8_t b=0; b<HOST_LABELS; b++){
+		if(host_label_keep[b] == TEXT_KEEP_BANK) host_label[b][0] = 0;
 	}
 }
 
@@ -877,6 +905,28 @@ uint8_t display_host_text(uint8_t place, uint8_t how, const uint8_t *text, uint8
 		refresh_pending = 1;
 	}
 	// A new song name is worth looking at: wake the screen
+	sleep_note_activity();
+	return 1;
+}
+
+uint8_t display_host_label(uint8_t button, uint8_t how, const uint8_t *text, uint8_t len){
+	if((button >= HOST_LABELS && button != DISPLAY_LABEL_ALL) || how > TEXT_KEEP_ALWAYS) return 0;
+
+	char label[BUTTON_LABEL_LEN + 2];
+	if(len > BUTTON_LABEL_LEN + 1) len = BUTTON_LABEL_LEN + 1;
+	for(uint8_t i=0; i<len; i++){
+		char c = (char)text[i];
+		label[i] = (c < 0x20 || c > 0x7E) ? ' ' : c;
+	}
+	while(len > 0 && label[len - 1] == ' ') len--;	// as the configuration's are
+	label[len] = 0;
+
+	for(uint8_t b=0; b<HOST_LABELS; b++){
+		if(button != DISPLAY_LABEL_ALL && b != button) continue;
+		strcpy(host_label[b], label);
+		host_label_keep[b] = how;
+	}
+	refresh_pending = 1;
 	sleep_note_activity();
 	return 1;
 }

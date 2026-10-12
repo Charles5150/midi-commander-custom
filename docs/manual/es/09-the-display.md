@@ -166,6 +166,38 @@ La pedalera contesta `F0 7D 49 place how F7`, e ignora un `place` o un `how` que
 
 </details>
 
+### Etiquetas de los botones
+
+Un script o una DAW que lleva la pedalera también puede escribir la etiqueta de cada botón: la escena que acaba de nombrar, el efecto que ha puesto en el botón A. El botón sigue enviando lo que dice la configuración; solo cambia su etiqueta. *Necesita firmware 1.34 o posterior.*
+
+- Una etiqueta del ordenador tiene hasta cinco caracteres, en letra pequeña cuando pasa de cuatro, como un [valor en vivo](#valores-en-vivo). En la [pantalla de diez casillas](04-banks.md#lo-que-envían-los-pulsadores-de-banco) caben cuatro, también en Bank Down y Bank Up, que el ordenador puede escribir mientras se ven.
+- Se queda hasta que cambia el banco, o hasta que el ordenador la cambia, vayas donde vayas.
+- Una etiqueta vacía le devuelve al botón la suya, y un solo mensaje se la devuelve a todos.
+- Un interruptor sigue saliendo en negativo mientras está encendido, y la [vista de directo](#vista-de-directo) oculta las etiquetas como siempre.
+
+```bash
+.venv/bin/python python/Send_Text.py --button A DLY                 # botón A, hasta que cambia el banco
+.venv/bin/python python/Send_Text.py --button 1 --keep always Lead  # botón 1, hasta que el ordenador la cambia
+.venv/bin/python python/Send_Text.py --button all ""                # todos los botones vuelven a su etiqueta
+.venv/bin/python python/Send_Text.py --button A --hex DLY           # solo imprimir los bytes, para que los envíe otro programa
+```
+
+`--button` es `1`–`4`, `A`–`D`, `Down`, `Up` o `all`, y `--keep` es `bank` (por defecto) o `always`.
+
+<details><summary>Por dentro</summary>
+
+```
+F0 7D 52 button how label... F7
+```
+
+`button` es `00`–`03` para 1–4, `04`–`07` para A–D, `08` para Bank Down, `09` para Bank Up y `7F` para todos. `how` es `00` hasta que cambia el banco y `01` hasta que el ordenador la cambia. Los bytes de la etiqueta van de `20` a `7E`; a partir del quinto se cortan.
+
+Por ejemplo, `F0 7D 52 04 00 44 4C 59 F7` escribe **DLY** en el botón A hasta que cambia el banco.
+
+La pedalera contesta `F0 7D 53 button how F7`, e ignora un botón o un `how` que no conoce. Las etiquetas del ordenador no se guardan al apagar, y `GET_STATE` sigue dando las de la configuración.
+
+</details>
+
 ## El texto propio del banner
 
 Al encender, con `Boot_Banner` activado, el [banner](12-configuration-file.md#global_settings) cruza la pantalla con el nombre de la configuración. La pedalera puede guardar un texto propio para mostrarlo en su lugar: hasta 60 caracteres de ASCII simple, como el nombre de un grupo, de un espectáculo o un teléfono por si se pierde la pedalera.

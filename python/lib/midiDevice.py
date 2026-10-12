@@ -39,6 +39,8 @@ SYSEX_CMD_GET_LATENCY = 78
 SYSEX_RSP_GET_LATENCY = 79
 SYSEX_CMD_SET_PEDAL = 80
 SYSEX_RSP_SET_PEDAL = 81
+SYSEX_CMD_SET_LABEL = 82
+SYSEX_RSP_SET_LABEL = 83
 # Two check bytes ("DF") so a stray message cannot restart the pedal in DFU
 ENTER_DFU_CHECK = (0x44, 0x46)
 
@@ -50,6 +52,12 @@ TEXT_FITS = {"info": 11, "name": 4, "line": 11, "small": 18}
 TEXT_MAX = 32
 # How long it stays
 TEXT_KEEP = {"bank": 0, "always": 1, "moment": 2}
+
+# A button's label from the host (firmware 1.34): up to 5 characters, 4 in
+# the ten cell layout and on Bank Down and Up; "all" sets every button
+LABEL_MAX = 5
+LABEL_ALL = 0x7F
+LABEL_KEEP = {"bank": 0, "always": 1}
 
 # The power on banner's own text (firmware 0.63), kept by the pedal outside
 # the configurations
@@ -102,6 +110,21 @@ def text_sysex(text: str, place: str = "line", keep: str = "bank") -> list:
         raise ValueError(f"unknown keep: {keep} (use {', '.join(TEXT_KEEP)})")
     body = [ord(c) for c in display_text(text)[:TEXT_MAX]]
     return [0xF0, MIDI_MANUF_ID, SYSEX_CMD_SET_TEXT, TEXT_PLACES[place], TEXT_KEEP[keep]] + body + [0xF7]
+
+
+def label_sysex(button, text: str, keep: str = "bank") -> list:
+    """The whole SysEx message, F0 to F7, that puts text on a button's label.
+
+    button is a switch_id (1-4, A-D, DOWN, UP) or "all", keep one of
+    LABEL_KEEP. Characters the display cannot draw are replaced as
+    display_text says; an empty text gives the button back its own label.
+    """
+    which = LABEL_ALL if str(button).strip().lower() == "all" else switch_id(button)
+    keep = keep.strip().lower()
+    if keep not in LABEL_KEEP:
+        raise ValueError(f"unknown keep: {keep} (use {', '.join(LABEL_KEEP)})")
+    body = [ord(c) for c in display_text(text)[:LABEL_MAX].rstrip()]
+    return [0xF0, MIDI_MANUF_ID, SYSEX_CMD_SET_LABEL, which, LABEL_KEEP[keep]] + body + [0xF7]
 
 
 def banner_sysex(text: str) -> list:
@@ -364,6 +387,11 @@ class MidiCommander:
         """Put text on the display (firmware 0.46); see text_sysex."""
         self.outport.send(mido.Message("sysex", data=text_sysex(text, place, keep)[1:-1]))
         self.wait_for_sysex(SYSEX_RSP_SET_TEXT, timeout)
+
+    def set_label(self, button, text: str, keep: str = "bank", timeout=1.0):
+        """Put text on a button's label (firmware 1.34); see label_sysex."""
+        self.outport.send(mido.Message("sysex", data=label_sysex(button, text, keep)[1:-1]))
+        self.wait_for_sysex(SYSEX_RSP_SET_LABEL, timeout)
 
     def get_banner(self, timeout=1.0) -> str:
         """The banner's own text the pedal holds, "" for none (firmware 0.63)."""

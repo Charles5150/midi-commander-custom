@@ -921,6 +921,12 @@ test("with the bank switches at MIDI only and labelled, the screen shows ten cel
   const ten = await demoWith("MIDI only", "PREV", "NEXT");
   assert.ok(smallTextAt(ten, 102, 26, "NEXT"), "Bank Up's label, top right");
   assert.ok(smallTextAt(ten, 102, 48, "PREV"), "Bank Down's label, bottom right");
+  // and the computer can write on them too (1.34), four characters there
+  const pedal = await Pedal.open(ten.access);
+  await running(ten, () => pedal.ask([82, 9, 0, ...Array.from("Tempo", (c) => c.charCodeAt(0))], 83, 1000));
+  ten.run(200);
+  assert.ok(smallTextAt(ten, 102, 26, "Temp"), "Bank Up's label from the computer");
+  assert.ok(smallTextAt(ten, 102, 48, "PREV"));
 
   // One label is enough; the other switch shows its name
   const one = await demoWith("MIDI only", "", "NEXT");
@@ -1788,4 +1794,42 @@ test("a Bank Setlist command to a setlist with no songs says so and leaves the p
   assert.equal((await running(sim, () => pedal.getState())).bank, 12);
   sim.run(2000);
   assert.ok(infoLineIs(sim, "2/10>S04"), "still on the first setlist");
+});
+
+test("the computer writes a button's label, until the bank changes or until it changes it (before 1.34, it could not)", async () => {
+  const sim = simWithDemo();
+  sim.run(10000);                           // the demo's power on banner goes by first
+  const pedal = await Pedal.open(sim.access);
+  const seen = watch(sim);
+  // SET_LABEL: the pedal's answer echoes the button and how
+  const label = async (button, how, text) => {
+    const answer = await running(sim, () => pedal.ask([82, button, how, ...Array.from(text, (c) => c.charCodeAt(0))], 83, 300)
+      .catch(() => null));
+    sim.run(200);
+    return answer;
+  };
+  assert.deepEqual(await label(4, 0, "DLY"), [4, 0], "the pedal answers");
+  assert.ok(bigTextAt(sim, 5, 47, "DLY"), "in button A's cell");
+  await label(0, 1, "Delay");
+  assert.ok(smallTextAt(sim, 2, 26, "Delay"), "five characters, in the small letters");
+  tap(sim, 9);                              // Bank Up
+  tap(sim, 8);                              // and back
+  assert.ok(!bigTextAt(sim, 5, 47, "DLY"), "a label for the bank goes with it");
+  assert.ok(smallTextAt(sim, 2, 26, "Delay"), "one kept stays");
+  tap(sim, 0);                              // to the looper bank
+  assert.ok(smallTextAt(sim, 2, 26, "Delay"), "in any bank");
+  seen.splice(0);
+  tap(sim, 0);
+  tap(sim, 0);
+  assert.deepEqual(seen.filter((m) => m.startsWith("USB")), ["USB b0 01 7f", "USB b0 01 00"],
+    "while the button sends what the configuration says");
+  await label(0x7f, 0, "");
+  const fresh = simWithDemo();
+  fresh.run(10000);
+  tap(fresh, 0);
+  const own = cellRows(fresh);
+  assert.equal(cellRows(sim), own, "an empty label gives every button back its own");
+  assert.equal(await label(10, 0, "X"), null, "a button it does not know: no answer");
+  assert.equal(await label(0, 2, "X"), null, "nor a how");
+  assert.equal(cellRows(sim), own);
 });

@@ -90,6 +90,26 @@ class HostTextTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             text_sysex("x", "line", "forever")
 
+    def test_label_message(self):
+        """SysEx SET_LABEL: the host writes a button's label (firmware 1.34)."""
+        from lib import midiDevice as md
+
+        self.assertEqual(self.macros["SYSEX_CMD_SET_LABEL"], md.SYSEX_CMD_SET_LABEL)
+        self.assertEqual(self.macros["SYSEX_RSP_SET_LABEL"], md.SYSEX_RSP_SET_LABEL)
+        self.assertIn("#define DISPLAY_LABEL_ALL\t(0x7F)", self.firmware)
+        self.assertEqual(md.LABEL_ALL, 0x7F)
+        self.assertEqual(self.macros["DISPLAY_LABEL_BANK_UP"], md.switch_id("UP"))
+        self.assertIn("BUTTON_LABEL_LEN + 1) len = BUTTON_LABEL_LEN + 1", self.firmware)
+        self.assertEqual(md.LABEL_MAX, 5)
+        self.assertEqual(md.label_sysex("A", "DLY"), [0xF0, 0x7D, 82, 4, 0] + list(b"DLY") + [0xF7])
+        self.assertEqual(md.label_sysex("up", "Tempo", "always")[3:5], [9, 1])
+        self.assertEqual(md.label_sysex("all", ""), [0xF0, 0x7D, 82, 0x7F, 0, 0xF7])
+        self.assertEqual(bytes(md.label_sysex(1, "Canción")[5:-1]), b"Canci", "cut to five, plain letters")
+        self.assertEqual(bytes(md.label_sysex("1", "AB   ")[5:-1]), b"AB")
+        for button, keep in (("E", "bank"), (10, "bank"), ("A", "moment")):
+            with self.assertRaises(ValueError):
+                md.label_sysex(button, "x", keep)
+
 class VirtualPedalTest(unittest.TestCase):
     """SysEx PRESS_BUTTON and GET_STATE, as the configurator's virtual pedal uses them."""
 
