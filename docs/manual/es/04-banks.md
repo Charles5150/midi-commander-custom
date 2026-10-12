@@ -17,6 +17,8 @@ Cada banco tiene un nombre que la pantalla muestra en mayúsculas grandes, de 4 
 
 Una fila por banco, `Bank_Number` 0–31: `Bank_Name_Large` (4 caracteres, letra grande) y `Bank_Info_Small` (8 caracteres, letra pequeña), que pueden llevar [valores en vivo](09-the-display.md#valores-en-vivo). Pueden faltar filas: una configuración que solo define los primeros bancos, incluso una escrita para el firmware de 8 bancos, se graba tal cual y deja vacíos los demás.
 
+Una columna opcional `Notes` guarda una nota del banco, que se ve en la [vista Stage](14-in-the-browser.md#stage) del configurador web; la pedalera nunca la recibe. Un salto de línea se escribe `\n` y una barra invertida `\\`.
+
 ## Bank Up y Bank Down
 
 Los dos pulsadores de la derecha recorren los bancos. Una pulsación corta en **Bank Up** o **Bank Down** avanza o retrocede un banco, y actúa al soltar. Si lo mantienes más de `Long_Press_ms` (500 ms si no lo cambias), salta varios bancos de golpe en cuanto se cumple ese tiempo; cuántos lo decide **Long press jumps** en la pestaña **Global** del configurador, `Bank_Jump_Step` en el CSV, de 1 a 31, 8 si no lo cambias. Los dos dan la vuelta, del 31 al 0 y del 0 al 31.

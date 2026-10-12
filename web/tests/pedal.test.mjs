@@ -3,7 +3,7 @@
 // python/lib/slotIO.py. Run from the repository root: node --test web/tests/
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Pedal, Timeout } from "../pedal.js";
+import { Pedal, Timeout, parseState } from "../pedal.js";
 
 // answer(slot) gives [target, active, valid mask] for a SELECT_SLOT of slot
 // (0x7f to only ask), or null for no answer
@@ -47,4 +47,14 @@ test("an error other than no answer is not taken for old firmware", async () => 
   const pedal = Object.create(Pedal.prototype);
   pedal.ask = async () => { throw new Error("port gone"); };
   await assert.rejects(pedal.useSlot(0), /port gone/);
+});
+
+test("the bank Bank Up and Down are previewing is read from the state, none as 7F", () => {
+  const state = (preview) => [3, 0, 1, 0, ..."SONG".split("").map((c) => c.charCodeAt(0)), ...Array(32).fill(0x20),
+    ...Array(10).fill(0), 0, 0, 0, ...Array(8).fill(0), 0, preview, ...Array(8).fill(0)];
+  assert.equal(parseState(state(5)).preview, 5);
+  assert.equal(parseState(state(0x7f)).preview, null);
+  assert.equal(parseState(state(5).slice(0, 62)).preview, null, "older firmware sends none");
+  assert.equal(parseState(state(5)).bankName, "SONG");
+  assert.deepEqual(parseState(state(5)).toggles.slice(0, 2), [true, false]);
 });

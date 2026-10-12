@@ -2,7 +2,7 @@
 
 **English** · [Español](../es/14-in-the-browser.md)
 
-The web configurator does in a browser page what the desktop configurator and the command line tools do: edit a configuration, read and write the pedal's slots, back them up, play the pedal from the screen and update its firmware. Nothing to install, no Python, no `dfu-util`. And with no pedal at all, it runs the pedal's own firmware in the page: see [Without a pedal](#without-a-pedal).
+The web configurator does in a browser page what the desktop configurator and the command line tools do: edit a configuration, read and write the pedal's slots, back them up, play the pedal from the screen, show the song you are on large for the stage, and update its firmware. Nothing to install, no Python, no `dfu-util`. And with no pedal at all, it runs the pedal's own firmware in the page: see [Without a pedal](#without-a-pedal).
 
 **https://charles5150.github.io/midi-commander-custom/**
 
@@ -40,7 +40,7 @@ The name of the configuration is at the top, with **changed** after it until it 
 
 The tabs follow the desktop configurator's:
 
-- **Banks**: the 32 banks on the left; a bank's name and info line; its eight buttons laid out as on the pedal, 1 to 4 on top and A to D below, each with its label and first command. Click a button to edit it: **Press**, **Long press** and **Double press** each hold ten commands, A to J, and **Press** also the label, the LED mode, the exclusive group and the button's flags. Each command shows the fields its type needs, as in the configurator, with a line saying what it does. **Device…** beside the type fills a command from a device's MIDI map, and a CC or Program Change shows the device's name for it, as [in the configurator](03-the-configurator.md#from-a-devices-midi-map); its last entry, **More devices…**, finds one of the 571 community devices by maker or model, and loads them, about 170 kB, only then. Below the buttons, **On entering this bank** and **Expression pedals in this bank**. **Save song** and **Load song**, beside the bank's name, save the bank as a [song file](04-banks.md#songs-a-bank-in-a-file-of-its-own) and load one into it.
+- **Banks**: the 32 banks on the left; a bank's name and info line; its eight buttons laid out as on the pedal, 1 to 4 on top and A to D below, each with its label and first command. Click a button to edit it: **Press**, **Long press** and **Double press** each hold ten commands, A to J, and **Press** also the label, the LED mode, the exclusive group and the button's flags. Each command shows the fields its type needs, as in the configurator, with a line saying what it does. **Device…** beside the type fills a command from a device's MIDI map, and a CC or Program Change shows the device's name for it, as [in the configurator](03-the-configurator.md#from-a-devices-midi-map); its last entry, **More devices…**, finds one of the 571 community devices by maker or model, and loads them, about 170 kB, only then. Below the buttons, **On entering this bank** and **Expression pedals in this bank**. **Save song** and **Load song**, beside the bank's name, save the bank as a [song file](04-banks.md#songs-a-bank-in-a-file-of-its-own) and load one into it. **Notes for the Stage view** holds the bank's note for [Stage](#stage).
 - **Global**: every global setting, in the configurator's groups, with the same choices and ranges.
 - **Expression**, **Bank switches**, **SysEx**, **Setlist**, **Combos**, **MIDI map** and **Preset names**, as in the configurator.
 
@@ -58,6 +58,21 @@ The whole page works from the keyboard and with a screen reader: every field has
 ## Live pedal
 
 The pedal's display, its LEDs and its ten switches, as they are on the pedal, a few times a second. It needs firmware 0.27 or later; with older firmware the tab says so. Press a switch on the screen, with the mouse or a finger, to press it on the pedal: it goes down while held, so long presses work too. From the keyboard, Tab to a switch and hold Space or Enter.
+
+## Stage
+
+The song you are on, readable from a few steps away, for a tablet or a laptop on a mic stand. **Full screen** fills the screen with it, and the page keeps the screen from sleeping while the tab is open. It follows the pedal a few times a second, from firmware 0.27:
+
+- the bank's name, large, and its info line;
+- where it is in the setlist, `FULL SET · 3 of 10`, and the next song, `Next: S04 · song 4`, or `Last song`;
+- the tempo, `120 BPM`, while the pedal sends MIDI clock over USB, and the bar and beat, `bar 5 · 3`, while the clock runs after a Start; the beats in a bar are those of **Bar and beat on the display**, 4 unless set;
+- the bank **Bank Up** or **Bank Down** is showing before it is confirmed, with `Bank_Preview` on;
+- the bank's note, from **Notes for the Stage view** in the Banks tab: the key, a capo, cues, lyrics;
+- the eight buttons as large tiles, 1 to 4 above and A to D below, with their labels as the pedal shows them, a lit toggle in colour.
+
+The setlist, the info line and the notes come from the configuration open in the page, so open the one the pedal runs, or read it from the pedal and then open the CSV with the notes. When the bank's name there is not the pedal's, the view takes it for another configuration and shows the pedal's bank and buttons only. A bank in several setlists is placed in the first that has it, and stays in that one while the next banks are in it too; **Setlist** picks one by hand.
+
+The notes are kept in the CSV, in a `Notes` column of `Bank_Naming`, and in a song file saved from the bank; the pedal never holds them, so writing them changes nothing on it, and reading a configuration from the pedal brings none. The desktop configurator keeps them when it saves. On an iPad, Safari has no Web MIDI: the page needs a browser that adds it.
 
 ## Firmware
 

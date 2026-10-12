@@ -2,7 +2,7 @@
 
 [English](../en/14-in-the-browser.md) · **Español**
 
-El configurador web hace en una página del navegador lo mismo que el configurador de escritorio y las herramientas de línea de comandos: editar una configuración, leer y escribir los slots de la pedalera, hacer copias de seguridad, tocar la pedalera desde la pantalla y actualizar su firmware. Sin instalar nada: ni Python ni `dfu-util`. Y sin pedalera, ejecuta en la página el propio firmware de la pedalera: mira [Sin pedalera](#sin-pedalera).
+El configurador web hace en una página del navegador lo mismo que el configurador de escritorio y las herramientas de línea de comandos: editar una configuración, leer y escribir los slots de la pedalera, hacer copias de seguridad, tocar la pedalera desde la pantalla, mostrar en grande para el escenario la canción en la que estás y actualizar su firmware. Sin instalar nada: ni Python ni `dfu-util`. Y sin pedalera, ejecuta en la página el propio firmware de la pedalera: mira [Sin pedalera](#sin-pedalera).
 
 **https://charles5150.github.io/midi-commander-custom/**
 
@@ -40,7 +40,7 @@ El nombre de la configuración está arriba, seguido de **changed** hasta que se
 
 Las pestañas siguen las del configurador de escritorio:
 
-- **Banks**: los 32 bancos a la izquierda; el nombre y la línea de información del banco; sus ocho botones colocados como en la pedalera, 1 a 4 arriba y A a D abajo, cada uno con su etiqueta y su primer comando. Pulsa un botón para editarlo: **Press**, **Long press** y **Double press** tienen diez comandos cada una, de A a J, y **Press** además la etiqueta, el modo del LED, el grupo exclusivo y las opciones del botón. Cada comando muestra los campos que necesita su tipo, como en el configurador, con una línea que dice qué hace. **Device…**, junto al tipo, rellena un comando desde el mapa MIDI de un equipo, y un CC o un Program Change muestra el nombre que le da el equipo, como [en el configurador](03-the-configurator.md#desde-el-mapa-midi-de-un-equipo); su última opción, **More devices…**, busca uno de los 571 equipos de la comunidad por fabricante o modelo, y solo entonces los carga, unos 170 kB. Debajo de los botones, **On entering this bank** y **Expression pedals in this bank**. **Save song** y **Load song**, junto al nombre del banco, guardan el banco como [archivo de canción](04-banks.md#canciones-un-banco-en-un-archivo-propio) y cargan uno en él.
+- **Banks**: los 32 bancos a la izquierda; el nombre y la línea de información del banco; sus ocho botones colocados como en la pedalera, 1 a 4 arriba y A a D abajo, cada uno con su etiqueta y su primer comando. Pulsa un botón para editarlo: **Press**, **Long press** y **Double press** tienen diez comandos cada una, de A a J, y **Press** además la etiqueta, el modo del LED, el grupo exclusivo y las opciones del botón. Cada comando muestra los campos que necesita su tipo, como en el configurador, con una línea que dice qué hace. **Device…**, junto al tipo, rellena un comando desde el mapa MIDI de un equipo, y un CC o un Program Change muestra el nombre que le da el equipo, como [en el configurador](03-the-configurator.md#desde-el-mapa-midi-de-un-equipo); su última opción, **More devices…**, busca uno de los 571 equipos de la comunidad por fabricante o modelo, y solo entonces los carga, unos 170 kB. Debajo de los botones, **On entering this bank** y **Expression pedals in this bank**. **Save song** y **Load song**, junto al nombre del banco, guardan el banco como [archivo de canción](04-banks.md#canciones-un-banco-en-un-archivo-propio) y cargan uno en él. **Notes for the Stage view** guarda la nota del banco para [Stage](#stage).
 - **Global**: todos los ajustes globales, en los grupos del configurador, con las mismas opciones y rangos.
 - **Expression**, **Bank switches**, **SysEx**, **Setlist**, **Combos**, **MIDI map** y **Preset names**, como en el configurador.
 
@@ -58,6 +58,21 @@ Toda la página funciona con el teclado y con un lector de pantalla: cada campo 
 ## La pedalera en directo
 
 La pantalla de la pedalera, sus LEDs y sus diez interruptores, como están en la pedalera, varias veces por segundo. Necesita firmware 0.27 o posterior; con uno más antiguo la pestaña lo dice. Pulsa un interruptor en la pantalla, con el ratón o con el dedo, para pulsarlo en la pedalera: queda pisado mientras lo mantienes, así que las pulsaciones largas también funcionan. Con el teclado, llega a un interruptor con Tab y mantén Espacio o Intro.
+
+## Stage
+
+La canción en la que estás, legible a unos pasos, para una tablet o un portátil en un pie de micro. **Full screen** la pone a pantalla completa, y la página impide que la pantalla se apague mientras la pestaña está abierta. Sigue a la pedalera varias veces por segundo, desde el firmware 0.27:
+
+- el nombre del banco, en grande, y su línea de información;
+- su puesto en el setlist, `FULL SET · 3 of 10`, y la canción siguiente, `Next: S04 · song 4`, o `Last song`;
+- el tempo, `120 BPM`, mientras la pedalera manda clock MIDI por USB, y el compás y el tiempo, `bar 5 · 3`, mientras el clock corre tras un Start; los tiempos del compás son los de **Bar and beat on the display**, 4 si no se ha puesto;
+- el banco que **Bank Up** o **Bank Down** muestran antes de confirmarlo, con `Bank_Preview` activado;
+- la nota del banco, de **Notes for the Stage view** en la pestaña Banks: la tonalidad, una cejilla, entradas, la letra;
+- los ocho botones como recuadros grandes, 1 a 4 arriba y A a D abajo, con sus etiquetas como las muestra la pedalera y los toggles encendidos en color.
+
+El setlist, la línea de información y las notas salen de la configuración abierta en la página, así que abre la que lleva la pedalera, o léela de la pedalera y abre luego el CSV con las notas. Si el nombre del banco ahí no es el de la pedalera, la vista la toma por otra configuración y muestra solo el banco y los botones de la pedalera. Un banco que está en varios setlists se sitúa en el primero que lo tiene, y sigue en ese mientras los bancos siguientes también estén en él; **Setlist** elige uno a mano.
+
+Las notas se guardan en el CSV, en una columna `Notes` de `Bank_Naming`, y en el archivo de canción guardado desde el banco; la pedalera nunca las tiene, así que escribirlas no cambia nada en ella, y leer una configuración de la pedalera no trae ninguna. El configurador de escritorio las conserva al guardar. En un iPad, Safari no tiene Web MIDI: la página necesita un navegador que lo añada.
 
 ## Firmware
 

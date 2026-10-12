@@ -17,6 +17,8 @@ Each bank has a name the display shows in large capitals, 4 characters (a lowerc
 
 One row per bank, `Bank_Number` 0–31: `Bank_Name_Large` (4 characters, big font) and `Bank_Info_Small` (8 characters, small font), either of which can hold [live values](09-the-display.md#live-values). Rows may be missing: a configuration that only defines the first few banks, including one written for the 8 bank firmware, flashes unchanged and leaves the rest empty.
 
+An optional `Notes` column holds a note for the bank, shown in the web configurator's [Stage view](14-in-the-browser.md#stage); the pedal never gets it. A line break in it is written `\n`, a backslash `\\`.
+
 ## Bank Up and Bank Down
 
 The two switches on the right step through the banks. A short press on **Bank Up** or **Bank Down** moves one bank, and acts when you let go. Held past `Long_Press_ms` (500 ms unless set), it jumps several banks at once, as soon as that time is reached; how many is **Long press jumps** in the configurator's **Global** tab, `Bank_Jump_Step` in the CSV, 1 to 31, 8 unless set. Both wrap around, from 31 to 0 and from 0 to 31.

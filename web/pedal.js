@@ -74,6 +74,8 @@ export function parseState(d) {
     frame: d.length >= 53 ? d[50] | (d[51] << 7) : null,
     asleep: d.length >= 53 ? Boolean(d[52]) : false,
     safeMode: d.length >= 62 ? Boolean(d[61]) : false,
+    // The bank Bank Up / Down are showing, not yet confirmed (Bank_Preview, 0.66)
+    preview: d.length >= 63 && d[62] < 0x7f ? d[62] : null,
   };
 }
 

@@ -1718,18 +1718,21 @@ class MidiCommanderGUI(ctk.CTk):
         return pd.DataFrame(out, columns=BANK_EXP_COLUMNS)
 
     def _pad_banks(self, df):
-        """Ensure one Bank_Naming row per bank, in order."""
+        """Ensure one Bank_Naming row per bank, in order, keeping the
+        notes the web configurator's Stage view shows, when there are any."""
         rows = {clean(r["Bank_Number"]): r for _, r in df.iterrows()}
+        notes = "Notes" in df.columns
         out = []
         for b in range(NUM_BANKS):
             r = rows.get(str(b))
-            out.append(
-                {
-                    "Bank_Number": str(b),
-                    "Bank_Name_Large": clean(r["Bank_Name_Large"]) if r is not None else "",
-                    "Bank_Info_Small": clean(r["Bank_Info_Small"]) if r is not None else "",
-                }
-            )
+            row = {
+                "Bank_Number": str(b),
+                "Bank_Name_Large": clean(r["Bank_Name_Large"]) if r is not None else "",
+                "Bank_Info_Small": clean(r["Bank_Info_Small"]) if r is not None else "",
+            }
+            if notes:
+                row["Notes"] = clean(r["Notes"]) if r is not None else ""
+            out.append(row)
         return pd.DataFrame(out)
 
     def _pad_buttons(self, df, with_extras, long_label=False):

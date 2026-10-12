@@ -51,6 +51,7 @@ const state = {
   expHeld: [null, null],   // what Live holds each expression pedal at, null: let go
   expPedal: null,      // the pedal expHeld is about
   updateStuck: false,  // the last update failed with the pedal in its update mode
+  stageList: 0,        // the setlist the Stage view follows, 0: as the pedal goes
 };
 
 // --- Messages -----------------------------------------------------------------
@@ -566,7 +567,7 @@ function summary(sec, row) {
 const TABS = [
   ["banks", "Banks"], ["global", "Global"], ["expression", "Expression"], ["bankswitch", "Bank switches"],
   ["sysex", "SysEx"], ["setlist", "Setlist"], ["combos", "Combos"], ["midimap", "MIDI map"], ["presets", "Preset names"],
-  ["live", "Live pedal"],
+  ["live", "Live pedal"], ["stage", "Stage"],
   ["firmware", "Firmware"],
 ];
 
@@ -617,7 +618,7 @@ function draw() {
   }, label)));
   const main = $("#main");
   main.replaceChildren();
-  const needsConfig = !["live", "firmware"].includes(state.tab);
+  const needsConfig = !["live", "stage", "firmware"].includes(state.tab);
   if (needsConfig && !state.config) {
     main.append(welcome());
     return;
@@ -625,9 +626,9 @@ function draw() {
   ({
     banks: renderBanks, global: renderGlobal, expression: renderExpression, bankswitch: renderBankSwitch,
     sysex: renderSysex, setlist: renderSetlist, combos: renderCombos, midimap: renderMidiMap, presets: renderPresetNames, live: renderLive,
-    firmware: renderFirmware,
+    stage: renderStage, firmware: renderFirmware,
   })[state.tab](main);
-  if (state.tab !== "live") stopLive();
+  if (!["live", "stage"].includes(state.tab)) stopLive();
 }
 
 function welcome() {
@@ -655,6 +656,20 @@ function toolsFailed() {
 function bankName(b) {
   const r = rowOf("Bank_Naming", { Bank_Number: b }, false);
   return r ? cell(r.sec, r.row, "Bank_Name_Large").trim() : "";
+}
+
+// A bank's note for the Stage view: in the CSV only, never on the pedal, one
+// line there, with \n for a line break and \\ for a backslash
+function bankNote(b) {
+  const r = rowOf("Bank_Naming", { Bank_Number: b }, false);
+  const text = r ? cell(r.sec, r.row, "Notes") : "";
+  return text.replace(/\\(n|\\)/g, (_, c) => (c === "n" ? "\n" : "\\"));
+}
+
+function setBankNote(b, text) {
+  const r = rowOf("Bank_Naming", { Bank_Number: b });
+  const stored = text.replace(/\r\n?/g, "\n").trimEnd().replace(/\\/g, "\\\\").replace(/\n/g, "\\n");
+  if (stored || cell(r.sec, r.row, "Notes")) setCell(r.sec, r.row, "Notes", stored);
 }
 
 function renderBanks(main) {
@@ -724,7 +739,14 @@ function renderBanks(main) {
         labelled(f.label, fieldControl(f, () => cell(exp.sec, exp.row, f.col), (v) => setCell(exp.sec, exp.row, f.col, v))))));
   }
 
-  main.append(h("div", { class: "banks" }, list, h("div", { class: "bank-main" }, head, pedal, editor, enterCard, exp ? expCard : null)));
+  const note = h("textarea", { rows: 4, "aria-label": `Notes for bank ${state.bank}`, placeholder: "Key, capo, cues, lyrics…" });
+  note.value = bankNote(state.bank);
+  note.addEventListener("change", () => setBankNote(state.bank, note.value));
+  const noteCard = h("details", { class: "card", open: Boolean(note.value) }, h("summary", {}, "Notes for the Stage view"),
+    h("p", { class: "hint" }, "Shown large in the Stage tab while the pedal is on this bank. Kept in the CSV file, and in a song file saved from this bank; the pedal never holds them, so reading from the pedal brings none."),
+    note);
+
+  main.append(h("div", { class: "banks" }, list, h("div", { class: "bank-main" }, head, pedal, editor, noteCard, enterCard, exp ? expCard : null)));
 }
 
 // --- Global --------------------------------------------------------------------
@@ -1398,6 +1420,137 @@ function expressionControls() {
     pedalEl(0), pedalEl(1));
 }
 
+// --- Stage -------------------------------------------------------------------------
+// The tempo, bar and beat, from the clock the pedal sends over USB
+const clock = { times: [], ticks: -1, running: false, last: 0 };
+
+function clockMessage(msg) {
+  const now = performance.now();
+  switch (msg[0]) {
+    case 0xf8:
+      if (now - clock.last > 500) clock.times = [];
+      clock.times.push(now);
+      if (clock.times.length > 49) clock.times.shift();
+      clock.last = now;
+      if (clock.running) clock.ticks++;
+      break;
+    case 0xfa: clock.running = true; clock.ticks = -1; break;
+    case 0xfb: clock.running = true; break;
+    case 0xfc: clock.running = false; break;
+    case 0xf2: clock.ticks = ((msg[2] << 7) | msg[1]) * 6 - 1; break;   // sixteenths
+  }
+}
+
+// "120 BPM", with "bar 3 · 2" while the clock runs, or "" with no clock
+function clockText() {
+  const t = clock.times;
+  if (t.length < 25 || performance.now() - clock.last > 500) return "";
+  const bpm = 60000 / (((t[t.length - 1] - t[0]) / (t.length - 1)) * 24);
+  let text = `${Math.round(bpm)} BPM`;
+  if (clock.running && clock.ticks >= 0) {
+    const beats = Number(globalValue("Beat_Counter")) || 4, beat = Math.floor(clock.ticks / 24);
+    text += ` · bar ${Math.floor(beat / beats) + 1} · ${(beat % beats) + 1}`;
+  }
+  return text;
+}
+
+// Where the bank is in a setlist: {list, pos, songs}, songs its banks in order
+// and pos the index of this one there, or null. The setlist chosen in the
+// view, or else the one it was last found in, or the first that has it. A
+// bank in a setlist twice is the place after the last one, when it is that.
+function setlistPlace(bank, last) {
+  if (!state.config) return null;
+  const lists = setlistsOf(section("Setlist"));
+  const order = state.stageList ? [state.stageList] : [last && last.list, ...Object.keys(lists).map(Number)].filter(Boolean);
+  for (const n of order) {
+    const songs = lists[n].banks.filter((b) => b !== "").map(Number);
+    const at = songs.flatMap((b, i) => (b === bank ? [i] : []));
+    if (!at.length) continue;
+    const before = last && last.list === n ? last.pos : -2;
+    const pos = at.includes(before + 1) ? before + 1 : at.includes(before) ? before : at[0];
+    return { list: n, name: lists[n].name, pos, songs };
+  }
+  return null;
+}
+
+function bankTitle(b) {
+  const r = rowOf("Bank_Naming", { Bank_Number: b }, false);
+  const info = r ? cell(r.sec, r.row, "Bank_Info_Small").trim() : "";
+  return [bankName(b) || `Bank ${b}`, info].filter(Boolean).join(" · ");
+}
+
+async function keepAwake(me) {
+  try { if (navigator.wakeLock && document.visibilityState === "visible" && !me.stop) me.lock = await navigator.wakeLock.request("screen"); } catch (e) { /* not allowed: the screen may sleep */ }
+}
+
+function renderStage(main) {
+  if (!state.pedal) {
+    main.append(h("p", {}, "Connect the pedal, or try without one: this view follows it, the song large, its place in the setlist, the tempo, the buttons and your notes, for a tablet or a laptop on a stand."));
+    return;
+  }
+  if (!versionAtLeast(state.version, 0, 27)) {
+    main.append(h("p", {}, `The Stage view needs firmware 0.27 or later; the pedal runs ${state.version}. Update it in the Firmware tab.`));
+    return;
+  }
+  const lists = state.config ? setlistsOf(section("Setlist")) : {};
+  const used = Object.entries(lists).filter(([, l]) => l.banks.some((b) => b !== ""));
+  const pick = used.length ? h("select", { "aria-label": "Setlist" },
+    h("option", { value: "" }, "Setlist: as the pedal goes"),
+    used.map(([n, l]) => h("option", { value: n, selected: state.stageList === Number(n) }, `Setlist ${n}${l.name ? " " + l.name : ""}`))) : null;
+  if (pick) pick.addEventListener("change", () => { state.stageList = Number(pick.value) || 0; });
+  const view = h("div", { class: "stage" });
+  const full = h("button", { onclick: () => (document.fullscreenElement ? document.exitFullscreen() : view.requestFullscreen && view.requestFullscreen().catch(() => {})) }, "Full screen");
+  main.append(h("div", { class: "stage-bar" }, full, pick,
+    h("span", { class: "hint" }, state.config
+      ? "Notes are written in the Banks tab. The tempo shows while the pedal sends MIDI clock."
+      : "Open the configuration the pedal runs to see its setlist and your notes here.")), view);
+
+  const place = h("div", { class: "stage-place" }), tempo = h("div", { class: "stage-tempo" });
+  const name = h("div", { class: "stage-name" }), info = h("div", { class: "stage-info" });
+  const preview = h("div", { class: "stage-preview" }), note = h("div", { class: "stage-note" });
+  const next = h("div", { class: "stage-next" });
+  const tiles = ["1", "2", "3", "4", "A", "B", "C", "D"].map((id) => h("div", { class: "tile" }, h("span", { class: "id" }, id), h("span", { class: "label" })));
+  view.append(h("div", { class: "stage-top" }, place, tempo), name, info, preview, note, next, h("div", { class: "stage-tiles" }, tiles));
+
+  stopLive();
+  const me = (live = { stop: false, lock: null });
+  keepAwake(me);
+  const visible = () => { if (document.visibilityState === "visible") keepAwake(me); };
+  document.addEventListener("visibilitychange", visible);
+  let shown = "", where = null;
+  (async () => {
+    while (!me.stop && state.pedal) {
+      try {
+        const s = await state.pedal.getState();
+        // The configuration open here, if it is the one on the pedal
+        const ours = state.config && bankName(s.bank).toUpperCase() === s.bankName.trim().toUpperCase();
+        where = ours ? setlistPlace(s.bank, where) : null;
+        const key = JSON.stringify([s, ours, where, state.stageList, state.edits]);
+        if (key !== shown) {
+          shown = key;
+          name.textContent = s.bankName || `Bank ${s.bank}`;
+          const r = ours && rowOf("Bank_Naming", { Bank_Number: s.bank }, false);
+          info.textContent = r ? cell(r.sec, r.row, "Bank_Info_Small").trim() : "";
+          note.textContent = ours ? bankNote(s.bank) : "";
+          preview.textContent = s.preview !== null ? `▲▼ ${ours ? bankTitle(s.preview) : `Bank ${s.preview}`}` : "";
+          place.textContent = where ? `${where.name || `Setlist ${where.list}`} · ${where.pos + 1} of ${where.songs.length}` : `Bank ${s.bank}`;
+          next.textContent = !where ? "" : where.pos + 1 < where.songs.length ? `Next: ${bankTitle(where.songs[where.pos + 1])}` : "Last song";
+          tiles.forEach((t, i) => {
+            t.lastChild.textContent = s.labels[i];
+            t.classList.toggle("on", s.toggles[i]);
+            t.classList.toggle("empty", !s.labels[i]);
+          });
+          view.classList.toggle("asleep", s.asleep);
+        }
+        tempo.textContent = clockText();
+      } catch (e) { /* busy or gone: try again */ }
+      await new Promise((r) => setTimeout(r, 150));
+    }
+    document.removeEventListener("visibilitychange", visible);
+    if (me.lock) me.lock.release().catch(() => {});
+  })();
+}
+
 // --- What the pedal sends ---------------------------------------------------------
 const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const hex = (b) => b.toString(16).toUpperCase().padStart(2, "0");
@@ -1431,6 +1584,7 @@ function describeMidi(port, m) {
 }
 
 function logMessage(port, msg) {
+  if (port === "USB") clockMessage(msg);
   if (msg[0] === 0xf8 && !state.showClock) return;
   state.monitor.push({ port, text: describeMidi(port, Array.from(msg)) });
   if (state.monitor.length > 200) state.monitor.splice(0, state.monitor.length - 200);

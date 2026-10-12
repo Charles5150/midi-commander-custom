@@ -21,7 +21,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from lib.configCsv import read_config_csv  # noqa: E402
+from lib.configCsv import read_config_csv, write_sections  # noqa: E402
 from lib.slotIO import pack_sections  # noqa: E402
 
 CSVS = [os.path.join(ROOT, "demo-all-features.csv")] + sorted(glob.glob(os.path.join(ROOT, "templates", "*.csv")))
@@ -193,6 +193,24 @@ class GuiTest(unittest.TestCase):
         self.assertEqual((v["CommandType"], v["Number_(PC/CC/Note)"], v["OnValue_(CC/PB)"], v["OffValue_(CC)"]),
                          ("CC", "104", "127", ""))
         self.assertEqual(editor.name_label.cget("text"), "Fender Tone Master Pro: Looper PLAY/STOP")
+
+    def test_stage_notes_are_kept(self):
+        # The web configurator's notes per bank: not edited here, but kept
+        sections = read_config_csv(CSVS[0])
+        naming = sections["Bank_Naming"].astype(object)
+        naming["Notes"] = ""
+        naming.loc[naming["Bank_Number"].astype(str) == "2", "Notes"] = "Capo 2\\nslow"
+        sections["Bank_Naming"] = naming
+        with tempfile.TemporaryDirectory() as tmp:
+            noted, out = os.path.join(tmp, "noted.csv"), os.path.join(tmp, "saved.csv")
+            write_sections(noted, sections, "test")
+            self.app.load_csv(noted)
+            self.app.update()
+            self.app._collect()
+            self.app._write_csv(out)
+            saved = read_config_csv(out)["Bank_Naming"].set_index("Bank_Number")
+        self.assertEqual(saved.at["2", "Notes"], "Capo 2\\nslow")
+        self.app.load_csv(CSVS[0])
 
     def test_saved_as_loaded(self):
         for path in CSVS:
