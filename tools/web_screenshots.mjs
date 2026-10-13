@@ -21,10 +21,21 @@ const WIDTH = 1100, HEIGHT = 720;
 const BANK_CHANGE_CC = 32;     // the demo's Bank_Change_CC
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// A Chrome left on the port by a run that was cut short would be driven in
+// place of a fresh one, its simulated pedal still holding what that run left
+const busy = await fetch(`http://127.0.0.1:${DEBUG}/json/version`).then(() => true, () => false);
+if (busy) {
+  console.error(`Port ${DEBUG} is taken, most likely by a Chrome left from an earlier run: pkill -f remote-debugging-port=${DEBUG}`);
+  process.exit(1);
+}
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), "mc-shots-"));
 const server = spawn("python3", ["-m", "http.server", String(PORT), "--bind", "127.0.0.1"], { cwd: ROOT, stdio: "ignore" });
 const chrome = spawn(CHROME, ["--headless=new", `--remote-debugging-port=${DEBUG}`, `--user-data-dir=${profile}`,
   `--window-size=${WIDTH},${HEIGHT}`, "--hide-scrollbars", "about:blank"], { stdio: "ignore" });
+for (const signal of ["SIGINT", "SIGTERM", "SIGALRM"]) {
+  process.on(signal, () => { chrome.kill(); server.kill(); process.exit(1); });
+}
 
 let ws, id = 0;
 const pending = new Map();
