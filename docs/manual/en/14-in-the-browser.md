@@ -8,6 +8,8 @@ The web configurator does in a browser page what the desktop configurator and th
 
 It needs a browser with Web MIDI and WebUSB: **Chrome**, **Edge** or **Opera**, on a computer. Safari has neither; on an iPad, see [On an iPad or iPhone](#on-an-ipad-or-iphone). Firefox has Web MIDI, through a site permission add-on it offers when the page first asks, but not WebUSB, so the firmware update needs Chrome, Edge or Opera. The page runs the tools' own Python code inside the browser, with [Pyodide](https://pyodide.org), so a configuration is checked and packed exactly as the configurator packs it, and the CSV files are the same: a file saved in one opens in the other. The first visit loads about 20 MB, Python and pandas, which the browser then keeps; after that it opens in a few seconds.
 
+<img src="../../images/web_start.png" width="600" alt="The web configurator's start page">
+
 ## Connecting
 
 Click **Connect the pedal**. The browser asks once whether the page may use MIDI devices, with SysEx: allow it. The header then shows the firmware and the slot the pedal is running. The page finds the pedal again by itself after it restarts.
@@ -44,6 +46,8 @@ The tabs follow the desktop configurator's:
 - **Global**: every global setting, in the configurator's groups, with the same choices and ranges.
 - **Expression**, **Bank switches**, **SysEx**, **Setlist**, **Combos**, **MIDI map** and **Preset names**, as in the configurator.
 
+<img src="../../images/web_banks.png" width="600" alt="The Banks tab, editing a button of the demo">
+
 The Expression tab has no live view and no **Calibrate**: calibrate a pedal with the [desktop configurator](08-expression.md#connecting-and-calibrating), or type its readings in **Heel reading** and **Toe reading**.
 
 Every change is checked as it is made. When the configuration could not be packed, a red line under the toolbar says what is wrong and where, and it can be neither saved nor written until that is fixed.
@@ -58,6 +62,8 @@ The whole page works from the keyboard and with a screen reader: every field has
 - **Write to pedal** asks which slot to write, reads it, which takes a few seconds, and lists what writing will change in it, as [Diff_Config](13-command-line-tools.md#diff_config-what-changes) does: the wrong slot or an old file shows before anything is written. Choosing another slot reads that one. **Write** does not wait for the list. Then it writes the slot and restarts the pedal: about 12 seconds. As with the configurator, writing the slot the pedal is running pauses the pedal until the restart. If the pedal does not take the slot asked for, nothing is written; if a write fails after the slot was erased, the page says so, and the slot needs writing again. Firmware before 0.24 has a single configuration, so the page offers slot 1 only.
 - **Back up all slots** reads every slot that holds a configuration, then lists them, one CSV file each: **Save all** downloads them together, or click one to download it alone. The browser may ask once whether the page may download several files. With no slot holding a configuration it says so.
 
+<img src="../../images/web_share.png" width="600" alt="Share link: the configuration in a link">
+
 ## Live pedal
 
 The pedal's display, its LEDs and its ten switches, as they are on the pedal, a few times a second. It needs firmware 0.27 or later; with older firmware the tab says so. Press a switch on the screen, with the mouse or a finger, to press it on the pedal: it goes down while held, so long presses work too. From the keyboard, Tab to a switch and hold Space or Enter.
@@ -66,9 +72,13 @@ The pedal's display, its LEDs and its ten switches, as they are on the pedal, a 
 - **Expression pedals** has a slider for each pedal, from heel to toe: moving one holds the pedal there, over what is in its jack, until **Let go**. Firmware 0.70 or later.
 - **What the pedal sends** lists what comes in from the pedal over USB. **clock** shows the MIDI clock too, and **Clear** empties the list.
 
+<img src="../../images/web_live.png" width="600" alt="Live pedal on the simulated pedal, with the expression pedals and what it sends">
+
 ## Stage
 
 The song you are on, readable from a few steps away, for a tablet or a laptop on a mic stand. **Full screen** fills the screen with it, and the page keeps the screen from sleeping while the tab is open. It follows the pedal a few times a second, from firmware 0.27:
+
+<img src="../../images/web_stage.png" width="600" alt="Stage in full screen, on a tablet: the song, its note and the next one">
 
 - the bank's name, large, and its info line;
 - where it is in the setlist, `FULL SET · 3 of 10`, and the next song, `Next: S04 · song 4`, or `Last song`;

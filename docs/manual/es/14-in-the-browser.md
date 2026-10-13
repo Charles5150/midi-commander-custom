@@ -8,6 +8,8 @@ El configurador web hace en una página del navegador lo mismo que el configurad
 
 Hace falta un navegador con Web MIDI y WebUSB: **Chrome**, **Edge** u **Opera**, en un ordenador. Safari no tiene ninguno de los dos; en un iPad, mira [En un iPad o un iPhone](#en-un-ipad-o-un-iphone). Firefox tiene Web MIDI, mediante un complemento de permiso del sitio que ofrece la primera vez que la página lo pide, pero no WebUSB, así que la actualización del firmware necesita Chrome, Edge u Opera. La página ejecuta dentro del navegador el mismo código Python de las herramientas, con [Pyodide](https://pyodide.org), así que una configuración se comprueba y se empaqueta exactamente igual que en el configurador, y los ficheros CSV son los mismos: uno guardado en uno se abre en el otro. La primera visita descarga unos 20 MB, Python y pandas, que el navegador guarda; a partir de ahí abre en unos segundos.
 
+<img src="../../images/web_start.png" width="600" alt="La página de inicio del configurador web">
+
 ## Conectar
 
 Pulsa **Connect the pedal**. El navegador pregunta una vez si la página puede usar dispositivos MIDI, con SysEx: acéptalo. La cabecera muestra entonces el firmware y el slot que tiene en marcha la pedalera. Cuando la pedalera se reinicia, la página vuelve a encontrarla sola.
@@ -44,6 +46,8 @@ Las pestañas siguen las del configurador de escritorio:
 - **Global**: todos los ajustes globales, en los grupos del configurador, con las mismas opciones y rangos.
 - **Expression**, **Bank switches**, **SysEx**, **Setlist**, **Combos**, **MIDI map** y **Preset names**, como en el configurador.
 
+<img src="../../images/web_banks.png" width="600" alt="La pestaña Banks, editando un botón de la demo">
+
 La pestaña Expression no tiene vista en directo ni **Calibrate**: calibra el pedal con el [configurador de escritorio](08-expression.md#conectar-y-calibrar), o escribe sus lecturas en **Heel reading** y **Toe reading**.
 
 Cada cambio se comprueba al hacerlo. Si la configuración no se puede empaquetar, una línea roja bajo la barra de herramientas dice qué está mal y dónde, y no se puede guardar ni escribir hasta arreglarlo.
@@ -58,6 +62,8 @@ Toda la página funciona con el teclado y con un lector de pantalla: cada campo 
 - **Write to pedal** pregunta en qué slot escribir, lo lee, lo que tarda unos segundos, y lista lo que va a cambiar en él al escribir, como hace [Diff_Config](13-command-line-tools.md#diff_config-qué-cambia): el slot equivocado o un archivo viejo se ven antes de escribir nada. Si eliges otro slot, lee ese. **Write** no espera a la lista. Luego lo escribe y reinicia la pedalera: unos 12 segundos. Como con el configurador, escribir el slot que está en marcha pone la pedalera en pausa hasta el reinicio. Si la pedalera no acepta el slot pedido, no se escribe nada; si una escritura falla después de borrar el slot, la página lo dice, y hay que volver a escribirlo. El firmware anterior a 0.24 tiene una sola configuración, así que la página solo ofrece el slot 1.
 - **Back up all slots** lee todos los slots que tienen configuración y luego los lista, un fichero CSV por slot: **Save all** los descarga juntos, o haz clic en uno para descargarlo solo. Puede que el navegador pregunte una vez si la página puede descargar varios ficheros. Si ningún slot tiene configuración, lo dice.
 
+<img src="../../images/web_share.png" width="600" alt="Share link: la configuración en un enlace">
+
 ## La pedalera en directo
 
 La pantalla de la pedalera, sus LEDs y sus diez interruptores, como están en la pedalera, varias veces por segundo. Necesita firmware 0.27 o posterior; con uno más antiguo la pestaña lo dice. Pulsa un interruptor en la pantalla, con el ratón o con el dedo, para pulsarlo en la pedalera: queda pisado mientras lo mantienes, así que las pulsaciones largas también funcionan. Con el teclado, llega a un interruptor con Tab y mantén Espacio o Intro.
@@ -66,9 +72,13 @@ La pantalla de la pedalera, sus LEDs y sus diez interruptores, como están en la
 - **Expression pedals** tiene un deslizador por pedal, del talón a la punta: al moverlo, el pedal se queda ahí, por encima de lo que haya en su jack, hasta pulsar **Let go**. Firmware 0.70 o posterior.
 - **What the pedal sends** lista lo que llega de la pedalera por USB. **clock** muestra también el clock MIDI, y **Clear** vacía la lista.
 
+<img src="../../images/web_live.png" width="600" alt="Live pedal con la pedalera simulada, los pedales de expresión y lo que envía">
+
 ## Stage
 
 La canción en la que estás, legible a unos pasos, para una tablet o un portátil en un pie de micro. **Full screen** la pone a pantalla completa, y la página impide que la pantalla se apague mientras la pestaña está abierta. Sigue a la pedalera varias veces por segundo, desde el firmware 0.27:
+
+<img src="../../images/web_stage.png" width="600" alt="Stage a pantalla completa en una tablet: la canción, su nota y la siguiente">
 
 - el nombre del banco, en grande, y su línea de información;
 - su puesto en el setlist, `FULL SET · 3 of 10`, y la canción siguiente, `Next: S04 · song 4`, o `Last song`;

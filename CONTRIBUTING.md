@@ -17,7 +17,7 @@ for questions.
 | `web/` | The web configurator, a static page, and its tests in `web/tests/` |
 | `docs/manual/` | The user manual, `en/` and `es/` with the same chapters, and the pictures both share |
 | `artifacts/` | Built firmware images, not tracked. Released ones are attached to GitHub releases |
-| `tools/` | `bin_to_dfuse.py`, which packages the DFU image, `pack_fonts.py` for the display's fonts and `gui_screenshots.py` for the manual's screenshots |
+| `tools/` | `bin_to_dfuse.py`, which packages the DFU image, `pack_fonts.py` for the display's fonts and `gui_screenshots.py` and `web_screenshots.mjs` for the manual's screenshots |
 | `scripts/` | PlatformIO build hooks: `post_build_dfuse.py` packages the image, `dfu_upload.py` flashes it |
 
 ## Building the firmware
@@ -157,6 +157,8 @@ It goes in rounds of about two minutes under the traffic a computer sends on a g
 - After a visible change to the configurator, retake its screenshots in
   `docs/images` on a Mac with `.venv/bin/python tools/gui_screenshots.py`;
   the Virtual Pedal and Monitor ones need the pedal on USB with the demo.
+  The web configurator's are retaken with `node tools/web_screenshots.mjs`,
+  in headless Chrome on the simulated pedal, no pedal needed.
 - A new template goes in `python/templates/index.json` as well, which lists
   them sorted by file name; a test checks it.
 - The manual's pictures of the display are drawn from
