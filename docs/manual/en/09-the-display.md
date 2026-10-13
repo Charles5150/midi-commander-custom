@@ -6,7 +6,7 @@ The pedal's 128×64 screen tells you where you are and what is on, at a glance f
 
 ## The bank screen
 
-![What the display shows: eight screens read from the pedal](../images/display-gallery-en.svg)
+![What the display shows: twelve screens drawn by the pedal's firmware](../images/display-gallery-en.svg)
 
 What the display shows most of the time:
 

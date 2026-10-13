@@ -1,7 +1,8 @@
 #! env python3
 """Draws the manual's pictures as SVG, in English and in Spanish.
 
-The screens in them are the pedal's own, read over SysEx GET_SCREEN and kept in
+The screens in them are the pedal's own, read over SysEx GET_SCREEN from the
+pedal or from the simulated one, the same firmware (web/sim.js), and kept in
 docs/manual/screens/ as one line of 128 zeros and ones per pixel row, so the
 pictures can be drawn again without a pedal:
 
@@ -574,6 +575,10 @@ DISPLAY_GALLERY = {
             ("bank-preview-preview", "Bank preview", "the bank Bank Up would go to, inverted"),
             ("display-banner", "The banner at power on", "the configuration's name, then the version"),
             ("display-editor", "The editor on the pedal", "Bank Down and Bank Up held together"),
+            ("display-monitor", "The MIDI monitor", "the last message in, with MIDI_Monitor at In"),
+            ("display-labels", "Labels from the computer", "the song's parts on the top four buttons"),
+            ("display-pedal", "An expression pedal moving", "its value as a bar, in place of the info line"),
+            ("display-setlist", "Choosing a setlist", "its number and name, for a moment"),
         ],
     },
     "es": {
@@ -587,6 +592,10 @@ DISPLAY_GALLERY = {
             ("bank-preview-preview", "Vista previa de banco", "el banco al que iría Bank Up, invertido"),
             ("display-banner", "El banner al encender", "el nombre de la configuración y luego la versión"),
             ("display-editor", "El editor de la pedalera", "Bank Down y Bank Up pisados a la vez"),
+            ("display-monitor", "El monitor MIDI", "el último mensaje que entra, con MIDI_Monitor en In"),
+            ("display-labels", "Etiquetas desde el ordenador", "las partes de la canción en los cuatro de arriba"),
+            ("display-pedal", "Un pedal de expresión moviéndose", "su valor como barra, en lugar de la línea de info"),
+            ("display-setlist", "Al elegir un setlist", "su número y su nombre, un momento"),
         ],
     },
 }
@@ -606,7 +615,7 @@ def display_gallery(lang):
         parts.append(text(x + 136, y + 199, note if len(note) < 44 else note[:note.rfind(" ", 0, 44)], 12, MUTED))
         if len(note) >= 44:
             parts.append(text(x + 136, y + 216, note[note.rfind(" ", 0, 44) + 1:], 12, MUTED))
-    height = top + 2 * ch + 4
+    height = top + -(-len(t["items"]) // cols) * ch + 4
     return svg(width, height, "\n".join(parts), t["title"])
 
 

@@ -6,7 +6,7 @@ La pantalla de 128×64 de la pedalera te dice dónde estás y qué está encendi
 
 ## La pantalla del banco
 
-![Lo que enseña la pantalla: ocho pantallas leídas de la pedalera](../images/display-gallery-es.svg)
+![Lo que enseña la pantalla: doce pantallas dibujadas por el firmware de la pedalera](../images/display-gallery-es.svg)
 
 Lo que muestra la pantalla casi todo el tiempo:
 

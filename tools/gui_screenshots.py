@@ -133,6 +133,9 @@ def main():
     pump(app, 1)
     for name in names:
         SHOTS[name](app)
+    # Nothing is saved: a shot that changed the configuration, a Learn that
+    # caught a CC, must not stop the close with the question about it
+    app.saved_text = app._config_text()
     app._on_close()
 
 
