@@ -1202,14 +1202,17 @@ async function simulate() {
     if (!state.sim) {
       const sim = await Simulator.load();
       sim.access.addEventListener("statechange", (e) => {
-        if (e.port.state === "connected" && state.simulated && !state.pedal) setTimeout(() => attach(true), 50);
+        if (e.port.type === "input" && e.port.state === "connected" && state.simulated && !state.pedal) setTimeout(() => attach(true), 50);
       });
       sim.onOutput = (port, msg) => logMessage(port, msg);
       state.sim = sim;
     }
     state.simulated = true;
     state.sim.start();
-    await attach(false);
+    // Its ports show up once it has booted, as a pedal's do, and the
+    // statechange above attaches it
+    if (!await waitFor(() => state.pedal, 10000, 50)) throw new Error("it did not answer");
+    toast(`Simulated pedal on: firmware ${state.version}`);
     if (state.pedal && state.slots && !state.slots.valid.length) await demoIntoSimulation();
   } catch (e) {
     toast(`The simulated pedal could not start: ${e.message}`, "error");

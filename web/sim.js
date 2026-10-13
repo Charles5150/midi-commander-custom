@@ -125,7 +125,7 @@ class Port extends EventTarget {
     this.id = `mc-sim-${type}`;
     this.name = SIM_PORT_NAME;
     this.manufacturer = "midi-commander-custom";
-    this.state = "connected";
+    this.state = "disconnected";     // until the simulated pedal has booted
     this.connection = "closed";
   }
   async open() { this.connection = "open"; return this; }
@@ -211,7 +211,6 @@ export class Simulator {
   start() {
     if (this.timer) return;
     this._boot();
-    if (this.access.input.state !== "connected") this.access._setState("connected");
     this.timer = setInterval(() => this._tick(), TICK_MS);
     this.saveTimer = setInterval(() => this._save(), 3000);
   }
@@ -238,6 +237,9 @@ export class Simulator {
   // ms milliseconds of the pedal, and what it sent meanwhile
   run(ms) {
     this.e.sim_run(ms);
+    // Its ports show up once it has booted, as the pedal's do over USB: a page
+    // never sees the bank it starts on before a remembered one comes back
+    if (this.access.input.state !== "connected" && this.e.sim_ready()) this.access._setState("connected");
     this._drain();
     if (this.e.sim_restart_asked()) this._restart();
   }
@@ -248,7 +250,7 @@ export class Simulator {
     this.access._setState("disconnected");
     this._boot();
     this.run(1300);   // the banner, up to where USB comes up
-    this.access._setState("connected");
+    if (this.access.input.state !== "connected") this.access._setState("connected");
   }
 
   usbIn(bytes) {

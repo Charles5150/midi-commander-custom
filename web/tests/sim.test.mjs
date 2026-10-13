@@ -1185,6 +1185,24 @@ test("a power cut in the middle of erasing the saved state does not bring an old
   assert.equal((await running(third, async () => (await Pedal.open(third.access)).getState())).bankName, want);
 });
 
+test("its ports show up only once it has booted, on the bank it remembered (a page saw the first bank for a second)", async () => {
+  const sim = simWithDemo();
+  tap(sim, 4);                              // the index's A: MEDI, which the demo remembers
+  sim.run(5000);
+  const again = new Simulator(module, { persist: false });
+  again.flash = sim.flashNow();
+  const shown = [];
+  again.access.addEventListener("statechange", (e) => { if (e.port.type === "input") shown.push(e.port.state); });
+  again.start();
+  clearInterval(again.timer);
+  clearInterval(again.saveTimer);
+  assert.equal(again.access.input.state, "disconnected", "not while it boots");
+  while (again.access.input.state !== "connected") again.run(10);
+  assert.ok(again.e.sim_ready(), "connected once it is running");
+  assert.equal((await running(again, async () => (await Pedal.open(again.access)).getState())).bankName, "MEDI");
+  assert.deepEqual(shown, ["connected"]);
+});
+
 test("a tap let go while the main loop is held up by a flash erase is still a press (before 1.22, it was lost)", async () => {
   const sim = simWithDemo();
   sim.run(10000);
