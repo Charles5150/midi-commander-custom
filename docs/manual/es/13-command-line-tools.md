@@ -22,7 +22,7 @@ Si lees una ranura vacía, te lo dicen en lugar de sacar un CSV. El firmware ant
 .venv/bin/python python/CSV_to_Flash.py --slot 2 my-config.csv
 ```
 
-Comprueba el CSV, dice cuánto ocupa la configuración y pregunta `Continue? (y/N)` antes de escribir nada; `--yes` o `-y` se salta la pregunta. Luego escribe la ranura y reinicia la pedalera.
+Comprueba el CSV, dice cuánto ocupa la configuración y pregunta `Continue? (y/N)` antes de escribir nada; `--yes` o `-y` se salta la pregunta. Luego escribe la ranura y reinicia la pedalera. Termina con 0 cuando la ranura queda escrita, 1 cuando a la pregunta se responde que no, no encuentra la pedalera o no puede elegir la ranura, 2 cuando el CSV tiene un error, 3 cuando la pedalera deja de contestar y 4 cuando falla una escritura y la ranura queda incompleta.
 
 ## Flash_to_CSV: leer una configuración de vuelta
 
@@ -79,7 +79,16 @@ Escribe la configuración como una página para imprimir, `mi-config.html` junto
 .venv/bin/python python/Rig.py --list
 ```
 
-Hace una configuración para los aparatos de tu equipo, como **Your Rig…** en los configuradores: cada aparato con el nombre de su plantilla y el canal MIDI que tiene puesto, primero el principal, hasta cuatro; mira [Tu equipo](11-devices.md#tu-equipo-varios-aparatos-a-la-vez). Los demás cambian de preset con el principal salvo que se dé `--no-follow`. Luego dice qué poner en cada aparato. `--list` da los nombres de las plantillas. Un aparato o un canal con un error, dos aparatos en el mismo canal o un equipo sin bancos libres termina con 2 y no escribe nada.
+Hace una configuración para los aparatos de tu equipo, como **Your Rig…** en el configurador de escritorio y **Your rig** en el navegador: cada aparato con el nombre de su plantilla y el canal MIDI que tiene puesto, primero el principal, hasta cuatro; mira [Tu equipo](11-devices.md#tu-equipo-varios-aparatos-a-la-vez). Los demás cambian de preset con el principal salvo que se dé `--no-follow`. Luego dice qué poner en cada aparato. `--list` da los nombres de las plantillas. Un aparato o un canal con un error, dos aparatos en el mismo canal o un equipo sin bancos libres termina con 2 y no escribe nada.
+
+## import_openmidi: los equipos de la comunidad
+
+```bash
+git clone --depth 1 https://github.com/Morningstar-Engineering/openmidi
+.venv/bin/python python/import_openmidi.py openmidi
+```
+
+Rehace `python/lib/openmidi.json`, los equipos de **More devices** en los configuradores, a partir de un clon de [OpenMIDI](https://github.com/Morningstar-Engineering/openmidi). Los equipos que ya están en `devices.json` se dejan fuera.
 
 ## Copias de seguridad
 
@@ -130,6 +139,9 @@ Responde a la pedalera como lo haría un Kemper Profiler, por la misma conexión
 | `rig <name>` | pone nombre al rig que enseña la pedalera |
 | `a`, `b`, `c`, `d` | enciende o apaga el Stomp A, B, C o D |
 | `x`, `mod`, `dly`, `rev` | lo mismo con los demás módulos |
+| `tuner` | enciende o apaga el afinador |
+| `tune <note> [offset]` | el afinador oye una nota, `E` o un número de nota, afinada o desviada en el offset |
+| `sweep <note>` | el afinador oye la nota subir desde baja hasta afinada |
 | `show` | lo que se supone que está haciendo el ampli |
 | `quit` | termina |
 
@@ -198,8 +210,9 @@ Las herramientas intercambian la configuración como mensajes SysEx con el ID de
 | el texto propio del banner | 76 |
 | la latencia de las últimas pisadas | 78 |
 | mantener un pedal de expresión en una posición | 80 |
+| escribir la etiqueta de un botón | 82 |
 
-Cada uno se contesta con su número más uno. Un borrado o una escritura que la flash no ha podido hacer se contesta con un byte más, `01`, desde el firmware 0.71, y las herramientas se detienen y lo dicen; un mensaje de longitud equivocada se ignora.
+Los números están en decimal: 72 es el `48` de [Texto desde el ordenador](09-the-display.md#texto-desde-el-ordenador). Cada uno se contesta con su número más uno. Un borrado o una escritura que la flash no ha podido hacer se contesta con un byte más, `01`, desde el firmware 0.71, y las herramientas se detienen y lo dicen; un mensaje de longitud equivocada se ignora.
 
 Los comandos de lectura necesitan el firmware 0.2 o posterior; las herramientas te avisan si la pedalera tiene uno anterior.
 

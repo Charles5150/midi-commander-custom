@@ -4,7 +4,7 @@
 
 This chapter takes a pedal from the factory firmware to your first configuration: flash the firmware once by hand, install the tools, and load a configuration. After that, updates need nothing held.
 
-**With nothing installed.** In Chrome, Edge or Opera, the [web configurator](14-in-the-browser.md) does all of this chapter from a browser page, the first flash included: put the pedal in update mode by hand as in step 1, open the page's **Firmware** tab and choose the `.dfu` file. The rest of this chapter is the route with the desktop tools.
+**With nothing installed.** In Chrome, Edge or Opera, the [web configurator](14-in-the-browser.md) does all of this chapter from a browser page, the first flash included: put the pedal in update mode by hand as in step 1, open the page's **Firmware** tab and choose the `.dfu` file. An iPad or iPhone can edit and write configurations in an app that adds Web MIDI, but cannot flash firmware; see [On an iPad or iPhone](14-in-the-browser.md#on-an-ipad-or-iphone). The rest of this chapter is the route with the desktop tools.
 
 **What you need**
 
@@ -95,7 +95,7 @@ The configurator is where a configuration is built and sent to the pedal. The la
 1. Connect the pedal in normal mode, not DFU mode.
 2. Load a starting point:
    - the configurator opens on `python/demo-all-features.csv`, a configuration that uses every feature, with labels saying what each button does;
-   - or one of the ready-made [templates](11-devices.md) for a Fractal FM3, Line 6 HX Stomp, Helix, Helix Stadium or POD Go, Neural DSP Quad Cortex or Nano Cortex, IK Multimedia TONEX, Valeton GP-200, Eventide H90, Strymon pedal, Hotone Ampero II, Boss RC-600 or Kemper Player, or MainStage, Gig Performer, Cantabile or Ableton Live, with **Load CSV…**;
+   - or one of the ready-made [templates](11-devices.md) for a Fractal FM3, Line 6 HX Stomp, Helix, Helix Stadium or POD Go, Neural DSP Quad Cortex or Nano Cortex, IK Multimedia TONEX, Valeton GP-200, Eventide H90, Strymon pedal, Meris pedal, Hotone Ampero II, Boss RC-600 or Kemper Player, or MainStage, Gig Performer, Cantabile or Ableton Live, with **Load CSV…**;
    - or **Your Rig…**, for [several devices at once](11-devices.md#your-rig-several-devices-at-once), each on its channel;
    - or **Read from Device**, to start from what the pedal holds now.
 3. Edit it.

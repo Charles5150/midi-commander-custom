@@ -10,11 +10,15 @@ for questions.
 | Path | What it is |
 |---|---|
 | `firmware/` | STM32F103 firmware (HAL, USB MIDI + HID composite device) |
-| `python/` | Configuration tools: GUI, `CSV_to_Flash.py`, `Flash_to_CSV.py`, `Backup_Slots.py`, packers and `slotIO.py` (reading and writing a slot) under `lib/` |
+| `firmware/sim/` | The pedal's firmware built for WebAssembly, the web configurator's simulated pedal (see its [README](firmware/sim/README.md)) |
+| `python/` | Configuration tools: GUI, `CSV_to_Flash.py`, `Flash_to_CSV.py`, `Backup_Slots.py`, `Update_Firmware.py`, `Diff_Config.py`, `Cheat_Sheet.py`, `Song.py`, `Rig.py`, the Kemper and GT-1000 simulators, the stress, endurance and latency tests, and packers and `slotIO.py` (reading and writing a slot) under `lib/` |
+| `python/templates/` | The device templates, each written by its `python/make_*_template.py`, and `index.json`, the list the web configurator offers |
 | `python/tests/` | Tests for the Python tools and the manual |
+| `web/` | The web configurator, a static page, and its tests in `web/tests/` |
 | `docs/manual/` | The user manual, `en/` and `es/` with the same chapters, and the pictures both share |
 | `artifacts/` | Built firmware images, not tracked. Released ones are attached to GitHub releases |
-| `tools/`, `scripts/` | DFU packaging helpers used by the PlatformIO build |
+| `tools/` | `bin_to_dfuse.py`, which packages the DFU image, `pack_fonts.py` for the display's fonts and `gui_screenshots.py` for the manual's screenshots |
+| `scripts/` | PlatformIO build hooks: `post_build_dfuse.py` packages the image, `dfu_upload.py` flashes it |
 
 ## Building the firmware
 
@@ -114,7 +118,7 @@ sh firmware/sim/build.sh
 PYTHON=$PWD/.venv/bin/python node --test web/tests/*.test.mjs
 ```
 
-GitHub Actions builds both firmware images and runs these tests on every push and pull request, the configurator's on a virtual display, and the Python tests again on Windows, macOS and Ubuntu in the environment the launchers make.
+GitHub Actions builds both firmware images and runs these tests on every push and pull request, the configurator's on a virtual display, and on Windows, macOS and Ubuntu checks that the launcher sets up `.venv` and that, in it, the tools import, `CSV_to_Flash.py` starts and two of the test modules pass.
 
 **Before a release**, with the pedal on USB and the demo configuration (`python/demo-all-features.csv`) active, run the stress test as well. It needs nothing else, no foot and no DIN device, and takes about a minute:
 
@@ -153,4 +157,13 @@ It goes in rounds of about two minutes under the traffic a computer sends on a g
 - After a visible change to the configurator, retake its screenshots in
   `docs/images` on a Mac with `.venv/bin/python tools/gui_screenshots.py`;
   the Virtual Pedal and Monitor ones need the pedal on USB with the demo.
+- A new template goes in `python/templates/index.json` as well, which lists
+  them sorted by file name; a test checks it.
+- The manual's pictures of the display are drawn from
+  `docs/manual/screens/*.txt`. After changing one, run
+  `python3 docs/manual/pictures.py`, which writes the English and Spanish
+  SVGs in `docs/manual/images/`.
+- `python/lib/openmidi.json` is made from a clone of
+  [OpenMIDI](https://github.com/Morningstar-Engineering/openmidi):
+  `python3 python/import_openmidi.py <clone>`.
 - If you can, say in the pull request what you verified on hardware.

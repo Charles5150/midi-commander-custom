@@ -24,7 +24,11 @@ body:
       label: Area
       options:
         - Firmware
-        - GUI configurator
+        - Display
+        - On-pedal editor
+        - Desktop configurator
+        - Web configurator (browser / iPad)
+        - Device templates / Your rig
         - Command line tools
         - Documentation
     validations:

@@ -19,7 +19,7 @@ El botón que quiere todo el que toca con delay: lo pisas a tiempo y la pedalera
 
 Dale a un botón un comando `Tap` con **Action** `Tap`. La pedalera mide el tempo por el intervalo entre pulsaciones, promediando las cuatro últimas e ignorando lo que quede fuera de 30–300 BPM. El nuevo tempo aparece un momento en la pantalla.
 
-El tempo no se guarda: empieza en 120 BPM cada vez que enciendes la pedalera.
+El tempo no se guarda: empieza en 120 BPM cada vez que enciendes la pedalera, salvo que el [`Set`](#fijar-el-tempo) de un banco al entrar lo lleve a otro, y un [`Save`](#guardar-el-tempo-que-has-marcado) guarda un tempo marcado en ese `Set`. Un reinicio tras un cuelgue conserva el tempo que tenía.
 
 ## Reloj MIDI
 
@@ -81,7 +81,7 @@ Pon un comando `Tap` con **Action** `Out` justo encima del CC de tap del aparato
 - Sale en los **Taps** pulsos siguientes, 4 si está vacío (`OnValue`), a partir del próximo pulso, así que los dos primeros van separados un pulso entero y el aparato lee bien el tempo.
 - Y otra vez tras cada cambio de tempo mientras sigas en el banco: un `Set`, `Up` o `Down`, o tus taps en el botón `Tap` de la propia pedalera. Un tap en la pedalera es un pulso, así que el aparato recibe los taps de tu pie, y luego tantos pulsos más.
 - Con **Taps** a 0 sale en todos los pulsos, hasta que cambias de banco.
-- Salir del banco lo para; ir a la segunda página de un banco no. En un botón empieza al dispararse el botón; con un CC que alterna, apagar el botón lo para.
+- Salir del banco lo para, y también un [Panic](06-commands.md#panic) y cambiar a otra configuración; ir a la segunda página de un banco no. En un botón empieza al dispararse el botón; con un CC que alterna, apagar el botón lo para.
 - Los pulsos son los mismos en los que parpadea el [LED del tap](#led-del-tap): el tempo de la pedalera, su reloj en marcha, o el reloj del ordenador con `Clock_Follow` activado. El tap sale por USB y DIN, como un CC.
 
 En los [comandos de entrada](04-banks.md#comandos-al-entrar-y-al-salir-de-un-banco) de un banco, debajo de un `Set`, cada canción pone al aparato en su tempo al pisarla. No le pongas también el CC del aparato al botón `Tap` de la pedalera: `Tap Out` ya le pasa tus taps.

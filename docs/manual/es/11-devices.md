@@ -14,7 +14,7 @@ Hay configuraciones listas en `python/templates/` que ponen los controles princi
 
 Cada una la genera un script a partir del mapa MIDI del propio equipo, así que otro canal u otro CC es cambiar una constante y volver a ejecutar el script, como explica cada apartado. O cambia los botones en el configurador como en cualquier otra configuración. Para más de un aparato, mira [Tu equipo](#tu-equipo-varios-aparatos-a-la-vez).
 
-Los mismos mapas MIDI están en `python/lib/devices.json`, que leen los dos configuradores: **Device** en un comando elige uno de ellos por su nombre, y un CC ya escrito muestra su nombre, como explica [El configurador](03-the-configurator.md#desde-el-mapa-midi-de-un-equipo). Un equipo que aún no está son unas pocas líneas ahí.
+Los mismos mapas MIDI están en `python/lib/devices.json`, que leen los dos configuradores: **Device** en un comando elige uno de ellos por su nombre, y un CC ya escrito muestra su nombre, como explica [El configurador](03-the-configurator.md#desde-el-mapa-midi-de-un-equipo). Debajo, **More devices** ofrece 571 más de [OpenMIDI](https://github.com/Morningstar-Engineering/openmidi), guardados en `python/lib/openmidi.json` y sin comprobar con sus manuales. Un equipo que no está en ninguno de los dos son unas pocas líneas en `devices.json`.
 
 ## Tu equipo: varios aparatos a la vez
 

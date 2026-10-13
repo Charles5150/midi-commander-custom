@@ -2,7 +2,7 @@
 
 **English** · [Español](../es/09-the-display.md)
 
-The pedal's 128×64 screen tells you where you are and what is on, at a glance from the floor. This chapter covers the bank screen, what shows over it for a moment, the gig view, the MIDI monitor, the live values a label can show, the text a computer can put on it, and the banner at power on.
+The pedal's 128×64 screen tells you where you are and what is on, at a glance from the floor. This chapter covers the bank screen, what shows over it for a moment, the gig view, the MIDI monitor, the live values a label can show and the preset names it can show them by, the text and button labels a computer can put on it, and the banner at power on.
 
 ## The bank screen
 
@@ -32,9 +32,17 @@ Some things take the screen, or part of it, for a moment and then give the bank 
 | A relative CC button | the CC number and the value just sent, in place of the info line for 1.5 seconds: `CC7=69`, or `C120=127` for three digit CC numbers |
 | An expression pedal moving, with `Display` on | the value it sends, `EXP1 64`, or the pedal's number and a bar, in place of the info line until 1.5 seconds after it stops ([Its value on the display](08-expression.md#its-value-on-the-display)) |
 | A next or previous preset button | the new program's [name](#preset-names), or its number, as `PC 6` |
+| Choosing a setlist (`Setlist`) | `SETLIST 2` and the setlist's name, full screen; `NO SONGS` when it has none ([Several setlists](04-banks.md#several-setlists)) |
+| Locking or unlocking the switches | `LOCKED` or `UNLOCKED`; `LOCKED` then stays in the info line ([Locking the switches](05-buttons.md#locking-the-switches)) |
+| A `Direct` button | `BANK0-31` and the four groups, then the group's banks, `BANK16-23` ([Any bank in two presses](04-banks.md#any-bank-in-two-presses)) |
+| Saving a scene (`Scene` `Save`) | **SAVED SCENE**, for three seconds ([Saving a scene with your feet](05-buttons.md#saving-a-scene-with-your-feet)) |
+| Saving the tempo (`Tap` `Save`) | **SAVED TEMPO 120 BPM**, or **NOT SAVED ENTER LIST FULL** ([Keeping the tempo you tapped](07-tempo.md#keeping-the-tempo-you-tapped)) |
+| Recording presses | `REC WAIT`, `REC OFF`, `SAVED` and the count, `PLAY ON`, `PLAY OFF`, `ERASED`, `REC FULL` ([Recording a run of presses](07-tempo.md#recording-a-run-of-presses)) |
 | Switching configuration | the new configuration's number and name, full screen; a short notice when the slot asked for is empty |
 | Bank Up / Down with `Bank_Preview` on | the bank they would go to, its name inverted, white with black letters, over its labels ([Bank preview](04-banks.md#bank-preview)) |
 | Starting in safe mode | **SAFE MODE**, for three seconds ([Safe mode](10-editing-on-the-pedal.md#safe-mode)) |
+| A configurator writing the slot the pedal runs | **RECEIVING CONFIGURATION**, until the pedal restarts ([Sidebar](03-the-configurator.md#sidebar)) |
+| Restarting after a lock-up | **RESTARTED AFTER A LOCK-UP** ([If something goes wrong](02-getting-started.md#if-something-goes-wrong)) |
 | Power on | the configuration's name (`ConfigName`) and the firmware version for a moment, or the [banner](#the-banners-own-text) crossing the screen when `Boot_Banner` is on |
 | Waiting for a firmware update | **FIRMWARE UPDATE** |
 
@@ -69,7 +77,7 @@ At soundcheck, when a device does not answer, the first question is whether MIDI
 | `In` | the mark, and the last message received across the top line for two seconds, in small letters: `IN CC7=100 CH3`. |
 | `All` | the mark, and the last message received or sent: `OUT PC12 CH1` when a button sends a program change. |
 
-- **How messages read:** `CC7=100` a control change and its value, `PC12` a program change, `ON60=127` and `OFF60` a note and its velocity, `AT=9` channel pressure and `AT60=9` a note's, `PB=8192` pitch bend from 0 to 16383, then `CH1` to `CH16`. A SysEx shows as `SYSEX`, and `START`, `CONTINUE`, `STOP`, `SPP` (song position), `SONG` and `TUNE` as such.
+- **How messages read:** `CC7=100` a control change and its value, `PC12` a program change, `ON60=127` and `OFF60` a note and its velocity, `AT=9` channel pressure and `AT60=9` a note's, `PB=8192` pitch bend from 0 to 16383, then `CH1` to `CH16`. A SysEx shows as `SYSEX`, and `START`, `CONTINUE`, `STOP`, `SPP` (song position), `SONG`, `TUNE` and `RESET` as such; any other system message shows as `SYS` and its status byte, `SYS241`.
 - **Not shown:** the MIDI clock and active sensing, which come all the time and would keep the mark lit; the configurator's own SysEx; and, with `USB_Ports` at 3, what comes in on the DIN port's cable to go straight out of the DIN socket.
 - **A stream** of messages, a DAW's automation or an expression pedal sweeping, shows the latest one; nothing waits for the screen.
 - **Over the rest:** the message stands where the bank's name and info line are and gives them back after two seconds. An expression pedal's value goes over it, since it says more about the pedal. In the [gig view](#gig-view) it shows in the info line's place.

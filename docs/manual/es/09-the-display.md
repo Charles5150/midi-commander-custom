@@ -2,7 +2,7 @@
 
 [English](../en/09-the-display.md) · **Español**
 
-La pantalla de 128×64 de la pedalera te dice dónde estás y qué está encendido, de un vistazo desde el suelo. Este capítulo trata la pantalla del banco, lo que aparece encima un momento, la vista de directo, el monitor MIDI, los valores en vivo que puede mostrar una etiqueta, el texto que puede poner un ordenador y el banner al encender.
+La pantalla de 128×64 de la pedalera te dice dónde estás y qué está encendido, de un vistazo desde el suelo. Este capítulo trata la pantalla del banco, lo que aparece encima un momento, la vista de directo, el monitor MIDI, los valores en vivo que puede mostrar una etiqueta y los nombres de preset con que puede mostrarlos, el texto y las etiquetas de los botones que puede poner un ordenador y el banner al encender.
 
 ## La pantalla del banco
 
@@ -27,14 +27,22 @@ Algunas cosas ocupan la pantalla, o parte de ella, un momento y luego devuelven 
 | Al marcar el tempo con el tap, arrancar o parar el reloj, o fijar o subir y bajar el tempo | el tempo, con un `*` delante mientras el reloj está en marcha ([Tempo](07-tempo.md)) |
 | Cuando `Clock_Follow` engancha el reloj del ordenador, o cambia su tempo | `EXT` y el tempo, durante 1,5 segundos |
 | Con un reloj en marcha y `Beat_Counter` activado | el compás, el tiempo y el tempo en lugar de la línea de información, `12.3 120`, mientras corra ([Compás y tiempo en la pantalla](07-tempo.md#compás-y-tiempo-en-la-pantalla)) |
-| MIDI que entra por USB, con `MIDI_Monitor` activado | una marca en la esquina de arriba a la derecha; con `In` o `All`, el mensaje en toda la línea de arriba durante dos segundos ([Monitor MIDI](#monitor-midi)) |
 | Una cuenta atrás (`Wait` `Count`) | los tiempos que faltan en lugar del nombre del banco, de `IN 4` a `IN 1`, hasta que sale la lista ([A tiempo](06-commands.md#a-tiempo)) |
+| MIDI que entra por USB, con `MIDI_Monitor` activado | una marca en la esquina de arriba a la derecha; con `In` o `All`, el mensaje en toda la línea de arriba durante dos segundos ([Monitor MIDI](#monitor-midi)) |
 | Un botón de CC relativo | el número de CC y el valor que se acaba de enviar, en lugar de la línea de información durante 1,5 segundos: `CC7=69`, o `C120=127` para números de CC de tres cifras |
 | Un pedal de expresión moviéndose, con `Display` activado | el valor que envía, `EXP1 64`, o el número del pedal y una barra, en lugar de la línea de información hasta 1,5 segundos después de pararse ([Su valor en la pantalla](08-expression.md#su-valor-en-la-pantalla)) |
 | Un botón de preset siguiente o anterior | el [nombre](#nombres-de-preset) del nuevo programa, o su número, como `PC 6` |
+| Al elegir un setlist (`Setlist`) | `SETLIST 2` y el nombre del setlist, a pantalla completa; `NO SONGS` si no tiene canciones ([Varios setlists](04-banks.md#varios-setlists)) |
+| Al bloquear o desbloquear los pulsadores | `LOCKED` o `UNLOCKED`; luego `LOCKED` se queda en la línea de información ([Bloquear los pulsadores](05-buttons.md#bloquear-los-pulsadores)) |
+| Un botón `Direct` | `BANK0-31` y los cuatro grupos, luego los bancos del grupo, `BANK16-23` ([Cualquier banco en dos pulsaciones](04-banks.md#cualquier-banco-en-dos-pulsaciones)) |
+| Al guardar una escena (`Scene` `Save`) | **SAVED SCENE**, durante tres segundos ([Guardar una escena con los pies](05-buttons.md#guardar-una-escena-con-los-pies)) |
+| Al guardar el tempo (`Tap` `Save`) | **SAVED TEMPO 120 BPM**, o **NOT SAVED ENTER LIST FULL** ([Guardar el tempo que has marcado](07-tempo.md#guardar-el-tempo-que-has-marcado)) |
+| Al grabar pulsaciones | `REC WAIT`, `REC OFF`, `SAVED` y el número, `PLAY ON`, `PLAY OFF`, `ERASED`, `REC FULL` ([Grabar una serie de pulsaciones](07-tempo.md#grabar-una-serie-de-pulsaciones)) |
 | Al cambiar de configuración | el número y el nombre de la nueva configuración, a pantalla completa; un aviso breve si la ranura pedida está vacía |
 | Bank Up / Down con `Bank_Preview` activado | el banco al que irían, con el nombre invertido, blanco con letras negras, sobre sus etiquetas ([Vista previa de banco](04-banks.md#vista-previa-de-banco)) |
 | Al arrancar en modo seguro | **SAFE MODE**, durante tres segundos ([Modo seguro](10-editing-on-the-pedal.md#modo-seguro)) |
+| Un configurador escribiendo el slot en marcha | **RECEIVING CONFIGURATION**, hasta que la pedalera se reinicia ([Barra lateral](03-the-configurator.md#barra-lateral)) |
+| Al reiniciarse tras un bloqueo | **RESTARTED AFTER A LOCK-UP** ([Si algo sale mal](02-getting-started.md#si-algo-sale-mal)) |
 | Al encender | el nombre de la configuración (`ConfigName`) y la versión de firmware un momento, o el [banner](#el-texto-propio-del-banner) cruzando la pantalla cuando `Boot_Banner` está activado |
 | Esperando una actualización de firmware | **FIRMWARE UPDATE** |
 
@@ -69,7 +77,7 @@ En la prueba de sonido, cuando un aparato no responde, la primera pregunta es si
 | `In` | la marca, y el último mensaje recibido en toda la línea de arriba durante dos segundos, en letra pequeña: `IN CC7=100 CH3`. |
 | `All` | la marca, y el último mensaje recibido o enviado: `OUT PC12 CH1` cuando un botón envía un cambio de programa. |
 
-- **Cómo se leen los mensajes:** `CC7=100` un control change y su valor, `PC12` un program change, `ON60=127` y `OFF60` una nota y su velocidad, `AT=9` la presión del canal y `AT60=9` la de una nota, `PB=8192` el pitch bend de 0 a 16383, y luego de `CH1` a `CH16`. Un SysEx sale como `SYSEX`, y `START`, `CONTINUE`, `STOP`, `SPP` (posición en la canción), `SONG` y `TUNE` tal cual.
+- **Cómo se leen los mensajes:** `CC7=100` un control change y su valor, `PC12` un program change, `ON60=127` y `OFF60` una nota y su velocidad, `AT=9` la presión del canal y `AT60=9` la de una nota, `PB=8192` el pitch bend de 0 a 16383, y luego de `CH1` a `CH16`. Un SysEx sale como `SYSEX`, y `START`, `CONTINUE`, `STOP`, `SPP` (posición en la canción), `SONG`, `TUNE` y `RESET` tal cual; cualquier otro mensaje de sistema sale como `SYS` y su byte de estado, `SYS241`.
 - **No se muestran:** el reloj MIDI y el active sensing, que llegan todo el rato y dejarían la marca siempre encendida; el SysEx del propio configurador; y, con `USB_Ports` a 3, lo que entra por el cable del puerto DIN para salir directo por la toma DIN.
 - **Una ráfaga** de mensajes, la automatización de un DAW o un pedal de expresión barriendo, muestra el último; nada espera a la pantalla.
 - **Encima del resto:** el mensaje ocupa el sitio del nombre del banco y de su línea de información y se los devuelve a los dos segundos. El valor de un pedal de expresión se pone encima, porque dice más del pedal. En la [vista de directo](#vista-de-directo) sale en el sitio de la línea de información.

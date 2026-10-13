@@ -29,6 +29,8 @@ Si no ve nada de esto, dice que el pedal parece estar bien.
 - si el valor en bruto no sigue al pedal, el problema es el cable o el jack;
 - si lo sigue pero no llega ningún CC a tu monitor MIDI, revisa el canal y el número de CC, y los ajustes propios del banco (mira [Otro destino en cada banco](#otro-destino-en-cada-banco)).
 
+El configurador web no tiene vista en directo ni **Calibrate**: calibra con el configurador de escritorio, o escribe las lecturas en **Heel reading** y **Toe reading** del navegador.
+
 *Calibración: firmware 0.8 o posterior.*
 
 <details><summary>Por dentro</summary>
@@ -69,7 +71,7 @@ Se guarda en dos bytes que estaban reservados en el registro de cada pedal, los 
 
 Un pedal puede enviar Pitch Bend, para un whammy, o una pareja de CC de 14 bits, con 16384 pasos en lugar de 128, para barridos sin escalones en sintes y plugins que los entienden.
 
-Elige qué envía con **Output** en la pestaña Expression (`Output`: `CC`, `PitchBend` o `CC14`; por defecto CC).
+Elige qué envía con **Sends** en la pestaña Expression (`Output`: `CC`, `PitchBend` o `CC14`; por defecto CC).
 
 - **PitchBend** envía Pitch Bend por el canal del pedal en lugar de su CC.
 - **CC14** envía una pareja de CC de 14 bits: los 7 bits altos en su CC y los 7 bajos en ese CC más 32, como los empareja el estándar MIDI. Así, el CC 4 sale como CC 4 y CC 36, primero el byte alto.
@@ -79,6 +81,8 @@ Elige qué envía con **Output** en la pestaña Expression (`Output`: `CC`, `Pit
 - Un banco o un comando `Exp` que lleva el pedal a otro CC envía ese CC: como pareja cuando `Output` es `CC14` y el CC es menor de 32, que es lo que necesita un CC de 14 bits, y con 7 bits en cualquier otro caso. Así, un pedal de Pitch Bend puede seguir siendo un pedal de volumen en otro banco. Un CC de 14 bits por encima de 31 también sale con 7 bits.
 
 El pedal 2 de la demo envía una pareja de CC de 14 bits, CC 4 y 36.
+
+*Firmware 0.44 o posterior; un firmware anterior ignora el ajuste y envía el CC.*
 
 ## Un parámetro por SysEx
 
@@ -90,15 +94,13 @@ Para un equipo que recibe un parámetro solo por SysEx, como le pasa a un Boss K
 
 *Firmware 1.30 o posterior. Un firmware anterior envía en su lugar el CC del pedal.*
 
-*Firmware 0.44 o posterior; un firmware anterior ignora el ajuste y envía el CC.*
-
 ## Velocidad de los LFO y las secuencias
 
 Un pedal puede no enviar nada de MIDI y marcar en cambio la velocidad de la modulación de la propia pedalera: todos los [LFO](07-tempo.md#lfo-sincronizado-al-tempo) y [secuencias por pasos](07-tempo.md#secuenciador-por-pasos) en marcha lo siguen, un trémolo que pasa de lento a rápido bajo tu pie, siempre a tempo.
 
 Se pone ahí de tres maneras:
 
-- **Output** `Speed` en la pestaña Expression, para siempre;
+- **Sends** `Speed` en la pestaña Expression (`Output`), para siempre;
 - `Speed` como CC del pedal en un banco, en la pestaña Banks (`Exp1_CC` o `Exp2_CC` en [BankExpression_Settings](#bankexpression_settings)), para ese banco;
 - un [comando `Exp`](06-commands.md#cambiar-el-destino-de-un-pedal-de-expresión) con `KeyMode` `Speed`, desde un botón.
 
@@ -134,7 +136,7 @@ En el banco 6 de la demo, el pedal 1 marca la velocidad de TREM y del arpegio qu
 
 <details><summary>Por dentro</summary>
 
-Se guarda en el byte 15 del registro de cada pedal: 0 para CC, 1 para Pitch Bend, 2 para CC de 14 bits, 3 para Speed, 4 para Wheel y 5 para Arrows, donde las herramientas antiguas escribían un cero.
+Se guarda en el byte 15 del registro de cada pedal: 0 para CC, 1 para Pitch Bend, 2 para CC de 14 bits, 3 para Speed, 4 para Wheel, 5 para Arrows, 6 para Switches, 0x10 más n para el mensaje SysEx n y 0x20 más el número de zonas para Zones, donde las herramientas antiguas escribían un cero.
 
 </details>
 
@@ -149,7 +151,7 @@ Hace scroll de una de dos maneras:
 
 Se pone igual que Speed:
 
-- **Output** `Wheel` o `Arrows` en la pestaña Expression, para siempre;
+- **Sends** `Wheel` o `Arrows` en la pestaña Expression (`Output`), para siempre;
 - `Wheel` o `Arrows` como CC del pedal en un banco, en la pestaña Banks, para ese banco: un banco para la letra de cada canción;
 - un [comando `Exp`](06-commands.md#cambiar-el-destino-de-un-pedal-de-expresión) con `KeyMode` `Wheel` o `Arrows`, desde un botón: con toggle, enciende y apaga el scroll.
 
@@ -268,7 +270,7 @@ En la pestaña **Banks** del configurador, cada banco tiene por pedal un CC y un
 - Una casilla vacía mantiene el ajuste del propio pedal; cada extremo del rango se toma por separado.
 - Un pedal silenciado sigue funcionando como pulsador: sus botones de punta y talón siguen funcionando.
 - Tras un cambio de banco, el pedal no se envía a su nuevo CC, canal o rango en la posición en la que esté parado; sigue al siguiente movimiento, salvo que [envíe al entrar en un banco](#enviar-la-posición-al-entrar-en-un-banco), o [recoja el CC](#recoger-un-cc-sin-saltos) donde se dejó.
-- Un [comando `Exp`](06-commands.md) en un botón puede volver a cambiar el destino hasta el siguiente cambio de banco.
+- Un [comando `Exp`](06-commands.md#cambiar-el-destino-de-un-pedal-de-expresión) en un botón puede volver a cambiar el destino hasta el siguiente cambio de banco.
 - Un `Exp` en modo `Add` hace que un pedal envíe [varios CC a la vez](06-commands.md#un-pedal-a-varios-cc), cada uno con su rango y su sentido.
 
 En la demo, el banco 2 convierte el pedal 1 en una rueda de modulación entre 20 y 100, y el banco 7 lo silencia y hace del pedal 2 un volumen por el canal 2 que nunca baja de 40, CC 7 y 39.
@@ -304,7 +306,7 @@ Como los bytes globales y los registros de los pedales están todos ocupados, se
 
 ## Recoger un CC sin saltos
 
-Tu pedal es el wah en una canción y el volumen en la siguiente. Dejaste el volumen a un tercio, llevaste el wah a la punta y ahora el volumen vuelve al pedal: al primer toque lo manda de un tercio a la punta de golpe. **Takes a CC over** en la pestaña Expression (`Takeover`) dice qué hace el pedal cuando el CC que envía tiene un valor distinto de donde está el pie:
+Tu pedal es el wah en una canción y el volumen en la siguiente. Dejaste el volumen a un tercio, llevaste el wah a la punta y ahora el volumen vuelve al pedal: al primer toque lo manda de un tercio a la punta de golpe. **Takes a CC over** en la pestaña Expression del navegador, **A CC left at another value: the pedal** en el configurador de escritorio (`Takeover`), dice qué hace el pedal cuando el CC que envía tiene un valor distinto de donde está el pie:
 
 - **Jump**, como siempre: el pedal envía dónde está el pie desde su siguiente movimiento.
 - **CatchUp**: no envía nada hasta que el pie llega al valor en que se dejó el CC, o lo pasa, y a partir de ahí sigue al pie. No salta nada, pero el pedal no hace nada hasta llegar.
@@ -329,7 +331,7 @@ Se guarda en el byte 4 de la cabecera de la segunda área de extensión, dos bit
 
 ## Su valor en la pantalla
 
-Al ajustar un volumen o un wah con el pie oyes el resultado pero no el número, y no distingues un pedal muerto o mal calibrado de uno que simplemente está en el talón. **Shows it moving** en la pestaña Expression (`Display`) pone en la pantalla lo que envía el pedal mientras se mueve, en lugar de la línea de información del banco:
+Al ajustar un volumen o un wah con el pie oyes el resultado pero no el número, y no distingues un pedal muerto o mal calibrado de uno que simplemente está en el talón. **Shows it moving** en la pestaña Expression del navegador, **While it moves, the display shows the value** en el configurador de escritorio (`Display`), pone en la pantalla lo que envía el pedal mientras se mueve, en lugar de la línea de información del banco:
 
 - **Off**, como siempre: no se muestra nada.
 - **Number**: `EXP1 64`, el valor que se acaba de enviar.

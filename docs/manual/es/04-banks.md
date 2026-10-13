@@ -17,7 +17,7 @@ Cada banco tiene un nombre que la pantalla muestra en mayúsculas grandes, de 4 
 
 Una fila por banco, `Bank_Number` 0–31: `Bank_Name_Large` (4 caracteres, letra grande) y `Bank_Info_Small` (8 caracteres, letra pequeña), que pueden llevar [valores en vivo](09-the-display.md#valores-en-vivo). Pueden faltar filas: una configuración que solo define los primeros bancos, incluso una escrita para el firmware de 8 bancos, se graba tal cual y deja vacíos los demás.
 
-Una columna opcional `Notes` guarda una nota del banco, que se ve en la [vista Stage](14-in-the-browser.md#stage) del configurador web; la pedalera nunca la recibe. Un salto de línea se escribe `\n` y una barra invertida `\\`.
+Una columna opcional `Notes` guarda una nota del banco, que se ve en la [vista Stage](14-in-the-browser.md#stage) del configurador web; la pedalera nunca la recibe. Un salto de línea se escribe `\n` y una barra invertida `\\`. Solo la edita el configurador web, en **Notes for the Stage view** de su pestaña Banks; el configurador de escritorio la conserva, pero no tiene campo para ella.
 
 ## Bank Up y Bank Down
 
@@ -31,7 +31,7 @@ Lo que hacen se cambia con **Bank switches** en la pestaña **Global**, `Bank_Sw
 | `Bank+MIDI` | Cambian de banco y además envían sus propios comandos (ver [Lo que envían los pulsadores de banco](#lo-que-envían-los-pulsadores-de-banco)). |
 | `MIDI only` | Envían sus propios comandos y nunca cambian de banco, con lo que la pedalera se convierte en un controlador de diez pulsadores sin más. |
 
-Si mantienes Bank Down y Bank Up a la vez durante dos segundos, se abre el [editor de la pedalera](10-editing-on-the-pedal.md).
+Si mantienes Bank Down y Bank Up a la vez durante dos segundos, se abre el [editor de la pedalera](10-editing-on-the-pedal.md), salvo que **Lock on-pedal editing** (`Edit_Lock`) en la pestaña **Global** lo desactive; ver [Bloquear el editor](10-editing-on-the-pedal.md#bloquear-el-editor).
 
 ## Setlist
 
@@ -141,6 +141,7 @@ Cualquier botón puede moverte entre bancos con un comando `Bank`, además de lo
 | `Reveal` | Mientras lo mantienes, cada botón muestra la etiqueta de su pulsación larga; ver [Etiquetas de la pulsación larga](05-buttons.md#etiquetas-de-la-pulsación-larga). |
 | `Direct` | Dos pulsaciones eligen cualquier banco: su grupo de ocho y luego el banco; ver [Cualquier banco en dos pulsaciones](#cualquier-banco-en-dos-pulsaciones). |
 | `Lock` | Bloquea todos los pulsadores, o los desbloquea; ver [Bloquear los pulsadores](05-buttons.md#bloquear-los-pulsadores). |
+| `GigView` | La vista de directo en la pantalla, encendida o apagada; ver [Vista de directo](09-the-display.md#vista-de-directo). |
 | `Setlist` | Sigue otro setlist, 1–4 o `Next`, desde su primera canción; ver [Varios setlists](#varios-setlists). |
 
 El cambio se hace después de enviar el resto de comandos del botón, así que un botón puede enviar MIDI y luego llevarte a otro banco. En el CSV es `CommandType` `Bank`, con la acción en `KeyMode` y el banco o el número de bancos en `OnValue`; nada más del comando se usa.

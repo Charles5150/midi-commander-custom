@@ -22,7 +22,7 @@ Reading an empty slot is reported rather than producing a CSV. Firmware older th
 .venv/bin/python python/CSV_to_Flash.py --slot 2 my-config.csv
 ```
 
-It checks the CSV, says how big the configuration is and asks `Continue? (y/N)` before writing anything; `--yes` or `-y` skips the question. Then it writes the slot and restarts the pedal.
+It checks the CSV, says how big the configuration is and asks `Continue? (y/N)` before writing anything; `--yes` or `-y` skips the question. Then it writes the slot and restarts the pedal. It ends with 0 when the slot is written, 1 when the question is answered no, no pedal is found or the slot cannot be chosen, 2 when the CSV has a mistake, 3 when the pedal stops answering and 4 when a write fails, leaving the slot incomplete.
 
 ## Flash_to_CSV: read a configuration back
 
@@ -79,7 +79,16 @@ Writes the configuration as a page to print, `my-config.html` beside the CSV unl
 .venv/bin/python python/Rig.py --list
 ```
 
-Makes a configuration for the devices on your board, as **Your Rig…** in the configurators does: each device as its template is named and the MIDI channel it is set to, the main one first, up to four; see [Your rig](11-devices.md#your-rig-several-devices-at-once). The others change preset with the main one unless `--no-follow` is given. Then it lists what to set on each device. `--list` gives the template names. A device or channel with a mistake, two devices on one channel, or a rig with no bank left ends with 2, writing nothing.
+Makes a configuration for the devices on your board, as **Your Rig…** in the desktop configurator and **Your rig** in the browser do: each device as its template is named and the MIDI channel it is set to, the main one first, up to four; see [Your rig](11-devices.md#your-rig-several-devices-at-once). The others change preset with the main one unless `--no-follow` is given. Then it lists what to set on each device. `--list` gives the template names. A device or channel with a mistake, two devices on one channel, or a rig with no bank left ends with 2, writing nothing.
+
+## import_openmidi: the community devices
+
+```bash
+git clone --depth 1 https://github.com/Morningstar-Engineering/openmidi
+.venv/bin/python python/import_openmidi.py openmidi
+```
+
+Rebuilds `python/lib/openmidi.json`, the devices under **More devices** in the configurators, from a clone of [OpenMIDI](https://github.com/Morningstar-Engineering/openmidi). The devices `devices.json` already has are left out.
 
 ## Backups
 
@@ -130,6 +139,9 @@ It answers the pedal as a Kemper Profiler would, over the same USB link a Player
 | `rig <name>` | names the rig the pedal shows |
 | `a`, `b`, `c`, `d` | switches Stomp A, B, C or D on or off |
 | `x`, `mod`, `dly`, `rev` | the same for the other modules |
+| `tuner` | switches the tuner on or off |
+| `tune <note> [offset]` | the tuner hears a note, `E` or a note number, in tune or off by the offset |
+| `sweep <note>` | the tuner hears the note come up from flat into tune |
 | `show` | what the amp is supposed to be doing |
 | `quit` | ends it |
 
@@ -198,8 +210,9 @@ The tools exchange the configuration as SysEx messages under manufacturer ID `0x
 | the banner's own text | 76 |
 | the latency of the last presses | 78 |
 | hold an expression pedal at a position | 80 |
+| write a button's label | 82 |
 
-Each is answered with its number plus one. An erase or a write that the flash could not take is answered with one more byte, `01`, from firmware 0.71 on, and the tools stop and say so; a message of the wrong length is ignored.
+The numbers are decimal: 72 is the `48` of [Text from the computer](09-the-display.md#text-from-the-computer). Each is answered with its number plus one. An erase or a write that the flash could not take is answered with one more byte, `01`, from firmware 0.71 on, and the tools stop and say so; a message of the wrong length is ignored.
 
 The read-back commands need firmware 0.2 or later; the tools tell you if the pedal is older.
 

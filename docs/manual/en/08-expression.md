@@ -29,6 +29,8 @@ When none of these shows, it says the pedal looks right.
 - if the raw value does not follow the pedal, the problem is the cable or the jack;
 - if it does but no CC reaches your MIDI monitor, check the channel and CC number, and the bank's own settings (see [A different target in each bank](#a-different-target-in-each-bank)).
 
+The web configurator has no live view and no **Calibrate**: calibrate with the desktop configurator, or type the readings in the browser's **Heel reading** and **Toe reading**.
+
 *Calibration: firmware 0.8 or later.*
 
 <details><summary>Under the hood</summary>
@@ -69,7 +71,7 @@ Stored in two bytes that were reserved in each pedal's record, bytes 11 and 12, 
 
 A pedal can send Pitch Bend, for a whammy, or a 14-bit CC pair, with 16384 steps instead of 128, for sweeps without zipper noise on synths and plugins that read them.
 
-Choose what it sends with **Output** in the Expression tab (`Output`: `CC`, `PitchBend` or `CC14`; default CC).
+Choose what it sends with **Sends** in the Expression tab (`Output`: `CC`, `PitchBend` or `CC14`; default CC).
 
 - **PitchBend** sends Pitch Bend on the pedal's channel instead of its CC.
 - **CC14** sends a 14-bit CC pair: the high 7 bits on its CC and the low 7 bits on that CC plus 32, as the MIDI standard pairs them. So CC 4 goes out as CC 4 and CC 36, the high byte first.
@@ -79,6 +81,8 @@ Choose what it sends with **Output** in the Expression tab (`Output`: `CC`, `Pit
 - A bank or an `Exp` command that sends the pedal to another CC sends that CC: as a pair when `Output` is `CC14` and the CC is below 32, which a 14-bit CC needs, and with 7 bits otherwise. So a Pitch Bend pedal can still be a volume pedal in another bank. A 14-bit CC above 31 goes out with 7 bits too.
 
 The demo's pedal 2 sends a 14-bit CC pair, CC 4 and 36.
+
+*Firmware 0.44 or later; older firmware ignores the setting and sends the CC.*
 
 ## A SysEx parameter
 
@@ -90,15 +94,13 @@ For gear that takes a parameter only by SysEx, as a Boss Katana does many of its
 
 *Firmware 1.30 or later. Older firmware sends the pedal's CC instead.*
 
-*Firmware 0.44 or later; older firmware ignores the setting and sends the CC.*
-
 ## Speed of the LFOs and sequences
 
 A pedal can send no MIDI at all and set instead how fast the pedal's own modulation goes: every running [LFO](07-tempo.md#tempo-synced-lfo) and [step sequence](07-tempo.md#step-sequencer) follows it, a tremolo sweeping from slow to fast under your foot, always in time with the tempo.
 
 Put it there in any of three ways:
 
-- **Output** `Speed` in the Expression tab, for good;
+- **Sends** `Speed` in the Expression tab (`Output`), for good;
 - `Speed` as the pedal's CC in a bank, in the Banks tab (`Exp1_CC` or `Exp2_CC` in [BankExpression_Settings](#bankexpression_settings)), for that bank;
 - an [`Exp` command](06-commands.md#changing-an-expression-pedals-target) with `KeyMode` `Speed`, from a button.
 
@@ -134,7 +136,7 @@ In the demo's bank 6, pedal 1 sets the speed of TREM and of the arpeggio held on
 
 <details><summary>Under the hood</summary>
 
-Stored in byte 15 of each pedal's record, 0 for CC, 1 for Pitch Bend, 2 for 14-bit CC, 3 for Speed, 4 for Wheel and 5 for Arrows, where older tools wrote a zero.
+Stored in byte 15 of each pedal's record, 0 for CC, 1 for Pitch Bend, 2 for 14-bit CC, 3 for Speed, 4 for Wheel, 5 for Arrows, 6 for Switches, 0x10 plus n for SysEx message n and 0x20 plus the number of zones for Zones, where older tools wrote a zero.
 
 </details>
 
@@ -149,7 +151,7 @@ It scrolls in one of two ways:
 
 Put it there as Speed is put:
 
-- **Output** `Wheel` or `Arrows` in the Expression tab, for good;
+- **Sends** `Wheel` or `Arrows` in the Expression tab (`Output`), for good;
 - `Wheel` or `Arrows` as the pedal's CC in a bank, in the Banks tab, for that bank: a bank for each song's lyrics;
 - an [`Exp` command](06-commands.md#changing-an-expression-pedals-target) with `KeyMode` `Wheel` or `Arrows`, from a button: a toggle turns scrolling on and off.
 
@@ -304,7 +306,7 @@ The global bytes and the pedals' records being all taken, it is kept in bits 2 a
 
 ## Picking up a CC without a jump
 
-Your pedal is the wah in one song and the volume in the next. You left the volume at a third, swept the wah to the toe, and now the volume is back on the pedal: the first touch sends it from a third to the toe at once. **Takes a CC over** in the Expression tab (`Takeover`) says what the pedal does when the CC it sends holds a value other than where the foot is:
+Your pedal is the wah in one song and the volume in the next. You left the volume at a third, swept the wah to the toe, and now the volume is back on the pedal: the first touch sends it from a third to the toe at once. **Takes a CC over** in the Expression tab of the browser, **A CC left at another value: the pedal** in the desktop configurator (`Takeover`), says what the pedal does when the CC it sends holds a value other than where the foot is:
 
 - **Jump**, as before: the pedal sends where the foot is from its next movement.
 - **CatchUp**: it sends nothing until the foot reaches the value the CC was left at, or goes past it, and follows the foot from there. Nothing jumps, but the pedal does nothing until it gets there.
@@ -329,7 +331,7 @@ It is kept in byte 4 of the second extension area's header, two bits per pedal, 
 
 ## Its value on the display
 
-Setting a volume or a wah by foot, you hear the result but not the number, and you can't tell a pedal that is dead or badly calibrated from one that is just at the heel. **Shows it moving** in the Expression tab (`Display`) puts what the pedal sends on the display while it moves, in place of the bank's info line:
+Setting a volume or a wah by foot, you hear the result but not the number, and you can't tell a pedal that is dead or badly calibrated from one that is just at the heel. **Shows it moving** in the Expression tab of the browser, **While it moves, the display shows the value** in the desktop configurator (`Display`), puts what the pedal sends on the display while it moves, in place of the bank's info line:
 
 - **Off**, as before: nothing shows.
 - **Number**: `EXP1 64`, the value just sent.

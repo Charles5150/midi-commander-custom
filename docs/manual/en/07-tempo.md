@@ -19,7 +19,7 @@ The button every delay player wants: tap it in time and the pedal picks up the t
 
 Give a button a `Tap` command with **Action** `Tap`. The pedal measures the tempo from the interval between presses, averaging the last four and ignoring anything outside 30–300 BPM. The new tempo shows on the display for a moment.
 
-The tempo is not saved: it starts at 120 BPM each time the pedal is switched on.
+The tempo is not saved: it starts at 120 BPM each time the pedal is switched on, unless a bank's [`Set`](#setting-the-tempo) on entry puts it elsewhere, and a [`Save`](#keeping-the-tempo-you-tapped) keeps a tapped tempo in that `Set`. A restart after a lock-up keeps the tempo it had.
 
 ## MIDI clock
 
@@ -81,7 +81,7 @@ Put a `Tap` command with **Action** `Out` right above the device's tap CC, its t
 - It goes out on the next **Taps** beats, 4 when empty (`OnValue`), from the next beat on, so the first two are a whole beat apart and the device reads the tempo right.
 - And again after every change of tempo while you stay in the bank: a `Set`, `Up` or `Down`, or your taps on the pedal's own `Tap` button. A tap on the pedal is a beat, so the device is tapped with your foot, then for as many beats more.
 - With **Taps** at 0 it goes out on every beat, until the bank changes.
-- Leaving the bank stops it; a bank's second page does not. On a button it starts as the button fires; with a toggling CC, switching the button off stops it.
+- Leaving the bank stops it, and so do a [Panic](06-commands.md#panic) and a switch to another configuration; a bank's second page does not. On a button it starts as the button fires; with a toggling CC, switching the button off stops it.
 - The beats are the ones the [tap LED](#tap-led) flashes on: the pedal's tempo, its running clock, or the host's clock with `Clock_Follow` on. The tap goes to USB and DIN, as a CC does.
 
 In a bank's [commands on entry](04-banks.md#commands-on-entering-and-leaving-a-bank), below a `Set`, every song puts the device on its tempo as you step on it. Don't give the pedal's own `Tap` button the device's CC as well: `Tap Out` passes your taps on already.

@@ -55,7 +55,7 @@ Se configura en la pestaña **Combos** del configurador, una fila por combinaci�
 - **Al soltar.** La lista se ejecuta al pisar, con un estado de toggle propio de la combinación, y lo que va al soltar (los «off» momentáneos) sale cuando se levanta el primero de los dos pulsadores. `Wait`, `If`, `Macro` y los demás funcionan ahí como en cualquier otro sitio.
 - Dos pulsaciones del mismo pulsador siguen siendo una pulsación doble, no una combinación, y los dos pulsadores de banco conservan su propio gesto, el [editor de la pedalera](10-editing-on-the-pedal.md).
 
-En la demo, 3+4 activa y desactiva un afinador en todos los bancos y borra el looper en la canción 1, y B+C [bloquea los pulsadores](#bloquear-los-pulsadores).
+En la demo, 3+4 activa y desactiva un afinador en todos los bancos y borra el looper en la canción 1, B+C [bloquea los pulsadores](#bloquear-los-pulsadores), 3+C enciende y apaga la [vista de directo](09-the-display.md#vista-de-directo), y A+B pasa al [siguiente setlist](04-banks.md#varios-setlists).
 
 *Firmware 0.59 o posterior.*
 
@@ -178,7 +178,7 @@ Elige el **exclusive group** (`Group`, del 1 al 4) junto al modo del LED. Los bo
 - Se apagan antes de que el botón pisado envíe nada, así que cuando todo el grupo controla un mismo parámetro, un CC de canal del ampli por ejemplo, el aparato acaba donde dice el botón pisado.
 - Pisar el botón encendido lo apaga como cualquier toggle y deja el grupo entero apagado, salvo que tenga **Reload when lit** (mira [Recargar al pisarlo encendido](#recargar-al-pisarlo-encendido)).
 - Solo participan los botones con un comando toggle, y solo su pulsación corta.
-- Un botón que apaga su grupo no puede cambiar de banco: los comandos `Bank` de su lista se saltan, así que el botón pisado siempre envía desde el banco en que lo pisaste.
+- Un botón al que apaga su grupo no puede cambiar de banco: los comandos `Bank` de su lista se saltan, así que el botón pisado siempre envía desde el banco en que lo pisaste.
 - Los grupos son por banco: el grupo 1 de un banco no tiene nada que ver con el grupo 1 de otro.
 - Una escena puede encender dos botones de un grupo, y gana el último.
 
@@ -199,7 +199,7 @@ Tocas un mando del ampli en mitad de una canción y quieres volver al preset tal
 - Salen sus comandos de «on» como en la primera pulsación: un CC su valor de «on», un PC su programa.
 - Sus PC salen aunque **Don't resend the same PC** (`Skip_Same_PC`) esté activado, como si cada uno tuviera **Force**: se trata de recargar el preset (mira [No recargar el preset en el que estás](06-commands.md#no-recargar-el-preset-en-el-que-estás)).
 - Sigue encendido: su LED, su casilla de la pantalla y su grupo no cambian.
-- Solo recarga una pulsación con el pie, o desde la pedalera en vivo del configurador. Una escena, su grupo exclusivo, soltar un botón momentáneo al mantenerlo y los botones automáticos del pedal de expresión lo siguen apagando.
+- Solo recarga una pulsación con el pie, o desde la pestaña **Virtual Pedal** del configurador o la **Live pedal** del configurador web. Una escena, su grupo exclusivo, soltar un botón momentáneo al mantenerlo y los botones automáticos del pedal de expresión lo siguen apagando.
 - Solo participan los botones con un comando toggle, porque solo ellos están encendidos o no, y no los botones de ciclo, que pasan a su siguiente estado.
 
 Un botón de preset que se enciende es un toggle: un PC, y un CC con **Toggle** y el **Off** vacío, para que no salga nada al apagarlo. Pon los botones de preset de un banco en un grupo exclusivo y dale a cada uno **Reload when lit**: pisar otro cambia a ese preset, pisar el encendido lo recarga.

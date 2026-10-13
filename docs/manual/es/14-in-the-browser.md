@@ -44,6 +44,8 @@ Las pestañas siguen las del configurador de escritorio:
 - **Global**: todos los ajustes globales, en los grupos del configurador, con las mismas opciones y rangos.
 - **Expression**, **Bank switches**, **SysEx**, **Setlist**, **Combos**, **MIDI map** y **Preset names**, como en el configurador.
 
+La pestaña Expression no tiene vista en directo ni **Calibrate**: calibra el pedal con el [configurador de escritorio](08-expression.md#conectar-y-calibrar), o escribe sus lecturas en **Heel reading** y **Toe reading**.
+
 Cada cambio se comprueba al hacerlo. Si la configuración no se puede empaquetar, una línea roja bajo la barra de herramientas dice qué está mal y dónde, y no se puede guardar ni escribir hasta arreglarlo.
 
 Toda la página funciona con el teclado y con un lector de pantalla: cada campo tiene nombre, la pestaña, el banco, el botón y la pulsación que se editan van marcados como los actuales, y tras un clic o un cambio el foco se queda donde estaba. Los mensajes se leen en voz alta al aparecer.
@@ -59,6 +61,10 @@ Toda la página funciona con el teclado y con un lector de pantalla: cada campo 
 ## La pedalera en directo
 
 La pantalla de la pedalera, sus LEDs y sus diez interruptores, como están en la pedalera, varias veces por segundo. Necesita firmware 0.27 o posterior; con uno más antiguo la pestaña lo dice. Pulsa un interruptor en la pantalla, con el ratón o con el dedo, para pulsarlo en la pedalera: queda pisado mientras lo mantienes, así que las pulsaciones largas también funcionan. Con el teclado, llega a un interruptor con Tab y mantén Espacio o Intro.
+
+- Una línea bajo la pantalla dice el banco, el slot en marcha, y **asleep** o **safe mode** cuando la pedalera lo está.
+- **Expression pedals** tiene un deslizador por pedal, del talón a la punta: al moverlo, el pedal se queda ahí, por encima de lo que haya en su jack, hasta pulsar **Let go**. Firmware 0.70 o posterior.
+- **What the pedal sends** lista lo que llega de la pedalera por USB. **clock** muestra también el clock MIDI, y **Clear** vacía la lista.
 
 ## Stage
 

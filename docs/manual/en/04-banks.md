@@ -17,7 +17,7 @@ Each bank has a name the display shows in large capitals, 4 characters (a lowerc
 
 One row per bank, `Bank_Number` 0–31: `Bank_Name_Large` (4 characters, big font) and `Bank_Info_Small` (8 characters, small font), either of which can hold [live values](09-the-display.md#live-values). Rows may be missing: a configuration that only defines the first few banks, including one written for the 8 bank firmware, flashes unchanged and leaves the rest empty.
 
-An optional `Notes` column holds a note for the bank, shown in the web configurator's [Stage view](14-in-the-browser.md#stage); the pedal never gets it. A line break in it is written `\n`, a backslash `\\`.
+An optional `Notes` column holds a note for the bank, shown in the web configurator's [Stage view](14-in-the-browser.md#stage); the pedal never gets it. A line break in it is written `\n`, a backslash `\\`. Only the web configurator edits it, under **Notes for the Stage view** in its Banks tab; the desktop configurator keeps it but has no field for it.
 
 ## Bank Up and Bank Down
 
@@ -31,7 +31,7 @@ What they do can be changed with **Bank switches** in the **Global** tab, `Bank_
 | `Bank+MIDI` | Change bank, and also send their own commands (see [What the bank switches send](#what-the-bank-switches-send)). |
 | `MIDI only` | Send their own commands and never change bank, which turns the pedal into a plain ten switch controller. |
 
-Held together for two seconds, Bank Down and Bank Up open the [editor on the pedal](10-editing-on-the-pedal.md) instead.
+Held together for two seconds, Bank Down and Bank Up open the [editor on the pedal](10-editing-on-the-pedal.md) instead, unless **Lock on-pedal editing** (`Edit_Lock`) in the **Global** tab turns that off; see [Locking the editor](10-editing-on-the-pedal.md#locking-the-editor).
 
 ## Setlist
 
@@ -141,6 +141,7 @@ Any button can move you between banks with a `Bank` command, alongside whatever 
 | `Reveal` | While held, every button shows the label of its long press; see [Labels for the long press](05-buttons.md#labels-for-the-long-press). |
 | `Direct` | Two presses choose any bank: its group of eight, then the bank; see [Any bank in two presses](#any-bank-in-two-presses). |
 | `Lock` | Locks every switch, or unlocks them; see [Locking the switches](05-buttons.md#locking-the-switches). |
+| `GigView` | The gig view on the display, on or off; see [Gig view](09-the-display.md#gig-view). |
 | `Setlist` | Follows another setlist, 1–4 or `Next`, from its first song; see [Several setlists](#several-setlists). |
 
 The change happens after the button's remaining commands have been sent, so a button can send MIDI and then move to another bank. In the CSV it is `CommandType` `Bank`, with the action in `KeyMode` and the bank or the number of banks in `OnValue`; nothing else in the command is used.

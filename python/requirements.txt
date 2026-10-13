@@ -1,4 +1,5 @@
-# The oldest versions the tests pass with (Python 3.11); pip takes the newest
+# For Python 3.10 to 3.12 (see python/launch.py); on later ones pip compiles python-rtmidi
+# The oldest versions the tests pass with (tried on Python 3.11); pip takes the newest
 pandas>=2.0
 mido>=1.3
 # 1.5.4 is the first with a build for Apple silicon

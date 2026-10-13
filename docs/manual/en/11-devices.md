@@ -14,7 +14,7 @@ Ready-made configurations under `python/templates/` put a device's main controls
 
 Each is built by a script from the device's own MIDI map, so a different channel or CC is a constant to change and the script to run again, as each section says. Or change the buttons in the configurator like any other configuration. For more than one device, see [Your rig](#your-rig-several-devices-at-once).
 
-The same MIDI maps are in `python/lib/devices.json`, which both configurators read: **Device** on a command picks one of them by name, and a CC already written shows its name, as [The configurator](03-the-configurator.md#from-a-devices-midi-map) explains. A device not listed yet is a few lines there.
+The same MIDI maps are in `python/lib/devices.json`, which both configurators read: **Device** on a command picks one of them by name, and a CC already written shows its name, as [The configurator](03-the-configurator.md#from-a-devices-midi-map) explains. Below them, **More devices** offers 571 more from [OpenMIDI](https://github.com/Morningstar-Engineering/openmidi), kept in `python/lib/openmidi.json` and not checked against their manuals. A device that has neither is a few lines in `devices.json`.
 
 ## Your rig: several devices at once
 

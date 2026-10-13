@@ -40,9 +40,9 @@ Después vienen el tipo del comando y los campos que tiene ese tipo —canal, n�
 
 El editor escribe estos tipos:
 
-`---` (sin comando), `PC`, `CC`, `Note`, `Bank`, `Tap` (con todas sus acciones, también las de grabar), `Start`, `Stop`, `Panic` y `Wait` (una pausa; uno [a tiempo](06-commands.md#a-tiempo) no se toca).
+`---` (sin comando), `PC`, `CC`, `Note`, `Bank` (con cualquier acción menos `Reveal`, `Direct`, `Lock`, `GigView` y `Setlist`), `Tap` (con cualquier acción menos `Out` y `Save`, también las de grabar), `Start`, `Stop`, `Panic` y `Wait` (una pausa; uno [a tiempo](06-commands.md#a-tiempo) no se toca).
 
-Un comando de cualquier otro tipo se muestra por su nombre y se deja exactamente como está hasta que cambias el campo del tipo, que lo sustituye. Las listas de doble pulsación viven en una zona que las herramientas escriben de una vez: una configuración sin ningún comando de doble pulsación, o escrita para un firmware anterior al 0.26, no la tiene, y ahí el editor solo ofrece las listas corta y larga.
+Un comando de cualquier otro tipo o acción se muestra por su nombre y se deja exactamente como está hasta que cambias el campo del tipo, que lo sustituye. Las listas de doble pulsación viven en una zona que las herramientas escriben de una vez: una configuración sin ningún comando de doble pulsación, o escrita para un firmware anterior al 0.26, no la tiene, y ahí el editor solo ofrece las listas corta y larga.
 
 ## Editar los ajustes
 
@@ -97,7 +97,7 @@ Así que para añadir una canción, ve primero a su banco, abre el editor, pasa 
 
 Lo que cambias se escribe en la flash en cuanto el cursor sale del comando, la etiqueta, el ajuste o la canción, así que si te vas no pierdes nada. Una estrella en la línea del título indica que hay algo sin escribir todavía.
 
-- Una escritura tarda una décima de segundo, durante la cual la pedalera está ocupada: cambia lo que necesites entre canciones, no en mitad de una.
+- Una escritura tarda alrededor de una décima de segundo, durante la cual la pedalera está ocupada: cambia lo que necesites entre canciones, no en mitad de una.
 - Después la pedalera vuelve a leer la configuración, así que el comando nuevo funciona al momento.
 - Si vuelves a leer la configuración con `Flash_to_CSV.py`, o con **Read from Device** en el configurador, obtienes un CSV con el cambio.
 

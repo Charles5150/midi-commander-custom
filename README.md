@@ -1,6 +1,6 @@
 # Midi Commander Custom Firmware
 
-Custom firmware and configuration tools for the **MeloAudio Midi Commander** foot controller, sold in Europe as the **Harley Benton MP-100**. It turns a budget pedal into a controller that stands up to the big names: 32 banks of eight buttons, three command lists per button, a setlist, tap tempo and MIDI clock, two expression pedals, labels on the display, and a configurator, on the desktop or in the browser, that talks to the pedal over USB.
+Custom firmware and configuration tools for the **MeloAudio Midi Commander** foot controller, sold in Europe as the **Harley Benton MP-100**. It turns a budget pedal into a controller that stands up to the big names: 32 banks of eight buttons, three command lists per button, setlists, tap tempo and MIDI clock, two expression pedals, labels on the display, and a configurator, on the desktop or in the browser, that talks to the pedal over USB.
 
 **[Read the user manual](docs/manual/en/README.md)** · **[Manual de usuario en español](docs/manual/es/README.md)**
 
@@ -29,7 +29,7 @@ The [full list](docs/manual/en/01-what-it-does.md) has every feature; in brief:
 
 ## Quick start
 
-**In the browser, nothing to install:** open the [web configurator](https://charles5150.github.io/midi-commander-custom/) in Chrome, Edge or Opera. It edits, reads and writes configurations, shows the pedal live, shows the song you are on large for a tablet on a stage, with your notes, and updates the firmware, the first flash included. No pedal yet? **Try without a pedal** runs its firmware in the page. → [In the browser](docs/manual/en/14-in-the-browser.md)
+**In the browser, nothing to install:** open the [web configurator](https://charles5150.github.io/midi-commander-custom/) in Chrome, Edge or Opera, or [on an iPad](docs/manual/en/14-in-the-browser.md#on-an-ipad-or-iphone) in an app that adds Web MIDI, such as Web MIDI Browser. It edits, reads and writes configurations, shows the pedal live, shows the song you are on large for a tablet on a stand, with your notes, and on a computer updates the firmware, the first flash included. [Share link](docs/manual/en/14-in-the-browser.md#saving-and-writing) puts a configuration in a link to send to a bandmate or post on a forum, with nothing uploaded. No pedal yet? **Try without a pedal** runs its firmware in the page. → [In the browser](docs/manual/en/14-in-the-browser.md)
 
 **With the desktop tools:**
 

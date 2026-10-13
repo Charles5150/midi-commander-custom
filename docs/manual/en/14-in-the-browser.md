@@ -44,6 +44,8 @@ The tabs follow the desktop configurator's:
 - **Global**: every global setting, in the configurator's groups, with the same choices and ranges.
 - **Expression**, **Bank switches**, **SysEx**, **Setlist**, **Combos**, **MIDI map** and **Preset names**, as in the configurator.
 
+The Expression tab has no live view and no **Calibrate**: calibrate a pedal with the [desktop configurator](08-expression.md#connecting-and-calibrating), or type its readings in **Heel reading** and **Toe reading**.
+
 Every change is checked as it is made. When the configuration could not be packed, a red line under the toolbar says what is wrong and where, and it can be neither saved nor written until that is fixed.
 
 The whole page works from the keyboard and with a screen reader: every field has a name, the tab, bank, button and press being edited are marked as the current one, and after a click or a change the focus stays where it was. Messages are read out as they appear.
@@ -59,6 +61,10 @@ The whole page works from the keyboard and with a screen reader: every field has
 ## Live pedal
 
 The pedal's display, its LEDs and its ten switches, as they are on the pedal, a few times a second. It needs firmware 0.27 or later; with older firmware the tab says so. Press a switch on the screen, with the mouse or a finger, to press it on the pedal: it goes down while held, so long presses work too. From the keyboard, Tab to a switch and hold Space or Enter.
+
+- A line under the display says the bank, the slot running, and **asleep** or **safe mode** when the pedal is.
+- **Expression pedals** has a slider for each pedal, from heel to toe: moving one holds the pedal there, over what is in its jack, until **Let go**. Firmware 0.70 or later.
+- **What the pedal sends** lists what comes in from the pedal over USB. **clock** shows the MIDI clock too, and **Clear** empties the list.
 
 ## Stage
 

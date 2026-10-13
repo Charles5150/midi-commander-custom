@@ -10,7 +10,7 @@ The configurator, `python/gui_configurator.py`, is where a configuration is buil
 
 <img src="../../images/gui_workflow.png" width="500">
 
-On the left is the sidebar, with the file and the pedal. On the right are the tabs, in the order a configuration is usually built. Each tab starts with a one line summary; the **?** next to it opens the details.
+On the left is the sidebar, with the file and the pedal. On the right are the tabs; this chapter takes them in the order a configuration is usually built, which is not quite the app's. Each tab starts with a one line summary; the **?** next to it opens the details.
 
 ## Sidebar
 
@@ -40,15 +40,15 @@ Two groups, FILE and PEDAL, with the name of the open file at the bottom.
 Where each button's commands are set. See [Buttons](05-buttons.md) and [Commands](06-commands.md).
 
 1. Pick a bank, then a button from the eight laid out as on the pedal: 1 to 4 on top, A to D below. The one being edited is highlighted.
-2. At the top, set its **display label**, **LED light mode** and **exclusive group**, and tick **Momentary when held**, **Flash at the tempo**, **Global** or **Reset on bank change**.
+2. At the top, set its **display label**, **LED light mode** and **exclusive group**, and tick **Momentary when held**, **Flash at the tempo**, **Global**, **Reset on bank change**, **Press at once** or **Reload when lit**.
 3. Below are ten command slots, A to J. Choose a slot's command type and only the fields that type uses appear.
 4. **Short press / Long press / Double press** switches the slots between the button's three command lists.
 
-Edits are kept in memory automatically when you switch button, bank or tab.
+Edits are kept in memory automatically when you switch button, bank or tab, and before saving or flashing, so the **Apply Changes to Memory** button below the slots is optional.
 
-**Copy bank** and **Paste bank** duplicate a whole bank onto another: labels, LED modes, groups, the short, long and double press commands, and the commands sent on entering the bank. The target becomes identical to the source, so anything it had that the source does not is removed. Its name is kept, since a copy is usually the start of a variant. Pasting asks for confirmation first.
+**Copy bank** and **Paste bank** duplicate a whole bank onto another: labels, LED modes, groups, the short, long and double press commands with the long press labels, the commands sent on entering the bank, and its expression pedal settings. The target becomes identical to the source, so anything it had that the source does not is removed. Its name is kept, since a copy is usually the start of a variant. Pasting asks for confirmation first.
 
-**Copy button** and **Paste button** do the same for a single button: pick the button to copy, press **Copy button**, pick the one to replace, in the same bank or another, and press **Paste button**. Its label, LED mode, group, the four boxes and its short, long and double press commands all become the copied button's. Pasting asks for confirmation first.
+**Copy button** and **Paste button** do the same for a single button: pick the button to copy, press **Copy button**, pick the one to replace, in the same bank or another, and press **Paste button**. Its label, LED mode, group, all six boxes and its short, long and double press commands all become the copied button's. Pasting asks for confirmation first.
 
 **Save song…** writes the bank shown to a file of its own, with what it runs in other banks, its SysEx strings and the names of its programs, and **Load song…** puts a song file into the bank shown, of this configuration or any other. Loading lists what moved or needs a look and asks before it replaces the bank, its name included. See [Songs](04-banks.md#songs-a-bank-in-a-file-of-its-own).
 
@@ -56,7 +56,7 @@ Edits are kept in memory automatically when you switch button, bank or tab.
 
 Rather than look up which CC a knob sends, let the configurator hear it. Press **Learn** beside a slot's command type, the button turns orange and reads **Stop**, then move the knob or press the button on the device. The first Program Change, Control Change, Note, Pitch Bend or Channel Pressure that arrives fills the slot: its type, channel and number, and its value if the slot had none, so a button learned from a device that sends 127 sends 127. The slot says what arrived and from which port.
 
-The configurator listens on every MIDI input the computer has: a device plugged in over USB, a DAW's virtual port, or the pedal itself, whose own presses can be learned too. Clock, SysEx and the like are passed over. A slot that is already a `CCInc` or a `PCInc` keeps its type and takes the channel and the CC number, and a [`Listen`](06-commands.md#listening-on-another-cc) takes the CC and the value the device reports. Press **Stop**, or wait 15 seconds, to give up; learning another slot stops the first. It also works in the Bank Enter and Bank Switch tabs.
+The configurator listens on every MIDI input the computer has: a device plugged in over USB, a DAW's virtual port, or the pedal itself, whose own presses can be learned too. Clock, SysEx and the like are passed over. A slot that is already a `CCInc` keeps its type and takes the channel and the CC number, a `PCInc` keeps its type and takes only the channel of a Program Change, and a [`Listen`](06-commands.md#listening-on-another-cc) takes the CC and the value the device reports. Press **Stop**, or wait 15 seconds, to give up; learning another slot stops the first. It also works in the Bank Enter and Bank Switch tabs.
 
 ### From a device's MIDI map
 
@@ -118,7 +118,12 @@ The order Bank Up / Down follow when **Follow the setlist** (`Setlist_Mode`) is 
 
 ## Expression
 
-Everything about the two expression pedals, per pedal: end points, response curve, invert, channel, the toe and heel switches, the output range, what it sends (CC, Pitch Bend, 14-bit CC or the speed of the LFOs and sequences) and auto-engage. See [Expression pedals](08-expression.md).
+Everything about the two expression pedals, per pedal: end points, response curve, invert, channel, the toe and heel switches, the output range and auto-engage. See [Expression pedals](08-expression.md).
+
+- **Output**, what it sends: a CC, Pitch Bend or a 14-bit CC, the [speed of the LFOs and sequences](08-expression.md#speed-of-the-lfos-and-sequences), `Wheel` or `Arrows` to [scroll on the computer](08-expression.md#scrolling-on-the-computer), `Switches` for [a box of switches](08-expression.md#a-box-of-switches-on-the-jack), `Zones` for [a stepped pedal](08-expression.md#zones-a-stepped-pedal), or a [SysEx string](08-expression.md#a-sysex-parameter). The last two rows of the pedal set the box's three switches and the zones' buttons.
+- **Send on entering a bank**; see [Sending the position on entering a bank](08-expression.md#sending-the-position-on-entering-a-bank).
+- How it takes over a CC left at another value, `Jump`, `CatchUp` or `Scaled`; see [Picking up a CC without a jump](08-expression.md#picking-up-a-cc-without-a-jump).
+- Its value on the display while it moves, `Off`, `Number` or `Bar`; see [Its value on the display](08-expression.md#its-value-on-the-display).
 
 **Connect live view** shows the pedal position and the CC being sent, read from the pedal in real time.
 

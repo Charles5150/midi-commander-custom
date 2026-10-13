@@ -8,17 +8,17 @@ The manual for the custom firmware of the **MeloAudio Midi Commander**, sold in 
 |---|---|---|
 | 1 | [What it does](01-what-it-does.md) | Every feature in one list, each pointing to where it is explained |
 | 2 | [Getting started](02-getting-started.md) | Flashing the firmware, installing the tools, a first configuration, updating later |
-| 3 | [The configurator](03-the-configurator.md) | The desktop program: its tabs, the virtual pedal, backups |
-| 4 | [Banks](04-banks.md) | Moving between the 32 banks, setlists, second pages, what a bank sends on entry and leaving, the four configurations |
+| 3 | [The configurator](03-the-configurator.md) | The desktop program: its tabs, the virtual pedal, the Monitor tab, Your Rig, the cheat sheet, backups |
+| 4 | [Banks](04-banks.md) | Moving between the 32 banks, bank preview, several setlists, songs and song files, second pages, what a bank sends on entry and leaving, the four configurations |
 | 5 | [Buttons](05-buttons.md) | Short, long and double press, two switches together, LEDs, toggles, groups, scenes, cycle and global buttons, linked toggles |
 | 6 | [Commands](06-commands.md) | What a button can send: every command type and its fields |
 | 7 | [Tempo, clock, LFO and sequencer](07-tempo.md) | Tap tempo, MIDI clock, the tap LED, bar and beat on the display, LFOs and step sequences in time |
-| 8 | [Expression pedals](08-expression.md) | Calibration, curves, ranges, per bank targets, sending on entering a bank, auto-engage, toe and heel switches |
-| 9 | [The display](09-the-display.md) | What the screen shows, text sent by the computer, the banner at power on |
+| 8 | [Expression pedals](08-expression.md) | Calibration, curves, ranges, Pitch Bend and 14-bit CC, a SysEx parameter, LFO speed, scrolling, zones, a box of switches, per bank targets, takeover, the value on the display, sending on entering a bank, auto-engage, toe and heel switches |
+| 9 | [The display](09-the-display.md) | What the screen shows, the gig view, the MIDI monitor, live values and preset names, text and button labels sent by the computer, the banner at power on |
 | 10 | [Editing on the pedal](10-editing-on-the-pedal.md) | The editor on the pedal's own screen, and safe mode |
-| 11 | [Templates and devices](11-devices.md) | Ready-made configurations for the FM3, HX Stomp, Helix, Helix Stadium, POD Go, Quad Cortex, Nano Cortex, TONEX, GP-200, H90, Strymon pedals, Ampero II, RC-600, Kemper Player and four live hosts, two way with a Kemper and a GT-1000, following a MOD Dwarf, and translating what comes in over USB |
+| 11 | [Templates and devices](11-devices.md) | Your rig of several devices, ready-made configurations for the FM3, HX Stomp, Helix, Helix Stadium, POD Go, Quad Cortex, Nano Cortex, TONEX, GP-200, H90, Strymon and Meris pedals, Ampero II, RC-600, Kemper Player and four live hosts, two way with a Kemper and a GT-1000, following a MOD Dwarf, three USB ports, and translating what comes in over USB |
 | 12 | [The configuration file](12-configuration-file.md) | The CSV, the demo configuration and every global setting |
-| 13 | [Command line tools](13-command-line-tools.md) | Flashing, reading back, backups, texts and tests from a terminal |
-| 14 | [In the browser](14-in-the-browser.md) | The web configurator: edit, read, write and back up, the live pedal and firmware updates, with nothing to install, and a simulated pedal |
+| 13 | [Command line tools](13-command-line-tools.md) | Flashing, reading back, comparing (Diff_Config), the cheat sheet (Cheat_Sheet), songs, Your rig, backups, texts, the Kemper and GT-1000 simulators and tests from a terminal |
+| 14 | [In the browser](14-in-the-browser.md) | The web configurator: edit, read, write and back up, share by link, the live pedal, Stage, firmware updates, an iPad, with nothing to install, and a simulated pedal |
 
 What changed from one version to the next is in the [changelog](../../../CHANGELOG.md), and building the firmware yourself in [CONTRIBUTING](../../../CONTRIBUTING.md).

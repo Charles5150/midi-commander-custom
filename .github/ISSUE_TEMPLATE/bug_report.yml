@@ -11,8 +11,8 @@ body:
     id: firmware
     attributes:
       label: Firmware version
-      description: Shown on the display at boot, or printed by `python python/Flash_to_CSV.py x.csv`.
-      placeholder: "0.17"
+      description: Shown on the display at boot, in the web configurator's header once the pedal is connected, or printed by `python python/Flash_to_CSV.py x.csv`.
+      placeholder: "1.35"
     validations:
       required: true
 
@@ -23,8 +23,12 @@ body:
       options:
         - Firmware (buttons, LEDs, MIDI output)
         - Expression pedals
+        - Display
+        - On-pedal editor
         - USB (HID keyboard, MIDI thru, sleep)
-        - GUI configurator
+        - Desktop configurator
+        - Web configurator (browser / iPad)
+        - Device templates / Your rig
         - Command line tools (CSV_to_Flash / Flash_to_CSV)
         - Build / flashing (PlatformIO, DFU)
         - Documentation
@@ -66,5 +70,6 @@ body:
   - type: input
     id: os
     attributes:
-      label: Operating system and Python version
-      placeholder: "macOS 15 / Python 3.12"
+      label: Operating system, and Python version or browser
+      description: For the web configurator, the browser and its version, or the iPad app.
+      placeholder: "macOS 15 / Python 3.12, or Chrome 141, or iPadOS 18 / Web MIDI Browser"

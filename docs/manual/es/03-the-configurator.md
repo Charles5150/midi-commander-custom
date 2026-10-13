@@ -10,7 +10,7 @@ El configurador, `python/gui_configurator.py`, es donde se monta una configuraci
 
 <img src="../../images/gui_workflow.png" width="500">
 
-A la izquierda está la barra lateral, con el archivo y la pedalera. A la derecha, las pestañas, en el orden en que se suele montar una configuración. Cada pestaña empieza con un resumen de una línea; la **?** de al lado abre los detalles.
+A la izquierda está la barra lateral, con el archivo y la pedalera. A la derecha, las pestañas; este capítulo las recorre en el orden en que se suele montar una configuración, que no es exactamente el de la aplicación. Cada pestaña empieza con un resumen de una línea; la **?** de al lado abre los detalles.
 
 El programa está en inglés, así que aquí los nombres de botones, pestañas y campos van tal como los verás en pantalla.
 
@@ -42,15 +42,15 @@ Dos grupos, FILE (archivo) y PEDAL (pedalera), con el nombre del archivo abierto
 Donde se ponen los comandos de cada botón. Mira [Botones](05-buttons.md) y [Comandos](06-commands.md).
 
 1. Elige un banco y luego un botón de los ocho, colocados como en la pedalera: del 1 al 4 arriba, de la A a la D abajo. El que estás editando sale resaltado.
-2. Arriba, pon su **display label** (etiqueta en pantalla), **LED light mode** (modo del LED) y **exclusive group** (grupo exclusivo), y marca **Momentary when held**, **Flash at the tempo**, **Global** o **Reset on bank change** si hace falta.
+2. Arriba, pon su **display label** (etiqueta en pantalla), **LED light mode** (modo del LED) y **exclusive group** (grupo exclusivo), y marca **Momentary when held**, **Flash at the tempo**, **Global**, **Reset on bank change**, **Press at once** o **Reload when lit** si hace falta.
 3. Debajo hay diez casillas de comando, de la A a la J. Elige el tipo de comando de una casilla y solo aparecen los campos que usa ese tipo.
 4. **Short press / Long press / Double press** cambia las casillas entre las tres listas de comandos del botón: corta, larga y doble.
 
-Lo que editas se guarda en memoria solo al cambiar de botón, de banco o de pestaña.
+Lo que editas se guarda en memoria solo al cambiar de botón, de banco o de pestaña, y antes de guardar o de cargar en la pedalera, así que el botón **Apply Changes to Memory** de debajo de las casillas es opcional.
 
-**Copy bank** y **Paste bank** copian un banco entero sobre otro: etiquetas, modos de LED, grupos, los comandos de pulsación corta, larga y doble, y los comandos que se envían al entrar en el banco. El destino queda idéntico al origen, así que lo que tuviera y el origen no, desaparece. Su nombre se conserva, porque una copia suele ser el principio de una variante. Pegar pide confirmación antes.
+**Copy bank** y **Paste bank** copian un banco entero sobre otro: etiquetas, modos de LED, grupos, los comandos de pulsación corta, larga y doble con las etiquetas de la pulsación larga, los comandos que se envían al entrar en el banco y sus ajustes de los pedales de expresión. El destino queda idéntico al origen, así que lo que tuviera y el origen no, desaparece. Su nombre se conserva, porque una copia suele ser el principio de una variante. Pegar pide confirmación antes.
 
-**Copy button** y **Paste button** hacen lo mismo con un solo botón: elige el botón que quieres copiar, pulsa **Copy button**, elige el que quieres sustituir, en el mismo banco o en otro, y pulsa **Paste button**. Su etiqueta, modo de LED, grupo, las cuatro casillas y sus comandos de pulsación corta, larga y doble pasan a ser los del botón copiado. Pegar pide confirmación antes.
+**Copy button** y **Paste button** hacen lo mismo con un solo botón: elige el botón que quieres copiar, pulsa **Copy button**, elige el que quieres sustituir, en el mismo banco o en otro, y pulsa **Paste button**. Su etiqueta, modo de LED, grupo, las seis casillas de marcar y sus comandos de pulsación corta, larga y doble pasan a ser los del botón copiado. Pegar pide confirmación antes.
 
 **Save song…** guarda el banco que se ve en un archivo propio, con lo que ejecuta en otros bancos, sus cadenas SysEx y los nombres de sus programas, y **Load song…** pone un archivo de canción en el banco que se ve, de esta configuración o de cualquier otra. Al cargar, lista lo que se ha movido o conviene revisar y pregunta antes de reemplazar el banco, nombre incluido. Mira [Canciones](04-banks.md#canciones-un-banco-en-un-archivo-propio).
 
@@ -58,7 +58,7 @@ Lo que editas se guarda en memoria solo al cambiar de botón, de banco o de pest
 
 En vez de buscar qué CC envía un mando, deja que el configurador lo oiga. Pulsa **Learn** junto al tipo de comando de una casilla (el botón se pone naranja y dice **Stop**) y mueve el mando o pulsa el botón en el aparato. El primer Program Change, Control Change, nota, Pitch Bend o Channel Pressure que llegue rellena la casilla: su tipo, canal y número, y su valor si la casilla no tenía, así que un botón aprendido de un aparato que envía 127 envía 127. La casilla dice qué ha llegado y por qué puerto.
 
-El configurador escucha todas las entradas MIDI del ordenador: un aparato conectado por USB, el puerto virtual de un DAW o la propia pedalera, cuyas pulsaciones también se pueden aprender. El reloj, el SysEx y parecidos se ignoran. Una casilla que ya es `CCInc` o `PCInc` conserva su tipo y toma el canal y el número de CC, y un [`Listen`](06-commands.md#escuchar-otro-cc) toma el CC y el valor que informa el equipo. Pulsa **Stop**, o espera 15 segundos, para dejarlo; aprender otra casilla para la primera. También funciona en las pestañas Bank Enter y Bank Switch.
+El configurador escucha todas las entradas MIDI del ordenador: un aparato conectado por USB, el puerto virtual de un DAW o la propia pedalera, cuyas pulsaciones también se pueden aprender. El reloj, el SysEx y parecidos se ignoran. Una casilla que ya es `CCInc` conserva su tipo y toma el canal y el número de CC, una `PCInc` conserva su tipo y toma solo el canal de un Program Change, y un [`Listen`](06-commands.md#escuchar-otro-cc) toma el CC y el valor que informa el equipo. Pulsa **Stop**, o espera 15 segundos, para dejarlo; aprender otra casilla para la primera. También funciona en las pestañas Bank Enter y Bank Switch.
 
 ### Desde el mapa MIDI de un equipo
 
@@ -120,7 +120,12 @@ El orden que siguen Bank Up / Down cuando **Follow the setlist** (`Setlist_Mode`
 
 ## Expression
 
-Todo sobre los dos pedales de expresión, pedal a pedal: extremos, curva de respuesta, invertir, canal, los interruptores de punta y talón, el rango de salida, qué envía (CC, Pitch Bend, CC de 14 bits o la velocidad de los LFO y las secuencias) y el auto-engage. Mira [Pedales de expresión](08-expression.md).
+Todo sobre los dos pedales de expresión, pedal a pedal: extremos, curva de respuesta, invertir, canal, los interruptores de punta y talón, el rango de salida y el auto-engage. Mira [Pedales de expresión](08-expression.md).
+
+- **Output**, qué envía: un CC, Pitch Bend o un CC de 14 bits, la [velocidad de los LFO y las secuencias](08-expression.md#velocidad-de-los-lfo-y-las-secuencias), `Wheel` o `Arrows` para [hacer scroll en el ordenador](08-expression.md#hacer-scroll-en-el-ordenador), `Switches` para [una caja de pulsadores](08-expression.md#una-caja-de-pulsadores-en-el-jack), `Zones` para [un pedal por tramos](08-expression.md#zonas-un-pedal-por-tramos), o una [cadena SysEx](08-expression.md#un-parámetro-por-sysex). Las dos últimas filas del pedal ponen los tres pulsadores de la caja y los botones de las zonas.
+- **Send on entering a bank**; mira [Enviar la posición al entrar en un banco](08-expression.md#enviar-la-posición-al-entrar-en-un-banco).
+- Cómo recoge un CC que se quedó en otro valor, `Jump`, `CatchUp` o `Scaled`; mira [Recoger un CC sin saltos](08-expression.md#recoger-un-cc-sin-saltos).
+- Su valor en la pantalla mientras se mueve, `Off`, `Number` o `Bar`; mira [Su valor en la pantalla](08-expression.md#su-valor-en-la-pantalla).
 
 **Connect live view** enseña la posición del pedal y el CC que se está enviando, leídos de la pedalera en tiempo real.
 

@@ -55,7 +55,7 @@ Set it up in the configurator's **Combos** tab, one row per combination, up to t
 - **Release.** The list runs on the press with a toggle state of the combination's own, and its release, the momentary offs, goes out when the first of the two switches lets go. `Wait`, `If`, `Macro` and the rest work in it as anywhere else.
 - Two presses of the same switch are still a double press, not a combination, and the two bank switches keep their own gesture, the [on-pedal editor](10-editing-on-the-pedal.md).
 
-In the demo, 3+4 toggles a tuner in every bank and clears the looper on song 1, and B+C [locks the switches](#locking-the-switches).
+In the demo, 3+4 toggles a tuner in every bank and clears the looper on song 1, B+C [locks the switches](#locking-the-switches), 3+C turns the [gig view](09-the-display.md#gig-view) on and off, and A+B goes to the [next setlist](04-banks.md#several-setlists).
 
 *Firmware 0.59 or later.*
 
@@ -199,7 +199,7 @@ You tweak a knob on the amp in the middle of a song and want the preset back as 
 - Its on commands go out as on the first press: a CC its on value, a PC its program.
 - Its PCs go out even with **Don't resend the same PC** (`Skip_Same_PC`) on, as if each had **Force**: the point is to reload the preset (see [Not reloading the preset you are on](06-commands.md#not-reloading-the-preset-you-are-on)).
 - It stays on: its LED, its display cell and its group do not change.
-- Only a press by foot, or from the configurator's Live pedal, reloads. A scene, its exclusive group, a momentary hold let go and the expression pedal's auto buttons still switch it off.
+- Only a press by foot, or from the configurator's **Virtual Pedal** tab or the web configurator's **Live pedal**, reloads. A scene, its exclusive group, a momentary hold let go and the expression pedal's auto buttons still switch it off.
 - Only buttons with a toggle command take part, since only they are lit or not, and not cycle buttons, which go on to their next state.
 
 A preset button that lights is a toggle: a PC, and a CC with **Toggle** and **Off** left empty, so nothing goes out when it is switched off. Put the preset buttons of a bank in one exclusive group and give each **Reload when lit**: pressing another switches to that preset, pressing the lit one reloads it.

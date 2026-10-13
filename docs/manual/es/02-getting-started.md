@@ -4,7 +4,7 @@
 
 Este capítulo lleva una pedalera del firmware de fábrica a tu primera configuración: flasheas el firmware una vez a mano, instalas las herramientas y cargas una configuración. A partir de ahí, las actualizaciones no necesitan mantener nada pisado.
 
-**Sin instalar nada.** En Chrome, Edge u Opera, el [configurador web](14-in-the-browser.md) hace todo este capítulo desde una página del navegador, incluida la primera grabación: pon la pedalera en modo de actualización a mano como en el paso 1, abre la pestaña **Firmware** de la página y elige el fichero `.dfu`. El resto del capítulo es el camino con las herramientas de escritorio.
+**Sin instalar nada.** En Chrome, Edge u Opera, el [configurador web](14-in-the-browser.md) hace todo este capítulo desde una página del navegador, incluida la primera grabación: pon la pedalera en modo de actualización a mano como en el paso 1, abre la pestaña **Firmware** de la página y elige el fichero `.dfu`. Un iPad o un iPhone pueden editar y escribir configuraciones en una app que añade Web MIDI, pero no grabar firmware; mira [En un iPad o un iPhone](14-in-the-browser.md#en-un-ipad-o-un-iphone). El resto del capítulo es el camino con las herramientas de escritorio.
 
 **Qué necesitas**
 
@@ -95,7 +95,7 @@ En el configurador es donde se monta una configuración y se envía a la pedaler
 1. Conecta la pedalera en modo normal, no en modo DFU.
 2. Carga un punto de partida:
    - el configurador se abre con `python/demo-all-features.csv`, una configuración que usa todas las funciones, con etiquetas que dicen qué hace cada botón;
-   - o una de las [plantillas](11-devices.md) listas para un Fractal FM3, Line 6 HX Stomp, Helix, Helix Stadium o POD Go, Neural DSP Quad Cortex o Nano Cortex, IK Multimedia TONEX, Valeton GP-200, Eventide H90, pedal Strymon, Hotone Ampero II, Boss RC-600 o Kemper Player, o MainStage, Gig Performer, Cantabile o Ableton Live, con **Load CSV…**;
+   - o una de las [plantillas](11-devices.md) listas para un Fractal FM3, Line 6 HX Stomp, Helix, Helix Stadium o POD Go, Neural DSP Quad Cortex o Nano Cortex, IK Multimedia TONEX, Valeton GP-200, Eventide H90, pedal Strymon, pedal Meris, Hotone Ampero II, Boss RC-600 o Kemper Player, o MainStage, Gig Performer, Cantabile o Ableton Live, con **Load CSV…**;
    - o **Your Rig…**, para [varios aparatos a la vez](11-devices.md#tu-equipo-varios-aparatos-a-la-vez), cada uno en su canal;
    - o **Read from Device**, para partir de lo que tiene ahora la pedalera.
 3. Edítala.
