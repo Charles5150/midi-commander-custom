@@ -939,6 +939,48 @@ test("with the bank switches at MIDI only and labelled, the screen shows ten cel
   assert.equal(cellRows(await demoWith("MIDI only", "", "")), plain, "no labels: the screen as it always was");
 });
 
+test("at MIDI only, a bank switch's toggle lights its LED and its cell, and follows the computer (before 1.36, neither)", async () => {
+  const tweak = [
+    "g = d['Global_Settings']",
+    "g.loc[g.Label == 'Bank_Switch_Mode', 'Value'] = 'MIDI only'",
+    "s = d['BankSwitch_Settings']",
+    "s['Label'] = ''",
+    "s.loc[(s.Switch == 'Down') & (s.Press == 'Short'), ['Label', 'A_Toggle_(CC/PB/Note)']] = ['PREV', 'Y']",
+    "s.loc[(s.Switch == 'Up') & (s.Press == 'Short'), ['Label', 'A_Toggle_(CC/PB/Note)']] = ['NEXT', 'Y']",
+  ].join("\n");
+  const sim = simWithDemo(await flashWith(packDemo(tweak)));
+  sim.run(10000);                           // the demo's power on banner goes by first
+  const seen = watch(sim);
+  const usb = () => seen.splice(0).filter((m) => m.startsWith("USB"));
+  const down = () => smallTextAt(sim, 102, 48, "PREV", true);
+  const up = () => smallTextAt(sim, 102, 26, "NEXT", true);
+
+  tap(sim, 8);                              // Bank Down: its CC 81 on
+  assert.deepEqual(usb(), ["USB b0 51 7f"]);
+  assert.equal(sim.leds()[8], 16, "its LED stays lit after the press");
+  assert.ok(down(), "and its cell is inverted");
+  assert.equal(sim.leds()[9], 0);
+  assert.ok(smallTextAt(sim, 102, 26, "NEXT"), "Bank Up's is not");
+
+  sim.usbIn([0xb0, 81, 0]);                 // the computer turns it off
+  sim.run(100);
+  assert.equal(sim.leds()[8], 0);
+  assert.ok(smallTextAt(sim, 102, 48, "PREV"));
+  tap(sim, 8);
+  assert.deepEqual(usb(), ["USB b0 51 7f"], "so the next press turns it on again");
+  assert.ok(down());
+
+  sim.usbIn([0xb0, 82, 127]);               // and Bank Up's on
+  sim.run(100);
+  assert.equal(sim.leds()[9], 16);
+  assert.ok(up());
+  tap(sim, 9);
+  assert.deepEqual(usb(), ["USB b0 52 00"], "the next press turns it off");
+  assert.equal(sim.leds()[9], 0);
+  assert.ok(smallTextAt(sim, 102, 26, "NEXT"));
+  assert.equal(sim.leds()[8], 16, "Bank Down's still on");
+});
+
 test("a line the display does not take is sent again, and the screen catches up (before 1.14, it froze)", async () => {
   const sim = simWithDemo();
   sim.run(10000);                           // the demo's power on banner goes by first

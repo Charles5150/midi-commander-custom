@@ -830,7 +830,7 @@ class BankSwitchLabelTest(unittest.TestCase):
         display = self.source("Src", "display.c")
         self.assertIn("!= BANK_SWITCH_MIDI_ONLY) return NULL;", display)
         self.assertIn("flash_settings_bank_switch_labels()", display)
-        self.assertIn("draw_label_cell(4, which == 1, true, label, false);", display)
+        self.assertIn("draw_label_cell(4, which == 1, true, label, sw_bank_switch_lit(which));", display)
 
 class PresetNamesTest(unittest.TestCase):
     """Names for the programs 0-127, which $N in a label shows (1.20), after the

@@ -32,6 +32,7 @@ uint8_t sw_setlist_active(void);	// the setlist followed, 0-3 (1.33)
 void sw_setlist_restore(uint8_t which);	// at power on, the one saved
 bool sw_locked(void);	// the switches are locked, see BANK_MODE_LOCK
 uint8_t sw_count_in(void);	// beats before a count-in (Wait Count) goes, 0 for none
+bool sw_bank_switch_lit(uint8_t which);	// Bank Down (0) or Up (1)'s toggle on, at MIDI only
 void sw_get_toggle_states(uint32_t out[8]);
 void sw_get_long_toggle_states(uint32_t out[8]);
 void sw_get_double_toggle_states(uint32_t out[8]);

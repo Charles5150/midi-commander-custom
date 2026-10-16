@@ -411,7 +411,7 @@ static void draw_bank_switch_cell(const uint8_t *labels, uint8_t which){
 		label_text(labels + which * BUTTON_LABEL_LEN, label);
 	}
 	if(label[0] == 0) strcpy(label, which ? "UP" : "DN");
-	draw_label_cell(4, which == 1, true, label, false);
+	draw_label_cell(4, which == 1, true, label, sw_bank_switch_lit(which));
 }
 
 /*

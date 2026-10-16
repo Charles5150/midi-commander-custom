@@ -64,6 +64,8 @@ static bool run_list_stack(frame_t *st, uint8_t depth, uint8_t toggle, uint8_t o
 static void run_list_up(uint8_t *base, uint8_t first, uint8_t toggle, uint8_t flags);
 static void run_button_cmd(const uint8_t *pRom);
 static void link_push(uint8_t status, uint8_t number, uint8_t value);
+static uint8_t bank_switch_led(uint8_t which, uint8_t pressed);
+static uint8_t *bank_switch_rom(uint8_t list, uint8_t unused, uint8_t cmd);
 static bool pending_defer_release(uint8_t owner);
 static void pending_flush_owner(uint8_t owner);
 static bool pending_any(void);
@@ -1327,6 +1329,12 @@ void sw_led_init(void){
 			a_sw_obj[sw].press_state = PRESS_IDLE;
 		}
 	}
+	// The bank switches' lists, which follow the host as the buttons do
+	for(uint8_t l=0; l<BANK_SWITCH_LISTS; l++){
+		for(uint8_t cmd=0; cmd<MIDI_NUM_COMMANDS_PER_SWITCH; cmd++){
+			feedback_numbers_note(bank_switch_rom(l, 0, cmd));
+		}
+	}
 
 	ccinc_reset();
 	pending_clear();
@@ -1694,17 +1702,8 @@ void update_leds_on_bank_change(void){
 	}
 	
 	// Also update Bank LEDs initial state
-	{
-		uint8_t mode_down = get_bank_down_led_mode();
-		// SW_E Down
-		uint8_t state = calculate_led_state(0, mode_down);
-		leds_set(LED_ID_BANK_DOWN, state);
-		
-		uint8_t mode_up = get_bank_up_led_mode();
-		// SW_5 Up
-		state = calculate_led_state(0, mode_up);
-		leds_set(LED_ID_BANK_UP, state);
-	}
+	leds_set(LED_ID_BANK_DOWN, bank_switch_led(BANK_SWITCH_DOWN, 0));
+	leds_set(LED_ID_BANK_UP, bank_switch_led(BANK_SWITCH_UP, 0));
 }
 
 /*
@@ -3236,17 +3235,51 @@ static uint8_t bank_switch_mode(void){
  */
 static uint8_t bank_switch_toggle[BANK_SWITCH_LISTS];
 
+static uint8_t *bank_switch_rom(uint8_t list, uint8_t unused, uint8_t cmd){
+	(void)unused;
+	return pBankSwitchCmds + list * MIDI_ROM_KEY_STRIDE + cmd * MIDI_ROM_CMD_SIZE;
+}
+
+/*
+ * At MIDI only a bank switch is a button like the others: with a toggle in
+ * its short list, its LED stays lit and its cell inverted while the toggle is
+ * on (before 1.36, neither ever showed it). The long list, as a button's, has
+ * no light of its own.
+ */
+bool sw_bank_switch_lit(uint8_t which){
+	if(bank_switch_mode() != BANK_SWITCH_MIDI_ONLY || !bank_switch_toggle[which * 2]) return false;
+	for(uint8_t cmd=0; cmd<MIDI_NUM_COMMANDS_PER_SWITCH; cmd++){
+		if(midiCmd_get_cmd_toggle(bank_switch_rom((uint8_t)(which * 2), 0, cmd))) return true;
+	}
+	return false;
+}
+
+static uint8_t bank_switch_led(uint8_t which, uint8_t pressed){
+	uint8_t mode = which ? get_bank_up_led_mode() : get_bank_down_led_mode();
+	return calculate_led_state(pressed || sw_bank_switch_lit(which), mode);
+}
+
+// A bank switch's toggle changed, by a press or from the host
+static void bank_switch_flipped(uint8_t list){
+	bank_switch_toggle[list] ^= 1;
+	if(list & 1) return;
+	uint8_t which = list / 2;
+	if(!sleep_is_asleep()){
+		leds_set(which ? LED_ID_BANK_UP : LED_ID_BANK_DOWN, bank_switch_led(which, 0));
+	}
+	display_request_refresh();
+}
+
 static void fire_bank_switch_cmds(uint8_t which, bool long_press){
 	if(bank_switch_mode() == BANK_SWITCH_BANK_ONLY) return;
 
 	uint8_t list = (uint8_t)(which * 2 + (long_press ? 1 : 0));
 	if(list >= BANK_SWITCH_LISTS) return;
 
-	bank_switch_toggle[list] ^= 1;
+	bank_switch_flipped(list);
 	uint8_t toggle = bank_switch_toggle[list];
-	uint8_t *base = pBankSwitchCmds + list * MIDI_ROM_KEY_STRIDE;
 
-	run_cmd_list(base, 0, 0, toggle, PENDING_OWNER_NONE, LIST_SKIP_BANK | LIST_UP_AFTER, true);
+	run_cmd_list(bank_switch_rom(list, 0, 0), 0, 0, toggle, PENDING_OWNER_NONE, LIST_SKIP_BANK | LIST_UP_AFTER, true);
 }
 
 // A bank switch pressed: step delta banks, or only preview the bank there
@@ -3342,7 +3375,7 @@ static void handle_bank_switch(bank_press_t *bp, GPIO_TypeDef *port, uint16_t pi
 			latency_end();
 		}
 		bp->state = PRESS_IDLE;
-		leds_set(led_id, calculate_led_state(0, led_mode));
+		leds_set(led_id, bank_switch_led(which, 0));
 	}
 }
 
@@ -3430,6 +3463,7 @@ static void switch_config(uint8_t target){
 		a_sw_obj[i].listen_look_hi = 0;
 	}
 	memset(cycle_pos, CYCLE_NONE, sizeof(cycle_pos));
+	memset(bank_switch_toggle, 0, sizeof(bank_switch_toggle));
 	combo_toggle = 0;
 	combo_held = 0xFF;
 	locked = false;		// the new one may hold no Lock to undo it
@@ -3997,6 +4031,10 @@ static void feedback_apply(const uint8_t *msg){
 			}
 		}
 	}
+	for(uint8_t l=0; l<BANK_SWITCH_LISTS; l++){
+		int8_t want = feedback_list_state(bank_switch_rom, l, 0, msg);
+		if(want >= 0 && bank_switch_toggle[l] != (want >= 1)) bank_switch_flipped(l);
+	}
 	if(changed){
 		state_store_mark_dirty();
 	}
@@ -4421,14 +4459,14 @@ void handle_switches(void){
 	uint8_t sw_e_down = switch_down(SW_E_GPIO_Port, SW_E_Pin);
 	// Only update loop if blink is needed or change happened?
 	// To support Blink, we should update if mode is 2 and sw is down
-	if(bank_down_mode == 2 && sw_e_down && awake) {
+	if(bank_down_mode == 2 && (sw_e_down || sw_bank_switch_lit(BANK_SWITCH_DOWN)) && awake) {
 		uint8_t state = calculate_led_state(1, bank_down_mode);
 		leds_set(LED_ID_BANK_DOWN, state);
 	}
 
 	// Bank Up Switch State
 	uint8_t sw_5_down = switch_down(SW_5_GPIO_Port, SW_5_Pin);
-	if(bank_up_mode == 2 && sw_5_down && awake) {
+	if(bank_up_mode == 2 && (sw_5_down || sw_bank_switch_lit(BANK_SWITCH_UP)) && awake) {
 		uint8_t state = calculate_led_state(1, bank_up_mode);
 		leds_set(LED_ID_BANK_UP, state);
 	}
