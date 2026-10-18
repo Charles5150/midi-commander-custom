@@ -323,28 +323,26 @@ void midiCmd_send_byte_serial(uint8_t byteMessage){
 	midiCmd_send_bytes_serial(&byteMessage, 1);
 }
 
-// A single byte message, Start or Stop, to both outputs
-static int8_t send_realtime(uint8_t b){
+// A single byte message, Start (0xFA) or Stop (0xFC), to both outputs but
+// those a Chan command or `off` turns off
+int8_t midiCmd_send_realtime(uint8_t b, uint8_t off){
 	uint8_t usb[4] = { CIN_SINGLE_BYTE, b, 0, 0 };
-	return send_events(usb, 4);
-}
-
-int8_t midiCmd_send_start_command(void){
-	return send_realtime(0xFA);
-}
-
-int8_t midiCmd_send_stop_command(void){
-	return send_realtime(0xFC);
+	uint8_t was = outputs_off;
+	outputs_off |= off;
+	int8_t r = send_events(usb, 4);
+	outputs_off = was;
+	return r;
 }
 
 /*
- * A MIDI Clock byte (0xF8) to both USB and the DIN output, whatever else is
- * waiting for the DIN output.
+ * A MIDI Clock byte (0xF8) to USB and the DIN output, but those CHAN_NO_USB
+ * or CHAN_NO_DIN in `off` turn off, ahead of whatever else is waiting for the
+ * DIN output.
  */
-int8_t midiCmd_send_clock_command(void){
+int8_t midiCmd_send_clock_command(uint8_t off){
 	uint8_t usb[4] = { CIN_SINGLE_BYTE, 0xF8, 0, 0 };
-	MIDI_DataTx(usb, 4);
-	din_clock();
+	if(!(off & CHAN_NO_USB)) MIDI_DataTx(usb, 4);
+	if(!(off & CHAN_NO_DIN)) din_clock();
 	return 0;
 }
 

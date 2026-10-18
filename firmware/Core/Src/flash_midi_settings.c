@@ -163,6 +163,10 @@ uint8_t flash_settings_exp_display(uint8_t pedal){
 	return mode <= EXP_DISPLAY_BAR ? mode : EXP_DISPLAY_OFF;
 }
 
+const uint8_t *flash_settings_clock(void){
+	return ext2_part(EXT2_CLOCK_OUT_OFF);
+}
+
 /*
  * Where 16 bytes at a tools offset live: the slot's own pages, or past them the
  * slot's extension areas. 0 when the chunk is outside all of them.

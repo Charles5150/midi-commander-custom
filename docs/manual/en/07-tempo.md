@@ -27,6 +27,16 @@ A `Tap` command with **Action** `Clock` starts or stops the pedal's MIDI clock: 
 
 The DIN output sends about one message a millisecond, so a bank sending many commands on entry keeps it busy for a while: 80 messages take about 77 ms. The clock does not wait behind them. Each clock byte goes out ahead of whatever is queued, within a millisecond, as MIDI allows a clock byte between any two bytes. Start, Continue and Stop keep their place in the queue, so a `Song` select sent before a Start still arrives first, and the clocks wait behind a Start that is still queued.
 
+### Where the clock goes
+
+Three settings in the **Global** tab say where the pedal's clock goes and when. They need firmware 1.39.
+
+- **Clock goes to** (`Clock_Output`): `Both`, `USB` or `DIN`. The clock's Start and Stop go to the same place, so a looper on DIN can follow the pedal while the computer hears nothing of it, or the other way round. Default `Both`.
+- **Clock only for** (`Clock_Burst`): some delays wobble while a clock keeps arriving. With a number of beats here, 1 to 32, the clock goes out for that many beats after a Start and after each change of tempo, a tap, `Set BPM`, `Up by` or `Down by`, and then stays quiet. The device keeps the tempo it measured. The clock keeps running inside the pedal, so the tap LED, the LFOs, the bar and beat and `Wait` on the beat go on. Default `0`, the clock all along.
+- **No clock in banks** (`Clock_Off_Banks`): banks the clock does not go out in, as `3 5-7`. The clock keeps running, and goes out again in any other bank, with no new Start. Start and Stop still go out in those banks. Empty by default.
+
+These apply to the pedal's own clock, and to the DIN re-clock while the pedal follows the host's clock. A host clock passed through by `RealTime_Passthrough` is not the pedal's clock, and is passed through as before.
+
 The demo's bank 6 has tap tempo, clock start and stop, and transport buttons side by side.
 
 ## Setting the tempo

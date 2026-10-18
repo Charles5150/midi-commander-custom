@@ -57,8 +57,12 @@ typedef struct
 USBD_HID_HandleTypeDef;
 
 
-extern USBD_ClassTypeDef  USBD_HID_CUSTOM;
-#define USBD_HID_CUSTOM_CLASS    &USBD_HID_CUSTOM
+// Called by the composite class (usbd_composite_midi_hid.c), which alone
+// describes the device: HID has no class table or descriptor of its own
+uint8_t USBD_HID_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx);
+uint8_t USBD_HID_DeInit(USBD_HandleTypeDef *pdev, uint8_t cfgidx);
+uint8_t USBD_HID_Setup(USBD_HandleTypeDef *pdev, USBD_SetupReqTypedef *req);
+uint8_t USBD_HID_DataIn(USBD_HandleTypeDef *pdev, uint8_t epnum);
 
 uint8_t USBD_HID_SendReport (USBD_HandleTypeDef *pdev,
                                  uint8_t *report,
@@ -66,7 +70,6 @@ uint8_t USBD_HID_SendReport (USBD_HandleTypeDef *pdev,
 
 uint8_t HID_SendReport_FS(uint8_t *report, uint16_t len);
 
-uint32_t USBD_HID_GetPollingInterval (USBD_HandleTypeDef *pdev);
 
 #ifdef __cplusplus
 }

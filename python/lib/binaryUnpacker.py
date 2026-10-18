@@ -23,6 +23,7 @@ from lib.flashLayout import (
     BANK_EXP_OFFSET, BANK_EXP_STRIDE, BANK_EXP_RANGE_OFFSET, BANK_EXP_RANGE_STRIDE,
     CYCLE_LABELS_OFFSET, COMBOS_OFFSET, COMBO_COUNT, COMBO_STRIDE, CONFIG_SIZE, DOUBLE_PRESS_OFFSET,
     DOUBLE_PRESS_SIZE, EXT2_OFFSET, EXT2_MARKER, EXT2_MAP_OFFSET, MIDI_MAP_COUNT, EXT2_TAKEOVER_OFFSET, EXT2_EXP_DISPLAY_OFFSET,
+    EXT2_CLOCK_OFFSET, CLOCK_NO_USB, CLOCK_NO_DIN, CLOCK_BURST_MAX,
     MIDI_MAP_STRIDE, EXT2_LONG_LABELS_OFFSET, EXT2_BANK_SWITCH_LABELS_OFFSET, EXT2_SIZE,
     EXT2_PRESET_NAMES_OFFSET, PRESET_NAME_LEN, PRESET_NAME_COUNT,
     EXT2_SETLISTS_OFFSET, EXT2_SETLIST_NAMES_OFFSET, SETLIST_COUNT, SETLIST_NAME_LEN, EXT2_ON_LABELS_OFFSET,
@@ -175,6 +176,30 @@ def _button_led_byte(value: int) -> tuple:
             flash, glob)
 
 
+def unpack_clock_settings(data: bytes) -> list:
+    """Clock_Output, Clock_Burst and Clock_Off_Banks, from the second
+    extension area's header (firmware 1.39)."""
+    ext = bytes(data[EXT2_OFFSET:EXT2_OFFSET + EXT2_MAP_OFFSET])
+    c = ext[EXT2_CLOCK_OFFSET:EXT2_CLOCK_OFFSET + 6] if ext.startswith(EXT2_MARKER) else b"\xff" * 6
+    off = ~c[0] & (CLOCK_NO_USB | CLOCK_NO_DIN)
+    port = "Both" if off in (0, CLOCK_NO_USB | CLOCK_NO_DIN) else "USB" if off == CLOCK_NO_DIN else "DIN"
+    beats = c[1] if 1 <= c[1] <= CLOCK_BURST_MAX else 0
+    mask = int.from_bytes(c[2:6], "little")
+    banks = [b for b in range(NUM_BANKS) if not mask >> b & 1]
+    return [("Clock_Output", port), ("Clock_Burst", str(beats)), ("Clock_Off_Banks", banks_text(banks))]
+
+
+def banks_text(banks: list) -> str:
+    """Sorted bank numbers as "3 5-7"."""
+    runs = []
+    for b in banks:
+        if runs and b == runs[-1][1] + 1:
+            runs[-1][1] = b
+        else:
+            runs.append([b, b])
+    return " ".join(str(a) if a == b else f"{a}-{b}" for a, b in runs)
+
+
 def unpack_global_settings(data: bytes) -> pd.DataFrame:
     g = data[:GLOBAL_SIZE]
     exp1 = g[2] if 0 < g[2] <= 127 else default_int("Exp1_CC")
@@ -220,6 +245,7 @@ def unpack_global_settings(data: bytes) -> pd.DataFrame:
         ("MIDI_Monitor", ("Off", "Mark", "In", "All")[(g[46] >> 3) & 0x03 if g[46] != 0xFF else 0]),
         ("Bank_Preview", str(g[47] if 0 < g[47] <= 60 else 0)),
         ("Setlist_Display", "Y" if g[33] == 2 else "N"),
+        *unpack_clock_settings(data),
     ]
     return pd.DataFrame(rows, columns=["Label", "Value"])
 

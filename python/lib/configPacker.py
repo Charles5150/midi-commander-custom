@@ -15,6 +15,7 @@ from lib.flashLayout import (
     SYSEX_STRING_COUNT, SYSEX_STRING_MAX, BANK_SWITCH_LISTS, SETLIST_MAX, COMBO_COUNT,
     DOUBLE_PRESS_OFFSET, EXT2_OFFSET, EXT2_MARKER, EXT2_MAP_OFFSET, MIDI_MAP_COUNT, MIDI_MAP_STRIDE,
     EXT2_TAKEOVER_OFFSET, EXT2_EXP_DISPLAY_OFFSET, EXT2_ON_LABELS_OFFSET,
+    EXT2_CLOCK_OFFSET, CLOCK_NO_USB, CLOCK_NO_DIN, CLOCK_BURST_MAX,
     EXT2_BANK_SWITCH_LABELS_SIZE, PRESET_NAME_LEN, PRESET_NAME_COUNT, SETLIST_COUNT, SETLIST_NAME_LEN,
 )
 
@@ -527,12 +528,60 @@ def pack_ext2(sections: dict):
              pack_long_labels(sections.get("Button_Settings"), "On_Label")]
     takeover = expression_takeover(sections.get(EXPRESSION_SECTION))
     shows = expression_display(sections.get(EXPRESSION_SECTION))
-    if takeover == 0xFF and shows == 0xFF and all(p.count(0xFF) == len(p) for p in parts):
+    with _at("Global_Settings"):
+        clock = clock_settings(sections.get("Global_Settings"))
+    if (takeover == 0xFF and shows == 0xFF and clock.count(0xFF) == len(clock)
+            and all(p.count(0xFF) == len(p) for p in parts)):
         return None
     header = bytearray(EXT2_MARKER.ljust(EXT2_MAP_OFFSET, b"\xff"))
     header[EXT2_TAKEOVER_OFFSET] = takeover
     header[EXT2_EXP_DISPLAY_OFFSET] = shows
+    header[EXT2_CLOCK_OFFSET:EXT2_CLOCK_OFFSET + len(clock)] = clock
     return bytes(header) + b"".join(parts)
+
+
+def bank_list(text) -> list:
+    """A list of banks, "3 5-7" or "3, 5, 6, 7", as sorted numbers."""
+    banks = set()
+    for part in _cell(text).replace(",", " ").split():
+        lo, sep, hi = part.partition("-")
+        try:
+            first, last = int(lo), int(hi) if sep else int(lo)
+        except ValueError:
+            raise ValueError(f"banks must be numbers or ranges, as 3 5-7, not {text!r}") from None
+        if not 0 <= first <= last < NUM_BANKS:
+            raise ValueError(f"banks must be 0-{NUM_BANKS - 1}, not {part!r}")
+        banks.update(range(first, last + 1))
+    return sorted(banks)
+
+
+def clock_settings(df) -> bytes:
+    """Clock_Output, Clock_Burst and Clock_Off_Banks as bytes 6 to 11 of the
+    second extension area (firmware 1.39); all 0xFF when they are the defaults,
+    as erased flash is."""
+    values = {}
+    if df is not None:
+        for _, row in df.iterrows():
+            values[str(row.get("Label", "")).strip()] = _cell(row.get("Value"))
+    out = bytearray(b"\xff" * 6)
+    port = values.get("Clock_Output", "").upper() or "BOTH"
+    if port not in ("BOTH", "USB", "DIN"):
+        raise ValueError(f"Clock_Output must be Both, USB or DIN, not {values['Clock_Output']!r}")
+    out[0] = {"BOTH": 0xFF, "USB": 0xFF & ~CLOCK_NO_DIN, "DIN": 0xFF & ~CLOCK_NO_USB}[port]
+    burst = values.get("Clock_Burst", "") or "0"
+    try:
+        beats = int(float(burst))
+    except ValueError:
+        beats = -1
+    if not 0 <= beats <= CLOCK_BURST_MAX:
+        raise ValueError(f"Clock_Burst must be 0-{CLOCK_BURST_MAX} beats, not {burst!r}")
+    if beats:
+        out[1] = beats
+    mask = (1 << NUM_BANKS) - 1
+    for bank in bank_list(values.get("Clock_Off_Banks", "")):
+        mask &= ~(1 << bank)
+    out[2:6] = mask.to_bytes(4, "little")
+    return bytes(out)
 
 
 def empty_sysex_strings():

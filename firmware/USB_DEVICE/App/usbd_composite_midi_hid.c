@@ -166,10 +166,10 @@ static uint8_t  USBD_Composite_Init (USBD_HandleTypeDef *pdev,
                                uint8_t cfgidx)
 {
     // Init MIDI
-    if(USBD_MIDI.Init(pdev, cfgidx) != USBD_OK) return USBD_FAIL;
+    if(USBD_MIDI_Init(pdev, cfgidx) != USBD_OK) return USBD_FAIL;
     
     // Init HID
-    if(USBD_HID_CUSTOM.Init(pdev, cfgidx) != USBD_OK) return USBD_FAIL;
+    if(USBD_HID_Init(pdev, cfgidx) != USBD_OK) return USBD_FAIL;
     
     return USBD_OK;
 }
@@ -177,8 +177,8 @@ static uint8_t  USBD_Composite_Init (USBD_HandleTypeDef *pdev,
 static uint8_t  USBD_Composite_DeInit (USBD_HandleTypeDef *pdev,
                                  uint8_t cfgidx)
 {
-    USBD_MIDI.DeInit(pdev, cfgidx);
-    USBD_HID_CUSTOM.DeInit(pdev, cfgidx);
+    USBD_MIDI_DeInit(pdev, cfgidx);
+    USBD_HID_DeInit(pdev, cfgidx);
     return USBD_OK;
 }
 
@@ -193,13 +193,9 @@ static uint8_t  USBD_Composite_Setup (USBD_HandleTypeDef *pdev,
            
        if(req->wIndex >= 2) {
            // HID Interface
-           return USBD_HID_CUSTOM.Setup(pdev, req);
-       } else {
-           // MIDI Interfaces (0 or 1)
-           if(USBD_MIDI.Setup != NULL) {
-               return USBD_MIDI.Setup(pdev, req);
-           }
+           return USBD_HID_Setup(pdev, req);
        }
+       // MIDI interfaces (0 or 1) have no requests of their own
     }
     
     return USBD_OK;
@@ -208,9 +204,9 @@ static uint8_t  USBD_Composite_Setup (USBD_HandleTypeDef *pdev,
 static uint8_t  USBD_Composite_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum)
 {
     if(epnum == (MIDI_IN_EP & 0x7F)) {
-        return USBD_MIDI.DataIn(pdev, epnum);
+        return USBD_MIDI_DataIn(pdev, epnum);
     } else if(epnum == (HID_EPIN_ADDR & 0x7F)) {
-        return USBD_HID_CUSTOM.DataIn(pdev, epnum);
+        return USBD_HID_DataIn(pdev, epnum);
     }
     return USBD_OK;
 }
@@ -218,7 +214,7 @@ static uint8_t  USBD_Composite_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum)
 static uint8_t  USBD_Composite_DataOut (USBD_HandleTypeDef *pdev, uint8_t epnum)
 {
     if(epnum == (MIDI_OUT_EP & 0x7F)) {
-        return USBD_MIDI.DataOut(pdev, epnum);
+        return USBD_MIDI_DataOut(pdev, epnum);
     }
     return USBD_OK;
 }

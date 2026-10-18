@@ -312,7 +312,13 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
  *             bits per pedal, pedal 1 in the low ones: EXP_TAKEOVER_
  *   [5]       what the display shows while each pedal moves (1.29), two bits
  *             per pedal, pedal 1 in the low ones: EXP_DISPLAY_
- *   [6..15]   0xFF
+ *   [6]       where the pedal's clock goes (1.39): 0xFF both outputs, or
+ *             0xFF with the bit of CHAN_NO_USB or CHAN_NO_DIN cleared
+ *   [7]       beats of clock after a Start or a tempo change, then quiet
+ *             (1.39), 1-CLOCK_BURST_MAX; anything else sends it all along
+ *   [8..11]   banks the clock goes out in (1.39), a bit per bank, bank 0 in
+ *             the low bit of [8]; erased flash is every bank
+ *   [12..15]  0xFF
  *   [16..]    the MIDI map, MIDI_MAP_COUNT entries of MIDI_MAP_STRIDE bytes
  *   [400..]   long press labels, BUTTON_LABEL_LEN chars per button, as the
  *             labels in the slot; erased flash is no label
@@ -347,6 +353,8 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
 #define EXP_DISPLAY_OFF			(0)	// nothing; also erased flash (3)
 #define EXP_DISPLAY_NUMBER		(1)	// "EXP1 64" in the info line, for a moment
 #define EXP_DISPLAY_BAR			(2)	// a bar there instead
+#define EXT2_CLOCK_OUT_OFF		(6)
+#define CLOCK_BURST_MAX			(32)	// [7]
 #define EXT2_MAP_OFF			(16)
 #define EXT2_LONG_LABELS_OFF	(EXT2_MAP_OFF + MIDI_MAP_COUNT * MIDI_MAP_STRIDE)
 #define EXT2_BANK_SW_LABELS_OFF	(EXT2_LONG_LABELS_OFF + CFG_BUTTONS * BUTTON_LABEL_LEN)
@@ -407,6 +415,8 @@ const uint8_t *flash_settings_setlist_name(uint8_t n);
 uint8_t flash_settings_exp_takeover(uint8_t pedal);
 // What the display shows while pedal 0 or 1 moves: EXP_DISPLAY_
 uint8_t flash_settings_exp_display(uint8_t pedal);
+// The pedal's clock settings (1.39), from EXT2_CLOCK_OUT_OFF on, or NULL
+const uint8_t *flash_settings_clock(void);
 
 // Erase and write act on the target slot, see flash_settings_set_target()
 bool flash_settings_erase(void);

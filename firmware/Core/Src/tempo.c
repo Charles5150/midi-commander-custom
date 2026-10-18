@@ -9,6 +9,7 @@
 #include "midi_cmds.h"
 #include "midi_defines.h"
 #include "flash_midi_settings.h"
+#include "switch_router.h"
 
 #define TAPS_AVERAGED	(4)		// intervals averaged into the tempo
 #define TAP_TIMEOUT_MS	(2500)	// a longer gap starts a new measurement
@@ -25,6 +26,21 @@ static volatile bool clock_running = false;
 static volatile uint32_t clock_interval_us = 0;
 static volatile uint32_t clock_acc_us = 0;
 static volatile uint8_t clocks_due = 0;
+// Clocks a burst (Clock_Burst) still sends, counted from a Start or a tempo
+// set; BURST_NONE with no burst, when the clock goes out all along
+#define BURST_NONE	(0xFFFF)
+static uint16_t burst_left = BURST_NONE;
+
+// The outputs Clock_Output turns off for the clock: CHAN_NO_USB, CHAN_NO_DIN
+static uint8_t clock_off(void){
+	const uint8_t *c = flash_settings_clock();
+	return c ? (uint8_t)~c[0] & (CHAN_NO_USB | CHAN_NO_DIN) : 0;
+}
+
+static uint16_t burst_clocks(void){
+	const uint8_t *c = flash_settings_clock();
+	return c && (uint8_t)(c[1] - 1U) < CLOCK_BURST_MAX ? (uint16_t)(c[1] * CLOCKS_PER_BEAT) : BURST_NONE;
+}
 
 // Tap measurement
 static uint32_t last_tap_tick = 0;
@@ -171,6 +187,7 @@ void tempo_set_bpm(uint16_t new_bpm){
 	if(new_bpm > TEMPO_BPM_MAX) new_bpm = TEMPO_BPM_MAX;
 	bpm = new_bpm;
 	tempo_sets++;
+	burst_left = burst_clocks();
 	recalc_interval();
 }
 
@@ -225,7 +242,8 @@ void tempo_clock_start(void){
 	int_bar_first = int_beat_num + 1;	// the first clock is its first beat
 	clock_running = true;
 	__enable_irq();
-	midiCmd_send_start_command();
+	burst_left = burst_clocks();
+	midiCmd_send_realtime(0xFA, clock_off());
 }
 
 void tempo_clock_stop(void){
@@ -237,7 +255,7 @@ void tempo_clock_stop(void){
 	free_acc_us = (uint32_t)((clock_beat_count + CLOCKS_PER_BEAT - 1) % CLOCKS_PER_BEAT)
 			* clock_interval_us + clock_acc_us;
 	__enable_irq();
-	midiCmd_send_stop_command();
+	midiCmd_send_realtime(0xFC, clock_off());
 }
 
 void tempo_clock_toggle(void){
@@ -442,16 +460,24 @@ void tempo_task(void){
 		ext_bpm_measured = 0;
 	}
 
+	// Where the clock goes: nowhere in a bank Clock_Off_Banks names
+	const uint8_t *c = flash_settings_clock();
+	uint8_t off = clock_off();
+	if(c && !((*(const uint32_t*)(c + 2) >> sw_get_home_bank()) & 1U)) off = CHAN_NO_USB | CHAN_NO_DIN;
 	while(clocks_due){
 		__disable_irq();
 		clocks_due--;
 		__enable_irq();
 		if(!ext){
-			midiCmd_send_clock_command();
+			// A burst runs its time out in a bank without the clock too
+			if(burst_left){
+				if(burst_left != BURST_NONE) burst_left--;
+				midiCmd_send_clock_command(off);
+			}
 		} else if(pGlobalSettings[GLOBAL_SETTINGS_REALTIME_PASS] != 1){
 			// The host's clock is not forwarded, so re-clock the DIN output
 			// at its tempo; USB already has the host's own clock
-			midiCmd_send_byte_serial(0xF8);
+			if(!(off & CHAN_NO_DIN)) midiCmd_send_byte_serial(0xF8);
 		}
 		// With passthrough on, the host's clock already reaches DIN: stay quiet
 	}

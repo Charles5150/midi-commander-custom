@@ -42,8 +42,12 @@ extern uint32_t APP_Rx_ptr_out;
 extern uint32_t APP_Rx_length;
 extern volatile uint8_t  USB_Tx_State;
 
-extern USBD_ClassTypeDef  USBD_MIDI;
-#define USBD_MIDI_CLASS    &USBD_MIDI
+// Called by the composite class (usbd_composite_midi_hid.c), which alone
+// describes the device: MIDI has no class table or descriptor of its own
+uint8_t USBD_MIDI_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx);
+uint8_t USBD_MIDI_DeInit(USBD_HandleTypeDef *pdev, uint8_t cfgidx);
+uint8_t USBD_MIDI_DataIn(USBD_HandleTypeDef *pdev, uint8_t epnum);
+uint8_t USBD_MIDI_DataOut(USBD_HandleTypeDef *pdev, uint8_t epnum);
 
 uint8_t  USBD_MIDI_RegisterInterface  (USBD_HandleTypeDef   *pdev, 
                                       USBD_MIDI_ItfTypeDef *fops);

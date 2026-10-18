@@ -1564,10 +1564,10 @@ void handle_cmd_sw_down(uint8_t *pRom, uint8_t toggleState){
 		}
 		break;
 	case CMD_START_NIBBLE:
-		status = midiCmd_send_start_command();
+		status = midiCmd_send_realtime(0xFA, 0);
 		break;
 	case CMD_STOP_NIBBLE:
-		status = midiCmd_send_stop_command();
+		status = midiCmd_send_realtime(0xFC, 0);
 		break;
 	case CMD_PANIC_NIBBLE:
 		ramp_stop_all();	// or a ramp, LFO or sequence would bring the sound back

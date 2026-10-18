@@ -27,6 +27,16 @@ Un comando `Tap` con **Action** `Clock` pone en marcha o para el reloj MIDI de l
 
 La salida DIN envía más o menos un mensaje por milisegundo, así que un banco que manda muchos comandos al entrar la tiene ocupada un rato: 80 mensajes tardan unos 77 ms. El reloj no espera detrás de ellos. Cada byte de reloj sale por delante de lo que esté en cola, en menos de un milisegundo, porque MIDI permite meter un byte de reloj entre dos bytes cualesquiera. Start, Continue y Stop guardan su sitio en la cola, así que un `Song` enviado antes de un Start sigue llegando primero, y los relojes esperan detrás de un Start que aún está en cola.
 
+### Adónde va el reloj
+
+Tres ajustes de la pestaña **Global** dicen adónde va el reloj de la pedalera y cuándo. Necesitan el firmware 1.39.
+
+- **Clock goes to** (`Clock_Output`): `Both`, `USB` o `DIN`. El Start y el Stop del reloj van al mismo sitio, así que un looper en DIN puede seguir a la pedalera sin que el ordenador oiga nada, o al revés. Por defecto, `Both`.
+- **Clock only for** (`Clock_Burst`): algunos delays se tambalean mientras les sigue llegando un reloj. Con un número de tiempos aquí, de 1 a 32, el reloj sale durante esos tiempos después de un Start y de cada cambio de tempo (un tap, `Set BPM`, `Up by` o `Down by`), y luego se calla. El aparato se queda con el tempo que midió. Dentro de la pedalera el reloj sigue en marcha, así que el LED de tap, los LFO, el compás y tiempo y el `Wait` a tiempo siguen funcionando. Por defecto, `0`: el reloj todo el rato.
+- **No clock in banks** (`Clock_Off_Banks`): bancos en los que no sale el reloj, como `3 5-7`. El reloj sigue en marcha y vuelve a salir en cualquier otro banco, sin un Start nuevo. El Start y el Stop sí salen en esos bancos. Vacío por defecto.
+
+Se aplican al reloj propio de la pedalera, y al reloj que la pedalera rehace hacia DIN mientras sigue el reloj del ordenador. El reloj del ordenador que pasa tal cual con `RealTime_Passthrough` no es el de la pedalera, y pasa como siempre.
+
 En la demo, el banco 6 tiene tap tempo, arranque y parada del reloj y botones de transporte uno al lado del otro.
 
 ## Fijar el tempo

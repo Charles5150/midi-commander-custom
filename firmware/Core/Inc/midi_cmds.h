@@ -23,9 +23,8 @@ int8_t midiCmd_send_param(uint8_t channel, const uint8_t *param, uint8_t value);
 int8_t midiCmd_send_pressure(uint8_t channel, uint8_t value);
 int8_t midiCmd_send_note_command_from_rom(uint8_t *pRom, uint8_t on_off);
 int8_t midiCmd_send_pb_command_from_rom(uint8_t *pRom, uint8_t on_off);
-int8_t midiCmd_send_stop_command(void);
-int8_t midiCmd_send_start_command(void);
-int8_t midiCmd_send_clock_command(void);
+int8_t midiCmd_send_realtime(uint8_t b, uint8_t off);	// Start 0xFA or Stop 0xFC
+int8_t midiCmd_send_clock_command(uint8_t off);	// off: CHAN_NO_USB | CHAN_NO_DIN
 int8_t midiCmd_send_song_select(uint8_t song);
 int8_t midiCmd_send_song_position(uint16_t beats);
 int8_t midiCmd_send_mmc(uint8_t command, uint16_t seconds);

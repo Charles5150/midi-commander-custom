@@ -125,7 +125,7 @@ void din_uart_done(void);
 #define EXP2_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
-#define FIRMWARE_VERSION "1.38"
+#define FIRMWARE_VERSION "1.39"
 
 /* USER CODE END Private defines */
 

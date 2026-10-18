@@ -6,6 +6,6 @@
 
 typedef enum { USBD_OK = 0, USBD_BUSY, USBD_FAIL } USBD_StatusTypeDef;
 typedef struct { uint8_t unused; } USBD_HandleTypeDef;
-typedef struct { uint8_t unused; } USBD_ClassTypeDef;
+typedef struct { uint8_t unused; } USBD_SetupReqTypedef;
 
 #endif

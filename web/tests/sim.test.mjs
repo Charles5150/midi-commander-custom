@@ -441,6 +441,51 @@ test("with Song CC, the computer picks a song by its place in the setlist, past 
   assert.equal((await running(plain, () => pedal.getState())).bank, 2);
 });
 
+test("the pedal's clock goes to one output, for a burst after each tempo change, and not in the banks it is off in (before 1.39, always everywhere)", async () => {
+  const set = (pairs) => pairs.map(([k, v]) => "g.loc[g['Label'] == '" + k + "', 'Value'] = '" + v + "'").join("; ");
+  const clockSim = async (pairs) => simWithDemo(await flashWith(packDemo("g = d['Global_Settings']; " + set(pairs))));
+  const count = (seen, what) => seen.filter((m) => m === what).length;
+  const toBank = (sim, bank) => { sim.usbIn([0xb0, 32, bank]); sim.run(300); };   // Bank_Change_Mode CC 32
+
+  // To USB alone: its Start, Stop and clock never reach the DIN output
+  let sim = await clockSim([["Clock_Output", "USB"]]);
+  toBank(sim, 6);                           // TEMP: CLK on switch 2
+  let seen = watch(sim);
+  tap(sim, 1);
+  sim.run(1000);
+  tap(sim, 1);
+  assert.ok(count(seen, "USB f8") > 40, "the clock on USB");
+  assert.equal(seen.filter((m) => m.startsWith("DIN f")).length, 0, "nothing of it on DIN");
+  assert.deepEqual(seen.filter((m) => m === "USB fa" || m === "USB fc"), ["USB fa", "USB fc"]);
+
+  // A burst of 2 beats: 48 clocks after Start, then quiet; a tempo change, 48 more
+  sim = await clockSim([["Clock_Burst", "2"]]);
+  toBank(sim, 6);
+  seen = watch(sim);
+  tap(sim, 1);
+  sim.run(3000);
+  assert.equal(count(seen, "DIN f8"), 48, "two beats of clock, then none");
+  assert.equal(count(seen, "USB f8"), 48);
+  tap(sim, 6);                              // BPM+: a tempo change
+  sim.run(3000);
+  assert.equal(count(seen, "DIN f8"), 96, "two beats more");
+  assert.ok(seen.includes("DIN fa") && !seen.includes("DIN fc"), "it stays started");
+
+  // Off in bank 6: running there, no clock; in bank 0 it comes, without a Start again
+  sim = await clockSim([["Clock_Off_Banks", "5-6 9"]]);
+  toBank(sim, 6);
+  seen = watch(sim);
+  tap(sim, 1);
+  sim.run(1000);
+  assert.equal(count(seen, "USB f8") + count(seen, "DIN f8"), 0, "no clock in bank 6");
+  assert.ok(seen.includes("USB fa"), "its Start goes out");
+  toBank(sim, 0);
+  seen.splice(0);
+  sim.run(1000);
+  assert.ok(count(seen, "USB f8") > 40 && count(seen, "DIN f8") > 40, "in bank 0 it does");
+  assert.ok(!seen.includes("USB fa"), "with no second Start");
+});
+
 test("held, a Bank Reveal button shows the long press labels", async () => {
   const sim = simWithDemo();
   tap(sim, 4);                              // MEDI: the media keys bank

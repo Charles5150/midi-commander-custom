@@ -734,8 +734,8 @@ static void try_cmd(void){
 		memcpy(ed.try_note, ed.cmd, MIDI_ROM_CMD_SIZE);
 		ed.try_until = HAL_GetTick() + ED_TRY_MS;
 		break;
-	case T_START:	midiCmd_send_start_command(); break;
-	case T_STOP:	midiCmd_send_stop_command(); break;
+	case T_START:	midiCmd_send_realtime(0xFA, 0); break;
+	case T_STOP:	midiCmd_send_realtime(0xFC, 0); break;
 	case T_PANIC:	midiCmd_send_panic(); break;
 	default:		break;	// the rest do something to the pedal, not a sound
 	}

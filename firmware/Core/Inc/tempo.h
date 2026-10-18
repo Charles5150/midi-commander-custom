@@ -5,7 +5,10 @@
  *
  * A Tap command records the time of each press; the tempo is the average of
  * the last few intervals. When the clock is running, 24 MIDI clock bytes per
- * quarter note are emitted to both USB and the DIN output.
+ * quarter note are emitted to both USB and the DIN output, or only one of them
+ * (Clock_Output), only in the banks it is on in (Clock_Off_Banks), and with a
+ * burst (Clock_Burst) only for so many beats after a Start or a tempo set.
+ * The beat, for the LEDs, the LFOs and the grid, goes on all the same.
  *
  * The clock is generated from the SysTick handler with fractional
  * accumulation, so the average tempo is exact even though the tick is 1 ms:

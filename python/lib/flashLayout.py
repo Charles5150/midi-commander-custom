@@ -72,6 +72,13 @@ EXT2_TAKEOVER_OFFSET = 4
 # What the display shows while each pedal moves (firmware 1.29): two bits per
 # pedal in this header byte, pedal 1 in the low ones; 3 (erased) is Off
 EXT2_EXP_DISPLAY_OFFSET = 5
+# The pedal's clock (firmware 1.39): [6] the outputs it goes to, 0xFF both or
+# 0xFF less the bit of the one left out; [7] the beats a burst lasts, 1-32,
+# anything else none; [8..11] a bit per bank it goes out in, bank 0 lowest
+EXT2_CLOCK_OFFSET = 6
+CLOCK_NO_USB = 0x04
+CLOCK_NO_DIN = 0x08
+CLOCK_BURST_MAX = 32
 # MIDI map: messages arriving over USB turned into others on the DIN output
 MIDI_MAP_COUNT = 32
 MIDI_MAP_STRIDE = 12
@@ -121,6 +128,9 @@ GLOBAL_DEFAULTS = {
     "Sleep_After_Min": "0",
     "Setlist_Mode": "N",
     "Clock_Follow": "N",
+    "Clock_Output": "Both",
+    "Clock_Burst": "0",
+    "Clock_Off_Banks": "",
     "LED_Feedback": "N",
     "Link_Toggles": "N",
     "Beat_Counter": "Off",
