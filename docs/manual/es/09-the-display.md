@@ -192,6 +192,22 @@ La pedalera contesta `F0 7D 49 place how F7`, e ignora un `place` o un `how` que
 
 </details>
 
+### Desde REAPER
+
+`hosts/reaper/MIDI_Commander_song_names.lua` es un ReaScript que escribe en la pedalera la canción en la que estás, según va tocando REAPER:
+
+- **La canción** es la región bajo el cursor de reproducción, o bajo el de edición cuando está parado, a lo ancho de la línea de arriba hasta la canción siguiente. Si no hay región, el nombre del proyecto hace de canción, para quien tiene un proyecto por canción.
+- **La parte** es un marcador por el que se pasa tocando, `Estribillo` o `Solo`, que se ve un momento encima de la canción.
+- **El transporte**, si lo quieres: play, grabar, repetir y el metrónomo como CC, 127 encendido y 0 apagado, para que un botón toggle que mande el mismo CC se encienda con ellos, con `LED_Feedback` activado.
+
+Para usarlo:
+
+1. En REAPER, marca la salida de la pedalera, **MIDI Commander Custom**, como **Enabled** en **Preferences > Audio > MIDI Inputs/Outputs**. No hace falta que ninguna pista le envíe nada.
+2. **Actions > Show action list > New action > Load ReaScript**, y elige el archivo.
+3. Ejecútalo. Sigue funcionando, encendido en un botón de la barra de herramientas, hasta que se vuelve a ejecutar; entonces devuelve la línea al banco.
+
+Los ajustes están al principio del archivo: dónde va la canción (`line`, `small`, `name` o `info`), dónde va la parte o si no va, si se usa el nombre del proyecto y el CC de cada parte del transporte, ninguno de serie. Los nombres se escriben como los escriben las herramientas, `Canción` como `Cancion`. Vuelve a mandar la canción cada cinco segundos, cosa que la pedalera acepta sin parpadear, para que una pedalera enchufada mientras funciona se ponga al día. Probado con REAPER 7.79.
+
 ### Etiquetas de los botones
 
 Un script o una DAW que lleva la pedalera también puede escribir la etiqueta de cada botón: la escena que acaba de nombrar, el efecto que ha puesto en el botón A. El botón sigue enviando lo que dice la configuración; solo cambia su etiqueta. *Necesita firmware 1.34 o posterior.*

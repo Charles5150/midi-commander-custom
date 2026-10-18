@@ -192,6 +192,22 @@ The pedal answers `F0 7D 49 place how F7`, and ignores a place or `how` it does 
 
 </details>
 
+### From REAPER
+
+`hosts/reaper/MIDI_Commander_song_names.lua` is a ReaScript that writes the song you are in on the pedal, as REAPER plays:
+
+- **The song** is the region under the play cursor, or under the edit cursor when stopped, across the top line until the next song. With no region there, the project's name stands for the song, for one project per song.
+- **The part** is a marker passed while playing, `Chorus` or `Solo`, shown over the song for a moment.
+- **The transport**, if you want it: play, record, repeat and the metronome as CCs, 127 when on and 0 when off, so a toggle button sending the same CC lights with them, with `LED_Feedback` on.
+
+To use it:
+
+1. In REAPER, tick the pedal's output, **MIDI Commander Custom**, as **Enabled** in **Preferences > Audio > MIDI Inputs/Outputs**. No track has to send to it.
+2. **Actions > Show action list > New action > Load ReaScript**, and pick the file.
+3. Run it. It keeps running, lit in a toolbar button, until it is run again; then it gives the line back to the bank.
+
+The settings are at the top of the file: where the song goes (`line`, `small`, `name` or `info`), where the part goes or none, whether the project's name is used, and the CC for each part of the transport, none by default. The names are spelled as the tools spell them, `Canción` as `Cancion`. It sends the song again every five seconds, which the pedal takes without a flicker, so a pedal plugged in while it runs catches up. Tried on REAPER 7.79.
+
 ### Button labels
 
 A script or a DAW that drives the pedal can also write each button's label: the scene it just named, the effect it moved to button A. The button still sends what the configuration says; only its label changes. *Needs firmware 1.34 or later.*

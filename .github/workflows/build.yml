@@ -58,7 +58,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libasound2-dev python3-tk
-          pip install -r python/requirements.txt pytest pytest-xdist
+          pip install -r python/requirements.txt pytest pytest-xdist lupa
 
       - name: Run tests
         # The unittest suite, spread over the runner's cores
