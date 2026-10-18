@@ -410,6 +410,24 @@ test("a bank's enter list of 80 messages reaches USB and DIN whole (before 1.03,
   assert.deepEqual(list("DIN"), want);
 });
 
+test("with Song CC, the computer picks a song by its place in the setlist, past the last one nothing (before 1.38, a bank)", async () => {
+  const mode = (m, list) => "g = d['Global_Settings']; g.loc[g['Label'] == 'Bank_Change_Mode', 'Value'] = '" + m + "'"
+    + "; g.loc[g['Label'] == 'Setlist_Mode', 'Value'] = '" + list + "'";
+  const song = simWithDemo(await flashWith(packDemo(mode("Song CC", "Y"))));
+  let pedal = await Pedal.open(song.access);
+  song.usbIn([0xb0, 32, 2]);                 // the third song of FULL SET: 0, 12, 15
+  song.run(300);
+  assert.equal((await running(song, () => pedal.getState())).bank, 15);
+  song.usbIn([0xb0, 32, 40]);                // there is no 41st song
+  song.run(300);
+  assert.equal((await running(song, () => pedal.getState())).bank, 15, "it stays");
+  const plain = simWithDemo(await flashWith(packDemo(mode("Song CC", "N"))));
+  pedal = await Pedal.open(plain.access);
+  plain.usbIn([0xb0, 32, 2]);                // no setlist followed: bank 3
+  plain.run(300);
+  assert.equal((await running(plain, () => pedal.getState())).bank, 2);
+});
+
 test("held, a Bank Reveal button shows the long press labels", async () => {
   const sim = simWithDemo();
   tap(sim, 4);                              // MEDI: the media keys bank

@@ -44,7 +44,7 @@ In the configurator, put the banks in order in the **Setlist** tab, one drop-dow
 - Bank Up / Down, their long press and relative `Bank` commands follow the list, and wrap round at both ends. A long press jumps `Bank_Jump_Step` entries of the list.
 - From a bank that is not in the list, Up enters it at its first entry and Down at its last.
 - A bank may appear more than once, but stepping from it always continues from its first appearance.
-- A `GoTo` and a bank change from incoming MIDI still go to the exact bank asked for.
+- A `GoTo` and a bank change from incoming MIDI still go to the exact bank asked for, unless the computer [picks a song by its place](#picking-a-song-from-the-computer).
 - The list only counts while **Follow the setlist** is on, so you can keep one stored and switch it off.
 - With no computer around, the [editor on the pedal](10-editing-on-the-pedal.md#reordering-the-setlist) moves, adds and takes out songs (firmware 1.23).
 
@@ -72,11 +72,24 @@ In the demo, A and B pressed together go on to the next setlist: the 10 songs of
 
 *Firmware 1.33 or later.*
 
+### Picking a song from the computer
+
+A DAW playing the backing tracks, or a show control, can tell the pedal which song comes next. With **Change bank from MIDI** in the **Global** tab at `PC` or `CC`, the number it sends is a bank, so moving a song in the setlist means changing the session too. At `Song PC` or `Song CC` it is the song's place in the setlist the pedal follows: 0 is the first song, 4 the fifth, wherever those songs live and however the list was reordered, on the computer or on the pedal.
+
+- `Song PC` listens for a Program Change, `Song CC` for the Control Change set in **… with CC number**, whose value is the place; **… listening on channel** works as for the other modes.
+- A place past the last song is ignored: the pedal stays where it is.
+- With **Follow the setlist** off, the number is the bank, as with `PC` and `CC`.
+- The song is entered as from Bank Up, its enter commands and all.
+
+*Firmware 1.38 or later; older firmware ignores these two modes.*
+
 ### In the CSV
 
 `Setlist_Mode` `Y` in `Global_Settings` turns it on, `N` (the default) off, and `Setlist_Display` `Y` shows the place in it (firmware 0.94). The `Setlist` section is optional: rows of `Position` and `Bank_Number` (0–31). Up to 32 entries, ordered by `Position`, so rows may be in any order and positions may skip numbers; invalid bank numbers are dropped.
 
 With several setlists, a `List` column says which, 1–4, empty being 1, and a `Name` column names the setlist on any one of its rows. Both are left out when only the first setlist is used, so a CSV written before 1.33 reads as it always did.
+
+`Bank_Change_Mode` `Song PC` or `Song CC` in `Global_Settings` picks a song by its place.
 
 ```
 Position,Bank_Number,List,Name

@@ -59,6 +59,9 @@ uint32_t sw_long_press_ms(void);
 // Ask for a bank change from outside the main loop (e.g. an incoming MIDI
 // message handled in the USB interrupt). Applied by handle_switches.
 void sw_request_bank(uint8_t bank);
+// The same for the song at place `index` (from 0) of the setlist followed;
+// with no setlist followed, bank `index`. Past the last song it is ignored.
+void sw_request_song(uint8_t index);
 // The same for a list, as a Macro names it (bank, button | list << 4), run as
 // a tap with its toggles on or off. Up to eight wait; more are dropped.
 void sw_request_list(uint8_t bank, uint8_t which, bool on);

@@ -12,7 +12,7 @@ body:
     attributes:
       label: Firmware version
       description: Shown on the display at boot, in the web configurator's header once the pedal is connected, or printed by `python python/Flash_to_CSV.py x.csv`.
-      placeholder: "1.37"
+      placeholder: "1.38"
     validations:
       required: true
 

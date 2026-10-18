@@ -49,7 +49,7 @@ BANK_PREVIEW_MAX_S = 60
 # Set by configPacker when the image carries double press commands
 GLOBAL_SETTINGS_DOUBLE_STORED = 37
 
-BANK_CHANGE_MODES = {"OFF": 0, "PC": 1, "CC": 2}
+BANK_CHANGE_MODES = {"OFF": 0, "PC": 1, "CC": 2, "SONG PC": 3, "SONG CC": 4}
 REMOTE_MODES = {"OFF": 0, "CC": 1, "NOTE": 2}
 BANNER_SPEEDS = {"OFF": 0, "SLOW": 1, "NORMAL": 2, "FAST": 3}
 GIG_VIEW_ON = 0x04  # in the banner's byte: the gig view from power on
@@ -154,9 +154,14 @@ def pack_global_settings(df):
             step = default_int("Bank_Jump_Step")
     bin_list[GLOBAL_SETTINGS_BANK_JUMP_STEP] = max(1, min(31, step))
 
-    # Let an incoming Program Change or Control Change select a bank
+    # Let an incoming Program Change or Control Change select a bank, or with
+    # Song PC / Song CC the song at that place in the setlist (firmware 1.38)
     mode_text = str(df.loc["Bank_Change_Mode", "Value"]).strip().upper() if "Bank_Change_Mode" in df.index else "OFF"
-    mode = BANK_CHANGE_MODES.get(mode_text[:2], 0) if mode_text[:2] in ("PC", "CC") else 0
+    mode_text = " ".join(mode_text.split())
+    if mode_text.startswith("SONG"):
+        mode = BANK_CHANGE_MODES.get(mode_text, 0)
+    else:
+        mode = BANK_CHANGE_MODES.get(mode_text[:2], 0) if mode_text[:2] in ("PC", "CC") else 0
     bin_list[GLOBAL_SETTINGS_BANK_CHANGE_MODE] = mode
 
     ch_text = str(df.loc["Bank_Change_Channel", "Value"]).strip() if "Bank_Change_Channel" in df.index else "Any"

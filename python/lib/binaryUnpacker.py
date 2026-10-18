@@ -195,7 +195,7 @@ def unpack_global_settings(data: bytes) -> pd.DataFrame:
         ("LED_Brightness", str(g[9] if 0 < g[9] <= 100 else default_int("LED_Brightness"))),
         ("LED_Rest_Brightness", str(g[10] if 0 < g[10] <= 100 else default_int("LED_Rest_Brightness"))),
         ("Bank_Jump_Step", str(g[11] if 0 < g[11] < NUM_BANKS else default_int("Bank_Jump_Step"))),
-        ("Bank_Change_Mode", {1: "PC", 2: "CC"}.get(g[12], "Off")),
+        ("Bank_Change_Mode", {1: "PC", 2: "CC", 3: "Song PC", 4: "Song CC"}.get(g[12], "Off")),
         ("Bank_Change_Channel", str(g[13]) if 1 <= g[13] <= 16 else "Any"),
         ("Bank_Change_CC", str(g[14] if g[14] <= 127 else 0)),
         ("Bank_Switch_Mode", {1: "Bank+MIDI", 2: "MIDI only"}.get(g[15], "Bank")),

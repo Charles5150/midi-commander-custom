@@ -44,7 +44,7 @@ En el configurador, pon los bancos en orden en la pestaña **Setlist**, un despl
 - Bank Up / Down, su pulsación larga y los comandos `Bank` relativos siguen la lista, y dan la vuelta por los dos extremos. Una pulsación larga salta `Bank_Jump_Step` puestos de la lista.
 - Desde un banco que no está en la lista, Up entra por su primer puesto y Down por el último.
 - Un banco puede aparecer más de una vez, pero al avanzar desde él siempre se sigue desde su primera aparición.
-- Un `GoTo` y un cambio de banco por MIDI entrante siguen yendo al banco exacto que se pide.
+- Un `GoTo` y un cambio de banco por MIDI entrante siguen yendo al banco exacto que se pide, salvo que el ordenador [elija una canción por su puesto](#elegir-una-canción-desde-el-ordenador).
 - La lista solo cuenta mientras **Follow the setlist** está activado, así que puedes tener una guardada y desactivarla.
 - Sin ordenador a mano, el [editor de la pedalera](10-editing-on-the-pedal.md#reordenar-el-setlist) mueve, añade y quita canciones (firmware 1.23).
 
@@ -72,11 +72,24 @@ En la demo, A y B pulsados a la vez pasan al siguiente setlist: las 10 canciones
 
 *Firmware 1.33 o posterior.*
 
+### Elegir una canción desde el ordenador
+
+Un DAW que reproduce las pistas de acompañamiento, o un control de show, puede decirle a la pedalera qué canción viene. Con **Change bank from MIDI** en la pestaña **Global** en `PC` o `CC`, el número que envía es un banco, así que mover una canción en el setlist obliga a cambiar también la sesión. En `Song PC` o `Song CC` es el puesto de la canción en el setlist que sigue la pedalera: 0 es la primera canción, 4 la quinta, estén donde estén esas canciones y se haya reordenado como se haya reordenado la lista, en el ordenador o en la pedalera.
+
+- `Song PC` escucha un Program Change, y `Song CC` el Control Change puesto en **… with CC number**, cuyo valor es el puesto; **… listening on channel** funciona igual que en los otros modos.
+- Un puesto más allá de la última canción se ignora: la pedalera se queda donde está.
+- Con **Follow the setlist** desactivado, el número es el banco, como con `PC` y `CC`.
+- Se entra en la canción como con Bank Up, con sus comandos de entrada y todo.
+
+*Firmware 1.38 o posterior; el firmware anterior ignora estos dos modos.*
+
 ### En el CSV
 
 `Setlist_Mode` `Y` en `Global_Settings` lo activa, y `N` (lo predeterminado) lo desactiva; `Setlist_Display` `Y` muestra el puesto en la lista (firmware 0.94). La sección `Setlist` es opcional: filas de `Position` y `Bank_Number` (0–31). Hasta 32 puestos, ordenados por `Position`, así que las filas pueden ir en cualquier orden y los puestos pueden saltarse números; los números de banco no válidos se descartan.
 
 Con varios setlists, una columna `List` dice cuál, 1–4, y vacía es 1, y una columna `Name` pone nombre al setlist en una cualquiera de sus filas. Las dos se omiten cuando solo se usa el primer setlist, así que un CSV escrito antes de la 1.33 se lee como siempre.
+
+`Bank_Change_Mode` `Song PC` o `Song CC` en `Global_Settings` elige una canción por su puesto.
 
 ```
 Position,Bank_Number,List,Name

@@ -1022,6 +1022,12 @@ void sw_request_bank(uint8_t bank){
 	if(bank < MIDI_NUM_BANKS) requested_bank = bank;
 }
 
+static volatile uint8_t requested_song = 0xFF;
+
+void sw_request_song(uint8_t index){
+	requested_song = index;
+}
+
 // Lists the MIDI map asks for from the USB interrupt, run by handle_switches:
 // the bank, the button and which of its lists as a Macro names them, and on
 #define LIST_REQUESTS	(8)
@@ -4269,6 +4275,16 @@ void handle_switches(void){
 		uint8_t target = requested_bank;
 		requested_bank = 0xFF;
 		goto_bank(target);
+	}
+	if(requested_song != 0xFF){
+		uint8_t index = requested_song;
+		requested_song = 0xFF;
+		uint8_t n = setlist_len();
+		if(!n){
+			if(index < MIDI_NUM_BANKS) goto_bank(index);
+		} else if(index < n){
+			goto_bank(setlist_banks(setlist_active)[index]);
+		}
 	}
 
 	requested_lists();

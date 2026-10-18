@@ -397,6 +397,13 @@ class RoundTripTest(unittest.TestCase):
         self.assertEqual(tuple(packed[12:14]), (1, 0))
         df = unpacker.unpack_config(packed)[0].set_index("Label")["Value"]
         self.assertEqual(df["Bank_Change_Channel"], "Any")
+        # A song by its place in the setlist (1.38), however it is spelled
+        for value, code in (("Song PC", 3), ("Song CC", 4), ("song  cc", 4)):
+            g.loc[g["Label"] == "Bank_Change_Mode", "Value"] = value
+            packed = pack_config({**sections, "Global_Settings": g})
+            self.assertEqual(packed[12], code)
+            df = unpacker.unpack_config(packed)[0].set_index("Label")["Value"]
+            self.assertEqual(df["Bank_Change_Mode"], "Song CC" if code == 4 else "Song PC")
 
     def test_ccinc_command(self):
         row = pd.Series({

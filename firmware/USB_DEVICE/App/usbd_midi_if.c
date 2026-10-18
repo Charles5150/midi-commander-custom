@@ -733,24 +733,32 @@ static void thru_channel(const uint8_t *data, uint8_t len){
 
 /*
  * Optionally let an incoming Program Change or Control Change select a bank,
- * so a DAW or another pedal can drive this one. The bank switch itself is
+ * or a song by its place in the setlist, so a DAW or another pedal can drive
+ * this one. The bank switch itself is
  * deferred to the main loop; this runs in the USB interrupt.
  */
 static void handle_bank_change_message(uint8_t cin, const uint8_t *data){
 	uint8_t mode = pGlobalSettings[GLOBAL_SETTINGS_BANK_CHANGE_MODE];
-	if(mode != BANK_CHANGE_PC && mode != BANK_CHANGE_CC) return;
+	bool song = (mode == BANK_CHANGE_SONG_PC || mode == BANK_CHANGE_SONG_CC);
+	bool by_pc = (mode == BANK_CHANGE_PC || mode == BANK_CHANGE_SONG_PC);
+	if(!by_pc && mode != BANK_CHANGE_CC && mode != BANK_CHANGE_SONG_CC) return;
 
 	uint8_t want_channel = pGlobalSettings[GLOBAL_SETTINGS_BANK_CHANGE_CHANNEL];
 	uint8_t channel = (data[0] & 0x0F) + 1;
 	if(want_channel >= 1 && want_channel <= 16 && channel != want_channel) return;
 
-	if(mode == BANK_CHANGE_PC && cin == CIN_PROGRAM_CHANGE){
-		sw_request_bank(data[1] & 0x7F);
-	} else if(mode == BANK_CHANGE_CC && cin == CIN_CONTROL_CHANGE){
-		if((data[1] & 0x7F) == (pGlobalSettings[GLOBAL_SETTINGS_BANK_CHANGE_CC] & 0x7F)){
-			sw_request_bank(data[2] & 0x7F);
-		}
+	uint8_t n;
+	if(by_pc && cin == CIN_PROGRAM_CHANGE){
+		n = data[1] & 0x7F;
+	} else if(!by_pc && cin == CIN_CONTROL_CHANGE
+			&& (data[1] & 0x7F) == (pGlobalSettings[GLOBAL_SETTINGS_BANK_CHANGE_CC] & 0x7F)){
+		n = data[2] & 0x7F;
+	} else {
+		return;
 	}
+	// Song_PC / Song_CC: the n-th song of the setlist, wherever it was moved
+	if(song) sw_request_song(n);
+	else sw_request_bank(n);
 }
 
 /*
