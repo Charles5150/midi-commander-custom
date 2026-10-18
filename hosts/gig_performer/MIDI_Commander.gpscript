@@ -1,0 +1,144 @@
+/*
+   MIDI Commander Custom: the song and the part you are on, on the pedal's display, from Gig Performer.
+
+   A Gig Script. In setlist mode the song is written across the pedal's top
+   line, until the next song, and a change of song part shows the part's
+   name over it for a moment. Out of setlist mode the rackspace stands for
+   the song.
+
+   Paste it into Window > Gig Script Editor, set DEVICE below to the pedal's
+   name as Gig Performer lists it under Options > MIDI Ports, and press
+   Compile. Needs the pedal's firmware 0.46 or later (0.61 for a name longer
+   than its place to scroll). Written from the GPScript manual of Gig
+   Performer 5; not yet tried in Gig Performer itself.
+
+   https://github.com/Charles5150/midi-commander-custom
+*/
+
+// Settings ------------------------------------------------------------
+
+Const
+   // The pedal's MIDI output, as Gig Performer names it
+   DEVICE : String = "MIDI Commander Custom"
+   // Where the song goes: 0 the small info line beside the bank name (11
+   // letters), 1 the bank name (4 large), 2 the whole top line (11 large),
+   // 3 the whole top line in small letters (18)
+   SONG_PLACE : Integer = 2
+   // Where a song part's name shows for a moment, -1 to leave parts out
+   PART_PLACE : Integer = 2
+
+// ---------------------------------------------------------------------
+
+Const
+   KEEP_ALWAYS : Integer = 1
+   KEEP_MOMENT : Integer = 2
+   TEXT_MAX : Integer = 32
+   HEX : String = "0123456789ABCDEF"
+   // The characters the display draws: 0x20 to 0x5B, and 0x5D to 0x7E; the
+   // backslash between them is left out, as a string cannot be sure to hold it
+   PRINTABLE_LOW : String = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ["
+   PRINTABLE_HIGH : String = "]^_`abcdefghijklmnopqrstuvwxyz{|}~"
+   // A letter with an accent, and the one the tools write for it
+   ACCENTED : String = "ÁÀÂÄÃÅáàâäãåÉÈÊËéèêëÍÌÎÏíìîïÓÒÔÖÕØóòôöõøÚÙÛÜúùûüÑñÇçÝýÿ’‘“”–—"
+   PLAIN : String    = "AAAAAAaaaaaaEEEEeeeeIIIIiiiiOOOOOOooooooUUUUuuuuNnCcYyy''\"\"--"
+
+Var
+   lastSong : String = ""
+   lastSent : Double = 0.0
+
+// Two hex digits for a byte
+Function HexByte(b : Integer) Returns String
+   result = GetCharAtIndex(HEX, b / 16) + GetCharAtIndex(HEX, b % 16)
+End
+
+// The byte the display draws for one character: an accent taken off, and
+// "?" for anything else it cannot draw, a backslash too
+Function CharByte(c : String) Returns Integer
+   Var i : Integer
+       plain : String = c
+   result = 63
+   For i = 0; i < Length(ACCENTED); i = i + 1 Do
+      If GetCharAtIndex(ACCENTED, i) == c Then
+         plain = GetCharAtIndex(PLAIN, i)
+      End
+   End
+   For i = 0; i < Length(PRINTABLE_LOW); i = i + 1 Do
+      If GetCharAtIndex(PRINTABLE_LOW, i) == plain Then
+         result = 32 + i
+      End
+   End
+   For i = 0; i < Length(PRINTABLE_HIGH); i = i + 1 Do
+      If GetCharAtIndex(PRINTABLE_HIGH, i) == plain Then
+         result = 93 + i
+      End
+   End
+End
+
+// F0 7D 48 place keep text F7: text on the display
+Function TextSysex(text : String, place : Integer, keep : Integer) Returns String
+   Var i, n : Integer
+   n = Length(text)
+   If n > TEXT_MAX Then
+      n = TEXT_MAX
+   End
+   result = "F0 7D 48 " + HexByte(place) + " " + HexByte(keep)
+   For i = 0; i < n; i = i + 1 Do
+      result = result + " " + HexByte(CharByte(GetCharAtIndex(text, i)))
+   End
+   result = result + " F7"
+End
+
+Function SendText(text : String, place : Integer, keep : Integer)
+   Var m : SysexMessage
+   If place >= 0 And MidiOutDeviceExists(DEVICE) Then
+      m = TextSysex(text, place, keep)
+      SendSysexNowToMidiOutDevice(DEVICE, m)
+   End
+End
+
+// The song now: the setlist's song, or else the rackspace
+Function SongName() Returns String
+   If InSetlistMode() Then
+      result = GetCurrentSongName()
+   Else
+      result = GetRackspaceName()
+   End
+End
+
+Function ShowSong()
+   lastSong = SongName()
+   SendText(lastSong, SONG_PLACE, KEEP_ALWAYS)
+End
+
+On SystemEvent Matching GigLoaded
+   ShowSong()
+   SetTimersRunning(true)
+End
+
+On Song(oldSongIndex : Integer, newSongIndex : Integer)
+   ShowSong()
+End
+
+On Rackspace(oldRackspaceIndex : Integer, newRackspaceIndex : Integer)
+   If Not InSetlistMode() Then
+      ShowSong()
+   End
+End
+
+On Songpart(oldSongpartIndex : Integer, newSongpartIndex : Integer)
+   // A new song starts on its first part: that is the song, not a part
+   If SongName() == lastSong And oldSongpartIndex != newSongpartIndex Then
+      SendText(GetCurrentSongPartName(), PART_PLACE, KEEP_MOMENT)
+   Else
+      ShowSong()
+   End
+End
+
+// The song goes out again every five seconds, which the pedal takes without
+// a flicker, so a pedal plugged in or restarted catches up
+On TimerTick(ms : Double)
+   If ms - lastSent >= 5000.0 Then
+      lastSent = ms
+      ShowSong()
+   End
+End

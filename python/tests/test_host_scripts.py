@@ -23,6 +23,7 @@ except ImportError:  # pragma: no cover
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
 REAPER_SCRIPT = os.path.join(ROOT, "hosts", "reaper", "MIDI_Commander_song_names.lua")
 LIVE_SCRIPT = os.path.join(ROOT, "hosts", "ableton", "MIDI_Commander", "__init__.py")
+GIG_PERFORMER_SCRIPT = os.path.join(ROOT, "hosts", "gig_performer", "MIDI_Commander.gpscript")
 
 
 class FakeReaper:
@@ -330,6 +331,50 @@ class LiveScriptTest(unittest.TestCase):
         script.disconnect()
         self.assertEqual(self.texts(), [(2, 1, "")])
         self.assertEqual(script.suggest_output_port(), "MIDI Commander Custom")
+
+
+class GigPerformerScriptTest(unittest.TestCase):
+    """GPScript does not run here: its tables are read from the file, and its
+    spelling of a character done in Python as the script does it."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(GIG_PERFORMER_SCRIPT, encoding="utf-8") as f:
+            cls.source = f.read()
+
+    def constant(self, name):
+        m = re.search(rf'^\s*{name} : String\s*=\s*"((?:[^"\\]|\\.)*)"', self.source, re.M)
+        self.assertIsNotNone(m, name)
+        return re.sub(r'\\(.)', r'\1', m.group(1))
+
+    def char_byte(self, c):
+        accented, plain = self.constant("ACCENTED"), self.constant("PLAIN")
+        if c in accented:
+            c = plain[accented.index(c)]
+        low, high = self.constant("PRINTABLE_LOW"), self.constant("PRINTABLE_HIGH")
+        if c in low:
+            return 32 + low.index(c)
+        if c in high:
+            return 93 + high.index(c)
+        return 63
+
+    def test_the_tables(self):
+        self.assertEqual(self.constant("PRINTABLE_LOW"), "".join(chr(b) for b in range(0x20, 0x5C)))
+        self.assertEqual(self.constant("PRINTABLE_HIGH"), "".join(chr(b) for b in range(0x5D, 0x7F)))
+        self.assertEqual(len(self.constant("ACCENTED")), len(self.constant("PLAIN")))
+        self.assertEqual(self.constant("HEX"), "0123456789ABCDEF")
+
+    def test_spelled_as_the_tools_spell_it(self):
+        for c in self.constant("ACCENTED") + self.constant("PRINTABLE_LOW") + self.constant("PRINTABLE_HIGH"):
+            self.assertEqual(chr(self.char_byte(c)), display_text(c), repr(c))
+        self.assertEqual(self.char_byte("\\"), ord("?"))
+        self.assertEqual(self.char_byte("\u65e5"), ord("?"))
+
+    def test_the_message(self):
+        self.assertIn('result = "F0 7D 48 " + HexByte(place) + " " + HexByte(keep)', self.source)
+        self.assertIn("KEEP_ALWAYS : Integer = 1", self.source)
+        self.assertIn("KEEP_MOMENT : Integer = 2", self.source)
+        self.assertIn("TEXT_MAX : Integer = 32", self.source)
 
 
 if __name__ == "__main__":

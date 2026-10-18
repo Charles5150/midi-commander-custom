@@ -228,6 +228,15 @@ Los ajustes están al principio de `__init__.py`: dónde va la canción, si sale
 
 MainStage no tiene un script que pueda mandar el texto, pero la pedalera puede nombrar el patch por su Program Change: la [plantilla de MainStage](11-devices.md#apple-mainstage) muestra `$N` en la línea de información, y `MainStage_Names.py` rellena los [nombres de preset](#nombres-de-preset) desde tu concierto.
 
+### Desde Gig Performer
+
+`hosts/gig_performer/MIDI_Commander.gpscript` es un Gig Script que escribe la canción en la que estás:
+
+- **La canción**, en modo setlist, a lo ancho de la línea de arriba hasta la canción siguiente; fuera del modo setlist, el rackspace.
+- **La parte**: un cambio de parte de la canción muestra su nombre un momento encima de la canción.
+
+Abre **Window > Gig Script Editor**, pega el archivo, pon en `DEVICE`, al principio, la salida de la pedalera como la llama **Options > MIDI Ports**, y pulsa **Compile**. Dónde van la canción y la parte son ajustes que están al lado. La canción se vuelve a mandar cada cinco segundos. *Escrito a partir del manual de GPScript de Gig Performer 5 y todavía sin probar en Gig Performer: si no compila o no se ve, dilo en una issue, por favor.*
+
 ### Etiquetas de los botones
 
 Un script o una DAW que lleva la pedalera también puede escribir la etiqueta de cada botón: la escena que acaba de nombrar, el efecto que ha puesto en el botón A. El botón sigue enviando lo que dice la configuración; solo cambia su etiqueta. *Necesita firmware 1.34 o posterior.*

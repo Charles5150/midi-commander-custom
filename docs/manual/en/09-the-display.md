@@ -228,6 +228,15 @@ The settings are at the top of `__init__.py`: where the song goes, whether it co
 
 MainStage has no script that can send the text, but the pedal can name the patch from its Program Change: the [MainStage template](11-devices.md#apple-mainstage) shows `$N` on the info line, and `MainStage_Names.py` fills the [preset names](#preset-names) from your concert.
 
+### From Gig Performer
+
+`hosts/gig_performer/MIDI_Commander.gpscript` is a Gig Script that writes the song you are on:
+
+- **The song**, in setlist mode, across the top line until the next song; out of setlist mode, the rackspace.
+- **The part**: a change of song part shows the part's name over the song for a moment.
+
+Open **Window > Gig Script Editor**, paste the file in, set `DEVICE` at its top to the pedal's output as **Options > MIDI Ports** names it, and press **Compile**. Where the song and the part go are settings beside it. The song goes out again every five seconds. *Written from the GPScript manual of Gig Performer 5 and not yet tried in Gig Performer: if it does not compile or show, please say so in an issue.*
+
 ### Button labels
 
 A script or a DAW that drives the pedal can also write each button's label: the scene it just named, the effect it moved to button A. The button still sends what the configuration says; only its label changes. *Needs firmware 1.34 or later.*
