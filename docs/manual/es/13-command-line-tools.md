@@ -81,6 +81,14 @@ Escribe la configuración como una página para imprimir, `mi-config.html` junto
 
 Hace una configuración para los aparatos de tu equipo, como **Your Rig…** en el configurador de escritorio y **Your rig** en el navegador: cada aparato con el nombre de su plantilla y el canal MIDI que tiene puesto, primero el principal, hasta cuatro; mira [Tu equipo](11-devices.md#tu-equipo-varios-aparatos-a-la-vez). Los demás cambian de preset con el principal salvo que se dé `--no-follow`. Luego dice qué poner en cada aparato. `--list` da los nombres de las plantillas. Un aparato o un canal con un error, dos aparatos en el mismo canal o un equipo sin bancos libres termina con 2 y no escribe nada.
 
+## MainStage_Names: los nombres de los patches de un concierto
+
+```bash
+.venv/bin/python python/MainStage_Names.py ~/Music/MainStage/"Mi concierto.concert" --csv mi-config.csv
+```
+
+Pone los nombres de los patches de un concierto de MainStage en los [nombres de preset](09-the-display.md#nombres-de-preset) de la configuración, cada uno bajo su número de Program Change, para que `$N` muestre el patch; sin `--csv` solo los lista. `-o` escribe otro archivo y `--replace` quita los nombres de otros programas. Ver [Apple MainStage](11-devices.md#apple-mainstage). Una carpeta que no es un concierto termina con 2.
+
 ## import_openmidi: los equipos de la comunidad
 
 ```bash

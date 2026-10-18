@@ -3,9 +3,12 @@
 """Generate the Apple MainStage template, python/templates/MainStage.csv.
 
 Nothing to learn for the main controls: a Program Change selects the patch
-with that number, and the rest are MainStage's own keyboard shortcuts, sent
-by the pedal as a USB keyboard to the MainStage window in front. The FX
-buttons send CCs to assign to screen controls with Assign & Map.
+with that number, the previous and next patch are the Program Change a step
+down or up, and the rest are MainStage's own keyboard shortcuts, sent by the
+pedal as a USB keyboard to the MainStage window in front. The FX buttons send
+CCs to assign to screen controls with Assign & Map. The info line shows the
+patch by its name in Preset_Names, which MainStage_Names.py fills from a
+concert.
 
     python3 python/make_mainstage_template.py
 """
@@ -23,9 +26,10 @@ OUT = os.path.join(HERE, "templates", "MainStage.csv")
 CHANNEL = "1"
 CTRL, CMD = "1", "8"    # the Key command's modifiers
 # MainStage's shortcuts, in Perform mode
-KEYS = (("1", "PAT-", "", "up"),        # the previous patch
-        ("2", "PAT+", "", "down"),      # the next patch
-        ("3", "SET-", "", "left"),      # the first patch of the previous set
+# The previous and next patch, a Program Change a step down or up from the
+# one the pedal or MainStage selected last, so the pedal knows the patch
+STEPS = (("1", "PAT-", "Down"), ("2", "PAT+", "Up"))
+KEYS = (("3", "SET-", "", "left"),      # the first patch of the previous set
         ("4", "SET+", "", "right"),     # the first patch of the next set
         ("A", "PLAY", "", "space"),     # play / stop
         ("B", "REC", CTRL, "r"),        # recording on / off
@@ -39,22 +43,30 @@ PATCH_BANKS = 31        # banks 0-30 select patches 0-30
 CTRL_BANK = 31
 
 
+def step(d, bank, btn, label, direction):
+    d.button(bank, btn, label, None, "A", CommandType="PCInc",
+             **{"Channel_(PC/CC/Note/PB)": CHANNEL, "KeyMode_(Key)": direction, "OffValue_(CC)": "1",
+                "Number_(PC/CC/Note)": "127", "Toggle_(CC/PB/Note)": "N"})
+
+
 def build():
     d = Demo()
     names = {}
 
     for bank in range(PATCH_BANKS):
-        names[bank] = (f"P{bank:03d}", "patch")
+        names[bank] = (f"P{bank:03d}", "$N")
         d.on_enter(bank, CommandType="PC",
                    **{"Channel_(PC/CC/Note/PB)": CHANNEL, "Number_(PC/CC/Note)": str(bank)})
+        for btn, label, direction in STEPS:
+            step(d, bank, btn, label, direction)
         for btn, label, mods, key in KEYS:
             d.key(bank, btn, label, mods, key)
 
     names[CTRL_BANK] = ("CTRL", "controls")
     d.key(CTRL_BANK, "1", "PANC", CTRL, "p")    # panic
     d.key(CTRL_BANK, "2", "MUTE", CTRL, "m")    # master mute
-    d.key(CTRL_BANK, "3", "PAT-", "", "up")
-    d.key(CTRL_BANK, "4", "PAT+", "", "down")
+    for (_, label, direction), btn in zip(STEPS, ("3", "4")):
+        step(d, CTRL_BANK, btn, label, direction)
     for btn, number, n in zip(("A", "B", "C", "D"), CC_FX, range(1, 5)):
         d.cc(CTRL_BANK, btn, f"FX{n}", number, toggle="Y", ch=CHANNEL)
 

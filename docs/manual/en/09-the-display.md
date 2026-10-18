@@ -224,6 +224,10 @@ To use it:
 
 The settings are at the top of `__init__.py`: where the song goes, whether it comes from locators, scenes or either, and the CC for each part of the transport, none by default. Live loads the script once, so after changing them restart Live. The names are spelled as the tools spell them, and the song goes out again every five seconds. Tried on Live 12 Lite.
 
+### From MainStage
+
+MainStage has no script that can send the text, but the pedal can name the patch from its Program Change: the [MainStage template](11-devices.md#apple-mainstage) shows `$N` on the info line, and `MainStage_Names.py` fills the [preset names](#preset-names) from your concert.
+
 ### Button labels
 
 A script or a DAW that drives the pedal can also write each button's label: the scene it just named, the effect it moved to button A. The button still sends what the configuration says; only its label changes. *Needs firmware 1.34 or later.*

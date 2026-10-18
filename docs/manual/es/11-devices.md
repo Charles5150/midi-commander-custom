@@ -480,8 +480,19 @@ En las tablas, Ctrl, Shift y Cmd son las teclas que la pedalera mantiene con la 
 
 | Bancos | Botones |
 |---|---|
-| 0–30, `P000`–`P030` | Al entrar en el banco se selecciona el patch con ese número de programa. 1 y 2 el patch anterior y el siguiente (↑ ↓), 3 y 4 el primer patch del set anterior y del siguiente (← →), A reproducir / parar (Espacio), B grabar (Ctrl+R), C el afinador (Cmd+T), D tap tempo (Ctrl+T) |
+| 0–30, `P000`–`P030` | Al entrar en el banco se selecciona el patch con ese número de programa, y la línea de información muestra su nombre. 1 y 2 el patch anterior y el siguiente, el Program Change un paso abajo o arriba, 3 y 4 el primer patch del set anterior y del siguiente (← →), A reproducir / parar (Espacio), B grabar (Ctrl+R), C el afinador (Cmd+T), D tap tempo (Ctrl+T) |
 | 31, `CTRL` | Pánico (Ctrl+P), silencio general (Ctrl+M), patch anterior y siguiente, y FX1–FX4, CC 20–23, 127 activo y 0 apagado, para asignarlos a controles de pantalla con **Assign & Map** |
+
+El patch anterior y el siguiente son Program Change, no las flechas de MainStage, para que la pedalera sepa qué patch está puesto: con los patches numerados en el orden de la Patch List, un paso arriba es el patch siguiente, también de un set a otro. 3 y 4 siguen siendo teclas, así que después de ellos la línea de información muestra el patch que seleccionó la pedalera por última vez hasta el siguiente Program Change.
+
+**Los nombres de los patches.** La línea de información es `$N`, el [nombre de preset](09-the-display.md#nombres-de-preset) del programa que seleccionó por última vez la pedalera o el ordenador, o su número si no tiene. `MainStage_Names.py` los lee de tu concierto y los pone en la configuración, el nombre de cada patch bajo su número de Program Change, cortado a los 8 caracteres que guarda la pedalera:
+
+```bash
+.venv/bin/python python/MainStage_Names.py ~/Music/MainStage/"Mi concierto.concert"                                  # listarlos
+.venv/bin/python python/MainStage_Names.py ~/Music/MainStage/"Mi concierto.concert" --csv python/templates/MainStage.csv -o mi-mainstage.csv
+```
+
+Solo lee el concierto. Un patch sin Program Change, con Bank Select o con el número de otro se queda fuera, y lo dice; los nombres de otros programas que ya tenga el CSV se conservan, y `--replace` los quita. Vuelve a ejecutarlo cuando cambie el concierto. Probado en la pedalera con un concierto de dos patches: `Plexi` y `Fortin C` aparecían al avanzar con el botón 2 y al llegar por USB Program Change desde el ordenador.
 
 ### Gig Performer
 

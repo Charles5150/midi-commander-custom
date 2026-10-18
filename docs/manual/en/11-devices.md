@@ -480,8 +480,19 @@ In the tables, Ctrl, Shift and Cmd are the keys the pedal holds with the key; th
 
 | Banks | Buttons |
 |---|---|
-| 0–30, `P000`–`P030` | Entering the bank selects the patch with that program number. 1 and 2 the previous and next patch (↑ ↓), 3 and 4 the first patch of the previous and next set (← →), A play / stop (Space), B recording (Ctrl+R), C the tuner (Cmd+T), D tap tempo (Ctrl+T) |
+| 0–30, `P000`–`P030` | Entering the bank selects the patch with that program number, and the info line shows its name. 1 and 2 the previous and next patch, the Program Change a step down or up, 3 and 4 the first patch of the previous and next set (← →), A play / stop (Space), B recording (Ctrl+R), C the tuner (Cmd+T), D tap tempo (Ctrl+T) |
 | 31, `CTRL` | Panic (Ctrl+P), master mute (Ctrl+M), previous and next patch, and FX1–FX4, CC 20–23, 127 on and 0 off, to assign to screen controls with **Assign & Map** |
+
+The previous and next patch are Program Changes, not MainStage's arrow keys, so the pedal knows which patch is on: with the patches numbered in the order of the Patch List, a step up is the next patch, across sets too. 3 and 4 are still keys, so after them the info line shows the patch the pedal last selected until the next Program Change.
+
+**The patches' names.** The info line is `$N`, the [preset name](09-the-display.md#preset-names) of the program the pedal or the computer selected last, or its number without one. `MainStage_Names.py` reads them from your concert into the configuration, each patch's name under its Program Change number, cut to the 8 characters the pedal keeps:
+
+```bash
+.venv/bin/python python/MainStage_Names.py ~/Music/MainStage/"My Concert.concert"                                  # list them
+.venv/bin/python python/MainStage_Names.py ~/Music/MainStage/"My Concert.concert" --csv python/templates/MainStage.csv -o my-mainstage.csv
+```
+
+It only reads the concert. A patch without a Program Change, on a Bank Select or with the number of another is left out, and said so; the names of other programs in the CSV are kept, `--replace` drops them. Run it again when the concert changes. Tried with a two patch concert on the pedal: `Plexi` and `Fortin C` showed as button 2 stepped and as Program Changes came in from the computer over USB.
 
 ### Gig Performer
 

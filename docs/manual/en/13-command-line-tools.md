@@ -81,6 +81,14 @@ Writes the configuration as a page to print, `my-config.html` beside the CSV unl
 
 Makes a configuration for the devices on your board, as **Your Rig…** in the desktop configurator and **Your rig** in the browser do: each device as its template is named and the MIDI channel it is set to, the main one first, up to four; see [Your rig](11-devices.md#your-rig-several-devices-at-once). The others change preset with the main one unless `--no-follow` is given. Then it lists what to set on each device. `--list` gives the template names. A device or channel with a mistake, two devices on one channel, or a rig with no bank left ends with 2, writing nothing.
 
+## MainStage_Names: a concert's patch names
+
+```bash
+.venv/bin/python python/MainStage_Names.py ~/Music/MainStage/"My Concert.concert" --csv my-config.csv
+```
+
+Puts the names of a MainStage concert's patches into the configuration's [preset names](09-the-display.md#preset-names), each under its Program Change number, so `$N` shows the patch; without `--csv` it only lists them. `-o` writes another file, `--replace` drops the names of other programs. See [Apple MainStage](11-devices.md#apple-mainstage). A folder that is not a concert ends with 2.
+
 ## import_openmidi: the community devices
 
 ```bash

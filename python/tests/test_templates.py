@@ -64,7 +64,7 @@ CC_BUTTONS = {
 }
 # (bank, button, key, modifiers)
 KEYS = {
-    "MainStage.csv": [(0, "1", "up", "0"), (0, "4", "right", "0"), (0, "C", "t", "8"), (0, "D", "t", "1")],
+    "MainStage.csv": [(0, "3", "left", "0"), (0, "4", "right", "0"), (0, "C", "t", "8"), (0, "D", "t", "1")],
     "Gig_Performer.csv": [(0, "2", "down", "0"), (0, "C", "t", "2")],
     "Cantabile.csv": [(0, "1", "t", "2"), (0, "2", "t", "0")],
     "Ableton_Live.csv": [(0, "3", "enter", "0"), (0, "C", "f9", "0"), (0, "B", "space", "2")],
