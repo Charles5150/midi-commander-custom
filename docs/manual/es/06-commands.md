@@ -368,6 +368,27 @@ Los bits 2 y 3 del byte 1 del comando `Chan`: 0x04 apaga el USB y 0x08 la salida
 
 *Firmware 0.84 o posterior.*
 
+#### Todo un canal a una salida
+
+En la mayoría de equipos la salida va con el aparato: el canal 3 es el ampli por el cable DIN, el canal 10 el ordenador por USB. En vez de un `Chan` encima de cada comando, se dice una vez: **Output by channel**, al final de la pestaña Global de los configuradores, elige `Both`, `USB` o `DIN` para cada uno de los dieciséis canales. Al grabar la configuración en la pedalera, las herramientas ponen un `Chan` con esa salida, y sin canales, encima de cada comando de ese canal: `PC`, `CC`, `Note`, `PB`, `Pressure`, `CCInc` y `PCInc`, en todas las listas, las de los botones, las de los bancos y las de los pulsadores de banco.
+
+- Un comando con un `Chan` propio lo conserva, así que un comando puede seguir yendo por su lado: un `Chan` con `Both` lo envía por las dos.
+- Con [`Global_Channel`](#un-canal-o-varios) puesto, todos los comandos salen por ese canal, así que vale la salida de ese canal.
+- Un comando que mueve un `Ramp`, `LFO`, `Seq`, `Tap`, `Exp`, `NRPN` o un `SysEx` que toma su valor tiene ese comando en el sitio del `Chan`, y sale por las dos, como arriba.
+- Cada `Chan` es un comando: una lista que pasaría de sus diez comandos no se graba, y el configurador dice cuál es; dale a uno de sus comandos un `Chan` propio, o haz sitio.
+- La pedalera no guarda la tabla, solo los `Chan` que salieron de ella: una configuración leída de la pedalera los trae escritos, y la tabla vacía. Los pedales de expresión, el mapa MIDI y el reloj no cambian.
+
+En el CSV es la sección `Channel_Ports`, una fila por cada canal que no va por las dos:
+
+```
+* Channel_Ports
+Channel,Port
+3,DIN
+10,USB
+```
+
+Solo las herramientas; el firmware no cambia, los `Chan` funcionan desde la 0.84.
+
 ## Dar forma a una lista
 
 Estos no envían nada por sí mismos: cambian cuándo, si o cómo salen los comandos que tienen alrededor.

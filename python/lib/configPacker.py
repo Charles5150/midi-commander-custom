@@ -6,6 +6,7 @@ firmware/Core/Inc/flash_midi_settings.h.
 
 from contextlib import contextmanager
 
+import lib.channelPorts as channelPorts
 import lib.cmdBinaryPacker as cbp
 import lib.settingsBinaryPacker as sbp
 from lib.displayText import display_bytes
@@ -885,6 +886,7 @@ def pack_double_press(sections: dict):
     Empty command slots are packed as erased flash (0xFF), which the firmware
     reads as "no command", so the tools can skip those chunks entirely.
     """
+    sections = channelPorts.apply(sections)
     rows = {}
     if DOUBLE_PRESS_SECTION in sections:
         for _, row in sections[DOUBLE_PRESS_SECTION].iterrows():
@@ -912,6 +914,7 @@ def pack_flash_image(sections: dict) -> bytes:
     """Everything the tools write: the configuration and, when any button has
     one, the double press commands after the slot's pages (firmware 0.26),
     then the second extension area when it holds something (0.90)."""
+    sections = channelPorts.apply(sections)
     double = pack_double_press(sections)
     image = pack_config(sections, has_double=double is not None)
     if double is not None:
@@ -926,6 +929,7 @@ def pack_config(sections: dict, has_double=None) -> bytes:
     """``sections`` is the dict returned by ``configCsv.read_config_csv``.
     ``has_double`` saves packing the double press commands again when the
     caller already knows whether there are any."""
+    sections = channelPorts.apply(sections)
     df_global = sections["Global_Settings"].set_index("Label")
     df_banks = sections["Bank_Naming"].set_index("Bank_Number")
     df_buttons = sections["Button_Settings"]

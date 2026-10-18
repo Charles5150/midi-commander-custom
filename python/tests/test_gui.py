@@ -212,6 +212,24 @@ class GuiTest(unittest.TestCase):
         self.assertEqual(saved.at["2", "Notes"], "Capo 2\\nslow")
         self.app.load_csv(CSVS[0])
 
+    def test_output_by_channel(self):
+        import pandas as pd
+        import lib.channelPorts as channelPorts
+        sections = read_config_csv(CSVS[0])
+        sections[channelPorts.SECTION] = pd.DataFrame([["5", "din"]], columns=channelPorts.COLUMNS)
+        with tempfile.TemporaryDirectory() as tmp:
+            ported, out = os.path.join(tmp, "ported.csv"), os.path.join(tmp, "saved.csv")
+            write_sections(ported, sections, "test")
+            self.app.load_csv(ported)
+            self.app.update()
+            self.assertEqual(self.app.channel_port_widgets[5].value(), "DIN")
+            self.app.channel_port_widgets[10].set("USB")
+            self.app._collect()
+            self.app._write_csv(out)
+            saved = read_config_csv(out)
+        self.assertEqual(channelPorts.channel_ports(saved[channelPorts.SECTION]), {5: "DIN", 10: "USB"})
+        self.app.load_csv(CSVS[0])
+
     def test_saved_as_loaded(self):
         for path in CSVS:
             with self.subTest(os.path.basename(path)):

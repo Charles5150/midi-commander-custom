@@ -5,7 +5,7 @@ const PYODIDE = "https://cdn.jsdelivr.net/pyodide/v314.0.7/full/";
 
 // Everything webBridge.py imports; tests/test_web_bridge.py keeps this complete
 const FILES = [
-  "webBridge.py", "bankClipboard.py", "bankReorder.py", "binaryUnpacker.py", "cheatSheet.py", "cmdBinaryPacker.py", "configCsv.py", "configDiff.py", "configPacker.py",
+  "webBridge.py", "bankClipboard.py", "bankReorder.py", "binaryUnpacker.py", "channelPorts.py", "cheatSheet.py", "cmdBinaryPacker.py", "configCsv.py", "configDiff.py", "configPacker.py",
   "configSchema.py", "deviceDictionary.py", "devices.json", "displayText.py", "flashLayout.py", "rigWizard.py", "settingsBinaryPacker.py", "songFile.py",
 ];
 

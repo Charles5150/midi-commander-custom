@@ -779,7 +779,33 @@ function renderGlobal(main) {
       const row = present.has(label) ? rowFor(label) : null;
       const ctl = fieldControl(spec, () => (row ? row[1] : ""), (v) => { const r = rowFor(label); if (r[1] !== v) { r[1] = v; changed(); } });
       return h("div", { class: "setting" }, h("span", { class: "setting-name" }, name), named(ctl, name), h("span", { class: "hint" }, hint));
-    })))));
+    })), channelPortsCard()));
+}
+
+// The output each channel goes to; only the channels not on both are rows
+function channelPortsCard() {
+  const sec = section("Channel_Ports") || (state.config.Channel_Ports = { columns: [...state.schema.channelPortColumns], rows: [] });
+  const rowFor = (ch) => sec.rows.find((row) => int(cell(sec, row, "Channel")) === ch);
+  const set = (ch, v) => {
+    const row = rowFor(ch);
+    if (!v || v === "Both") {
+      if (row) { sec.rows.splice(sec.rows.indexOf(row), 1); changed(); }
+      return;
+    }
+    if (row) { setCell(sec, row, "Port", v); return; }
+    const fresh = sec.columns.map(() => "");
+    fresh[col(sec, "Channel")] = String(ch);
+    fresh[col(sec, "Port")] = v;
+    sec.rows.push(fresh);
+    sec.rows.sort((a, b) => int(cell(sec, a, "Channel")) - int(cell(sec, b, "Channel")));
+    changed();
+  };
+  const spec = { kind: "choice", options: state.schema.channelPorts, blank: "Both" };
+  return h("section", { class: "card" },
+    h("h3", {}, "Output by channel"),
+    h("p", { class: "hint" }, "Where each channel's commands go when the configuration is written to the pedal: say once that channel 3 is the amp on DIN and channel 10 the computer on USB. Every PC, CC, note, bend, pressure, CCInc and PCInc on that channel gets a Chan above it with that output, unless it has a Chan of its own. The expression pedals, the MIDI map and the clock are not changed. Needs firmware 0.84."),
+    h("div", { class: "presets" }, Array.from({ length: 16 }, (_, i) =>
+      labelled(`Channel ${i + 1}`, fieldControl(spec, () => cell(sec, rowFor(i + 1), "Port"), (v) => set(i + 1, v))))));
 }
 
 // --- Expression ----------------------------------------------------------------

@@ -91,6 +91,7 @@ from lib import songFile as song_file  # noqa: E402
 from lib import midiMonitor as midi_monitor  # noqa: E402
 from lib.firmwareUpdate import UpdateError, check_image  # noqa: E402
 from lib.slotIO import pack_sections  # noqa: E402
+import lib.channelPorts as channelPorts  # noqa: E402
 
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
@@ -1289,6 +1290,8 @@ class MidiCommanderGUI(ctk.CTk):
         self.midi_map_widgets = []
         self.df_preset_names = None
         self.preset_name_widgets = {}  # program -> TextEntry
+        self.df_channel_ports = None
+        self.channel_port_widgets = {}  # channel -> Option
         self.df_bank_exp = None
         self.bank_exp_widgets = {}  # df index -> {column: widget}
         self.setlist_widgets = []
@@ -1502,6 +1505,8 @@ class MidiCommanderGUI(ctk.CTk):
         self.slot_editors = []
         DeviceContext.forget()
         self._show_file()
+        # Before the Global tab, which shows it
+        self.df_channel_ports = data.get(channelPorts.SECTION)
 
         if "Global_Settings" in data:
             self.df_global = data["Global_Settings"].astype(object).reset_index(drop=True)
@@ -1815,6 +1820,42 @@ class MidiCommanderGUI(ctk.CTk):
                     row=i, column=2, sticky="w", padx=(8, 16))
                 self.global_widgets[idx] = w
             ctk.CTkFrame(card, height=8, fg_color="transparent").grid(row=len(present) + 1, column=0)
+        self._channel_ports_card()
+
+    def _channel_ports_card(self):
+        """The output each channel goes to, in the Global tab."""
+        ports = {}
+        if self.df_channel_ports is not None:
+            for _, r in self.df_channel_ports.iterrows():
+                try:
+                    ports[clean(r.get("Channel"))] = channelPorts.port_name(r.get("Port"))
+                except ValueError:
+                    pass
+        card = ctk.CTkFrame(self.global_scroll, fg_color=CARD_RAISED, corner_radius=10)
+        card.pack(fill="x", padx=8, pady=(4, 10))
+        ctk.CTkLabel(card, text="Output by channel", font=FONT_HEADING).grid(
+            row=0, column=0, columnspan=8, sticky="w", padx=16, pady=(12, 4))
+        ctk.CTkLabel(card, text="Where each channel's commands go when the configuration is written to the "
+                     "pedal: every PC, CC, note, bend, pressure, CCInc and PCInc on that channel gets a Chan "
+                     "above it with that output, unless it has a Chan of its own. Needs firmware 0.84.  \u00b7  "
+                     + channelPorts.SECTION, font=FONT_SMALL, text_color=MUTED, anchor="w", wraplength=760,
+                     justify="left").grid(row=1, column=0, columnspan=8, sticky="w", padx=16, pady=(0, 6))
+        self.channel_port_widgets = {}
+        for ch in range(1, 17):
+            r, c = 2 + (ch - 1) // 4, (ch - 1) % 4
+            ctk.CTkLabel(card, text=f"Channel {ch}", font=FONT_BODY, anchor="e", width=80).grid(
+                row=r, column=2 * c, sticky="e", padx=(16 if c == 0 else 8, 4), pady=4)
+            w = Option(card, channelPorts.PORTS, ports.get(str(ch), "Both"), width=80)
+            w.grid(row=r, column=2 * c + 1, sticky="w", pady=4)
+            self.channel_port_widgets[ch] = w
+        ctk.CTkFrame(card, height=8, fg_color="transparent").grid(row=7, column=0)
+
+    def apply_channel_ports_changes(self):
+        if not self.channel_port_widgets:
+            return
+        rows = [{"Channel": str(ch), "Port": w.value()}
+                for ch, w in sorted(self.channel_port_widgets.items()) if w.value() != "Both"]
+        self.df_channel_ports = pd.DataFrame(rows, columns=channelPorts.COLUMNS)
 
     def _global_widget(self, parent, label, value):
         spec = GLOBAL_FIELDS.get(label, {"kind": "text", "max": 64})
@@ -3619,6 +3660,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.apply_combo_changes()
         self.apply_midi_map_changes()
         self.apply_preset_names_changes()
+        self.apply_channel_ports_changes()
         self.apply_sysex_changes()
         for idx, w in self.global_widgets.items():
             self.df_global.at[idx, "Value"] = w.value()
@@ -3695,6 +3737,7 @@ class MidiCommanderGUI(ctk.CTk):
             df_combos=self.df_combos,
             df_midi_map=self.df_midi_map,
             df_preset_names=self.df_preset_names,
+            df_channel_ports=self.df_channel_ports,
         )
 
     def _config_text(self):

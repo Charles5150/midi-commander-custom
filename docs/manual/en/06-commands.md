@@ -368,6 +368,27 @@ Bits 2 and 3 of the `Chan` command's byte 1: 0x04 turns USB off, 0x08 the DIN ou
 
 *Firmware 0.84 or later.*
 
+#### A whole channel to one output
+
+In most rigs the output follows the device: channel 3 is the amp on the DIN cable, channel 10 the computer on USB. Rather than a `Chan` above every command, say it once: **Output by channel**, at the end of the configurators' Global tab, picks `Both`, `USB` or `DIN` for each of the sixteen channels. When the configuration is written to the pedal, the tools put a `Chan` with that output, and no channel, above every command on such a channel: `PC`, `CC`, `Note`, `PB`, `Pressure`, `CCInc` and `PCInc`, in every list, the buttons', the banks' and the bank switches'.
+
+- A command with a `Chan` of its own keeps it, so one command can still go its own way: a `Chan` with `Both` sends it on both.
+- With [`Global_Channel`](#one-channel-or-several) set, every command goes out on that channel, so its output is what applies.
+- A command driven by a `Ramp`, `LFO`, `Seq`, `Tap`, `Exp`, `NRPN` or a `SysEx` taking its value has that command in the place of the `Chan`, and goes out on both, as above.
+- Each `Chan` is a command: a list that would go past its ten commands is not written, and the configurator says which one; give one of its commands a `Chan` of its own, or make room.
+- The pedal does not keep the table, only the `Chan` commands it made: a configuration read back from the pedal has them written out, and the table empty. The expression pedals, the MIDI map and the clock are not changed.
+
+In the CSV it is the `Channel_Ports` section, one row for each channel not on both:
+
+```
+* Channel_Ports
+Channel,Port
+3,DIN
+10,USB
+```
+
+The tools only; the firmware needs no change, the `Chan` commands work on 0.84 or later.
+
 ## Shaping a list
 
 These send nothing themselves: they change when, whether or how the commands around them go out.

@@ -410,6 +410,19 @@ test("a bank's enter list of 80 messages reaches USB and DIN whole (before 1.03,
   assert.deepEqual(list("DIN"), want);
 });
 
+test("Channel_Ports: the tools put a Chan above the commands of a channel, so they go to one output alone", async () => {
+  const sim = simWithDemo(await flashWith(packDemo(
+    "import pandas as pd; d['Channel_Ports'] = pd.DataFrame([['1', 'USB'], ['2', 'DIN']], columns=['Channel', 'Port'])"
+    // Its list is full, with no room for the Chan commands
+    + "; b = d['Button_Settings']; d['Button_Settings'] = b[~((b['Bank_Number'] == '11') & (b['Button_Identifier'] == 'D'))]")));
+  const seen = watch(sim);
+  tap(sim, 0);                              // to the looper bank
+  tap(sim, 0);                              // its button 1 sends CC 1 on channel 1
+  assert.deepEqual(seen.splice(0), ["USB b0 01 7f"], "channel 1 on USB alone");
+  tap(sim, 0);
+  assert.deepEqual(seen.splice(0), ["USB b0 01 00"], "and its off value with it");
+});
+
 test("with Song CC, the computer picks a song by its place in the setlist, past the last one nothing (before 1.38, a bank)", async () => {
   const mode = (m, list) => "g = d['Global_Settings']; g.loc[g['Label'] == 'Bank_Change_Mode', 'Value'] = '" + m + "'"
     + "; g.loc[g['Label'] == 'Setlist_Mode', 'Value'] = '" + list + "'";

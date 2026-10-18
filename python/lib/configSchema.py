@@ -15,6 +15,7 @@ A field is a dict:
   when     {col: [values]}: shown only while that column holds one of them
 """
 
+import lib.channelPorts as channelPorts
 from lib.cmdBinaryPacker import (
     BUTTON_ACTIONS, CHAN_OUTPUTS, EXP_TARGETS, HID_SPECIAL_KEYS, IF_BANK_TESTS, IF_BUTTON_TESTS,
     IF_TESTS, IF_VALUE_TESTS, LFO_DIVISIONS, LFO_SHAPES, LISTEN_LOOKS, MACRO_LISTS, MEDIA_KEYS,
@@ -451,4 +452,6 @@ def schema() -> dict:
         "presetNameColumns": PRESET_NAME_COLUMNS,
         "presetNameCount": PRESET_NAME_COUNT,
         "presetNameLength": PRESET_NAME_LEN,
+        "channelPortColumns": channelPorts.COLUMNS,
+        "channelPorts": channelPorts.PORTS,
     }

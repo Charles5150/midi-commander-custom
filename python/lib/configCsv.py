@@ -67,6 +67,7 @@ SECTION_ARGS = [
     ("Combo_Settings", "df_combos"),
     ("MidiMap_Settings", "df_midi_map"),
     ("Preset_Names", "df_preset_names"),
+    ("Channel_Ports", "df_channel_ports"),
 ]
 
 
@@ -92,6 +93,7 @@ def write_config_csv(
     df_combos: pd.DataFrame = None,
     df_midi_map: pd.DataFrame = None,
     df_preset_names: pd.DataFrame = None,
+    df_channel_ports: pd.DataFrame = None,
 ) -> None:
     # "\n" everywhere: pandas would end its rows with os.linesep, "\r\n" on
     # Windows, among the section lines written here with "\n"
@@ -165,3 +167,8 @@ def write_config_csv(
             f.write(PAD + "\n")
             f.write("* Preset_Names" + PAD + "\n")
             df_preset_names.to_csv(f, index=False, lineterminator="\n")
+
+        if df_channel_ports is not None and len(df_channel_ports):
+            f.write(PAD + "\n")
+            f.write("* Channel_Ports" + PAD + "\n")
+            df_channel_ports.to_csv(f, index=False, lineterminator="\n")
