@@ -42,7 +42,7 @@ Dos grupos, FILE (archivo) y PEDAL (pedalera), con el nombre del archivo abierto
 Donde se ponen los comandos de cada botón. Mira [Botones](05-buttons.md) y [Comandos](06-commands.md).
 
 1. Elige un banco y luego un botón de los ocho, colocados como en la pedalera: del 1 al 4 arriba, de la A a la D abajo. El que estás editando sale resaltado.
-2. Arriba, pon su **display label** (etiqueta en pantalla), **LED light mode** (modo del LED) y **exclusive group** (grupo exclusivo), y marca **Momentary when held**, **Flash at the tempo**, **Global**, **Reset on bank change**, **Press at once** o **Reload when lit** si hace falta.
+2. Arriba, pon su **display label** (etiqueta en pantalla), la de **when on** (encendido; mira [Una etiqueta para cuando está encendido](05-buttons.md#una-etiqueta-para-cuando-está-encendido)), **LED light mode** (modo del LED) y **exclusive group** (grupo exclusivo), y marca **Momentary when held**, **Flash at the tempo**, **Global**, **Reset on bank change**, **Press at once** o **Reload when lit** si hace falta.
 3. Debajo hay diez casillas de comando, de la A a la J. Elige el tipo de comando de una casilla y solo aparecen los campos que usa ese tipo.
 4. **Short press / Long press / Double press** cambia las casillas entre las tres listas de comandos del botón: corta, larga y doble.
 

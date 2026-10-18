@@ -13,7 +13,7 @@ from lib.flashLayout import (
     NUM_BANKS, BUTTON_IDS, EXP_BUTTON_IDS, BOX_SWITCH_IDS, LABEL_LEN, EXP_STRIDE,
     SYSEX_STRING_COUNT, SYSEX_STRING_MAX, BANK_SWITCH_LISTS, SETLIST_MAX, COMBO_COUNT,
     DOUBLE_PRESS_OFFSET, EXT2_OFFSET, EXT2_MARKER, EXT2_MAP_OFFSET, MIDI_MAP_COUNT, MIDI_MAP_STRIDE,
-    EXT2_TAKEOVER_OFFSET, EXT2_EXP_DISPLAY_OFFSET,
+    EXT2_TAKEOVER_OFFSET, EXT2_EXP_DISPLAY_OFFSET, EXT2_ON_LABELS_OFFSET,
     EXT2_BANK_SWITCH_LABELS_SIZE, PRESET_NAME_LEN, PRESET_NAME_COUNT, SETLIST_COUNT, SETLIST_NAME_LEN,
 )
 
@@ -445,13 +445,15 @@ def pack_midi_map(df) -> bytes:
     return bytes(out)
 
 
-def pack_long_labels(df) -> bytes:
+def pack_long_labels(df, column="Long_Label") -> bytes:
     """The labels of the long presses (the Long_Label column of LongPress_Settings,
-    firmware 0.91), LABEL_LEN bytes per button; all 0xFF when there are none."""
+    firmware 0.91), or of the buttons while their toggle is on (the On_Label
+    column of Button_Settings, firmware 1.37), LABEL_LEN bytes per button; all
+    0xFF when there are none."""
     rows = {}
-    if df is not None and "Long_Label" in df.columns:
+    if df is not None and column in df.columns:
         for _, row in df.iterrows():
-            rows[_key(row["Bank_Number"], row["Button_Identifier"])] = row.get("Long_Label", "")
+            rows[_key(row["Bank_Number"], row["Button_Identifier"])] = row.get(column, "")
     if not any(_cell(v) for v in rows.values()):
         return b"\xff" * (NUM_BANKS * len(BUTTON_IDS) * LABEL_LEN)
     return b"".join(pack_label(rows.get((str(bank), btn), ""))
@@ -520,7 +522,8 @@ def pack_ext2(sections: dict):
              pack_long_labels(sections.get(LONG_PRESS_SECTION)),
              pack_bank_switch_labels(sections.get(BANK_SWITCH_SECTION)),
              pack_preset_names(sections.get(PRESET_NAMES_SECTION)),
-             pack_ext2_setlists(sections.get(SETLIST_SECTION))]
+             pack_ext2_setlists(sections.get(SETLIST_SECTION)),
+             pack_long_labels(sections.get("Button_Settings"), "On_Label")]
     takeover = expression_takeover(sections.get(EXPRESSION_SECTION))
     shows = expression_display(sections.get(EXPRESSION_SECTION))
     if takeover == 0xFF and shows == 0xFF and all(p.count(0xFF) == len(p) for p in parts):

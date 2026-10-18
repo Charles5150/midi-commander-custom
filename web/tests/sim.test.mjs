@@ -101,8 +101,9 @@ test("the demo written over SysEx reads back the same", async () => {
   assert.deepEqual((await pedal.selectSlot(null)).valid, [0]);
   // As the page takes them from the tools (py.js): the double press area,
   // then the second extension area with the MIDI map, the long press labels,
-  // the bank switches' labels, the preset names and the setlists
-  const sizes = { config: demo.config.length, double: 10240, doubleOffset: 12 * 2048, ext2Offset: 17 * 2048, ext2: 16 + 32 * 12 + 32 * 8 * 4 + 16 + 128 * 8 + 3 * 32 + 4 * 8 };
+  // the bank switches' labels, the preset names, the setlists and the labels
+  // when on
+  const sizes = { config: demo.config.length, double: 10240, doubleOffset: 12 * 2048, ext2Offset: 17 * 2048, ext2: 16 + 32 * 12 + 32 * 8 * 4 + 16 + 128 * 8 + 3 * 32 + 4 * 8 + 32 * 8 * 4 };
   const back = await running(sim, () => pedal.readImage(firmwareVersion, sizes));
   assert.deepEqual(back.data, demo.config);
   assert.deepEqual(back.image, demo.image);
@@ -979,6 +980,24 @@ test("at MIDI only, a bank switch's toggle lights its LED and its cell, and foll
   assert.equal(sim.leds()[9], 0);
   assert.ok(smallTextAt(sim, 102, 26, "NEXT"));
   assert.equal(sim.leds()[8], 16, "Bank Down's still on");
+});
+
+test("a button with a label for when it is on shows it while its toggle is on (before 1.37, always its own)", async () => {
+  const button = "b = d['Button_Settings']\nr = (b.Bank_Number == '1') & (b.Button_Identifier == '1')\n";
+  const plain = simWithDemo();
+  const withOn = simWithDemo(await flashWith(packDemo(button + "b.loc[r, 'On_Label'] = 'RECG'")));
+  const asOwn = simWithDemo(await flashWith(packDemo(button + "b.loc[r, ['Label', 'On_Label']] = ['RECG', '']")));
+  const all = [plain, withOn, asOwn];
+  const step = () => all.forEach((sim) => { tap(sim, 0); sim.run(200); });
+  all.forEach((sim) => sim.run(10000));     // the demo's power on banner goes by first
+  step();                                   // the looper bank, REC off
+  assert.equal(cellRows(withOn), cellRows(plain), "off: its own label");
+  assert.notEqual(cellRows(withOn), cellRows(asOwn));
+  step();                                   // REC on
+  assert.equal(cellRows(withOn), cellRows(asOwn), "on: the other one, inverted");
+  assert.notEqual(cellRows(withOn), cellRows(plain));
+  step();                                   // and off again
+  assert.equal(cellRows(withOn), cellRows(plain));
 });
 
 test("a line the display does not take is sent again, and the screen catches up (before 1.14, it froze)", async () => {

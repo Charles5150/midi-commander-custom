@@ -142,6 +142,8 @@ class _Sheet:
                 lines.append(f"<p><i>{press}:</i> {escape(text)}</p>")
         flags = [t for col, t in (("Global", "global"), ("Momentary_Hold", "momentary when held"))
                  if _yes(short.get(col))]
+        if short.get("On_Label", ""):
+            flags.append(f"{short['On_Label']} when on")
         if short.get("Group", "") not in ("", "None", "0"):
             flags.append(f"group {short['Group']}")
         if flags:

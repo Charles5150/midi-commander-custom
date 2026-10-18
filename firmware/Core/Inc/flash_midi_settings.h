@@ -325,6 +325,9 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
  *             first one in the slot; erased flash is an empty list
  *   [2560..]  the names of setlists 1 to 4, SETLIST_NAME_LEN chars each, space
  *             padded; erased flash or spaces is no name
+ *   [2592..]  labels shown while a button's toggle is on (1.37),
+ *             BUTTON_LABEL_LEN chars per button, as the labels in the slot;
+ *             erased flash or spaces is no label, and the button's own shows
  */
 #define FLASH_EXT2_PAGES		(2)
 #define FLASH_EXT2_ADDR(n)		(FLASH_BANNER_ADDR + FLASH_PAGE_SIZE + (n) * FLASH_EXT2_PAGES * FLASH_PAGE_SIZE)
@@ -355,7 +358,8 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
 #define SETLIST_NAME_LEN		(8)
 #define EXT2_SETLISTS_OFF		(EXT2_PRESET_NAMES_OFF + PRESET_NAME_COUNT * PRESET_NAME_LEN)
 #define EXT2_SETLIST_NAMES_OFF	(EXT2_SETLISTS_OFF + (SETLIST_COUNT - 1) * SETLIST_MAX)
-#define EXT2_SIZE				(EXT2_SETLIST_NAMES_OFF + SETLIST_COUNT * SETLIST_NAME_LEN)
+#define EXT2_ON_LABELS_OFF		(EXT2_SETLIST_NAMES_OFF + SETLIST_COUNT * SETLIST_NAME_LEN)
+#define EXT2_SIZE				(EXT2_ON_LABELS_OFF + CFG_BUTTONS * BUTTON_LABEL_LEN)
 
 /*
  * MIDI map: what a message arriving over USB turns into. Every entry that
@@ -389,6 +393,8 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
 const uint8_t *flash_settings_midi_map(void);
 // The active slot's long press labels, or NULL when its tools wrote none
 const uint8_t *flash_settings_long_labels(void);
+// The active slot's labels while a toggle is on (1.37), or NULL
+const uint8_t *flash_settings_on_labels(void);
 // The active slot's Bank Down and Bank Up labels, in that order, or NULL
 const uint8_t *flash_settings_bank_switch_labels(void);
 // The active slot's preset names, or NULL

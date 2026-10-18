@@ -1315,6 +1315,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.editing_row = None
         self.light_mode = None
         self.label_entry = None
+        self.on_label_entry = None
 
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -1743,7 +1744,7 @@ class MidiCommanderGUI(ctk.CTk):
         }
         columns = ["Bank_Number", "Button_Identifier"]
         if with_extras:
-            columns += ["Label"]
+            columns += ["Label", "On_Label"]
         if long_label:
             columns += ["Long_Label"]
         for slot in SLOTS:
@@ -1762,6 +1763,7 @@ class MidiCommanderGUI(ctk.CTk):
                     row["Long_Label"] = ""
                 if with_extras:
                     row["Label"] = ""
+                    row["On_Label"] = ""
                     row["Light_Mode"] = "Normal"
                     row["Group"] = ""
                     row["Momentary_Hold"] = ""
@@ -2285,6 +2287,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.editing_button = (row_index, btn_id)
         self._highlight_button(clean(btn_id).upper())
         self.label_entry = None
+        self.on_label_entry = None
         self.light_mode = None
         self.group = None
         self.momentary_hold = None
@@ -2310,6 +2313,9 @@ class MidiCommanderGUI(ctk.CTk):
             ctk.CTkLabel(light_frame, text="Display label:", font=BOLD).pack(side="left")
             self.label_entry = TextEntry(light_frame, 4, current.get("Label"), width=70, display=True)
             self.label_entry.pack(side="left", padx=(8, 20))
+            ctk.CTkLabel(light_frame, text="When on:", font=BOLD).pack(side="left")
+            self.on_label_entry = TextEntry(light_frame, 4, current.get("On_Label"), width=70, display=True)
+            self.on_label_entry.pack(side="left", padx=(8, 20))
             ctk.CTkLabel(light_frame, text="LED light mode:", font=BOLD).pack(side="left")
             self.light_mode = Option(light_frame, LED_MODES, current.get("Light_Mode"), width=110)
             self.light_mode.pack(side="left", padx=8)
@@ -2487,6 +2493,8 @@ class MidiCommanderGUI(ctk.CTk):
             self.df_buttons.at[idx, "Reload_When_Lit"] = "Y" if self.reload_when_lit.value() == "Y" else ""
         if self.label_entry is not None:
             df.at[idx, "Long_Label" if df is self.df_long else "Label"] = self.label_entry.value().strip()
+        if self.on_label_entry is not None:
+            self.df_buttons.at[idx, "On_Label"] = self.on_label_entry.value().strip()
 
         if not silent:
             messagebox.showinfo(

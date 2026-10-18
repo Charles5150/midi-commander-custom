@@ -25,7 +25,7 @@ from lib.flashLayout import (
     DOUBLE_PRESS_SIZE, EXT2_OFFSET, EXT2_MARKER, EXT2_MAP_OFFSET, MIDI_MAP_COUNT, EXT2_TAKEOVER_OFFSET, EXT2_EXP_DISPLAY_OFFSET,
     MIDI_MAP_STRIDE, EXT2_LONG_LABELS_OFFSET, EXT2_BANK_SWITCH_LABELS_OFFSET, EXT2_SIZE,
     EXT2_PRESET_NAMES_OFFSET, PRESET_NAME_LEN, PRESET_NAME_COUNT,
-    EXT2_SETLISTS_OFFSET, EXT2_SETLIST_NAMES_OFFSET, SETLIST_COUNT, SETLIST_NAME_LEN,
+    EXT2_SETLISTS_OFFSET, EXT2_SETLIST_NAMES_OFFSET, SETLIST_COUNT, SETLIST_NAME_LEN, EXT2_ON_LABELS_OFFSET,
 )
 
 from lib.cmdBinaryPacker import (
@@ -513,7 +513,7 @@ def unpack_command(raw: bytes, cycle_labels=None) -> dict:
 
 
 def unpack_button_settings(data: bytes) -> pd.DataFrame:
-    columns = ["Bank_Number", "Button_Identifier", "Label"]
+    columns = ["Bank_Number", "Button_Identifier", "Label", "On_Label"]
     for slot in SLOT_NAMES:
         columns += [f"{slot}_{f}" for f in CMD_FIELDS]
     columns += ["Light_Mode", "Group", "Momentary_Hold", "Tempo_Flash", "Global",
@@ -521,6 +521,9 @@ def unpack_button_settings(data: bytes) -> pd.DataFrame:
     columns += [f"{slot}_KeyMode_(Key)" for slot in SLOT_NAMES]
 
     cycle_labels = unpack_cycle_labels(data)
+    # The labels while the toggle is on, which a full image holds (firmware 1.37)
+    ext = bytes(data[EXT2_OFFSET:EXT2_OFFSET + EXT2_SIZE])
+    on_labels = ext[EXT2_ON_LABELS_OFFSET:] if ext.startswith(EXT2_MARKER) else b""
     rows = []
     for bank in range(NUM_BANKS):
         for btn_index, btn_id in enumerate(BUTTON_IDS):
@@ -531,6 +534,7 @@ def unpack_button_settings(data: bytes) -> pd.DataFrame:
                 "Bank_Number": str(bank),
                 "Button_Identifier": btn_id,
                 "Label": label,
+                "On_Label": _ascii(on_labels[button_number * LABEL_LEN:(button_number + 1) * LABEL_LEN]),
                 "Reset_On_Bank": reset,
                 "Instant_Press": instant,
                 "Reload_When_Lit": reload,
@@ -759,7 +763,7 @@ def unpack_setlist(data: bytes) -> pd.DataFrame:
     names (firmware 1.33)."""
     lists = {1: ("", _setlist_banks(bytes(data[SETLIST_OFFSET:SETLIST_OFFSET + SETLIST_MAX])))}
     ext = bytes(data[EXT2_OFFSET:EXT2_OFFSET + EXT2_SIZE])
-    if ext.startswith(EXT2_MARKER) and len(ext) >= EXT2_SIZE:
+    if ext.startswith(EXT2_MARKER) and len(ext) >= EXT2_ON_LABELS_OFFSET:
         for n in range(1, SETLIST_COUNT + 1):
             name = ext[EXT2_SETLIST_NAMES_OFFSET + (n - 1) * SETLIST_NAME_LEN:][:SETLIST_NAME_LEN]
             name = "" if name == b"\xff" * SETLIST_NAME_LEN else name.decode("ascii", "replace").rstrip()

@@ -56,7 +56,7 @@ _Static_assert(EXT2_LONG_LABELS_OFF + CFG_BUTTONS * BUTTON_LABEL_LEN <= FLASH_EX
 _Static_assert(EXT2_BANK_SW_LABELS_OFF + EXT2_BANK_SW_LABELS_SIZE <= FLASH_EXT2_PAGES * FLASH_PAGE_SIZE,
 		"the bank switch labels do not fit in the second extension area");
 _Static_assert(EXT2_SIZE <= FLASH_EXT2_PAGES * FLASH_PAGE_SIZE,
-		"the setlists do not fit in the second extension area");
+		"the setlists and the labels when on do not fit in the second extension area");
 _Static_assert(EXT2_SETLISTS_OFF / FLASH_PAGE_SIZE == (EXT2_SETLIST_NAMES_OFF - 1) / FLASH_PAGE_SIZE,
 		"the setlists straddle two pages, which the on-pedal editor cannot patch");
 
@@ -127,6 +127,10 @@ const uint8_t *flash_settings_midi_map(void){
 
 const uint8_t *flash_settings_long_labels(void){
 	return ext2_part(EXT2_LONG_LABELS_OFF);
+}
+
+const uint8_t *flash_settings_on_labels(void){
+	return ext2_part(EXT2_ON_LABELS_OFF);
 }
 
 const uint8_t *flash_settings_bank_switch_labels(void){

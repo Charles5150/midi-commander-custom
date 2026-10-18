@@ -79,6 +79,7 @@ class DoublePressTest(unittest.TestCase):
                                  packer.PRESET_NAMES_SECTION, packer.SETLIST_SECTION)}
         sections[packer.LONG_PRESS_SECTION] = sections[packer.LONG_PRESS_SECTION].assign(Long_Label="")
         sections[packer.BANK_SWITCH_SECTION] = sections[packer.BANK_SWITCH_SECTION].assign(Label="")
+        sections["Button_Settings"] = sections["Button_Settings"].assign(On_Label="")
         sections[packer.EXPRESSION_SECTION] = sections[packer.EXPRESSION_SECTION].assign(Takeover="Jump", Display="Off")
         self.assertEqual(packer.pack_flash_image(sections), packer.pack_config(sections))
         self.assertIsNone(packer.pack_double_press(sections))
@@ -927,6 +928,66 @@ class LongLabelTest(unittest.TestCase):
         self.assertIn("const uint8_t *all = flash_settings_long_labels();", router)
         flash = self.source("Src", "flash_midi_settings.c")
         self.assertIn("return ext2_part(EXT2_LONG_LABELS_OFF);", flash)
+
+
+
+class OnLabelTest(unittest.TestCase):
+    """A label shown while a button's toggle is on (1.37)."""
+
+    def sections(self, labels):
+        sections = dict(read_config_csv(SAMPLE_CSV))
+        df = sections["Button_Settings"].copy()
+        df["On_Label"] = ""
+        for (bank, btn), text in labels.items():
+            df.loc[(df["Bank_Number"] == str(bank)) & (df["Button_Identifier"] == btn), "On_Label"] = text
+        sections["Button_Settings"] = df
+        return sections
+
+    def test_layout_agrees(self):
+        header = firmware_source("Inc", "flash_midi_settings.h")
+        self.assertIn("#define EXT2_ON_LABELS_OFF		(EXT2_SETLIST_NAMES_OFF + SETLIST_COUNT * SETLIST_NAME_LEN)",
+                      header)
+        self.assertIn("#define EXT2_SIZE				(EXT2_ON_LABELS_OFF + CFG_BUTTONS * BUTTON_LABEL_LEN)", header)
+        self.assertEqual(layout.EXT2_SIZE, layout.EXT2_ON_LABELS_OFFSET + 32 * 8 * 4)
+        self.assertLessEqual(layout.EXT2_SIZE, layout.EXT2_PAGES * 2048)
+
+    def test_labels_alone_write_the_area(self):
+        image = packer.pack_flash_image(self.sections({(1, "1"): "*REC", (0, "D"): "on"}))
+        ext = image[layout.EXT2_OFFSET:]
+        self.assertEqual(ext[:4], b"EXT2")
+        labels = ext[layout.EXT2_ON_LABELS_OFFSET:]
+        self.assertEqual(len(labels), 32 * 8 * 4)
+        self.assertEqual(labels[8 * 4:9 * 4], b"*REC")
+        self.assertEqual(labels[:4], b"    ")
+        self.assertEqual(labels[7 * 4:8 * 4], b"on  ")
+        self.assertEqual(labels[-4:], b"    ")
+        back = unpacker.unpack_button_settings(image)
+        self.assertEqual(back.loc[(back["Bank_Number"] == "1") & (back["Button_Identifier"] == "1"), "On_Label"].tolist(),
+                         ["*REC"])
+        self.assertEqual(back["On_Label"].tolist()[7], "on")
+        self.assertEqual(list(back.columns[:4]), ["Bank_Number", "Button_Identifier", "Label", "On_Label"])
+
+    def test_none_no_area(self):
+        """Without the column, or with it empty, nothing changes."""
+        self.assertIsNone(packer.pack_ext2(self.sections({})))
+        sections = dict(read_config_csv(SAMPLE_CSV))
+        self.assertNotIn("On_Label", sections["Button_Settings"].columns)
+        self.assertIsNone(packer.pack_ext2(sections))
+        image = packer.pack_flash_image(sections)
+        self.assertEqual(set(unpacker.unpack_button_settings(image)["On_Label"]), {""})
+
+    def test_demo(self):
+        """REC in the looper bank shows *REC while it records."""
+        back = unpacker.unpack_button_settings(packer.pack_flash_image(read_config_csv(DEMO_CSV)))
+        on = back[back["On_Label"] != ""]
+        self.assertEqual(on[["Bank_Number", "Button_Identifier", "Label", "On_Label"]].values.tolist(),
+                         [["1", "1", "REC", "*REC"]])
+
+    def test_firmware(self):
+        router = firmware_source("Src", "switch_router.c")
+        self.assertIn("const uint8_t *on = flash_settings_on_labels();", router)
+        self.assertIn("sw_button_is_toggle(shown, sw) && sw_get_toggle_state(shown, sw)) return on;", router)
+        self.assertIn("return ext2_part(EXT2_ON_LABELS_OFF);", firmware_source("Src", "flash_midi_settings.c"))
 
 
 if __name__ == "__main__":

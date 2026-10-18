@@ -178,6 +178,7 @@ GLOBAL_FIELDS = {
 # A button's own settings, besides its command lists
 BUTTON_FIELDS = [
     {"col": "Label", "label": "Label", "kind": "text", "max": 4, "display": True},
+    {"col": "On_Label", "label": "Label when on", "kind": "text", "max": 4, "display": True},
     {"col": "Light_Mode", "label": "LED", **_choice(LED_MODES)},
     {"col": "Group", "label": "Exclusive group", **_choice(BUTTON_GROUPS, blank="None")},
     {"col": "Momentary_Hold", "label": "Momentary when held", "kind": "check", "off": ""},

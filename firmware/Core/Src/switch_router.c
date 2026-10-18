@@ -733,6 +733,7 @@ static bool lock_passes(uint8_t sw){
 
 const uint8_t *sw_button_label(uint8_t bank, uint8_t sw){
 	if(sw_preview_bank() != 0xFF && (sw_preview_bank() & PREVIEW_DIRECT)) return direct_label(sw);
+	uint8_t shown = bank;
 	bank = button_bank(bank, sw);	// a global button shows the stored label
 	uint16_t k = (uint16_t)(bank * MIDI_NUM_SWITCHES + sw);
 	if(reveal){
@@ -742,6 +743,12 @@ const uint8_t *sw_button_label(uint8_t bank, uint8_t sw){
 		return (l && l[0] != 0xFF && l[0] != ' ') ? l : none;
 	}
 	const uint8_t *own = pButtonLabels + k * BUTTON_LABEL_LEN;
+	// Its label while its toggle is on, when it has one
+	const uint8_t *on = flash_settings_on_labels();
+	if(on){
+		on += k * BUTTON_LABEL_LEN;
+		if(on[0] != 0xFF && on[0] != ' ' && sw_button_is_toggle(shown, sw) && sw_get_toggle_state(shown, sw)) return on;
+	}
 	uint8_t pos = cycle_pos[k];
 	if(pos == CYCLE_NONE) return own;
 	const uint8_t *base = get_rom_pointer(bank, sw, 0);

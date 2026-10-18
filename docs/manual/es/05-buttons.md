@@ -115,6 +115,12 @@ Su LED sigue uno de tres modos, el **LED light mode** del configurador:
 
 **Flash at the tempo** (`Tempo_Flash`) hace que el LED de cualquier botón parpadee con el pulso; mira [LED del tap](07-tempo.md#led-del-tap).
 
+## Una etiqueta para cuando está encendido
+
+La casilla invertida de un toggle dice que está encendido, no lo que eso significa. Dale al botón una segunda etiqueta, **Label when on** en los configuradores (`On_Label` en el CSV), de hasta 4 caracteres, y su casilla la muestra mientras el toggle está encendido y su propia etiqueta mientras está apagado: `DLY` apagado y `DLY!` encendido, o `CLN` y `DIST` para cambiar de canal, `PLAY` y `STOP` para un looper. Cambia por donde cambie el toggle: con el pie, desde el ordenador con `LED_Feedback`, desde un [toggle enlazado](#toggles-enlazados) o una [escena](#escenas); y puede llevar [valores en vivo](09-the-display.md#valores-en-vivo), como la etiqueta. Una etiqueta [enviada desde el ordenador](09-the-display.md#etiquetas-de-los-botones) sigue yendo por delante de las dos. El banco del looper del demo (LOOP) tiene una: REC muestra `*REC` mientras graba.
+
+*Firmware 1.37 o posterior. Las etiquetas van en la segunda zona de extensión, después de los setlists; un firmware anterior muestra la etiqueta propia del botón.*
+
 ## Etiquetas de la pulsación larga
 
 Con tres listas en un botón, lo que hace al mantenerlo es lo primero que se olvida en directo. Dale a cada pulsación larga su propia etiqueta, de hasta 4 caracteres, y a un botón un comando `Bank` con **Action** `Reveal`: mientras mantienes ese botón, cada botón muestra la etiqueta de su pulsación larga en lugar de la suya, un guion si no tiene, y al soltarlo el banco queda como antes. Mientras tanto los demás botones siguen funcionando.
@@ -316,6 +322,7 @@ Una fila por botón, 256 filas en orden de banco y, dentro de cada banco, en el 
 
 - `Bank_Number`, `Button_Identifier`
 - `Label`: hasta 4 caracteres que se ven en la pantalla. Vacía, muestra el identificador del botón. Puede llevar [valores en vivo](09-the-display.md#valores-en-vivo), `$V` para el valor del botón o `$N` para el nombre de un preset.
+- `On_Label`: opcional, hasta 4 caracteres que se ven en lugar de `Label` mientras el toggle del botón está encendido (mira [Una etiqueta para cuando está encendido](#una-etiqueta-para-cuando-está-encendido)); vacía, o sin la columna, se queda `Label`. Va en la segunda zona de extensión.
 - `Light_Mode`: Normal / Reverse / AlwaysOn.
 - `Group`: vacío, o un grupo exclusivo del 1 al 4 (mira [Grupos exclusivos](#grupos-exclusivos)).
 - `Momentary_Hold`: `Y` para un toggle que es momentáneo si lo mantienes (mira [Enclavar o momentáneo](#enclavar-o-momentáneo)); vacío o `N` si no.

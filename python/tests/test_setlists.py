@@ -42,10 +42,10 @@ class SetlistsTest(unittest.TestCase):
                       header)
         self.assertIn("#define EXT2_SETLIST_NAMES_OFF	(EXT2_SETLISTS_OFF + (SETLIST_COUNT - 1) * SETLIST_MAX)",
                       header)
-        self.assertIn("#define EXT2_SIZE				(EXT2_SETLIST_NAMES_OFF + SETLIST_COUNT * SETLIST_NAME_LEN)",
+        self.assertIn("#define EXT2_ON_LABELS_OFF		(EXT2_SETLIST_NAMES_OFF + SETLIST_COUNT * SETLIST_NAME_LEN)",
                       header)
         self.assertEqual(layout.EXT2_SETLISTS_OFFSET, 2464)
-        self.assertEqual(layout.EXT2_SIZE, 2592)
+        self.assertEqual(layout.EXT2_ON_LABELS_OFFSET, 2592)
         self.assertEqual(layout.EXT2_SIZE % 16, 0)        # the tools move it 16 bytes at a time
         self.assertIn("#define BANK_MODE_SETLIST	(11)", firmware_source("Inc", "midi_defines.h"))
         self.assertIn("#define SETLIST_NEXT		(0x7F)", firmware_source("Inc", "midi_defines.h"))
@@ -74,6 +74,7 @@ class SetlistsTest(unittest.TestCase):
         for name in (packer.MIDI_MAP_SECTION, packer.PRESET_NAMES_SECTION, packer.LONG_PRESS_SECTION,
                      packer.BANK_SWITCH_SECTION):
             sections.pop(name)
+        sections["Button_Settings"] = sections["Button_Settings"].drop(columns=["On_Label"])
         sections[packer.EXPRESSION_SECTION] = sections[packer.EXPRESSION_SECTION].assign(
             Takeover="Jump", Display="Off")
         self.assertIsNone(packer.pack_ext2(sections))

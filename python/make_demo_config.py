@@ -159,6 +159,12 @@ class Demo:
         for key, value in fields.items():
             self.long.at[i, f"{slot}_{key}"] = value
 
+    def on_label(self, bank, btn, text):
+        # The column only in a configuration that uses it, as the templates do not
+        if "On_Label" not in self.buttons.columns:
+            self.buttons.insert(3, "On_Label", "")
+        self.buttons.at[self._index(self.buttons, bank, btn), "On_Label"] = text
+
     def long_label(self, bank, btn, text):
         self.long.at[self._index(self.long, bank, btn), "Long_Label"] = text
 
@@ -302,6 +308,7 @@ def build() -> Demo:
 
     # --- bank 1: looper, the everyday case -------------------------------
     d.cc(1, "1", "REC", "1", toggle="Y", light="AlwaysOn")
+    d.on_label(1, "1", "*REC")    # while it is on
     # It reports recording and overdubbing on CC 23, 1 and 2, 0 when neither:
     # REC's LED blinks fast while it records and slowly while it overdubs
     d.button(1, "1", slot="B", CommandType="Listen",

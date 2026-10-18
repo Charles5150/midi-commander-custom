@@ -115,6 +115,12 @@ Its LED follows one of three modes, the **LED light mode** in the configurator:
 
 **Flash at the tempo** (`Tempo_Flash`) makes any button's LED flash with the beat; see [Tap LED](07-tempo.md#tap-led).
 
+## A label for when it is on
+
+A toggle's inverted cell says it is on, not what that means. Give the button a second label, **Label when on** in the configurators (`On_Label` in the CSV), up to 4 characters, and its cell shows it while the toggle is on and its own label while it is off: `DLY` off, `DLY!` on, or `CLN` and `DIST` for a channel switch, `PLAY` and `STOP` for a looper. It changes whichever way the toggle does, from the foot, from the computer with `LED_Feedback`, from a [linked toggle](#linked-toggles) or a [scene](#scenes), and it can hold [live values](09-the-display.md#live-values) as the label does. A label [from the computer](09-the-display.md#button-labels) still goes before both. The demo's looper bank (LOOP) has one: REC shows `*REC` while it records.
+
+*Firmware 1.37 or later. The labels live in the second extension area, after the setlists; older firmware shows the button's own label.*
+
 ## Labels for the long press
 
 With three lists on a button, what the hold does is the easiest thing to forget on stage. Give each long press a label of its own, up to 4 characters, and a button with a `Bank` command whose **Action** is `Reveal`: while that button is held, every button shows the label of its long press in place of its own, a dash if it has none, and let go, the bank looks as before. The other buttons keep working meanwhile.
@@ -316,6 +322,7 @@ One row per button, 256 rows in bank order and, within a bank, in the order `1, 
 
 - `Bank_Number`, `Button_Identifier`
 - `Label`: up to 4 characters shown on the display. Empty shows the button identifier. It can hold [live values](09-the-display.md#live-values), `$V` for the button's value or `$N` for a preset's name.
+- `On_Label`: optional, up to 4 characters shown in place of `Label` while the button's toggle is on (see [A label for when it is on](#a-label-for-when-it-is-on)); empty, or the column left out, keeps `Label`. Kept in the second extension area.
 - `Light_Mode`: Normal / Reverse / AlwaysOn.
 - `Group`: empty, or an exclusive group 1–4 (see [Exclusive groups](#exclusive-groups)).
 - `Momentary_Hold`: `Y` for a toggle button that is momentary when held (see [Latch or momentary](#latch-or-momentary)); empty or `N` otherwise.
