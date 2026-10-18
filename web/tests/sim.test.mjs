@@ -486,6 +486,56 @@ test("the pedal's clock goes to one output, for a burst after each tempo change,
   assert.ok(!seen.includes("USB fa"), "with no second Start");
 });
 
+test("the self-test: the switches only count, a quick second press is a bounce, the LEDs are the computer's, and it ends by itself (before 1.40, there was none)", async () => {
+  const sim = simWithDemo();
+  sim.usbIn([0xb0, 32, 2]);                 // bank 2: B is BLNK, a toggle sending CC 15
+  sim.run(300);
+  const pedal = await Pedal.open(sim.access);
+  const before = await pedal.getState();
+  const seen = watch(sim);
+  const sent = () => seen.filter((m) => !m.includes(" f0 "));
+
+  let t = await pedal.selfTest(true, 1 << 9);
+  assert.deepEqual(t.presses, Array(10).fill(0), "counted from the start");
+  sim.run(20);
+  assert.deepEqual((await pedal.getState()).leds, [0, 0, 0, 0, 0, 0, 0, 0, 0, 16], "Bank Up's LED alone");
+
+  tap(sim, 5);                              // B, cleanly
+  sim.footswitch(5, true);                  // and again, back down 30 ms after the release
+  sim.run(100);
+  sim.footswitch(5, false);
+  sim.run(30);
+  sim.footswitch(5, true);
+  sim.run(100);
+  assert.deepEqual((await pedal.selfTest(true, 0)).down.map((d, i) => d && i), [false, false, false, false, false, 5, false, false, false, false]);
+  sim.footswitch(5, false);
+  sim.run(100);
+  tap(sim, 8);                              // Bank Down
+  t = await pedal.selfTest(true, 0);
+  assert.equal(t.presses[5], 2);
+  assert.equal(t.bounces[5], 1, "the press 30 ms after a release");
+  assert.equal(t.presses[8], 1);
+  assert.deepEqual(sent(), [], "nothing sent");
+  const during = await pedal.getState();
+  assert.equal(during.bank, 2, "Bank Down did not change the bank");
+  assert.deepEqual(during.toggles, before.toggles, "nor B its toggle");
+
+  // Ended, the pedal is itself again, its LEDs too
+  await pedal.selfTest(false);
+  sim.run(50);
+  assert.deepEqual((await pedal.getState()).leds, before.leds);
+  tap(sim, 5);
+  assert.ok(sent().some((m) => / b[0-9a-f] 0f /.test(m)), "B sends its CC 15 again");
+
+  // Started again and never asked after: three seconds on, it ends itself
+  t = await pedal.selfTest(true, 0x3ff);
+  assert.deepEqual(t.presses, Array(10).fill(0), "the counts start again");
+  sim.run(3200);
+  seen.splice(0);
+  tap(sim, 5);
+  assert.ok(sent().length > 0, "back to normal by itself");
+});
+
 test("held, a Bank Reveal button shows the long press labels", async () => {
   const sim = simWithDemo();
   tap(sim, 4);                              // MEDI: the media keys bank

@@ -81,6 +81,29 @@ class GuiTest(unittest.TestCase):
         self.assertIn("TRS", w["verdict"].cget("text"))
         self.assertEqual(w["min"].get(), "217")         # left as it was
 
+    def test_the_self_test(self):
+        # The live poll's rounds, against a make believe pedal on 1.40
+        import types
+        app = self.app
+        app.tabview.set("Virtual Pedal")
+        answers = iter([
+            {"presses": [0] * 10, "bounces": [0] * 10, "down": [False] * 10},
+            {"presses": [3] + [1] * 9, "bounces": [1] + [0] * 9, "down": [False] * 10},
+        ])
+        asked = []
+        app.live = types.SimpleNamespace(self_test=lambda on, leds=0, timeout=1: asked.append((on, leds)) or
+                                         (next(answers) if on else None))
+        app._self_test_toggle()
+        app._self_test_step([(2000, 64), (0, 0)])
+        app._self_test_step([(2001, 64), (0, 0)])
+        self.assertIn("1: 3 (1 bounced)", app.lbl_self_test.cget("text"))
+        self.assertEqual(asked[0], (True, 1), "the first LED lit")
+        app._self_test_toggle()
+        self.assertEqual(asked[-1][0], False, "ended on the pedal")
+        self.assertIn("Switch 1 bounced 1 time in 3 presses", app.lbl_self_test.cget("text"))
+        self.assertIsNone(app.self_test)
+        app.live = None
+
     def test_a_command_from_the_device_dictionary(self):
         import lib.deviceDictionary as dd
         self.app.load_csv(os.path.join(ROOT, "templates", "HX_Stomp.csv"))

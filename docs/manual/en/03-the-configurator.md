@@ -159,6 +159,20 @@ It shares the Expression tab's connection.
 
 <img src="../../images/gui_virtual_pedal.png" width="500">
 
+### The hardware self-test
+
+A footswitch wears out slowly: after a year or two of stomping one starts to fire twice from a single press now and then, and on stage that is a delay switched on and straight off again. **Start the self-test**, under the pedal, finds it at home. While it runs the switches only count their presses: nothing is sent and no toggle changes, so the rig can stay plugged in.
+
+- Press each of the ten switches a few times, as you would on stage. Its count shows as you go.
+- Watch the LEDs: they light one after the other, then all together, and round again. One that stays dark is a dead LED.
+- Sweep each expression pedal slowly from heel to toe and back, stopping here and there.
+
+**Stop and check** says what it found: a switch that bounced, pressed again within 50 ms of being let go, which a sound switch never does; one that was down the whole time; an expression pedal whose reading jumped and came straight back, a scratchy pot or a loose cable; and the switches not pressed. A bounce or two in a few dozen presses is worth watching; one in every few presses means the switch wants replacing. The web configurator has the same test in its Live pedal tab, and `Self_Test.py` on the command line.
+
+The pedal goes back to normal by itself three seconds after the configurator stops asking, so a cable pulled out in the middle leaves nothing behind. The expression pedals still send while they are swept, as they do when calibrating.
+
+*Needs firmware 1.40 or later.*
+
 ## Monitor
 
 Every MIDI message arriving at the computer, as it arrives: what the pedal sends, and what any other input brings, a USB device, a DAW's virtual port. For working out what a device actually sends, and for seeing at a glance that a button sends what you meant.

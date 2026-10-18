@@ -71,6 +71,8 @@
 #define SYSEX_RSP_SET_PEDAL	(81) // echoes the pedal and hold
 #define SYSEX_CMD_SET_LABEL	(82) // button (0-7 1..4, A..D, 8 Bank Down, 9 Bank Up, 0x7F all), how (0 until the bank changes, 1 kept), then the label
 #define SYSEX_RSP_SET_LABEL	(83) // echoes the button and how
+#define SYSEX_CMD_SELF_TEST	(84) // 1 on (for 3 s more) or 0 off, then the LEDs lit: buttons 1..4, A..C (bits 0-6), D, Bank Down, Bank Up (bits 0-2)
+#define SYSEX_RSP_SELF_TEST	(85) // per switch 1..4, A..D, Bank Down, Bank Up: presses, bounces (7 bits, wrapping); then the switches down (low 7, high 3 bits)
 
 #define SYSEX_START (0xF0)
 #define SYSEX_END	(0xF7)

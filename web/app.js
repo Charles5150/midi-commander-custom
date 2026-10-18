@@ -3,7 +3,7 @@
 // built from python/lib/configSchema.py, packing is python/lib (see py.js).
 
 import { Tools } from "./py.js";
-import { Pedal, Timeout, SWITCHES, LED_LEVELS, SCREEN_WIDTH, SCREEN_HEIGHT, versionAtLeast, isIOS, noWebMidi } from "./pedal.js";
+import { Pedal, Timeout, SWITCHES, LED_LEVELS, SCREEN_WIDTH, SCREEN_HEIGHT, versionAtLeast, isIOS, noWebMidi, SelfTestTally, selfTestLeds } from "./pedal.js";
 import { loadImage, flash, Dfu, DFU_FILTER, UpdateError } from "./dfu.js";
 import { Simulator } from "./sim.js";
 import { shareLink, linkedCsv } from "./share.js";
@@ -1452,7 +1452,8 @@ function renderLive(main) {
       h("div", { class: "row bottom" }, ["A", "B", "C", "D", "DOWN"].map(switchEl))),
     info,
     expressionControls(),
-    monitorView()));
+    monitorView(),
+    selfTestView()));
   stopLive();
   const me = (live = { stop: false });
   const ctx = canvas.getContext("2d");
@@ -1515,6 +1516,53 @@ function expressionControls() {
       ? "The simulated pedal has nothing in its jacks: move a pedal here."
       : "Moving one here holds it there, over what is in its jack, until you let go."),
     pedalEl(0), pedalEl(1));
+}
+
+// The hardware self-test (1.40): the switches only count, the LEDs light in
+// turn, the jacks are read raw; then what was found, in words (lib/selfTest.py)
+function selfTestView() {
+  if (!versionAtLeast(state.version, 1, 40)) return null;
+  const NAMES = { DOWN: "Bank Down", UP: "Bank Up" };
+  // Laid out as on the pedal: 1-4 and Bank Up, then A-D and Bank Down
+  const cells = SWITCHES.map((sw) => h("li", { "data-sw": sw }, NAMES[sw] || sw));
+  const shown = ["1", "2", "3", "4", "UP", "A", "B", "C", "D", "DOWN"].map((sw) => cells[SWITCHES.indexOf(sw)]);
+  const jacks = h("p", { class: "hint selftest-jacks" }, "");
+  const found = h("ul", { class: "selftest-found" });
+  const go = h("button", { class: "primary" }, "Start the self-test");
+  let run = null;
+  const show = (t) => cells.forEach((li, i) => {
+    li.textContent = `${NAMES[SWITCHES[i]] || SWITCHES[i]}: ${t.presses[i]}` + (t.bounces[i] ? ` · ${t.bounces[i]} bounce${t.bounces[i] > 1 ? "s" : ""}` : "");
+    li.classList.toggle("down", t.down[i]);
+    li.classList.toggle("bad", t.bounces[i] > 0);
+    li.classList.toggle("done", t.presses[i] > 0);
+  });
+  go.addEventListener("click", async () => {
+    if (run) { run.stop = true; return; }
+    const me = (run = { stop: false });
+    const owner = live, start = performance.now(), tally = new SelfTestTally();
+    go.textContent = "Stop and check";
+    found.replaceChildren();
+    while (!me.stop && !(owner && owner.stop) && state.pedal) {
+      try {
+        tally.add(await state.pedal.selfTest(true, selfTestLeds(performance.now() - start)));
+        const p = await state.pedal.getPedals();
+        tally.addPedals(p);
+        show(tally);
+        jacks.textContent = `Expression jacks, raw 0-4095: ${p[0][0]} · ${p[1][0]}`;
+      } catch (e) { /* busy or gone: try again */ }
+      await new Promise((r) => setTimeout(r, 60));
+    }
+    try { await state.pedal.selfTest(false); } catch (e) { /* it ends by itself in 3 s */ }
+    run = null;
+    go.textContent = "Start the self-test";
+    found.replaceChildren(...tally.report().map((t) => h("li", {}, t)));
+  });
+  return h("section", { class: "card selftest" },
+    h("h3", {}, "Hardware self-test"),
+    h("p", { class: "hint" }, "Before a gig: while it runs the switches only count, nothing is sent and no toggle changes. " +
+      "Press each switch a few times as on stage, watch every LED light in turn, and sweep each expression pedal slowly, stopping here and there. " +
+      "A switch that bounces, one stuck down or a pot that jumps is named when you stop."),
+    go, h("ul", { class: "selftest-switches" }, shown), jacks, found);
 }
 
 // --- Stage -------------------------------------------------------------------------

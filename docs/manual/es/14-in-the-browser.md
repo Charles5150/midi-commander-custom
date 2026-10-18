@@ -69,6 +69,7 @@ Toda la página funciona con el teclado y con un lector de pantalla: cada campo 
 La pantalla de la pedalera, sus LEDs y sus diez interruptores, como están en la pedalera, varias veces por segundo. Necesita firmware 0.27 o posterior; con uno más antiguo la pestaña lo dice. Pulsa un interruptor en la pantalla, con el ratón o con el dedo, para pulsarlo en la pedalera: queda pisado mientras lo mantienes, así que las pulsaciones largas también funcionan. Con el teclado, llega a un interruptor con Tab y mantén Espacio o Intro.
 
 - Una línea bajo la pantalla dice el banco, el slot en marcha, y **asleep** o **safe mode** cuando la pedalera lo está.
+- **Hardware self-test** prueba los interruptores, los LEDs y los jacks de expresión antes de un concierto, sin enviar nada: mira [El autotest del hardware](03-the-configurator.md#el-autotest-del-hardware). Firmware 1.40 o posterior.
 - **Expression pedals** tiene un deslizador por pedal, del talón a la punta: al moverlo, el pedal se queda ahí, por encima de lo que haya en su jack, hasta pulsar **Let go**. Firmware 0.70 o posterior.
 - **What the pedal sends** lista lo que llega de la pedalera por USB. **clock** muestra también el clock MIDI, y **Clear** vacía la lista.
 

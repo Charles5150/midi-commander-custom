@@ -193,6 +193,15 @@ Comprueba el archivo `.dfu`, pregunta antes de flashear (`--yes` se salta la pre
 
 `Stress_Test.py` le da caña a la pedalera durante un minuto y comprueba que sigue en forma; `Latency_Test.py` mide cuánto tarda una pisada en salir como MIDI, en reposo y con carga; `Endurance_Test.py` la deja tocando sola una hora al ritmo de un concierto (`--minutes` para más), con una línea cada dos minutos más o menos, y al final dice si alguna ronda falló y cuánta pila no ha llegado a usar nunca la pedalera. Conviene pasarla la víspera de un concierto, después de actualizar el firmware. Las tres necesitan la configuración de demostración, `python/demo-all-features.csv`, en la pedalera, y ningún pie. Se describen en [CONTRIBUTING](../../../CONTRIBUTING.md#tests) (en inglés).
 
+## Self_Test: los pulsadores, los LEDs y los jacks de expresión
+
+```bash
+.venv/bin/python python/Self_Test.py              # hasta Ctrl+C
+.venv/bin/python python/Self_Test.py --seconds 60
+```
+
+El [autotest del hardware](03-the-configurator.md#el-autotest-del-hardware) de los configuradores, en la terminal: pisa cada pulsador unas cuantas veces, mira cómo se encienden los LEDs uno tras otro y barre despacio los pedales de expresión. Cada pisada escribe la cuenta de su pulsador; al final dice qué pulsador ha rebotado, se ha quedado abajo o no se ha pisado, y si algún pedal de expresión ha saltado. Mientras dura no se envía nada. Necesita el firmware 1.40 o posterior.
+
 ## Ver lo que envía la pedalera
 
 Cualquier monitor MIDI lo enseña: MIDI Monitor en macOS, MIDI-OX en Windows, o `aseqdump -p 'MIDI Commander Custom'` en Linux.
@@ -219,6 +228,7 @@ Las herramientas intercambian la configuración como mensajes SysEx con el ID de
 | la latencia de las últimas pisadas | 78 |
 | mantener un pedal de expresión en una posición | 80 |
 | escribir la etiqueta de un botón | 82 |
+| el autotest del hardware: seguir, con los LEDs que encender, o terminar | 84 |
 
 Los números están en decimal: 72 es el `48` de [Texto desde el ordenador](09-the-display.md#texto-desde-el-ordenador). Cada uno se contesta con su número más uno. Un borrado o una escritura que la flash no ha podido hacer se contesta con un byte más, `01`, desde el firmware 0.71, y las herramientas se detienen y lo dicen; un mensaje de longitud equivocada se ignora.
 

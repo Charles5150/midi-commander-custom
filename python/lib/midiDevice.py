@@ -41,6 +41,8 @@ SYSEX_CMD_SET_PEDAL = 80
 SYSEX_RSP_SET_PEDAL = 81
 SYSEX_CMD_SET_LABEL = 82
 SYSEX_RSP_SET_LABEL = 83
+SYSEX_CMD_SELF_TEST = 84
+SYSEX_RSP_SELF_TEST = 85
 # Two check bytes ("DF") so a stray message cannot restart the pedal in DFU
 ENTER_DFU_CHECK = (0x44, 0x46)
 
@@ -199,6 +201,22 @@ def parse_state(data) -> dict:
         "watchdog": bool(data[63]) if len(data) >= 71 else None,
         "uptime": sum(data[64 + k] << (7 * k) for k in range(4)) if len(data) >= 71 else None,
         "stack_free": sum(data[68 + k] << (7 * k) for k in range(3)) if len(data) >= 71 else None,
+    }
+
+
+def parse_self_test(data) -> dict:
+    """Decode a SELF_TEST answer: each switch's presses and bounces since the
+    test began, 7 bits that wrap (lib/selfTest.Tally counts on), and which
+    switches are down, in VIRTUAL_SWITCHES order."""
+    data = list(data)
+    n = len(VIRTUAL_SWITCHES)
+    if len(data) < 2 * n + 2:
+        raise ValueError(f"self-test answer too short: {len(data)} bytes")
+    down = data[2 * n] | (data[2 * n + 1] << 7)
+    return {
+        "presses": data[0 : 2 * n : 2],
+        "bounces": data[1 : 2 * n : 2],
+        "down": [bool(down >> i & 1) for i in range(n)],
     }
 
 
@@ -392,6 +410,13 @@ class MidiCommander:
         """Put text on a button's label (firmware 1.34); see label_sysex."""
         self.outport.send(mido.Message("sysex", data=label_sysex(button, text, keep)[1:-1]))
         self.wait_for_sysex(SYSEX_RSP_SET_LABEL, timeout)
+
+    def self_test(self, on=True, leds=0, timeout=1.0) -> dict:
+        """Keep the self-test going for 3 s more, with the LEDs in the bit mask
+        leds lit (bit 0 button 1, in VIRTUAL_SWITCHES order), or end it with
+        on=False; see parse_self_test. Firmware 1.40 or later."""
+        self.send([SYSEX_CMD_SELF_TEST, 1 if on else 0, leds & 0x7F, (leds >> 7) & 0x07])
+        return parse_self_test(self.wait_for_sysex(SYSEX_RSP_SELF_TEST, timeout))
 
     def get_banner(self, timeout=1.0) -> str:
         """The banner's own text the pedal holds, "" for none (firmware 0.63)."""

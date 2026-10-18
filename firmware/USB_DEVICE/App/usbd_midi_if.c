@@ -630,6 +630,19 @@ void process_sysex_message(void){
 			sysex_set_pedal(&(pSysexHead->start_parameters));
 		}
 		break;
+	case SYSEX_CMD_SELF_TEST:
+		// F0 7D 84 on lo hi F7 = 7 bytes
+		if(sysex_rx_counter >= 7){
+			const uint8_t *in = &(pSysexHead->start_parameters);
+			uint8_t *p = midi_msg_tx_buffer;
+			*(p++) = SYSEX_START;
+			*(p++) = MIDI_MANUF_ID;
+			*(p++) = SYSEX_RSP_SELF_TEST;
+			p += sw_self_test(in[0], (uint16_t)(in[1] | (in[2] << 7)), p);
+			*(p++) = SYSEX_END;
+			sysex_answer(midi_msg_tx_buffer, p - midi_msg_tx_buffer);
+		}
+		break;
 	case SYSEX_CMD_BANNER:
 		// F0 7D 76 write F7 = 5 bytes, then the text
 		if(sysex_rx_counter >= 5){

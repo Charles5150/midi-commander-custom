@@ -3,7 +3,10 @@
 // python/lib/slotIO.py. Run from the repository root: node --test web/tests/
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Pedal, Timeout, parseState } from "../pedal.js";
+import path from "node:path";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { Pedal, Timeout, parseState, parseSelfTest, SelfTestTally, selfTestLeds } from "../pedal.js";
 
 // answer(slot) gives [target, active, valid mask] for a SELECT_SLOT of slot
 // (0x7f to only ask), or null for no answer
@@ -91,4 +94,33 @@ test("MIDI without SysEx is refused, saying so", async () => {
   const access = iosAccess(["MIDI Commander Custom"]);
   access.sysexEnabled = false;
   await assert.rejects(Pedal.open(access), /without SysEx/);
+});
+
+// The same answers through python/lib/selfTest.py and pedal.js say the same
+test("the self-test says what the Python tools say", () => {
+  const answers = [
+    [...Array(10)].flatMap((_, i) => [i === 9 ? 0 : 120, 0]).concat([0, 4]),   // Bank Up down
+    [...Array(10)].flatMap((_, i) => [i === 9 ? 0 : 5, i === 1 ? 3 : 0]).concat([0, 4]),
+  ];
+  const pedals = [2000, 2003, 2900, 2005, 2008].map((v) => [[v, 64], [10, 0]]);
+  const js = new SelfTestTally();
+  answers.forEach((a) => js.add(parseSelfTest(a)));
+  pedals.forEach((p) => js.addPedals(p));
+  const script = [
+    "import json, sys",
+    "from lib.midiDevice import parse_self_test",
+    "from lib.selfTest import Tally, led_mask",
+    "a, p = json.loads(sys.argv[1])",
+    "t = Tally()",
+    "[t.add(parse_self_test(x)) for x in a]",
+    "[t.add_pedals(x) for x in p]",
+    "print(json.dumps([t.report(), t.presses, [led_mask(s / 10 + 0.05) for s in range(50)]]))",
+  ].join("\n");
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+  const out = execFileSync(process.env.PYTHON || "python3", ["-c", script, JSON.stringify([answers, pedals])], { cwd: path.join(root, "python") });
+  const [report, presses, leds] = JSON.parse(out);
+  assert.deepEqual(js.report(), report);
+  assert.deepEqual(js.presses, presses);
+  assert.equal(js.presses[0], 133, "past the 7 bits");
+  assert.deepEqual([...Array(50)].map((_, s) => selfTestLeds(s * 100 + 50)), leds);
 });

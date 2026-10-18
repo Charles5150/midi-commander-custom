@@ -161,6 +161,20 @@ Comparte la conexión con la pestaña Expression.
 
 <img src="../../images/gui_virtual_pedal.png" width="500">
 
+### El autotest del hardware
+
+Un pulsador se gasta poco a poco: tras un año o dos de pisotones, alguno empieza a disparar dos veces con una sola pisada de vez en cuando, y en el escenario eso es un delay que se enciende y se apaga en el acto. **Start the self-test**, debajo de la pedalera, lo descubre en casa. Mientras dura, los pulsadores solo cuentan sus pisadas: no se envía nada y ningún toggle cambia, así que el equipo puede seguir conectado.
+
+- Pisa cada uno de los diez pulsadores unas cuantas veces, como en un concierto. Su cuenta va saliendo.
+- Mira los LEDs: se encienden uno tras otro, luego todos a la vez, y vuelta a empezar. Uno que se queda apagado es un LED muerto.
+- Barre cada pedal de expresión despacio, de talón a punta y vuelta, parándote aquí y allá.
+
+**Stop and check** dice lo que ha encontrado: un pulsador que ha rebotado, pisado otra vez a menos de 50 ms de soltarlo, cosa que un pulsador sano nunca hace; uno que ha estado abajo todo el rato; un pedal de expresión cuya lectura ha saltado y ha vuelto en el acto, un potenciómetro que rasca o un cable flojo; y los pulsadores que no se han pisado. Un rebote o dos en unas decenas de pisadas hay que vigilarlo; uno cada pocas pisadas quiere decir que hay que cambiar el pulsador. El configurador web tiene la misma prueba en su pestaña Live pedal, y `Self_Test.py` en la línea de comandos.
+
+La pedalera vuelve a la normalidad sola tres segundos después de que el configurador deje de preguntar, así que un cable que se suelta a mitad no deja nada colgado. Los pedales de expresión siguen enviando mientras se barren, como al calibrarlos.
+
+*Necesita el firmware 1.40 o posterior.*
+
 ## Monitor
 
 Todos los mensajes MIDI que llegan al ordenador, según llegan: lo que envía la pedalera y lo que trae cualquier otra entrada, un aparato USB o el puerto virtual de un DAW. Para averiguar qué envía de verdad un aparato, y para ver de un vistazo que un botón envía lo que querías.

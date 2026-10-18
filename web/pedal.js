@@ -8,6 +8,7 @@ export const CMD = {
   READ_FLASH: 56, RSP_READ_FLASH: 57,
   GET_VERSION: 58, RSP_GET_VERSION: 59,
   RESET: 60,
+  GET_PEDALS: 62, RSP_GET_PEDALS: 63,
   SELECT_SLOT: 64, RSP_SELECT_SLOT: 65,
   PRESS_BUTTON: 66, RSP_PRESS_BUTTON: 67,
   GET_STATE: 68, RSP_GET_STATE: 69,
@@ -15,6 +16,7 @@ export const CMD = {
   ENTER_DFU: 74, RSP_ENTER_DFU: 75,
   BANNER: 76, RSP_BANNER: 77,
   SET_PEDAL: 80, RSP_SET_PEDAL: 81,
+  SELF_TEST: 84, RSP_SELF_TEST: 85,
 };
 const ENTER_DFU_CHECK = [0x44, 0x46];
 export const SWITCHES = ["1", "2", "3", "4", "A", "B", "C", "D", "DOWN", "UP"];
@@ -87,6 +89,85 @@ export function parseState(d) {
     // The bank Bank Up / Down are showing, not yet confirmed (Bank_Preview, 0.66)
     preview: d.length >= 63 && d[62] < 0x7f ? d[62] : null,
   };
+}
+
+// A SELF_TEST answer (1.40): presses and bounces per switch, 7 bits that
+// wrap, and the switches down, in SWITCHES order (midiDevice.parse_self_test)
+export function parseSelfTest(d) {
+  const n = SWITCHES.length;
+  if (d.length < 2 * n + 2) throw new Error(`self-test answer too short: ${d.length} bytes`);
+  const down = d[2 * n] | (d[2 * n + 1] << 7);
+  return {
+    presses: SWITCHES.map((_, i) => d[2 * i]),
+    bounces: SWITCHES.map((_, i) => d[2 * i + 1]),
+    down: SWITCHES.map((_, i) => Boolean((down >> i) & 1)),
+  };
+}
+
+// The self-test's sums and what they say, as python/lib/selfTest.py
+const SWITCH_NAMES = { DOWN: "Bank Down", UP: "Bank Up" };
+const switchName = (i) => SWITCH_NAMES[SWITCHES[i]] || SWITCHES[i];
+const switchTitle = (i) => SWITCH_NAMES[SWITCHES[i]] || `Switch ${SWITCHES[i]}`;
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+const SPIKE = 150, STILL = 40, LED_STEP_MS = 400;
+
+export function selfTestLeds(elapsedMs) {
+  const step = Math.floor(elapsedMs / LED_STEP_MS) % (SWITCHES.length + 1);
+  return step === SWITCHES.length ? (1 << SWITCHES.length) - 1 : 1 << step;
+}
+
+export function scratches(s) {
+  let n = 0;
+  for (let i = 0; i + 4 < s.length; i++) {
+    const [a0, a, b, c, c1] = s.slice(i, i + 5);
+    if (Math.max(Math.abs(a0 - a), Math.abs(a - c), Math.abs(c - c1)) <= STILL && Math.min(Math.abs(b - a), Math.abs(b - c)) >= SPIKE) n++;
+  }
+  return n;
+}
+
+export class SelfTestTally {
+  constructor() {
+    const zeros = () => SWITCHES.map(() => 0);
+    this.presses = zeros();
+    this.bounces = zeros();
+    this.down = SWITCHES.map(() => false);
+    this.everUp = SWITCHES.map(() => false);
+    this.last = { presses: zeros(), bounces: zeros() };
+    this.pedals = [[], []];
+  }
+
+  add(a) {
+    SWITCHES.forEach((_, i) => {
+      this.presses[i] += (a.presses[i] - this.last.presses[i] + 128) % 128;
+      this.bounces[i] += (a.bounces[i] - this.last.bounces[i] + 128) % 128;
+      this.down[i] = a.down[i];
+      this.everUp[i] = this.everUp[i] || !a.down[i];
+    });
+    this.last = { presses: a.presses.slice(), bounces: a.bounces.slice() };
+  }
+
+  addPedals(readings) {
+    readings.slice(0, 2).forEach(([raw], i) => this.pedals[i].push(raw));
+  }
+
+  report() {
+    const out = [];
+    SWITCHES.forEach((_, i) => {
+      if (!this.everUp[i]) out.push(`${switchTitle(i)} was down the whole time: it is stuck, or something is resting on it.`);
+    });
+    SWITCHES.forEach((_, i) => {
+      if (this.bounces[i]) out.push(`${switchTitle(i)} bounced ${plural(this.bounces[i], "time", "times")} in ${plural(this.presses[i], "press", "presses")}: ` +
+        "it is wearing out and may fire twice on stage. Press it a few dozen times more to see if it keeps doing it; if it does, the switch wants replacing.");
+    });
+    this.pedals.forEach((s, i) => {
+      const n = scratches(s);
+      if (n) out.push(`Expression ${i + 1} jumped and came straight back ${plural(n, "time", "times")}: its pot is scratchy, or the cable or jack is loose. Try another cable first.`);
+    });
+    const untried = SWITCHES.map((_, i) => i).filter((i) => !this.presses[i] && this.everUp[i]).map(switchName);
+    if (untried.length) out.push(`Not pressed: ${untried.join(", ")}.`);
+    if (!out.length) out.push("Every switch pressed cleanly, with no bounce.");
+    return out;
+  }
 }
 
 export class Pedal {
@@ -342,6 +423,18 @@ export class Pedal {
   // hold false give it back its jack (firmware 0.70)
   async setPedal(pedal, hold, position = 0) {
     await this.ask([CMD.SET_PEDAL, pedal, hold ? 1 : 0, (position >> 7) & 0x7f, position & 0x7f], CMD.RSP_SET_PEDAL, 1000);
+  }
+
+  // [[raw 0-4095, CC value], ...] for the two expression jacks
+  async getPedals() {
+    const d = await this.ask([CMD.GET_PEDALS], CMD.RSP_GET_PEDALS, 1000);
+    return [0, 1].map((i) => [(d[3 * i] << 7) | d[3 * i + 1], d[3 * i + 2]]);
+  }
+
+  // Keep the self-test going 3 s more with the LEDs of the mask lit, or end
+  // it (firmware 1.40); see parseSelfTest
+  async selfTest(on, leds = 0) {
+    return parseSelfTest(await this.ask([CMD.SELF_TEST, on ? 1 : 0, leds & 0x7f, (leds >> 7) & 0x07], CMD.RSP_SELF_TEST, 1000));
   }
 
   // Restart in the stock bootloader's DFU mode (firmware 0.58): true when on its way

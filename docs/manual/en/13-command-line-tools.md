@@ -193,6 +193,15 @@ Checks the `.dfu` file, asks before flashing (`--yes` skips the question), puts 
 
 All three need the demo configuration, `python/demo-all-features.csv`, on the pedal, and no foot. Run `Endurance_Test.py` the day before a gig, after updating the firmware: it plays for an hour (`--minutes` for longer), a line every two minutes or so, and says at the end whether any round went wrong and how much of its stack the pedal has never had to use. They are described in [CONTRIBUTING](../../../CONTRIBUTING.md#tests).
 
+## Self_Test: the switches, LEDs and expression jacks
+
+```bash
+.venv/bin/python python/Self_Test.py              # until Ctrl+C
+.venv/bin/python python/Self_Test.py --seconds 60
+```
+
+The [hardware self-test](03-the-configurator.md#the-hardware-self-test) of the configurators, in the terminal: press each switch a few times, watch the LEDs light in turn and sweep the expression pedals slowly. Each press prints its switch's count; at the end it says which switch bounced, was stuck down or was not pressed, and whether an expression pedal jumped. Nothing is sent while it runs. Needs firmware 1.40 or later.
+
 ## Watching what the pedal sends
 
 Any MIDI monitor shows it: MIDI Monitor on macOS, MIDI-OX on Windows, or `aseqdump -p 'MIDI Commander Custom'` on Linux.
@@ -219,6 +228,7 @@ The tools exchange the configuration as SysEx messages under manufacturer ID `0x
 | the latency of the last presses | 78 |
 | hold an expression pedal at a position | 80 |
 | write a button's label | 82 |
+| the hardware self-test: keep it going, with the LEDs to light, or end it | 84 |
 
 The numbers are decimal: 72 is the `48` of [Text from the computer](09-the-display.md#text-from-the-computer). Each is answered with its number plus one. An erase or a write that the flash could not take is answered with one more byte, `01`, from firmware 0.71 on, and the tools stop and say so; a message of the wrong length is ignored.
 

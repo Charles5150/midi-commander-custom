@@ -45,6 +45,11 @@ void sw_init(void);
 bool sw_check_safe_mode(void);
 bool sw_safe_mode(void);
 
+// The self-test (see switch_router.c): on 1 keeps it going, 0 ends it, leds
+// the ten LEDs lit, bit 0 button 1. Writes each switch's presses and bounces
+// and the switches down (two 7-bit bytes) to out; returns their number.
+uint8_t sw_self_test(uint8_t on, uint16_t leds, uint8_t *out);
+
 // Act as if a button of the current bank was tapped: used by the expression
 // pedals when they cross a threshold. Must be called from the main loop.
 void sw_trigger_button(uint8_t sw);

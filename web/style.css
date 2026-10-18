@@ -243,6 +243,12 @@ table.grid td:nth-child(2) input { min-width: 300px; }
   max-width: 100%;
 }
 .pedal-body .row { display: flex; gap: 22px; }
+.selftest-switches { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.selftest-switches li { border: 1px solid var(--line); border-radius: 6px; padding: 6px; font-size: 13px; text-align: center; }
+.selftest-switches li.done { border-color: var(--ok); }
+.selftest-switches li.down { background: var(--cap-down); }
+.selftest-switches li.bad { border-color: var(--warn); color: var(--warn); }
+.selftest-found li { margin: 4px 0; }
 .pedal-body .row.bottom { flex-direction: row; }
 .sw { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .row.bottom .sw { flex-direction: column-reverse; }
@@ -256,8 +262,8 @@ table.grid td:nth-child(2) input { min-width: 300px; }
 .footswitch.down { background: var(--cap-down); transform: scale(.96); }
 .led { width: 14px; height: 14px; border-radius: 50%; background: #2c2c2e; box-shadow: 0 0 6px rgba(0,0,0,.4) inset; }
 /* Expression pedals and the monitor, under the live pedal */
-.exp-controls, .monitor-card { width: min(640px, 100%); margin: 0; }
-.exp-controls h3, .monitor-card h3 { margin: 0 0 6px; font-size: 15px; }
+.exp-controls, .monitor-card, .selftest { width: min(640px, 100%); margin: 0; }
+.exp-controls h3, .monitor-card h3, .selftest h3 { margin: 0 0 6px; font-size: 15px; }
 .exp { display: grid; grid-template-columns: 96px auto 1fr auto auto; align-items: center; gap: 8px; margin: 8px 0 0; }
 .exp input[type="range"] { width: 100%; accent-color: var(--accent); }
 .monitor-head { display: flex; align-items: center; gap: 12px; }

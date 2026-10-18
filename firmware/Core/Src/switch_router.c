@@ -4254,6 +4254,71 @@ static bool editor_switches(uint32_t now){
 	return true;
 }
 
+/*
+ * The self-test (SELF_TEST from the configurator). While it is on the ten
+ * switches only count their presses, so they can be tried without anything
+ * sent or a toggle changed, and the LEDs are the configurator's to light. A
+ * press within BOUNCE_MS of the release before is a bounce, the mark of a
+ * tired switch, and not a press. The configurator asks again and again; a
+ * pedal it stops asking goes back to normal by itself.
+ */
+#define TEST_HOLD_MS	(3000U)
+#define BOUNCE_MS		(50U)
+
+static volatile uint32_t test_since;
+static volatile uint8_t test_on;
+static volatile uint16_t test_leds;
+static uint8_t test_count[SW_VIRTUAL_COUNT][2];	// presses, bounces
+static uint32_t test_up_at[SW_VIRTUAL_COUNT];
+
+uint8_t sw_self_test(uint8_t on, uint16_t leds, uint8_t *out){
+	if(on && !test_on){
+		memset(test_count, 0, sizeof(test_count));
+	}
+	// Off is left to the main loop, which gives the LEDs back
+	test_since = HAL_GetTick() - (on ? 0 : TEST_HOLD_MS);
+	test_leds = leds;
+	if(on) test_on = 1;
+	uint16_t down = 0;
+	for(uint8_t id=0; id<SW_VIRTUAL_COUNT; id++){
+		GPIO_TypeDef *port;
+		uint16_t pin;
+		volatile uint16_t *changed;
+		virtual_pin(id, &port, &pin, &changed);
+		if(switch_down(port, pin)) down |= (uint16_t)(1U << id);
+	}
+	memcpy(out, test_count, sizeof(test_count));
+	out[2 * SW_VIRTUAL_COUNT] = down & 0x7F;
+	out[2 * SW_VIRTUAL_COUNT + 1] = (uint8_t)(down >> 7);
+	return 2 * SW_VIRTUAL_COUNT + 2;
+}
+
+static bool test_switches(uint32_t now){
+	if(!test_on) return false;
+	if(now - test_since >= TEST_HOLD_MS){
+		test_on = 0;
+		update_leds_on_bank_change();
+		return false;
+	}
+	for(uint8_t id=0; id<SW_VIRTUAL_COUNT; id++){
+		GPIO_TypeDef *port;
+		uint16_t pin;
+		volatile uint16_t *changed;
+		virtual_pin(id, &port, &pin, &changed);
+		if(*changed & pin){
+			clear_changed(changed, pin);
+			if(switch_down(port, pin)){
+				uint8_t *n = &test_count[id][now - test_up_at[id] < BOUNCE_MS];
+				*n = (uint8_t)((*n + 1) & 0x7F);	// sent as 7 bits, counted on by the configurator
+			} else {
+				test_up_at[id] = now;
+			}
+		}
+		leds_set(id, (test_leds >> id) & 1 ? LEDS_LEVELS : 0);
+	}
+	return true;
+}
+
 // Each as a tap, the press pass then the release pass, as a bank switch's
 static void requested_lists(void){
 	while(list_req_out != list_req_in){
@@ -4305,6 +4370,7 @@ void handle_switches(void){
 	seq_task();		// and step sequences
 
 	uint32_t now = HAL_GetTick();
+	if(test_switches(now)) return;		// the self-test has them
 	if(editor_switches(now)) return;	// the editor has the switches
 	preview_switches(now);
 

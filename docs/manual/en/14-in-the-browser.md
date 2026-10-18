@@ -69,6 +69,7 @@ The whole page works from the keyboard and with a screen reader: every field has
 The pedal's display, its LEDs and its ten switches, as they are on the pedal, a few times a second. It needs firmware 0.27 or later; with older firmware the tab says so. Press a switch on the screen, with the mouse or a finger, to press it on the pedal: it goes down while held, so long presses work too. From the keyboard, Tab to a switch and hold Space or Enter.
 
 - A line under the display says the bank, the slot running, and **asleep** or **safe mode** when the pedal is.
+- **Hardware self-test** tries the switches, LEDs and expression jacks before a gig, with nothing sent: see [The hardware self-test](03-the-configurator.md#the-hardware-self-test). Firmware 1.40 or later.
 - **Expression pedals** has a slider for each pedal, from heel to toe: moving one holds the pedal there, over what is in its jack, until **Let go**. Firmware 0.70 or later.
 - **What the pedal sends** lists what comes in from the pedal over USB. **clock** shows the MIDI clock too, and **Clear** empties the list.
 

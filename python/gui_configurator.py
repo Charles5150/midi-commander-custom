@@ -12,6 +12,7 @@ import os
 import re
 import subprocess
 import tempfile
+import time
 import sys
 import webbrowser
 from tkinter import filedialog, messagebox
@@ -86,6 +87,7 @@ from lib import bankReorder as bank_reorder  # noqa: E402
 from lib import deviceDictionary as device_dict  # noqa: E402
 from lib import midiLearn as midi_learn  # noqa: E402
 from lib import pedalCheck as pedal_check  # noqa: E402
+from lib import selfTest as self_test  # noqa: E402
 from lib import rigWizard as rig_wizard  # noqa: E402
 from lib import songFile as song_file  # noqa: E402
 from lib import midiMonitor as midi_monitor  # noqa: E402
@@ -2787,6 +2789,8 @@ class MidiCommanderGUI(ctk.CTk):
                     seen.append(raw)
                     w["cal"].configure(text=f"Done ({min(seen)}-{max(seen)})")
                     self._sweep_draw(w, seen)
+        if self.self_test is not None:
+            self._self_test_step(readings)
         # The virtual pedal's view of the display, labels and LEDs
         self.pedal_tick += 1
         if self.pedal_supported and self.pedal_tick % PEDAL_STATE_EVERY == 0:
@@ -2828,6 +2832,24 @@ class MidiCommanderGUI(ctk.CTk):
         self.lbl_pedal_values = ctk.CTkLabel(frame, text="", text_color=MUTED)
         self.lbl_pedal_values.pack(anchor="w", pady=(6, 0))
         self.pedal_canvas = c
+
+        # The hardware self-test (firmware 1.40, lib/selfTest.py)
+        self.self_test = None
+        test = ctk.CTkFrame(frame, fg_color="transparent")
+        test.pack(anchor="w", fill="x", pady=(10, 0))
+        self.btn_self_test = ctk.CTkButton(test, text="Start the self-test", width=170, state="disabled",
+                                           command=self._self_test_toggle)
+        self.btn_self_test.pack(side="left", anchor="n")
+        Help(
+            test,
+            "Before a gig: the switches only count, nothing is sent and no toggle changes.",
+            "Press each switch a few times as on stage, watch every LED light in turn, and sweep each "
+            "expression pedal slowly, stopping here and there. A switch that bounces (fires twice from "
+            "one press), one stuck down or a pot that jumps is named when you stop. Needs firmware 1.40.",
+        ).pack(side="left", padx=10, anchor="n")
+        self.lbl_self_test = ctk.CTkLabel(frame, text="", text_color=MUTED, justify="left", anchor="w",
+                                          wraplength=PEDAL_W)
+        self.lbl_self_test.pack(anchor="w", pady=(6, 0))
         self._pedal_rounded_rect(8, 8, PEDAL_W - 8, PEDAL_H - 8, 26, fill=PEDAL_BODY, outline=PEDAL_BODY_EDGE, width=2)
 
         # The display, in its window
@@ -2894,6 +2916,11 @@ class MidiCommanderGUI(ctk.CTk):
             return
         self.pedal_frame = None
         self.pedal_shown = {}
+        if self.self_test is not None and version is None:
+            self.self_test = None
+            self.btn_self_test.configure(text="Start the self-test", fg_color=ACCENT)
+            self.lbl_self_test.configure(text="")
+        self.btn_self_test.configure(state="normal" if version and version_at_least(version, 1, 40) else "disabled")
         if version is None:
             self.lbl_pedal_live.configure(text="not connected", text_color=MUTED)
             self.btn_pedal_live.configure(text="Connect")
@@ -2912,6 +2939,41 @@ class MidiCommanderGUI(ctk.CTk):
                 text=f"firmware {version} has no virtual pedal: update to 0.27 or later",
                 text_color=WARN)
             self.pedal_canvas.itemconfigure(self.pedal_screen_note, text="firmware 0.27 needed")
+
+    def _self_test_toggle(self):
+        if self.self_test is None:
+            if self.live is None:
+                return
+            self.self_test = self_test.Tally()
+            self.self_test_start = time.monotonic()
+            self.btn_self_test.configure(text="Stop and check", fg_color=WARN)
+            self.lbl_self_test.configure(text="Press each switch a few times.", text_color=MUTED)
+            return
+        tally, self.self_test = self.self_test, None
+        if self.live is not None:
+            try:
+                self.live.self_test(False, timeout=0.3)
+            except DeviceTimeout:
+                pass                    # it ends by itself in 3 s
+        self.btn_self_test.configure(text="Start the self-test", fg_color=ACCENT)
+        found = tally.report()
+        clean = found == ["Every switch pressed cleanly, with no bounce."]
+        self.lbl_self_test.configure(text="\n".join(found), text_color=TEXT if clean else WARN)
+
+    def _self_test_step(self, readings):
+        """One round of the self-test, from the live poll."""
+        try:
+            answer = self.live.self_test(True, self_test.led_mask(time.monotonic() - self.self_test_start),
+                                         timeout=0.3)
+        except (DeviceTimeout, ValueError):
+            return
+        self.self_test.add(answer)
+        if readings:
+            self.self_test.add_pedals(readings)
+        t = self.self_test
+        self.lbl_self_test.configure(text="   ".join(
+            f"{self_test.switch_name(i)}: {t.presses[i]}" + (f" ({t.bounces[i]} bounced)" if t.bounces[i] else "")
+            for i in range(len(t.presses))), text_color=WARN if any(t.bounces) else MUTED)
 
     def _pedal_cap(self, w, down):
         self.pedal_canvas.itemconfigure(w["cap"], fill=PEDAL_CAP_DOWN if down else PEDAL_CAP)
