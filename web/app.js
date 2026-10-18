@@ -779,7 +779,7 @@ function renderGlobal(main) {
       const row = present.has(label) ? rowFor(label) : null;
       const ctl = fieldControl(spec, () => (row ? row[1] : ""), (v) => { const r = rowFor(label); if (r[1] !== v) { r[1] = v; changed(); } });
       return h("div", { class: "setting" }, h("span", { class: "setting-name" }, name), named(ctl, name), h("span", { class: "hint" }, hint));
-    })), channelPortsCard()));
+    }))), channelPortsCard()));
 }
 
 // The output each channel goes to; only the channels not on both are rows
