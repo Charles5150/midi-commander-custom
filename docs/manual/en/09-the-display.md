@@ -208,6 +208,22 @@ To use it:
 
 The settings are at the top of the file: where the song goes (`line`, `small`, `name` or `info`), where the part goes or none, whether the project's name is used, and the CC for each part of the transport, none by default. The names are spelled as the tools spell them, `Canción` as `Cancion`. It sends the song again every five seconds, which the pedal takes without a flicker, so a pedal plugged in while it runs catches up. Tried on REAPER 7.79.
 
+### From Ableton Live
+
+`hosts/ableton/MIDI_Commander` is a Remote Script that writes the song you are on, from Live:
+
+- **The song** is the last locator before the playhead, across the top line until the next one. Before the first locator the line goes back to the bank.
+- **In a set without locators**, the song is the scene selected in Session view, for a set played scene by scene.
+- **The transport**, if you want it: play, record, the loop and the metronome as CCs, 127 when on and 0 when off, so a toggle button sending the same CC lights with them, with `LED_Feedback` on.
+
+To use it:
+
+1. Copy the `MIDI_Commander` folder into `Remote Scripts` in Live's User Library, `Music/Ableton/User Library` on a Mac and `Documents\Ableton\User Library` on Windows; make the `Remote Scripts` folder if there is none.
+2. Restart Live, and in **Settings > Link, Tempo & MIDI** pick **MIDI_Commander** as a **Control Surface**, with **MIDI Commander Custom** as its **Output**. Its **Input** can stay **None**.
+3. In Arrangement view, put a locator where each song starts: click the bar in the ruler and press **Set**, then right-click the locator and **Rename** it.
+
+The settings are at the top of `__init__.py`: where the song goes, whether it comes from locators, scenes or either, and the CC for each part of the transport, none by default. Live loads the script once, so after changing them restart Live. The names are spelled as the tools spell them, and the song goes out again every five seconds. Tried on Live 12 Lite.
+
 ### Button labels
 
 A script or a DAW that drives the pedal can also write each button's label: the scene it just named, the effect it moved to button A. The button still sends what the configuration says; only its label changes. *Needs firmware 1.34 or later.*

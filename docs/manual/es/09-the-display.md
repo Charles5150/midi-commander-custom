@@ -208,6 +208,22 @@ Para usarlo:
 
 Los ajustes están al principio del archivo: dónde va la canción (`line`, `small`, `name` o `info`), dónde va la parte o si no va, si se usa el nombre del proyecto y el CC de cada parte del transporte, ninguno de serie. Los nombres se escriben como los escriben las herramientas, `Canción` como `Cancion`. Vuelve a mandar la canción cada cinco segundos, cosa que la pedalera acepta sin parpadear, para que una pedalera enchufada mientras funciona se ponga al día. Probado con REAPER 7.79.
 
+### Desde Ableton Live
+
+`hosts/ableton/MIDI_Commander` es un Remote Script que escribe la canción en la que estás, desde Live:
+
+- **La canción** es el último locator antes del cursor de reproducción, a lo ancho de la línea de arriba hasta el siguiente. Antes del primer locator la línea vuelve al banco.
+- **En un set sin locators**, la canción es la escena seleccionada en la vista Session, para quien toca el set escena a escena.
+- **El transporte**, si lo quieres: play, grabar, el loop y el metrónomo como CC, 127 encendido y 0 apagado, para que un botón toggle que mande el mismo CC se encienda con ellos, con `LED_Feedback` activado.
+
+Para usarlo:
+
+1. Copia la carpeta `MIDI_Commander` dentro de `Remote Scripts` en la User Library de Live, `Música/Ableton/User Library` en un Mac y `Documentos\Ableton\User Library` en Windows; crea la carpeta `Remote Scripts` si no está.
+2. Reinicia Live, y en **Settings > Link, Tempo & MIDI** elige **MIDI_Commander** como **Control Surface**, con **MIDI Commander Custom** como **Output**. El **Input** puede quedarse en **None**.
+3. En la vista Arrangement, pon un locator donde empieza cada canción: haz clic en el compás en la regla y pulsa **Set**; luego clic derecho en el locator y **Rename**.
+
+Los ajustes están al principio de `__init__.py`: dónde va la canción, si sale de los locators, de las escenas o de cualquiera de los dos, y el CC de cada parte del transporte, ninguno de serie. Live carga el script una sola vez, así que después de cambiarlos reinicia Live. Los nombres se escriben como los escriben las herramientas, y la canción se vuelve a mandar cada cinco segundos. Probado con Live 12 Lite.
+
 ### Etiquetas de los botones
 
 Un script o una DAW que lleva la pedalera también puede escribir la etiqueta de cada botón: la escena que acaba de nombrar, el efecto que ha puesto en el botón A. El botón sigue enviando lo que dice la configuración; solo cambia su etiqueta. *Necesita firmware 1.34 o posterior.*

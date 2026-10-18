@@ -1,8 +1,10 @@
 """The scripts for programs on the computer, under hosts/: what they send the pedal.
 
-The REAPER script runs here in Lua (lupa) against a REAPER made of Python.
+The REAPER script runs here in Lua (lupa) against a REAPER made of Python; the
+Ableton Live one, in Python, against a Live made of Python.
 """
 
+import importlib.util
 import os
 import re
 import sys
@@ -20,6 +22,7 @@ except ImportError:  # pragma: no cover
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
 REAPER_SCRIPT = os.path.join(ROOT, "hosts", "reaper", "MIDI_Commander_song_names.lua")
+LIVE_SCRIPT = os.path.join(ROOT, "hosts", "ableton", "MIDI_Commander", "__init__.py")
 
 
 class FakeReaper:
@@ -202,6 +205,131 @@ class ReaperScriptTest(unittest.TestCase):
         script = self.load()
         script.stop()
         self.assertEqual(self.texts(), [(2, 1, "")])
+
+
+class Obj:
+    def __init__(self, **fields):
+        self.__dict__.update(fields)
+
+
+class FakeLive:
+    """What a Remote Script gets: c_instance, with a song of locators and scenes."""
+
+    def __init__(self):
+        self.sent = []
+        self.logged = []
+        self.scene = Obj(name="")
+        self.view = Obj(selected_scene=self.scene)
+        self.the_song = Obj(cue_points=[], current_song_time=0.0, view=self.view, is_playing=False,
+                            record_mode=False, loop=False, metronome=False)
+
+    def song(self):
+        return self.the_song
+
+    def send_midi(self, message):
+        self.assertIsTuple(message)
+        self.sent.append(message)
+
+    @staticmethod
+    def assertIsTuple(message):
+        assert isinstance(message, tuple) and all(isinstance(b, int) and 0 <= b <= 255 for b in message), message
+
+    def log_message(self, text):
+        self.logged.append(text)
+
+
+class LiveScriptTest(unittest.TestCase):
+    def load(self, **settings):
+        spec = importlib.util.spec_from_file_location("midi_commander_live", LIVE_SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        for name, value in settings.items():
+            self.assertTrue(hasattr(module, name), name)
+            setattr(module, name, value)
+        self.live = FakeLive()
+        self.module = module
+        return module.create_instance(self.live)
+
+    def texts(self):
+        out = []
+        for msg in self.live.sent:
+            if msg[0] == 0xF0:
+                self.assertEqual(msg[:3] + msg[-1:], (0xF0, 0x7D, 0x48, 0xF7))
+                out.append((msg[3], msg[4], bytes(msg[5:-1]).decode("ascii")))
+            else:
+                out.append(msg)
+        self.live.sent.clear()
+        return out
+
+    def test_the_text_as_the_tools_spell_it(self):
+        self.load()
+        samples = ["Canci\u00f3n", "\u00d1u", "Stra\u00dfe", "\u201cLive\u201d \u2013 2026\u2026", "\u65e5\u672c",
+                   "e\u0301", "\x7f", "Tab\there"] + [chr(c) for c in range(0xA0, 0x250)] + list(SPELLED)
+        for text in samples:
+            self.assertEqual(self.module.display_text(text), display_text(text), repr(text))
+
+    def test_the_message_is_the_tools(self):
+        self.load()
+        text = "A song with a name longer than thirty-two letters"
+        for place in ("info", "name", "line", "small"):
+            self.assertEqual(bytes(self.module.text_sysex(text, place)), bytes(text_sysex(text, place, "always")))
+
+    def test_the_locator_before_the_playhead(self):
+        script = self.load()
+        song = self.live.the_song
+        song.cue_points = [Obj(time=32.0, name="Canci\u00f3n"), Obj(time=0.0, name="Sweet Child")]
+        script.update_display()
+        self.assertEqual(self.texts(), [(2, 1, "Sweet Child")])
+        script.update_display()
+        self.assertEqual(self.texts(), [])
+        song.current_song_time = 32.0
+        script.update_display()
+        self.assertEqual(self.texts(), [(2, 1, "Cancion")])
+        # Before the first locator: no song, the line back to the bank
+        song.cue_points[1].time = 4.0
+        song.current_song_time = 1.0
+        script.update_display()
+        self.assertEqual(self.texts(), [(2, 1, "")])
+
+    def test_the_scene_without_locators(self):
+        script = self.load(SONG_PLACE="small")
+        self.live.scene.name = "Intro jam"
+        script.update_display()
+        self.assertEqual(self.texts(), [(3, 1, "Intro jam")])
+        self.live.view.selected_scene = Obj(name="Outro")
+        script.update_display()
+        self.assertEqual(self.texts(), [(3, 1, "Outro")])
+        # Scenes asked for: locators are left aside
+        script = self.load(SONG_FROM="scenes")
+        self.live.the_song.cue_points = [Obj(time=0.0, name="Locator")]
+        self.live.scene.name = "Verse"
+        script.update_display()
+        self.assertEqual(self.texts(), [(2, 1, "Verse")])
+
+    def test_sent_again_now_and_then(self):
+        script = self.load()
+        for _ in range(49):
+            script.update_display()
+        self.assertEqual(self.texts(), [(2, 1, "")])
+        script.update_display()
+        self.assertEqual(self.texts(), [(2, 1, "")])
+        script.refresh_state()
+        self.assertEqual(self.texts(), [(2, 1, "")])
+
+    def test_the_transport_as_ccs(self):
+        script = self.load(CC_PLAY=20, CC_RECORD=21, CC_METRONOME=23, CC_CHANNEL=3)
+        song = self.live.the_song
+        script.update_display()
+        self.assertEqual(self.texts()[1:], [(0xB2, 20, 0), (0xB2, 21, 0), (0xB2, 23, 0)])
+        song.is_playing, song.metronome = True, True
+        script.update_display()
+        self.assertEqual(self.texts(), [(0xB2, 20, 127), (0xB2, 23, 127)])
+
+    def test_disconnect_gives_the_line_back(self):
+        script = self.load()
+        script.disconnect()
+        self.assertEqual(self.texts(), [(2, 1, "")])
+        self.assertEqual(script.suggest_output_port(), "MIDI Commander Custom")
 
 
 if __name__ == "__main__":
