@@ -131,6 +131,7 @@ GLOBAL_GROUPS = [
     ]),
     ("Power", [
         ("Sleep_After_Min", "Sleep after", "idle minutes before the display and LEDs go out, 0 = never"),
+        ("Silent_Wake", "Silent wake", "asleep, a press only wakes the pedal and sends nothing"),
     ]),
 ]
 
@@ -150,7 +151,7 @@ GLOBAL_FIELDS = {
     "MIDI_Channel": _choice(CHANNELS),
     **{label: CHECK for label in ("RealTime_Passthrough", "USB_MIDI_Thru", "Remember_State",
                                   "Setlist_Mode", "Setlist_Display", "Clock_Follow", "LED_Feedback", "Link_Toggles",
-                                  "Edit_Lock", "Gig_View", "Kemper_Mode", "GT1000_Mode", "Skip_Same_PC")},
+                                  "Edit_Lock", "Gig_View", "Silent_Wake", "Kemper_Mode", "GT1000_Mode", "Skip_Same_PC")},
     "Bank_Up_LED_Mode": _choice(LED_MODES),
     "Bank_Down_LED_Mode": _choice(LED_MODES),
     "Exp1_CC": _int(1, 127),

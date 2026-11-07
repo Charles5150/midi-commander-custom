@@ -124,6 +124,7 @@ Los ajustes de toda la pedalera, como filas `Label,Value`. En el configurador so
 | Etiqueta | En el configurador | Valores | Qué hace |
 |---|---|---|---|
 | `Sleep_After_Min` | Sleep after | 0–60 | Minutos sin actividad antes de que se apaguen la pantalla y los LEDs. 0 lo desactiva. Una pulsación o un pedal de expresión que se mueve la despiertan, y además hace lo que se le pidió. |
+| `Silent_Wake` | Silent wake | Y / N | Dormida, una pulsación solo despierta la pedalera: no sale nada ni al bajar ni al subir. Un pedal de expresión que se mueve sigue enviando. Por defecto N. Necesita el firmware 1.43 (bit 5 del byte global 46, junto a la velocidad del banner). |
 
 ---
 

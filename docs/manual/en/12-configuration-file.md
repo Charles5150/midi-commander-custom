@@ -124,6 +124,7 @@ The settings of the whole pedal, as `Label,Value` rows. In the configurator they
 | Label | In the configurator | Values | What it does |
 |---|---|---|---|
 | `Sleep_After_Min` | Sleep after | 0–60 | Minutes of inactivity before the display and LEDs go out. 0 turns it off. A press or a moved expression pedal wakes it and still does what it was asked to. |
+| `Silent_Wake` | Silent wake | Y / N | Asleep, a press only wakes the pedal: nothing goes out as it goes down or comes up. A moved expression pedal still sends. Default N. Needs firmware 1.43 (bit 5 of global byte 46, with the banner's speed). |
 
 ---
 

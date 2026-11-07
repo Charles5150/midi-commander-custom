@@ -696,6 +696,31 @@ class MidiMonitorTest(GigViewTest):
             self.assertRegex(defines, rf"#define MONITOR_{name}\s+\({value}\)")
 
 
+class SilentWakeTest(GigViewTest):
+    """The press that wakes the pedal only wakes it, Silent_Wake, in bit 5 of the banner's byte (1.43)."""
+
+    def test_with_the_banner(self):
+        for silent, byte in (("Y", 0x2E), ("yes", 0x2E), ("N", 0x0E), ("", 0x0E)):
+            packed = self.with_settings(Silent_Wake=silent, MIDI_Monitor="Mark", Gig_View="Y", Boot_Banner="Normal")
+            self.assertEqual(packed[46], byte, silent)
+            self.assertEqual(self.value(packed, "Silent_Wake"), "Y" if byte & 0x20 else "N")
+            self.assertEqual(self.value(packed, "MIDI_Monitor"), "Mark")
+            self.assertEqual(self.value(packed, "Gig_View"), "Y")
+
+    def test_off_without_it(self):
+        self.assertEqual(self.value(b"\xff" * layout.CONFIG_SIZE, "Silent_Wake"), "N")
+        self.assertEqual(self.value(pack_csv(SAMPLE_CSV), "Silent_Wake"), "N")
+        self.assertEqual(self.value(pack_csv(DEMO_CSV), "Silent_Wake"), "N")
+
+    def test_firmware(self):
+        from lib import settingsBinaryPacker as sbp
+        defines = firmware_source("Inc", "midi_defines.h")
+        m = re.search(r"#define SILENT_WAKE\s+\((0x[0-9A-F]+)\)", defines)
+        self.assertEqual(int(m.group(1), 16), sbp.SILENT_WAKE)
+        router = firmware_source("Src", "switch_router.c")
+        self.assertIn("bool eat = sleep_is_asleep() && v != 0xFF && (v & SILENT_WAKE);", router)
+
+
 class BankPreviewTest(unittest.TestCase):
     """Bank Up / Down only show a bank until a button confirms it (0.66)."""
 

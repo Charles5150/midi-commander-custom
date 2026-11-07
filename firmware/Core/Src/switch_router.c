@@ -4363,6 +4363,36 @@ static bool test_switches(uint32_t now){
 	return true;
 }
 
+/*
+ * Silent_Wake: asleep, a press only wakes the pedal. It is taken here, before
+ * anything else sees it, and so is its release, whenever that comes. A
+ * switch found going down awake is no longer owed one, whatever happened to
+ * its release on the way (the editor gesture takes the bank switches' own).
+ */
+static uint16_t wake_eaten;
+
+__attribute__((noinline)) static void wake_switches(void){
+	uint8_t v = pGlobalSettings[GLOBAL_SETTINGS_BANNER];
+	bool eat = sleep_is_asleep() && v != 0xFF && (v & SILENT_WAKE);
+	if(!eat && !wake_eaten) return;
+	for(uint8_t id=0; id<SW_VIRTUAL_COUNT; id++){
+		GPIO_TypeDef *port;
+		uint16_t pin;
+		volatile uint16_t *changed;
+		virtual_pin(id, &port, &pin, &changed);
+		if(!(*changed & pin)) continue;
+		uint16_t bit = (uint16_t)(1U << id);
+		bool down = switch_down(port, pin);
+		if(down ? !eat : !(wake_eaten & bit)){
+			wake_eaten &= (uint16_t)~bit;
+			continue;
+		}
+		clear_changed(changed, pin);
+		if(down) wake_eaten |= bit;
+		else wake_eaten &= (uint16_t)~bit;
+	}
+}
+
 // Each as a tap, the press pass then the release pass, as a bank switch's
 static void requested_lists(void){
 	while(list_req_out != list_req_in){
@@ -4415,6 +4445,7 @@ void handle_switches(void){
 
 	uint32_t now = HAL_GetTick();
 	if(test_switches(now)) return;		// the self-test has them
+	wake_switches();
 	if(editor_switches(now)) return;	// the editor has the switches
 	preview_switches(now);
 

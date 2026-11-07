@@ -1384,6 +1384,35 @@ test("asleep, a bank change from the computer leaves the LEDs dark until a press
   assert.ok(sim.e.sim_screen_on(), "a press wakes it");
 });
 
+test("with Silent_Wake, the press that wakes the pedal only wakes it, let go when it will (before 1.43, it also did its job)", async () => {
+  const set = (label, value) => `d['Global_Settings'].loc[d['Global_Settings']['Label'] == '${label}', 'Value'] = '${value}'`;
+  for (const silent of ["Y", "N"]) {
+    const sim = simWithDemo(await flashWith(packDemo(`${set("Sleep_After_Min", "1")}\n${set("Silent_Wake", silent)}`)));
+    const pedal = await Pedal.open(sim.access);
+    tap(sim, 0);                              // the index bank: to LOOP, where switch 1 is REC
+    const seen = watch(sim);
+    sim.run(61000);
+    assert.ok(!sim.e.sim_screen_on(), "asleep after a minute");
+    sim.footswitch(0, true);
+    sim.run(1500);                            // held past a long press
+    assert.ok(sim.e.sim_screen_on(), "the press wakes it");
+    sim.footswitch(0, false);
+    sim.run(600);
+    if (silent === "Y") {
+      assert.deepEqual(seen.splice(0), [], "and sends nothing, down or up");
+      tap(sim, 0);
+      assert.deepEqual(seen.splice(0), ["USB b0 01 7f", "DIN b0 01 7f"], "the next press does its job");
+      sim.run(61000);
+      tap(sim, 9);                            // Bank Up
+      assert.equal((await running(sim, () => pedal.getState())).bankName, "LOOP", "a bank switch only wakes it too");
+      tap(sim, 9);
+      assert.notEqual((await running(sim, () => pedal.getState())).bankName, "LOOP", "and then changes bank");
+    } else {
+      assert.deepEqual(seen.splice(0), ["USB b0 01 7f", "DIN b0 01 7f"], "without it, the press that wakes it does its job");
+    }
+  }
+});
+
 test("a SysEx left unfinished is dropped at the next F0, not run with the next message (before 1.22, a press)", async () => {
   const sim = simWithDemo();
   sim.run(10000);

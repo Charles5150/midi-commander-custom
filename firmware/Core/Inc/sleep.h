@@ -11,7 +11,8 @@
  *
  * Unlike USB suspend, presses are NOT blocked while asleep: the press that
  * wakes the pedal also does its job, because on stage a lost press is worse
- * than a bright screen.
+ * than a bright screen. Unless Silent_Wake asks otherwise: then the press that
+ * wakes it, and its release, are dropped (wake_switches in switch_router.c).
  */
 
 #ifndef INC_SLEEP_H_

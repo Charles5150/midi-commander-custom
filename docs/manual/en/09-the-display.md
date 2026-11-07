@@ -50,7 +50,7 @@ While a bank preview shows, readouts such as the tempo are skipped, and text fro
 
 ### When it goes dark
 
-With `Sleep_After_Min` set, the display and the LEDs switch off after that many minutes with nobody touching the pedal. Any press or expression pedal movement brings them back, and the press that wakes it still does its job. They also go off while the computer the pedal is connected to sleeps, and come back when it wakes. A bank changed from the computer while the pedal sleeps changes in the dark: the LEDs show it when the pedal wakes. See the [global settings](12-configuration-file.md#global_settings).
+With `Sleep_After_Min` set, the display and the LEDs switch off after that many minutes with nobody touching the pedal. Any press or expression pedal movement brings them back, and the press that wakes it still does its job. With `Silent_Wake` (**Silent wake**, under Power) a press that finds the pedal asleep only wakes it: nothing goes out as it goes down or as it comes up, however long it is held, so a foot brushing a dark pedal changes nothing, and the next press does its job. A moved expression pedal still sends. They also go off while the computer the pedal is connected to sleeps, and come back when it wakes. A bank changed from the computer while the pedal sleeps changes in the dark: the LEDs show it when the pedal wakes. See the [global settings](12-configuration-file.md#global_settings).
 
 ## Gig view
 

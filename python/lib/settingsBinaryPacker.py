@@ -56,6 +56,7 @@ GIG_VIEW_ON = 0x04  # in the banner's byte: the gig view from power on
 # And in bits 3-4 what the display shows of MIDI (1.35)
 MIDI_MONITOR_SHIFT = 3
 MIDI_MONITORS = {"OFF": 0, "MARK": 1, "IN": 2, "ALL": 3}
+SILENT_WAKE = 0x20  # and in bit 5 that the press that wakes the pedal only wakes it (1.43)
 
 def _setting(df, label) -> str:
     """A Global_Settings value as written, "" when it is empty or missing."""
@@ -336,6 +337,10 @@ def pack_global_settings(df):
     if monitor.upper() not in MIDI_MONITORS:
         raise ValueError(f"MIDI_Monitor must be Off, Mark, In or All, not {monitor!r}")
     bin_list[GLOBAL_SETTINGS_BANNER] |= MIDI_MONITORS[monitor.upper()] << MIDI_MONITOR_SHIFT
+    # And whether the press that wakes the pedal from sleep only wakes it
+    silent = str(df.loc["Silent_Wake", "Value"]).strip() if "Silent_Wake" in df.index else "N"
+    if silent.upper().startswith("Y"):
+        bin_list[GLOBAL_SETTINGS_BANNER] |= SILENT_WAKE
 
     # Bank preview: Bank Up / Down only show the bank there, and one of the
     # eight buttons confirms it within this many seconds. 0 or Off = off.

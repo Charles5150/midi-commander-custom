@@ -50,7 +50,7 @@ Mientras se ve una vista previa de banco, los avisos como el del tempo se saltan
 
 ### Cuándo se apaga
 
-Con `Sleep_After_Min` puesto, la pantalla y los LEDs se apagan tras ese número de minutos sin que nadie toque la pedalera. Cualquier pulsación o movimiento de un pedal de expresión los vuelve a encender, y la pulsación que la despierta sigue haciendo su trabajo. También se apagan mientras duerme el ordenador al que está conectada la pedalera, y vuelven cuando se despierta. Un banco que cambia el ordenador mientras la pedalera duerme cambia a oscuras: los LEDs lo muestran cuando se despierta. Mira los [ajustes globales](12-configuration-file.md#global_settings).
+Con `Sleep_After_Min` puesto, la pantalla y los LEDs se apagan tras ese número de minutos sin que nadie toque la pedalera. Cualquier pulsación o movimiento de un pedal de expresión los vuelve a encender, y la pulsación que la despierta sigue haciendo su trabajo. Con `Silent_Wake` (**Silent wake**, en Power) una pulsación que encuentra la pedalera dormida solo la despierta: no sale nada ni al bajar ni al subir, por mucho que se mantenga, así que un pie que roza la pedalera a oscuras no cambia nada, y la siguiente pulsación hace su trabajo. Un pedal de expresión que se mueve sigue enviando. También se apagan mientras duerme el ordenador al que está conectada la pedalera, y vuelven cuando se despierta. Un banco que cambia el ordenador mientras la pedalera duerme cambia a oscuras: los LEDs lo muestran cuando se despierta. Mira los [ajustes globales](12-configuration-file.md#global_settings).
 
 ## Vista de directo
 
