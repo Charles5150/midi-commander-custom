@@ -163,6 +163,20 @@ class GuiTest(unittest.TestCase):
         self.assertEqual(w["middle"].get(), "1000")
         app.load_csv(CSVS[0])               # back as it was, for the other tests
 
+    def test_a_bank_switch_momentary_when_held(self):
+        app = self.app
+        app.load_csv(CSVS[0])
+        app.update()
+        app._on_bank_switch_change("Up / Short")
+        self.assertFalse(app.bank_switch_hold.get())
+        app.bank_switch_hold.select()
+        app._on_bank_switch_change("Up / Long")           # keeps what was set
+        self.assertIsNone(app.bank_switch_hold, "only the short press has it")
+        rows = app.df_bank_switch.set_index(["Switch", "Press"])["Momentary_Hold"]
+        self.assertEqual(rows[("Up", "Short")], "Y")
+        self.assertEqual(rows[("Down", "Short")], "N")
+        app.load_csv(CSVS[0])               # back as it was, for the other tests
+
     def test_a_song_saved_and_loaded(self):
         app = self.app
         app.load_csv(CSVS[0])

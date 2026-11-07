@@ -825,12 +825,15 @@ function renderExpression(main) {
 
 // --- Bank switches -------------------------------------------------------------
 function renderBankSwitch(main) {
-  main.append(h("p", { class: "hint" }, "What Bank Down and Bank Up send when Bank switches (Global) is Bank+MIDI or MIDI only. With MIDI only, a label on the short press puts the switch on the screen, five cells to a row."));
+  main.append(h("p", { class: "hint" }, "What Bank Down and Bank Up send when Bank switches (Global) is Bank+MIDI or MIDI only. With MIDI only, a label on the short press puts the switch on the screen, five cells to a row, and Momentary when held sends the short list as the switch goes down and lets it go on release: a toggle held goes back as it was (firmware 1.42; not with a long press list)."));
   for (const [sw, press] of [["Down", "Short"], ["Down", "Long"], ["Up", "Short"], ["Up", "Long"]]) {
     const r = rowOf("BankSwitch_Settings", { Switch: sw, Press: press });
     const label = press === "Short"
       ? h("div", { class: "fields" }, labelled("Label", fieldControl({ kind: "text", max: 4, display: true },
-        () => cell(r.sec, r.row, "Label"), (v) => setCell(r.sec, r.row, "Label", v))))
+        () => cell(r.sec, r.row, "Label"), (v) => setCell(r.sec, r.row, "Label", v))),
+        h("label", { class: "check" }, fieldControl({ kind: "check" },
+          () => cell(r.sec, r.row, "Momentary_Hold"), (v) => setCell(r.sec, r.row, "Momentary_Hold", v)),
+          "Momentary when held"))
       : null;
     main.append(h("section", { class: "card" }, h("h3", {}, `Bank ${sw}, ${press.toLowerCase()} press`), label, commandList(r.sec, r.row, state.schema.commandTypes)));
   }

@@ -89,6 +89,9 @@ EXT2_LONG_LABELS_OFFSET = EXT2_MAP_OFFSET + MIDI_MAP_COUNT * MIDI_MAP_STRIDE
 # read and write in pieces of 16 bytes, so the two take that much.
 EXT2_BANK_SWITCH_LABELS_OFFSET = EXT2_LONG_LABELS_OFFSET + NUM_BANKS * NUM_BUTTONS * LABEL_LEN
 EXT2_BANK_SWITCH_LABELS_SIZE = 16
+# After the two labels, a byte whose cleared bit 0 (Down) or 1 (Up) makes that
+# switch momentary when held at MIDI only (firmware 1.42); erased is neither
+BANK_SWITCH_HOLD_BYTE = 2 * LABEL_LEN
 # Preset names (firmware 1.20), after those: PRESET_NAME_LEN chars for each
 # program 0-127, which a label's $N shows in place of the number
 PRESET_NAME_LEN = 8

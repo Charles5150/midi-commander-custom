@@ -262,6 +262,7 @@ Edit them in the configurator's **Bank Switch** tab, and choose in the **Global*
 
 - The lists are the same in every bank, because the switches are navigation and should behave the same wherever you are.
 - Each list fires as a tap, press then release, so a `Toggle` command flips once per press and keeps its own state.
+- **Momentary when held.** With `MIDI only`, tick **Momentary when held** on a switch's short press (`Momentary_Hold` `Y`) and its short list goes out as the switch goes down, and is let go as it comes up, as the other eight switches do: a CC that is not a toggle sends its On value while the switch is held and its Off value on release, and a toggle flips on the press, so a tap latches it and a press held past the long press time sends it back on release, on only while held. Not with a long press list for that switch, which the hold is then for; and not when the switches change bank (firmware 1.42 or later).
 - **A toggle that shows.** With `MIDI only`, a switch whose short press list holds a toggle is a toggle button like the others: its LED stays lit while the toggle is on, following its **Bank Up LED** or **Bank Down LED** mode, and so does its cell on the screen, inverted. With `LED_Feedback` on, the computer sending its CC or note puts it in the state that describes, as it does the buttons', and with `Link_Toggles` a button sending the same follows it, and the other way round; a `Listen` command works there too. Its state is not kept through power off, and goes back to off when the configuration changes (firmware 1.36 or later; before, the LED went out on release and nothing that came in changed the state).
 - `Bank` commands are ignored here: where you end up is decided by the switch itself and by `Bank_Switch_Mode`.
 - **On the screen.** With `MIDI only`, give the short press of either switch a label and the screen shows all ten switches: five cells to a row, laid out like the pedal, **1 2 3 4** and Bank Up on top, **A B C D** and Bank Down below, the labels in smaller letters so four characters still fit. A switch left without a label shows `UP` or `DN`. One label each, like the lists, in every bank; with no label at all, or with the switches changing bank, the screen is the usual eight cells (firmware 1.08 or later).
@@ -270,7 +271,7 @@ Edit them in the configurator's **Bank Switch** tab, and choose in the **Global*
 
 ### `BankSwitch_Settings`
 
-Optional; four rows, one per switch and press length: `Switch` `Down` or `Up`, `Press` `Short` or `Long`, `Label`, then the same ten command slots as a button. Rows may be missing or in any order. `Label` is up to 4 characters, and only the `Short` rows take one: it is the switch's label on the screen with `MIDI only`.
+Optional; four rows, one per switch and press length: `Switch` `Down` or `Up`, `Press` `Short` or `Long`, `Label`, then the same ten command slots as a button. Rows may be missing or in any order. `Label` is up to 4 characters, and only the `Short` rows take one: it is the switch's label on the screen with `MIDI only`. `Momentary_Hold` `Y`, on a `Short` row only, makes that switch [momentary when held](#what-the-bank-switches-send) with `MIDI only`; empty or `N` otherwise (firmware 1.42).
 
 ## Four configurations
 

@@ -825,6 +825,52 @@ class BankSwitchLabelTest(unittest.TestCase):
         self.assertEqual(packer.pack_flash_image(again)[layout.EXT2_OFFSET:][labels],
                          image[layout.EXT2_OFFSET:][labels])
 
+    def hold_sections(self, held, labels=None):
+        sections = self.sections(labels or {})
+        df = sections[packer.BANK_SWITCH_SECTION]
+        for switch in held:
+            df.loc[(df["Switch"] == switch) & (df["Press"] == "Short"), "Momentary_Hold"] = "Y"
+        return sections
+
+    def hold_byte(self, image):
+        return image[layout.EXT2_OFFSET + layout.EXT2_BANK_SWITCH_LABELS_OFFSET + layout.BANK_SWITCH_HOLD_BYTE]
+
+    def test_momentary_hold_round_trip(self):
+        """Momentary when held (1.42): a cleared bit per switch after the labels."""
+        for held, byte in (([], None), (["Down"], 0xFE), (["Up"], 0xFD), (["Down", "Up"], 0xFC)):
+            with self.subTest(held=held):
+                image = packer.pack_flash_image(self.hold_sections(held))
+                if byte is None:
+                    self.assertLessEqual(len(image), layout.EXT2_OFFSET)     # nothing needs the area
+                    continue
+                self.assertEqual(self.hold_byte(image), byte)
+                back = unpacker.unpack_bank_switch_settings(image).set_index(["Switch", "Press"])
+                self.assertEqual(back["Momentary_Hold"].to_dict(),
+                                 {("Down", "Short"): "Y" if "Down" in held else "N", ("Down", "Long"): "",
+                                  ("Up", "Short"): "Y" if "Up" in held else "N", ("Up", "Long"): ""})
+                self.assertEqual(back["Label"].tolist(), ["", "", "", ""])
+
+    def test_momentary_hold_with_labels(self):
+        image = packer.pack_flash_image(self.hold_sections(["Up"], {("Down", "Short"): "PREV"}))
+        at = layout.EXT2_OFFSET + layout.EXT2_BANK_SWITCH_LABELS_OFFSET
+        self.assertEqual(image[at:at + 16], b"PREV    " + bytes([0xFD]) + b"\xff" * 7)
+        # and labels alone leave it erased, as before
+        image = packer.pack_flash_image(self.sections({("Down", "Short"): "PREV"}))
+        self.assertEqual(self.hold_byte(image), 0xFF)
+
+    def test_momentary_hold_only_on_the_short_row(self):
+        sections = self.sections({})
+        df = sections[packer.BANK_SWITCH_SECTION]
+        df.loc[(df["Switch"] == "Up") & (df["Press"] == "Long"), "Momentary_Hold"] = "Y"
+        with self.assertRaises(ValueError) as caught:
+            packer.pack_flash_image(sections)
+        self.assertIn("Up Long", str(caught.exception))
+
+    def test_momentary_hold_in_the_firmware(self):
+        header = self.source("Inc", "flash_midi_settings.h")
+        self.assertIn(f"#define BANK_SW_HOLD_BYTE		(2 * BUTTON_LABEL_LEN)", header)
+        self.assertEqual(layout.BANK_SWITCH_HOLD_BYTE, 2 * layout.LABEL_LEN)
+
     def test_firmware(self):
         """Ten cells only with MIDI only and a label, Bank Up on top."""
         display = self.source("Src", "display.c")

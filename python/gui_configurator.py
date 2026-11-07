@@ -1641,6 +1641,9 @@ class MidiCommanderGUI(ctk.CTk):
             )
             if "Label" not in self.df_bank_switch.columns:     # a CSV from before 1.08
                 self.df_bank_switch.insert(2, "Label", "")
+            if "Momentary_Hold" not in self.df_bank_switch.columns:     # and before 1.42
+                self.df_bank_switch.insert(3, "Momentary_Hold",
+                                           ["N" if clean(p) == "Short" else "" for p in self.df_bank_switch["Press"]])
             self.df_setlist = (
                 data[SETLIST_SECTION].astype(object).reset_index(drop=True)
                 if SETLIST_SECTION in data
@@ -3315,7 +3318,7 @@ class MidiCommanderGUI(ctk.CTk):
             "Bank_Switch_Mode in the Global tab decides whether they also change bank (Bank+MIDI), "
             "change bank silently (Bank) or stop changing bank altogether (MIDI only), which turns "
             "the pedal into a ten switch controller. Each list fires as a tap, press then release, "
-            "so toggles flip once. Bank commands are ignored here. With MIDI only, a label on the "
+            "so toggles flip once, unless Momentary when held is on for the switch. Bank commands are ignored here. With MIDI only, a label on the "
             "short press puts the switch on the screen, five cells to a row.",
         ).pack(anchor="w")
 
@@ -3347,6 +3350,7 @@ class MidiCommanderGUI(ctk.CTk):
         self.bank_switch_row = match.index[0]
         current = df.loc[self.bank_switch_row]
         self.bank_switch_label = None
+        self.bank_switch_hold = None
         if press == "Short":
             label_frame = ctk.CTkFrame(self.bank_switch_frame, fg_color="transparent")
             label_frame.pack(anchor="w", pady=(0, 8))
@@ -3355,6 +3359,14 @@ class MidiCommanderGUI(ctk.CTk):
             self.bank_switch_label.pack(side="left", padx=(8, 12))
             ctk.CTkLabel(label_frame, text="on the screen when Bank switches is MIDI only",
                          text_color=MUTED).pack(side="left")
+            hold_frame = ctk.CTkFrame(self.bank_switch_frame, fg_color="transparent")
+            hold_frame.pack(anchor="w", pady=(0, 8))
+            self.bank_switch_hold = Check(hold_frame, text="Momentary when held",
+                                          checked=is_yes(current.get("Momentary_Hold")))
+            self.bank_switch_hold.pack(side="left")
+            ctk.CTkLabel(hold_frame, text="with MIDI only and no long press list: sent as it is pressed, "
+                         "Off on release; a toggle held goes back as it was",
+                         text_color=MUTED).pack(side="left", padx=(12, 0))
         table = ctk.CTkFrame(self.bank_switch_frame)
         table.pack(fill="x")
         for slot in SLOTS:
@@ -3368,6 +3380,8 @@ class MidiCommanderGUI(ctk.CTk):
             return
         if self.bank_switch_label is not None:
             self.df_bank_switch.at[self.bank_switch_row, "Label"] = self.bank_switch_label.value().strip()
+        if self.bank_switch_hold is not None:
+            self.df_bank_switch.at[self.bank_switch_row, "Momentary_Hold"] = self.bank_switch_hold.value()
         for editor in self.bank_switch_editors:
             for field, val in editor.values().items():
                 self.df_bank_switch.at[self.bank_switch_row, f"{editor.slot}_{field}"] = (

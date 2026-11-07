@@ -764,17 +764,20 @@ def unpack_bank_switch_settings(data: bytes) -> pd.DataFrame:
     second extension area of a full image holds one."""
     ext = bytes(data[EXT2_OFFSET:EXT2_OFFSET + EXT2_SIZE])
     labels = ext[EXT2_BANK_SWITCH_LABELS_OFFSET:] if ext.startswith(EXT2_MARKER) else b""
-    columns = ["Switch", "Press", "Label"]
+    columns = ["Switch", "Press", "Label", "Momentary_Hold"]
     for slot in SLOT_NAMES:
         columns += [f"{slot}_{f}" for f in CMD_FIELDS]
     columns += [f"{slot}_KeyMode_(Key)" for slot in SLOT_NAMES]
 
     rows = []
     for i, (switch, press) in enumerate(BANK_SWITCH_LISTS):
-        row = {"Switch": switch, "Press": press, "Label": ""}
+        row = {"Switch": switch, "Press": press, "Label": "", "Momentary_Hold": ""}
         if press == "Short":
             at = BANK_SWITCH_LABELED.index(switch) * LABEL_LEN
             row["Label"] = _ascii(labels[at:at + LABEL_LEN])
+            # Momentary when held (firmware 1.42): a cleared bit after the labels
+            hold = labels[2 * LABEL_LEN] if len(labels) > 2 * LABEL_LEN else 0xFF
+            row["Momentary_Hold"] = "N" if hold & (1 << BANK_SWITCH_LABELED.index(switch)) else "Y"
         for slot_index, slot in enumerate(SLOT_NAMES):
             offset = BANK_SWITCH_OFFSET + i * BUTTON_STRIDE + slot_index * CMD_SIZE
             cmd = unpack_command(data[offset : offset + CMD_SIZE])

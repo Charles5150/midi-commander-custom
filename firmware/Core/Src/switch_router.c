@@ -3253,6 +3253,14 @@ static uint8_t *bank_switch_rom(uint8_t list, uint8_t unused, uint8_t cmd){
 	return pBankSwitchCmds + list * MIDI_ROM_KEY_STRIDE + cmd * MIDI_ROM_CMD_SIZE;
 }
 
+// True when a bank switch's list holds a toggle
+static bool bank_list_has_toggle(uint8_t list){
+	for(uint8_t cmd=0; cmd<MIDI_NUM_COMMANDS_PER_SWITCH; cmd++){
+		if(midiCmd_get_cmd_toggle(bank_switch_rom(list, 0, cmd))) return true;
+	}
+	return false;
+}
+
 /*
  * At MIDI only a bank switch is a button like the others: with a toggle in
  * its short list, its LED stays lit and its cell inverted while the toggle is
@@ -3261,10 +3269,7 @@ static uint8_t *bank_switch_rom(uint8_t list, uint8_t unused, uint8_t cmd){
  */
 bool sw_bank_switch_lit(uint8_t which){
 	if(bank_switch_mode() != BANK_SWITCH_MIDI_ONLY || !bank_switch_toggle[which * 2]) return false;
-	for(uint8_t cmd=0; cmd<MIDI_NUM_COMMANDS_PER_SWITCH; cmd++){
-		if(midiCmd_get_cmd_toggle(bank_switch_rom((uint8_t)(which * 2), 0, cmd))) return true;
-	}
-	return false;
+	return bank_list_has_toggle((uint8_t)(which * 2));
 }
 
 static uint8_t bank_switch_led(uint8_t which, uint8_t pressed){
@@ -3293,6 +3298,37 @@ static void fire_bank_switch_cmds(uint8_t which, bool long_press){
 	uint8_t toggle = bank_switch_toggle[list];
 
 	run_cmd_list(bank_switch_rom(list, 0, 0), 0, 0, toggle, PENDING_OWNER_NONE, LIST_SKIP_BANK | LIST_UP_AFTER, true);
+}
+
+/*
+ * Momentary when held (1.42), at MIDI only, for a bank switch with no long
+ * list: its short list goes down as it is pressed and up as it is let go, so
+ * a CC that is not a toggle sends On while held and Off on release. A toggle
+ * flips on the press, as always, and held past the long press threshold its
+ * release flips it back: on only while held. Kept as a cleared bit, Down in
+ * bit 0 and Up in bit 1, of the byte after the two labels, so erased flash
+ * is none.
+ */
+static bool bank_switch_hold(uint8_t which){
+	if(bank_switch_mode() != BANK_SWITCH_MIDI_ONLY) return false;
+	const uint8_t *t = flash_settings_bank_switch_labels();
+	if(!t || (t[BANK_SW_HOLD_BYTE] & (1U << which))) return false;
+	for(uint8_t cmd=0; cmd<MIDI_NUM_COMMANDS_PER_SWITCH; cmd++){
+		if(cmd_is_present(bank_switch_rom((uint8_t)(which * 2 + 1), 0, cmd))) return false;
+	}
+	return true;
+}
+
+static void bank_switch_hold_down(uint8_t which){
+	uint8_t list = (uint8_t)(which * 2);
+	bank_switch_flipped(list);
+	run_cmd_list(bank_switch_rom(list, 0, 0), 0, 0, bank_switch_toggle[list], PENDING_OWNER_NONE, LIST_SKIP_BANK, true);
+}
+
+static void bank_switch_hold_up(uint8_t which, bool held){
+	uint8_t list = (uint8_t)(which * 2);
+	run_list_up(bank_switch_rom(list, 0, 0), 0, bank_switch_toggle[list], LIST_SKIP_BANK);
+	if(held && bank_list_has_toggle(list)) fire_bank_switch_cmds(which, false);	// back as it was
 }
 
 // A bank switch pressed: step delta banks, or only preview the bank there
@@ -3379,6 +3415,12 @@ static void handle_bank_switch(bank_press_t *bp, GPIO_TypeDef *port, uint16_t pi
 		// Pressed: wait to see whether this becomes a long press
 		bp->press_tick = now;
 		bp->state = PRESS_PENDING;
+		if(bank_switch_hold(which)){
+			bp->state = PRESS_SHORT;
+			latency_begin();
+			bank_switch_hold_down(which);
+			latency_end();
+		}
 		leds_set(led_id, calculate_led_state(1, led_mode));
 	} else {
 		// Released: a press that never reached the threshold steps one bank
@@ -3386,6 +3428,8 @@ static void handle_bank_switch(bank_press_t *bp, GPIO_TypeDef *port, uint16_t pi
 			latency_begin();
 			bank_switch_press(which, direction, false);
 			latency_end();
+		} else if(bp->state == PRESS_SHORT){
+			bank_switch_hold_up(which, (now - bp->press_tick) >= long_press_threshold_ms());
 		}
 		bp->state = PRESS_IDLE;
 		leds_set(led_id, bank_switch_led(which, 0));

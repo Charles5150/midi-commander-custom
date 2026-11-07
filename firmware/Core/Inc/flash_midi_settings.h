@@ -322,8 +322,10 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
  *   [16..]    the MIDI map, MIDI_MAP_COUNT entries of MIDI_MAP_STRIDE bytes
  *   [400..]   long press labels, BUTTON_LABEL_LEN chars per button, as the
  *             labels in the slot; erased flash is no label
- *   [1424..]  the labels of Bank Down and Bank Up (1.08), then 0xFF to 16
- *             bytes; erased flash is no label
+ *   [1424..]  the labels of Bank Down and Bank Up (1.08), then a byte whose
+ *             cleared bit 0 (Down) or 1 (Up) makes that switch momentary when
+ *             held at MIDI only (1.42), then 0xFF to 16 bytes; erased flash is
+ *             no label and neither held
  *   [1440..]  preset names (1.20), PRESET_NAME_LEN chars per program 0-127,
  *             space padded, for $N in a label; erased flash or spaces is no
  *             name, and the program's number shows instead
@@ -364,6 +366,7 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
 #define EXT2_LONG_LABELS_OFF	(EXT2_MAP_OFF + MIDI_MAP_COUNT * MIDI_MAP_STRIDE)
 #define EXT2_BANK_SW_LABELS_OFF	(EXT2_LONG_LABELS_OFF + CFG_BUTTONS * BUTTON_LABEL_LEN)
 #define EXT2_BANK_SW_LABELS_SIZE	(16)
+#define BANK_SW_HOLD_BYTE		(2 * BUTTON_LABEL_LEN)
 #define PRESET_NAME_LEN			(8)
 #define PRESET_NAME_COUNT		(128)
 #define EXT2_PRESET_NAMES_OFF	(EXT2_BANK_SW_LABELS_OFF + EXT2_BANK_SW_LABELS_SIZE)

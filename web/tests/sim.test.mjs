@@ -1066,6 +1066,46 @@ test("with the bank switches at MIDI only and labelled, the screen shows ten cel
   assert.equal(cellRows(await demoWith("MIDI only", "", "")), plain, "no labels: the screen as it always was");
 });
 
+test("at MIDI only, a bank switch momentary when held sends as it goes down: a toggle held goes back, a plain CC is On while held (1.42)", async () => {
+  const tweak = (longs) => [
+    "g = d['Global_Settings']",
+    "g.loc[g.Label == 'Bank_Switch_Mode', 'Value'] = 'MIDI only'",
+    "s = d['BankSwitch_Settings']",
+    "s.loc[(s.Switch == 'Down') & (s.Press == 'Short'), ['Momentary_Hold', 'A_Toggle_(CC/PB/Note)']] = ['Y', 'Y']",
+    "s.loc[(s.Switch == 'Up') & (s.Press == 'Short'), ['Momentary_Hold', 'A_Toggle_(CC/PB/Note)']] = ['Y', 'N']",
+    longs ? "" : "s.loc[s.Press == 'Long', [c for c in s.columns if c.endswith('_CommandType')]] = ''",
+  ].join("\n");
+  const sim = simWithDemo(await flashWith(packDemo(tweak(false))));
+  sim.run(10000);                           // the demo's power on banner goes by first
+  const seen = watch(sim);
+  const usb = () => seen.splice(0).filter((m) => m.startsWith("USB"));
+  const press = (id, ms) => { sim.footswitch(id, true); sim.run(50); const down = usb(); sim.run(ms); sim.footswitch(id, false); sim.run(300); return [down, usb()]; };
+
+  // Bank Down, a toggle: a tap latches it, the next tap lets it go
+  assert.deepEqual(press(8, 50), [["USB b0 51 7f"], []], "on as it goes down, nothing on release");
+  assert.equal(sim.leds()[8], 16, "and lit");
+  assert.deepEqual(press(8, 50), [["USB b0 51 00"], []]);
+  assert.equal(sim.leds()[8], 0);
+  // held past the long press: on only while held
+  assert.deepEqual(press(8, 1500), [["USB b0 51 7f"], ["USB b0 51 00"]]);
+  assert.equal(sim.leds()[8], 0);
+
+  // Bank Up, a plain CC: On while held, Off on release, however short
+  assert.deepEqual(press(9, 50), [["USB b0 52 7f"], ["USB b0 52 00"]]);
+  assert.deepEqual(press(9, 1500), [["USB b0 52 7f"], ["USB b0 52 00"]]);
+
+  // With a long press list the hold is that list's: the short one waits for the release, as before
+  const withLong = simWithDemo(await flashWith(packDemo(tweak(true))));
+  withLong.run(10000);
+  const seen2 = watch(withLong);
+  withLong.footswitch(8, true);
+  withLong.run(50);
+  assert.deepEqual(seen2.splice(0).filter((m) => m.startsWith("USB")), [], "nothing until it is let go");
+  withLong.footswitch(8, false);
+  withLong.run(300);
+  assert.deepEqual(seen2.splice(0).filter((m) => m.startsWith("USB")), ["USB b0 51 7f"]);
+});
+
 test("at MIDI only, a bank switch's toggle lights its LED and its cell, and follows the computer (before 1.36, neither)", async () => {
   const tweak = [
     "g = d['Global_Settings']",

@@ -16,7 +16,7 @@ from lib.flashLayout import (
     DOUBLE_PRESS_OFFSET, EXT2_OFFSET, EXT2_MARKER, EXT2_MAP_OFFSET, MIDI_MAP_COUNT, MIDI_MAP_STRIDE,
     EXT2_TAKEOVER_OFFSET, EXT2_EXP_DISPLAY_OFFSET, EXT2_ON_LABELS_OFFSET, EXP_POINTS, EXT2_EXP_POINTS_SIZE,
     EXT2_CLOCK_OFFSET, CLOCK_NO_USB, CLOCK_NO_DIN, CLOCK_BURST_MAX,
-    EXT2_BANK_SWITCH_LABELS_SIZE, PRESET_NAME_LEN, PRESET_NAME_COUNT, SETLIST_COUNT, SETLIST_NAME_LEN,
+    EXT2_BANK_SWITCH_LABELS_SIZE, BANK_SWITCH_HOLD_BYTE, PRESET_NAME_LEN, PRESET_NAME_COUNT, SETLIST_COUNT, SETLIST_NAME_LEN,
 )
 
 LONG_PRESS_SECTION = "LongPress_Settings"
@@ -200,7 +200,7 @@ def empty_bank_switch_settings():
 
     rows = []
     for switch, press in BANK_SWITCH_LISTS:
-        row = {"Switch": switch, "Press": press, "Label": ""}
+        row = {"Switch": switch, "Press": press, "Label": "", "Momentary_Hold": "N" if press == "Short" else ""}
         for slot in SLOT_NAMES:
             for f in CMD_FIELDS:
                 row[f"{slot}_{f}"] = "N" if f.startswith("Toggle") else ""
@@ -464,24 +464,29 @@ def pack_long_labels(df, column="Long_Label") -> bytes:
 
 def pack_bank_switch_labels(df) -> bytes:
     """The labels of Bank Down and Bank Up, from the Label column of their short
-    press rows in BankSwitch_Settings (firmware 1.08); all 0xFF when there are
-    none. The switch runs the same lists in every bank, so it has one label."""
-    labels = {}
-    if df is not None and "Label" in df.columns:
+    press rows in BankSwitch_Settings (firmware 1.08), then a byte with a bit
+    cleared for each switch whose Momentary_Hold is Y (firmware 1.42); all 0xFF
+    when there are none. The switch runs the same lists in every bank, so it
+    has one label."""
+    labels, hold = {}, 0xFF
+    if df is not None:
         for _, row in df.iterrows():
             switch = _cell(row.get("Switch")).title()
             press = _cell(row.get("Press")).title()
             text = _cell(row.get("Label"))
-            if not text:
-                continue
-            if press != "Short":
+            held = _cell(row.get("Momentary_Hold")).upper().startswith("Y")
+            if (text or held) and press != "Short":
                 raise ValueError(f"{BANK_SWITCH_SECTION} {switch} {press}: only the short press "
-                                 f"row has a label, the one the screen shows")
-            labels[switch] = text
-    if not labels:
+                                 f"row has a label and Momentary_Hold")
+            if held and switch in BANK_SWITCH_LABELED:
+                hold &= ~(1 << BANK_SWITCH_LABELED.index(switch))
+            if text:
+                labels[switch] = text
+    if not labels and hold == 0xFF:
         return b"\xff" * EXT2_BANK_SWITCH_LABELS_SIZE
-    packed = b"".join(pack_label(labels.get(switch, "")) for switch in BANK_SWITCH_LABELED)
-    return packed.ljust(EXT2_BANK_SWITCH_LABELS_SIZE, b"\xff")
+    packed = (b"".join(pack_label(labels.get(switch, "")) for switch in BANK_SWITCH_LABELED)
+              if labels else b"\xff" * BANK_SWITCH_HOLD_BYTE)
+    return (packed + bytes([hold])).ljust(EXT2_BANK_SWITCH_LABELS_SIZE, b"\xff")
 
 
 def empty_preset_names():
