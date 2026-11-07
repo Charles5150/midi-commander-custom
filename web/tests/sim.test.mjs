@@ -1229,6 +1229,34 @@ test("middle points: a pedal that rises fast at the heel reads evenly through th
   await running(sim, () => pedal.setPedal(0, false));
 });
 
+test("a Smooth LFO glides to a new random value every cycle, never jumping; Random jumps (before 1.44, only Random)", async () => {
+  // The demo's TREM (bank 6, switch A): CC 14 between 40 and 127, now one cycle a bar
+  const lfoSim = async (shape) => simWithDemo(await flashWith(packDemo([
+    "b = d['Button_Settings']",
+    "b.loc[(b.Bank_Number == '6') & (b.Button_Identifier == 'A'), ['A_OnValue_(CC/PB)', 'A_KeyMode_(Key)']] = ['1/1', '" + shape + "']",
+  ].join("\n"))));
+  const toBank = (sim, bank) => { sim.usbIn([0xb0, 32, bank]); sim.run(300); };
+  const sweep = async (shape) => {
+    const sim = await lfoSim(shape);
+    toBank(sim, 6);
+    const seen = watch(sim);
+    tap(sim, 4);
+    sim.run(12000);
+    return seen.filter((m) => m.startsWith("USB b0 0e ")).map((m) => parseInt(m.slice(-2), 16));
+  };
+
+  const smooth = await sweep("Smooth");
+  assert.ok(smooth.length > 50, `it moves: ${smooth.length} values`);
+  assert.ok(smooth.every((v) => v >= 40 && v <= 127), "between Off and On");
+  const steps = smooth.slice(1).map((v, i) => Math.abs(v - smooth[i]));
+  assert.ok(Math.max(...steps) <= 2, `never a jump: the biggest step is ${Math.max(...steps)}`);
+  assert.ok(new Set(smooth).size > 20, "it wanders over the range");
+
+  const random = await sweep("Random");
+  const jumps = random.slice(1).filter((v, i) => Math.abs(v - random[i]) > 2).length;
+  assert.ok(jumps >= 3, `Random jumps once a cycle: ${jumps} jumps`);
+});
+
 test("takeover: back on a CC it left at another value, the pedal catches up with it or scales from it (before 1.18, it jumped)", async () => {
   // Pedal 1 on its own CC 11, but on CC 1 in FX; a plain sweep, nothing else
   const withTakeover = async (mode) => simWithDemo(await flashWith(packDemo([

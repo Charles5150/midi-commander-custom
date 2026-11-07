@@ -132,8 +132,9 @@
 #define LFO_SHAPE_SAW_UP	(2)
 #define LFO_SHAPE_SAW_DOWN	(3)
 #define LFO_SHAPE_SQUARE	(4)
-#define LFO_SHAPE_RANDOM	(5)
-#define LFO_SHAPE_COUNT		(6)
+#define LFO_SHAPE_RANDOM	(5)	// a new random value on every cycle
+#define LFO_SHAPE_SMOOTH	(6)	// glides to a new random value over every cycle
+#define LFO_SHAPE_COUNT		(7)
 // MMC: same empty command type, low nibble 7. A MIDI Machine Control message
 // to every device (F0 7F 7F 06 ... F7), for a recorder or a DAW. Byte 1 is the
 // MMC command byte, one of the MMC_ values below. For MMC_LOCATE, bytes 2 (low

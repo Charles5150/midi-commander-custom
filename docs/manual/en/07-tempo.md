@@ -188,7 +188,7 @@ A tremolo, a filter sweep or an auto-pan that follows your tap or the host's clo
 In the configurator, put an `LFO` command above a `CC` and choose:
 
 - **Every**, the length of one cycle (`OnValue` of the `LFO`), a note division: `1/16T`, `1/16`, `1/8T`, `1/8`, `1/4T`, `1/8.`, `1/4`, `1/2T`, `1/4.`, `1/2`, `1/2.`, `1/1`, `2/1` or `4/1`, where `.` is dotted and `T` a triplet. `1/4` when empty.
-- **Shape** (`KeyMode`): `Sine`, `Triangle` and `SawUp` start at the bottom, `SawDown` and `Square` at the top, and `Random` jumps to a new value on every cycle. `Sine` when empty.
+- **Shape** (`KeyMode`): `Sine`, `Triangle` and `SawUp` start at the bottom, `SawDown` and `Square` at the top, `Random` jumps to a new value on every cycle, and `Smooth` glides to a new random value over every cycle, from where the last one ended: a slow drift that never repeats, for a filter or a modulation that seems to move by itself. `Sine` when empty.
 
 How it behaves:
 

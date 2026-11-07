@@ -2077,6 +2077,7 @@ typedef struct {
 	uint8_t shape;
 	uint8_t value;			// last value sent
 	uint16_t random;		// the Random shape's value for this cycle
+	uint16_t from;			// and the last one, where Smooth glides from
 	bool active;
 } lfo_t;
 
@@ -2144,16 +2145,22 @@ static uint32_t lfo_pos(const lfo_t *l){
 	return beat_pos(l->start_beat, l->div, l->offset);
 }
 
+// The bottom-to-top half of the Sine shape at h, 0-511
+static uint16_t lfo_ease(uint32_t h){
+	uint32_t i = h >> 4, f = h & 15;
+	return (uint16_t)(lfo_sine[i] + ((lfo_sine[i + 1] - lfo_sine[i]) * f + 8) / 16);
+}
+
 // The shape at pos, 0 at the bottom to LFO_SHAPE_MAX at the top
 static uint16_t lfo_shape_at(const lfo_t *l, uint32_t pos){
 	uint32_t period = (uint32_t)l->div * 1000;
 	uint32_t x = pos * 1024 / period;	// 0-1023 through the cycle
 	switch(l->shape){
-	case LFO_SHAPE_SINE: {
-		uint32_t h = x < 512 ? x : 1023 - x;	// mirrored halves, 0-511
-		uint32_t i = h >> 4, f = h & 15;
-		return (uint16_t)(lfo_sine[i] + ((lfo_sine[i + 1] - lfo_sine[i]) * f + 8) / 16);
-	}
+	case LFO_SHAPE_SINE:
+		return lfo_ease(x < 512 ? x : 1023 - x);	// mirrored halves
+	case LFO_SHAPE_SMOOTH:	// from the last random value to this cycle's, eased
+		return (uint16_t)((int32_t)l->from
+			+ ((int32_t)l->random - (int32_t)l->from) * lfo_ease(x >> 1) / LFO_SHAPE_MAX);
 	case LFO_SHAPE_TRIANGLE:
 		return (uint16_t)((x < 512 ? x : 1023 - x) * LFO_SHAPE_MAX / 511);
 	case LFO_SHAPE_SAW_UP:
@@ -2216,6 +2223,7 @@ static void lfo_start(const uint8_t *lfo, const uint8_t *pRom){
 	l->hi = pRom[2] & 0x7F;
 	l->lo = pRom[3] <= 0x7F ? pRom[3] : 0;
 	l->shape = lfo[3] < LFO_SHAPE_COUNT ? lfo[3] : LFO_SHAPE_SINE;
+	l->from = lfo_rand();
 	l->random = lfo_rand();
 	l->value = 0xFF;	// the first value always goes out
 	l->active = true;
@@ -2238,7 +2246,10 @@ static void lfo_task(void){
 		lfo_t *l = &lfos[i];
 		if(!l->active || (now - l->last_tick) < LFO_STEP_MS) continue;
 		uint32_t pos = lfo_pos(l);
-		if(pos < l->last_pos) l->random = lfo_rand();	// a new cycle
+		if(pos < l->last_pos){	// a new cycle
+			l->from = l->random;
+			l->random = lfo_rand();
+		}
 		lfo_send(l, pos);
 	}
 }

@@ -188,7 +188,7 @@ Un trémolo, un barrido de filtro o un auto-pan que sigue tu tap o el reloj del 
 En el configurador, pon un comando `LFO` encima de un `CC` y elige:
 
 - **Every**, lo que dura un ciclo (`OnValue` del `LFO`), una figura: `1/16T`, `1/16`, `1/8T`, `1/8`, `1/4T`, `1/8.`, `1/4`, `1/2T`, `1/4.`, `1/2`, `1/2.`, `1/1`, `2/1` o `4/1`, donde `.` es con puntillo y `T` un tresillo. `1/4` si se deja vacío.
-- **Shape** (`KeyMode`), la forma de onda: `Sine`, `Triangle` y `SawUp` empiezan abajo, `SawDown` y `Square` arriba, y `Random` salta a un valor nuevo en cada ciclo. `Sine` si se deja vacío.
+- **Shape** (`KeyMode`), la forma de onda: `Sine`, `Triangle` y `SawUp` empiezan abajo, `SawDown` y `Square` arriba, `Random` salta a un valor nuevo en cada ciclo, y `Smooth` se desliza hasta un valor aleatorio nuevo a lo largo de cada ciclo, desde donde acabó el anterior: una deriva lenta que nunca se repite, para un filtro o una modulación que parece moverse sola. `Sine` si se deja vacío.
 
 Cómo se comporta:
 

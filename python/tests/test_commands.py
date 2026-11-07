@@ -513,7 +513,7 @@ class LfoCommandTest(unittest.TestCase):
         self.assertEqual(int(m.group(1)), cbp.CMD_LFO_MODE)
         m = re.search(r"#define\s+LFO_DIV_TICKS\s+\{([^}]*)\}", header)
         self.assertEqual([int(v) for v in m.group(1).split(",")], cbp.LFO_DIV_TICKS)
-        for i, name in enumerate(("SINE", "TRIANGLE", "SAW_UP", "SAW_DOWN", "SQUARE", "RANDOM")):
+        for i, name in enumerate(("SINE", "TRIANGLE", "SAW_UP", "SAW_DOWN", "SQUARE", "RANDOM", "SMOOTH")):
             m = re.search(rf"#define\s+LFO_SHAPE_{name}\s+\((\d+)\)", header)
             self.assertEqual(int(m.group(1)), i, name)
             self.assertEqual(cbp.LFO_SHAPES[i].upper().replace("SAW", "SAW_"), name)

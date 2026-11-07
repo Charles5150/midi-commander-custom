@@ -65,7 +65,7 @@ CMD_LFO_MODE = 6
 LFO_DIVISIONS = ["1/16T", "1/16", "1/8T", "1/8", "1/4T", "1/8.", "1/4", "1/2T",
                  "1/4.", "1/2", "1/2.", "1/1", "2/1", "4/1"]
 LFO_DIV_TICKS = [4, 6, 8, 12, 16, 18, 24, 32, 36, 48, 72, 96, 192, 384]
-LFO_SHAPES = ["Sine", "Triangle", "SawUp", "SawDown", "Square", "Random"]
+LFO_SHAPES = ["Sine", "Triangle", "SawUp", "SawDown", "Square", "Random", "Smooth"]
 # And MIDI Machine Control: a message to every device (F0 7F 7F 06 ... F7) for
 # a recorder or a DAW. Byte 1 is the MMC command byte, and for Locate bytes 2
 # (low 7 bits) and 3 (high 7 bits) hold the position in seconds.
