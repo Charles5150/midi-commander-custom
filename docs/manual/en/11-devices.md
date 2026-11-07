@@ -644,6 +644,20 @@ What comes in over USB and goes on to the MIDI OUT socket, through `USB_MIDI_Thr
 Needs firmware 1.19; before, a Continue could reach the device before its Song Position, a press in the middle of a dump spoilt it, and a USB packet full of mapped messages lost its last one.
 
 
+## Without cables: Bluetooth MIDI
+
+The pedal has no radio, but a Bluetooth MIDI adapter takes its place with no firmware or configuration to change. Two ways, each with its own adapter:
+
+- **On the MIDI OUT socket**, a CME WIDI Master or a similar adapter that plugs into a DIN socket. The pedal still needs its USB for power, from a USB charger or a power bank, so the pedal and adapter together have no cable to the computer or the iPad. The adapter takes its power from the MIDI OUT socket, which works when the socket gives it some; if its light stays off, the WIDI Jack, the same adapter with a USB-C socket for power, does the job. The WIDI Master's second plug, its MIDI OUT, stays unplugged, as the pedal has no MIDI IN. The adapter carries what the pedal sends, one way only.
+- **On the USB socket**, a CME WIDI Uhost with a 5 V supply on its power socket, a charger or a power bank, which in turn powers the pedal. The pedal sees a USB host and works as it does on a computer, in both directions: clock and LED feedback from the iPad, the Kemper's or the GT-1000's answers through a computer, even the configurator.
+
+To pair, on a Mac open **Audio MIDI Setup**, **Window › Show MIDI Studio**, the Bluetooth button, and **Connect** next to the adapter. On an iPad, connect from the Bluetooth MIDI settings of the app that will use it, AUM, Loopy Pro or GarageBand, or from CME's WIDI app; Bluetooth MIDI devices do not show in the iPad's own Bluetooth settings. Two WIDI adapters pair with each other by themselves, so a WIDI Master on the pedal and another on an amp's MIDI IN is a MIDI cable without the cable.
+
+Bluetooth adds a few milliseconds, which feet do not notice, more on a stage crowded with radio. The clock has the hardest time: a delay or looper that follows the pedal's clock over Bluetooth may wander a little, and a cable is better there.
+
+None of this has been tried with the pedal yet. If you use one, an [issue](https://github.com/Charles5150/midi-commander-custom/issues) saying what works is welcome.
+
+
 ## Translating what comes in
 
 A DAW, a sequencer or a keyboard on USB rarely speaks the language of the old pedal on the DIN cable: the DAW changes scene with a Program Change, the delay wants two CCs; the keyboard's mod wheel is CC 1, the amp's volume CC 11 and the other way round. The **MIDI map** puts the pedal in the middle and translates.

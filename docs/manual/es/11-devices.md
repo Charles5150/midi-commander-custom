@@ -644,6 +644,20 @@ Lo que llega por USB y sale por la toma MIDI OUT, ya sea por `USB_MIDI_Thru`, `R
 Necesita el firmware 1.19; antes, un Continue podía llegar al equipo antes que su Song Position, una pulsación en medio de un volcado lo estropeaba, y un paquete USB lleno de mensajes traducidos perdía el último.
 
 
+## Sin cables: Bluetooth MIDI
+
+La pedalera no tiene radio, pero un adaptador Bluetooth MIDI hace sus veces sin tocar el firmware ni la configuración. Hay dos maneras, cada una con su adaptador:
+
+- **En la toma MIDI OUT**, un CME WIDI Master u otro adaptador que se enchufe a una toma DIN. La pedalera sigue necesitando el USB para la alimentación, de un cargador USB o una batería externa, así que pedalera y adaptador no llevan cable hasta el ordenador o el iPad. El adaptador se alimenta de la toma MIDI OUT, lo que funciona cuando la toma le da corriente; si su luz no se enciende, sirve el WIDI Jack, el mismo adaptador con una toma USB-C para la alimentación. La segunda clavija del WIDI Master, su MIDI OUT, se queda sin enchufar, porque la pedalera no tiene MIDI IN. El adaptador lleva lo que la pedalera envía, solo en ese sentido.
+- **En la toma USB**, un CME WIDI Uhost con 5 V en su toma de alimentación, de un cargador o una batería externa, que a su vez alimenta la pedalera. La pedalera ve un host USB y funciona como con un ordenador, en los dos sentidos: el reloj y el estado de los LED desde el iPad, las respuestas del Kemper o del GT-1000 a través de un ordenador, incluso el configurador.
+
+Para emparejar, en un Mac abre **Configuración de Audio MIDI**, **Ventana › Mostrar estudio MIDI**, el botón de Bluetooth y **Conectar** junto al adaptador. En un iPad, conecta desde los ajustes de Bluetooth MIDI de la app que lo vaya a usar, AUM, Loopy Pro o GarageBand, o desde la app WIDI de CME; los dispositivos Bluetooth MIDI no aparecen en los ajustes de Bluetooth del propio iPad. Dos adaptadores WIDI se emparejan entre sí solos, así que un WIDI Master en la pedalera y otro en el MIDI IN de un ampli es un cable MIDI sin cable.
+
+Bluetooth añade unos pocos milisegundos, que el pie no nota, y algo más en un escenario lleno de radio. Lo que peor lleva es el reloj: un delay o un looper que siga el reloj de la pedalera por Bluetooth puede bailar un poco, y ahí es mejor un cable.
+
+Nada de esto se ha probado aún con la pedalera. Si usas alguno, una [incidencia](https://github.com/Charles5150/midi-commander-custom/issues) contando qué funciona será bienvenida.
+
+
 ## Traducir lo que llega
 
 Un DAW, un secuenciador o un teclado conectados por USB rara vez hablan el idioma del pedal antiguo que cuelga del cable DIN: el DAW cambia de escena con un Program Change y el delay quiere dos CC; la rueda de modulación del teclado es el CC 1, y el volumen del ampli el CC 11 y al revés. El **mapa MIDI** pone la pedalera en medio y traduce.
