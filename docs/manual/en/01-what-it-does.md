@@ -57,7 +57,7 @@ Everything the firmware and its tools can do, grouped the way the manual is. Eac
 - **Relative CC.** A button can nudge a CC value up or down by a step on each press, optionally wrapping, for setting a parameter with your foot. The value it lands on shows on the display for a moment, so you are not adjusting blind. Held down, it can keep going on its own, faster and faster, and so can a next or previous preset button.
 - **Recorder and sequencer control.** `MMC` commands work the transport of a DAW or a recorder — play, stop, record, rewind, locate to a time — and `Song` commands pick the song of a drum machine or a sequencer and where in it to start.
 - **Custom SysEx.** Up to sixteen SysEx messages can be stored and sent from a button, for devices that are only controllable that way. A message can carry a value where it has `VV` and end in a Roland checksum; see [A value in the message, and the Roland checksum](06-commands.md#a-value-in-the-message-and-the-roland-checksum).
-- **USB keyboard and media keys (HID).** A command can press a key with Ctrl / Shift / Alt / Cmd modifiers, tap it, hold it or release it, or send a media key (play/pause, next, previous, stop, volume, mute, record) to the computer.
+- **USB keyboard and media keys (HID).** A command can press a key with Ctrl / Shift / Alt / Cmd modifiers, tap it, hold it or release it, or send a media key (play/pause, next, previous, stop, volume, mute, record) or a mouse click (left, right, middle, back, forward) to the computer; see [Media keys](06-commands.md#media-keys).
 - **Panic.** A command that sends All Sound Off and All Notes Off on all sixteen channels, to USB and the DIN output, for the stuck note or runaway sound in the middle of a set.
 
 ## Tempo

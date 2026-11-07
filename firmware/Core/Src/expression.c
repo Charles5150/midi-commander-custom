@@ -603,8 +603,7 @@ static void scroll(exp_pedal_t *p, uint8_t cc, uint8_t v, uint8_t lo, uint8_t hi
   if (cc == EXP_TARGET_ARROWS) {
       sw_tap_key(hi < lo ? KEY_UP_ARROW : KEY_DOWN_ARROW);
   } else {
-      uint8_t report[2] = {HID_REPORT_ID_WHEEL, (uint8_t)(hi < lo ? steps : -steps)};
-      HID_SendReport_FS(report, sizeof(report));
+      sw_mouse_wheel((int8_t)(hi < lo ? steps : -steps));
   }
   sleep_note_activity();
 }

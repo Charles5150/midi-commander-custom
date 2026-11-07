@@ -330,6 +330,10 @@
 #define SYSEX_MODE_VALUE	(1)
 #define CMD_BANK_NIBBLE		(0x40)	// Bank change: low nibble = mode (0 go to, 1 up by, 2 down by), byte 1 = value
 #define CMD_MEDIA_NIBBLE	(0x30)	// Consumer control (media) key: bytes 1-2 = usage (10 bits), byte 3 = duration | toggle
+// Media usages from MEDIA_MOUSE + 1 to MEDIA_MOUSE + 5, reserved on the
+// consumer page, are the mouse buttons instead: left, right, middle, back and
+// forward (1.45)
+#define MEDIA_MOUSE			(0x3F0)
 #define CMD_START_NIBBLE	(0x10)
 #define CMD_STOP_NIBBLE		(0x20)
 #define CMD_PANIC_NIBBLE	(0x80)	// All Sound Off and All Notes Off on every channel

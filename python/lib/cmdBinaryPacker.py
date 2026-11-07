@@ -202,6 +202,13 @@ MEDIA_KEYS = {
     "mute": 0xE2,
     "vol_up": 0xE9,
     "vol_down": 0xEA,
+    # Not consumer usages: from MEDIA_MOUSE + 1 on, the firmware (1.45) holds
+    # mouse buttons instead
+    "left_click": 0x3F1,
+    "right_click": 0x3F2,
+    "middle_click": 0x3F3,
+    "mouse_back": 0x3F4,
+    "mouse_forward": 0x3F5,
 }
 
 

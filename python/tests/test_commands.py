@@ -518,6 +518,26 @@ class LfoCommandTest(unittest.TestCase):
             self.assertEqual(int(m.group(1)), i, name)
             self.assertEqual(cbp.LFO_SHAPES[i].upper().replace("SAW", "SAW_"), name)
 
+class MouseClickTest(unittest.TestCase):
+    """Media commands that click the mouse (firmware 1.45)."""
+
+    def test_round_trip(self):
+        for name, usage in (("left_click", 0x3F1), ("right_click", 0x3F2), ("middle_click", 0x3F3),
+                            ("mouse_back", 0x3F4), ("mouse_forward", 0x3F5)):
+            raw = bytes(cbp.cmd_media({"OnValue_(CC/PB)": name, "Duration_(Note/PB)": "0",
+                                       "Toggle_(CC/PB/Note)": "Y"}))
+            self.assertEqual(raw, bytes([cbp.CMD_MEDIA_NIBBLE, usage & 0xFF, usage >> 8, 0x80]))
+            cmd = unpacker.unpack_command(raw)
+            self.assertEqual((cmd["CommandType"], cmd["OnValue_(CC/PB)"]), ("Media", name))
+
+    def test_firmware_values_match(self):
+        path = os.path.join(os.path.dirname(__file__), "..", "..", "firmware", "Core", "Inc",
+                            "midi_defines.h")
+        with open(path) as handle:
+            m = re.search(r"#define\s+MEDIA_MOUSE\s+\((0x[0-9A-Fa-f]+)\)", handle.read())
+        self.assertEqual(int(m.group(1), 16) + 1, cbp.MEDIA_KEYS["left_click"])
+
+
 class SceneTest(unittest.TestCase):
     """Scene command: which toggle buttons to set, and to what."""
 

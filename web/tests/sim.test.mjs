@@ -2239,3 +2239,26 @@ test("MIDI_Monitor: a mark as MIDI comes in over USB, and the last message recei
   assert.ok(textAt(gig, 15, 48, "IN CC7=100 CH3"), "in the gig view, in the info line's place");
   assert.ok(markIs(gig, true));
 });
+
+test("Media clicks the mouse: a press clicks, Toggle holds the button for a drag (before 1.45, only media keys)", async () => {
+  // The demo's media bank (5): 2 a left click, 3 a right button held until the next press
+  const sim = simWithDemo(await flashWith(packDemo([
+    "b = d['Button_Settings']",
+    "b.loc[(b.Bank_Number == '5') & (b.Button_Identifier == '2'), 'A_OnValue_(CC/PB)'] = 'left_click'",
+    "b.loc[(b.Bank_Number == '5') & (b.Button_Identifier == '3'), ['A_OnValue_(CC/PB)', 'A_Toggle_(CC/PB/Note)']] = ['right_click', 'Y']",
+  ].join("\n"))));
+  sim.usbIn([0xb0, 32, 5]);
+  sim.run(300);
+  const seen = watch(sim);
+  tap(sim, 1);
+  assert.deepEqual(seen, ["keys 03 01 00", "keys 03 00 00", "keys 02 00 00"], "left down, then up as the switch rises");
+  seen.splice(0);
+  tap(sim, 2);
+  assert.deepEqual(seen, ["keys 03 02 00"], "held after the switch rises");
+  seen.splice(0);
+  tap(sim, 2);
+  assert.deepEqual(seen, ["keys 03 00 00", "keys 02 00 00"], "let go on the next press");
+  seen.splice(0);
+  tap(sim, 0);
+  assert.deepEqual(seen, ["keys 02 cd 00", "keys 02 00 00"], "the media keys as before");
+});

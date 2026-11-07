@@ -18,14 +18,14 @@
 #define HID_EPIN_ADDR                 0x82
 #define HID_EPIN_SIZE                 0x10
 
-// Report IDs: the interface carries a keyboard, a consumer control and a wheel report
+// Report IDs: the interface carries a keyboard, a consumer control and a mouse report
 #define HID_REPORT_ID_KEYBOARD        0x01   // 8 bytes: modifiers, reserved, 6 keys
 #define HID_REPORT_ID_CONSUMER        0x02   // 2 bytes: 16-bit consumer usage (0 = release)
-#define HID_REPORT_ID_WHEEL           0x03   // 1 byte: mouse wheel, notches up (+) or down (-)
+#define HID_REPORT_ID_MOUSE           0x03   // 2 bytes: buttons (bit 0 left .. bit 4 forward), wheel notches up (+) or down (-)
 
 #define USB_HID_CONFIG_DESC_SIZ       34
 #define USB_HID_DESC_SIZ              9
-#define HID_KEYBOARD_REPORT_DESC_SIZE 116
+#define HID_KEYBOARD_REPORT_DESC_SIZE 140
 
 #define HID_DESCRIPTOR_TYPE           0x21
 #define HID_REPORT_DESC               0x22

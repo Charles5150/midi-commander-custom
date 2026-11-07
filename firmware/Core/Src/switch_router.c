@@ -345,8 +345,31 @@ void sw_tap_key(uint8_t key_code){
     update_keyboard_state(0, key_code, 0);
 }
 
-// Consumer control (media keys): one usage at a time, 0 releases it
+// The mouse: the buttons held, and wheel notches up (+) or down (-)
+static uint8_t mouse_buttons;
+
+static void send_mouse(int8_t notches){
+    uint8_t report[3] = {HID_REPORT_ID_MOUSE, mouse_buttons, (uint8_t)notches};
+    HID_SendReport_FS(report, sizeof(report));
+}
+
+// An expression pedal scrolling, with whatever buttons are held: a drag
+void sw_mouse_wheel(int8_t notches){
+    send_mouse(notches);
+}
+
+// Consumer control (media keys): one usage at a time, 0 releases it, and the
+// mouse buttons with it. The usages above MEDIA_MOUSE are mouse buttons.
 static void send_media_usage(uint16_t usage){
+    if(usage > MEDIA_MOUSE){
+        mouse_buttons |= (uint8_t)(1U << ((usage - MEDIA_MOUSE - 1U) & 7U));
+        send_mouse(0);
+        return;
+    }
+    if(!usage && mouse_buttons){
+        mouse_buttons = 0;
+        send_mouse(0);
+    }
     uint8_t report[3] = {HID_REPORT_ID_CONSUMER, usage & 0xFF, (usage >> 8) & 0x03};
     HID_SendReport_FS(report, sizeof(report));
 }

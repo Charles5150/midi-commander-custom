@@ -1719,6 +1719,11 @@ function describeMidi(port, m) {
       if (!keys.length && !m[1]) return "all keys up";
       return [m[1] ? `modifiers ${hex(m[1])}` : "", keys.length ? `key${keys.length > 1 ? "s" : ""} ${keys.map(hex).join(" ")}` : ""].filter(Boolean).join(", ");
     }
+    if (m[0] === 3) {
+      const held = ["left", "right", "middle", "back", "forward"].filter((_, i) => m[1] & (1 << i));
+      const wheel = (m[2] << 24) >> 24;
+      return [held.length ? `mouse ${held.join(" + ")}` : wheel ? "" : "mouse up", wheel ? `wheel ${wheel > 0 ? "+" : ""}${wheel}` : ""].filter(Boolean).join(", ");
+    }
     const usage = m[1] | (m[2] << 8);
     return usage ? `media key ${hex(usage >> 8)}${hex(usage & 0xff)}` : "media key up";
   }
