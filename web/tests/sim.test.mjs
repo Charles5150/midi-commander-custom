@@ -101,9 +101,9 @@ test("the demo written over SysEx reads back the same", async () => {
   assert.deepEqual((await pedal.selectSlot(null)).valid, [0]);
   // As the page takes them from the tools (py.js): the double press area,
   // then the second extension area with the MIDI map, the long press labels,
-  // the bank switches' labels, the preset names, the setlists and the labels
-  // when on
-  const sizes = { config: demo.config.length, double: 10240, doubleOffset: 12 * 2048, ext2Offset: 17 * 2048, ext2: 16 + 32 * 12 + 32 * 8 * 4 + 16 + 128 * 8 + 3 * 32 + 4 * 8 + 32 * 8 * 4 };
+  // the bank switches' labels, the preset names, the setlists, the labels
+  // when on and the pedals' middle points
+  const sizes = { config: demo.config.length, double: 10240, doubleOffset: 12 * 2048, ext2Offset: 17 * 2048, ext2: 16 + 32 * 12 + 32 * 8 * 4 + 16 + 128 * 8 + 3 * 32 + 4 * 8 + 32 * 8 * 4 + 16 };
   const back = await running(sim, () => pedal.readImage(firmwareVersion, sizes));
   assert.deepEqual(back.data, demo.config);
   assert.deepEqual(back.image, demo.image);
@@ -1154,6 +1154,39 @@ test("a line the display does not take is sent again, and the screen catches up 
   sim.e.sim_i2c_fail(0);
   sim.run(500);
   assert.ok(shows(), "the screen is back, bank 3 on it");
+});
+
+test("middle points: a pedal that rises fast at the heel reads evenly through the readings at ¼, ½ and ¾ (1.41)", async () => {
+  // The readings lhoogkamer measured on a Sonicake Vexpress (#25)
+  const withPoints = async (points) => simWithDemo(await flashWith(packDemo([
+    "e = d['Expression_Settings']",
+    "e.loc[e.Pedal == '1', ['Min_ADC', 'Max_ADC', 'Curve', 'Toe_Button', 'Auto_Button', 'Middle_Points']] = ['0', '4000', 'Linear', '', '', '" + points + "']",
+  ].join("\n"))));
+  const cc11 = (seen) => seen.splice(0).filter((m) => m.startsWith("USB b0 0b ")).map((m) => parseInt(m.slice(-2), 16));
+  const at = (sim, seen, value) => { sim.pedal(0, value); sim.run(1500); return cc11(seen).at(-1); };
+
+  const plain = await withPoints("");
+  let seen = watch(plain);
+  at(plain, seen, 0);
+  assert.ok(at(plain, seen, 2900) >= 90, "without them, a quarter of the way already sends 90 or more");
+
+  const sim = await withPoints("2900 3670 3820");
+  seen = watch(sim);
+  at(sim, seen, 0);
+  for (const [raw, want] of [[1450, 16], [2900, 32], [3285, 48], [3670, 64], [3820, 95], [3910, 111]]) {
+    const got = at(sim, seen, raw);
+    assert.ok(Math.abs(got - want) <= 1, `reading ${raw}: CC ${got}, not about ${want}`);
+  }
+  assert.equal(at(sim, seen, 4000), 127);
+  assert.equal(at(sim, seen, 0), 0);
+
+  // The configurator's virtual pedal halfway sends what the foot does halfway
+  const pedal = await Pedal.open(sim.access);
+  await running(sim, () => pedal.setPedal(0, true, 8192));
+  sim.run(1500);
+  const half = cc11(seen).at(-1);
+  assert.ok(Math.abs(half - 64) <= 1, `the virtual pedal halfway sends ${half}`);
+  await running(sim, () => pedal.setPedal(0, false));
 });
 
 test("takeover: back on a CC it left at another value, the pedal catches up with it or scales from it (before 1.18, it jumped)", async () => {

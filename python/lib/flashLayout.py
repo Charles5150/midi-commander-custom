@@ -102,7 +102,13 @@ EXT2_SETLIST_NAMES_OFFSET = EXT2_SETLISTS_OFFSET + (SETLIST_COUNT - 1) * SETLIST
 # Labels shown while a button's toggle is on (firmware 1.37), after those,
 # LABEL_LEN chars per button as the long press labels
 EXT2_ON_LABELS_OFFSET = EXT2_SETLIST_NAMES_OFFSET + SETLIST_COUNT * SETLIST_NAME_LEN
-EXT2_SIZE = EXT2_ON_LABELS_OFFSET + NUM_BANKS * NUM_BUTTONS * LABEL_LEN
+# The middle points of each pedal (firmware 1.41), after those: the readings a
+# quarter, half and three quarters of the way, three 16-bit numbers (LE) per
+# pedal, pedal 1 first, then 0xFF to 16 bytes; erased flash is none
+EXT2_EXP_POINTS_OFFSET = EXT2_ON_LABELS_OFFSET + NUM_BANKS * NUM_BUTTONS * LABEL_LEN
+EXP_POINTS = 3
+EXT2_EXP_POINTS_SIZE = 16
+EXT2_SIZE = EXT2_EXP_POINTS_OFFSET + EXT2_EXP_POINTS_SIZE
 
 # What a Global_Settings row reads as when it is missing, and what an erased
 # or out of range byte unpacks to

@@ -146,6 +146,23 @@ class GuiTest(unittest.TestCase):
         self.assertEqual(app.df_exp.at[1, "Zones"], "A None C")
         app.load_csv(CSVS[0])               # back as it was, for the other tests
 
+    def test_middle_points_taken_from_the_pedal(self):
+        app = self.app
+        app.load_csv(CSVS[0])
+        app.update()
+        w = app.exp_widgets[0]
+        self.assertEqual(w["middle"].get(), "")
+        for raw in (2900, 3670, 3820):
+            w["last_raw"] = raw             # as the live view leaves it
+            app._take_point(0)
+        self.assertEqual(w["middle"].get(), "2900 3670 3820")
+        app._collect()
+        self.assertEqual(app.df_exp.at[0, "Middle_Points"], "2900 3670 3820")
+        w["last_raw"] = 1000
+        app._take_point(0)                  # a fourth starts again
+        self.assertEqual(w["middle"].get(), "1000")
+        app.load_csv(CSVS[0])               # back as it was, for the other tests
+
     def test_a_song_saved_and_loaded(self):
         app = self.app
         app.load_csv(CSVS[0])

@@ -626,3 +626,71 @@ class DisplayTest(unittest.TestCase):
         for name, value in (("OFF", 0), ("NUMBER", 1), ("BAR", 2)):
             self.assertRegex(text, rf"#define EXP_DISPLAY_{name}\s+\({value}\)")
 
+
+
+class MiddlePointsTest(unittest.TestCase):
+    """The readings a quarter, half and three quarters of the way, for a pedal
+    that does not rise evenly (firmware 1.41), in the second extension area."""
+
+    def setUp(self):
+        self.sections = read_config_csv(DEMO_CSV)
+
+    def pack_with(self, one, two, sections=None):
+        sections = sections or self.sections
+        df = sections[packer.EXPRESSION_SECTION].copy()
+        df.loc[0, "Middle_Points"] = one
+        df.loc[1, "Middle_Points"] = two
+        return packer.pack_flash_image({**sections, packer.EXPRESSION_SECTION: df})
+
+    def points(self, packed):
+        at = layout.EXT2_OFFSET + layout.EXT2_EXP_POINTS_OFFSET
+        return packed[at:at + layout.EXT2_EXP_POINTS_SIZE]
+
+    def test_none_is_erased_flash(self):
+        packed = packer.pack_flash_image(self.sections)
+        self.assertEqual(self.points(packed), b"\xff" * 16)
+        self.assertEqual(list(unpacker.unpack_config(packed)[4]["Middle_Points"]), ["", ""])
+
+    def test_round_trip(self):
+        packed = self.pack_with("2900 3670 3820", "")
+        self.assertEqual(self.points(packed)[:6], bytes([0x54, 0x0B, 0x56, 0x0E, 0xEC, 0x0E]))
+        self.assertEqual(self.points(packed)[6:], b"\xff" * 10)
+        self.assertEqual(list(unpacker.unpack_config(packed)[4]["Middle_Points"]), ["2900 3670 3820", ""])
+        packed = self.pack_with("", "1000, 2000, 3000")
+        self.assertEqual(list(unpacker.unpack_config(packed)[4]["Middle_Points"]), ["", "1000 2000 3000"])
+
+    def test_any_order(self):
+        # A pedal read toe first gives them falling: they are kept rising
+        packed = self.pack_with("3820 3670 2900", "")
+        self.assertEqual(list(unpacker.unpack_config(packed)[4]["Middle_Points"]), ["2900 3670 3820", ""])
+
+    def test_bad_points(self):
+        for text in ("2900 3670", "1 2 3 4", "2900 2900 3820", "50 2000 3000", "1000 2000 3900", "a b c"):
+            with self.subTest(text=text), self.assertRaises(ValueError):
+                self.pack_with(text, "")
+
+    def test_on_labels_left_alone(self):
+        packed = self.pack_with("2900 3670 3820", "1000 2000 3000")
+        plain = packer.pack_flash_image(self.sections)
+        on = unpacker.unpack_button_settings(packed)["On_Label"].tolist()
+        self.assertEqual(on, unpacker.unpack_button_settings(plain)["On_Label"].tolist())
+        self.assertTrue(any(on))
+
+    def test_written_alone_when_nothing_else_needs_the_area(self):
+        sections = {k: v for k, v in self.sections.items()
+                    if k not in (packer.MIDI_MAP_SECTION, packer.LONG_PRESS_SECTION, packer.BANK_SWITCH_SECTION,
+                                 packer.PRESET_NAMES_SECTION, packer.SETLIST_SECTION)}
+        sections["Button_Settings"] = sections["Button_Settings"].drop(columns=["On_Label"])
+        df = sections[packer.EXPRESSION_SECTION].assign(Takeover="Jump", Display="Off")
+        sections = {**sections, packer.EXPRESSION_SECTION: df}
+        self.assertLessEqual(len(self.pack_with("", "", sections)), layout.EXT2_OFFSET)
+        packed = self.pack_with("", "1000 2000 3000", sections)
+        self.assertEqual(packed[layout.EXT2_OFFSET:layout.EXT2_OFFSET + 4], layout.EXT2_MARKER)
+        self.assertEqual(list(unpacker.unpack_config(packed)[4]["Middle_Points"]), ["", "1000 2000 3000"])
+
+    def test_matches_firmware(self):
+        text = open(os.path.join(FIRMWARE, "Core", "Inc", "flash_midi_settings.h")).read()
+        self.assertIn(f" *   [{layout.EXT2_EXP_POINTS_OFFSET}..]  the middle points of each pedal (1.41)", text)
+        self.assertIn("#define EXT2_EXP_POINTS_OFF		(EXT2_ON_LABELS_OFF + CFG_BUTTONS * BUTTON_LABEL_LEN)", text)
+        self.assertIn(f"#define EXP_POINTS				({layout.EXP_POINTS})", text)
+        self.assertIn(f"#define EXT2_EXP_POINTS_SIZE	({layout.EXT2_EXP_POINTS_SIZE})", text)

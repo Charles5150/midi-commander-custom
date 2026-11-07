@@ -947,15 +947,15 @@ class OnLabelTest(unittest.TestCase):
         header = firmware_source("Inc", "flash_midi_settings.h")
         self.assertIn("#define EXT2_ON_LABELS_OFF		(EXT2_SETLIST_NAMES_OFF + SETLIST_COUNT * SETLIST_NAME_LEN)",
                       header)
-        self.assertIn("#define EXT2_SIZE				(EXT2_ON_LABELS_OFF + CFG_BUTTONS * BUTTON_LABEL_LEN)", header)
-        self.assertEqual(layout.EXT2_SIZE, layout.EXT2_ON_LABELS_OFFSET + 32 * 8 * 4)
+        self.assertIn("#define EXT2_EXP_POINTS_OFF		(EXT2_ON_LABELS_OFF + CFG_BUTTONS * BUTTON_LABEL_LEN)", header)
+        self.assertEqual(layout.EXT2_EXP_POINTS_OFFSET, layout.EXT2_ON_LABELS_OFFSET + 32 * 8 * 4)
         self.assertLessEqual(layout.EXT2_SIZE, layout.EXT2_PAGES * 2048)
 
     def test_labels_alone_write_the_area(self):
         image = packer.pack_flash_image(self.sections({(1, "1"): "*REC", (0, "D"): "on"}))
         ext = image[layout.EXT2_OFFSET:]
         self.assertEqual(ext[:4], b"EXT2")
-        labels = ext[layout.EXT2_ON_LABELS_OFFSET:]
+        labels = ext[layout.EXT2_ON_LABELS_OFFSET:layout.EXT2_EXP_POINTS_OFFSET]
         self.assertEqual(len(labels), 32 * 8 * 4)
         self.assertEqual(labels[8 * 4:9 * 4], b"*REC")
         self.assertEqual(labels[:4], b"    ")

@@ -20,7 +20,7 @@ Mientras lo mueves, una gráfica junto al pedal dibuja el valor en bruto según 
 | El jack se queda arriba | El cableado del pedal no coincide: pon su interruptor de polaridad al revés, si lo tiene. |
 | Un salto, del 0 % al 85 % por ejemplo, sin pasar por medio | El fallo clásico de polaridad: pon el interruptor de polaridad del pedal (TRS / tip-ring) al revés. Un recorrido demasiado rápido se ve igual, así que prueba antes más despacio. |
 | Solo usa una parte pequeña del rango del jack | Funciona tras calibrar, a pasos más gruesos; revisa la rueda de mínimo o el interruptor de polaridad del pedal. |
-| Casi todo el recorrido envía valores bajos | Un potenciómetro logarítmico (de audio): pon **Curve** en **Log** para igualarlo. **Exp** para el caso contrario. |
+| Casi todo el recorrido envía valores bajos | Un potenciómetro logarítmico (de audio): pon **Curve** en **Log** para igualarlo. **Exp** para el caso contrario. Si ninguna basta, dale [puntos intermedios](#un-pedal-que-no-sube-por-igual). |
 
 Si no ve nada de esto, dice que el pedal parece estar bien.
 
@@ -29,15 +29,27 @@ Si no ve nada de esto, dice que el pedal parece estar bien.
 - si el valor en bruto no sigue al pedal, el problema es el cable o el jack;
 - si lo sigue pero no llega ningún CC a tu monitor MIDI, revisa el canal y el número de CC, y los ajustes propios del banco (mira [Otro destino en cada banco](#otro-destino-en-cada-banco)).
 
-El configurador web no tiene vista en directo ni **Calibrate**: calibra con el configurador de escritorio, o escribe las lecturas en **Heel reading** y **Toe reading** del navegador.
+El configurador web no tiene vista en directo ni **Calibrate**: calibra con el configurador de escritorio, o escribe las lecturas en **Heel reading** y **Toe reading** del navegador, y los puntos intermedios en **Readings at ¼ ½ ¾**.
 
 *Calibración: firmware 0.8 o posterior.*
 
 <details><summary>Por dentro</summary>
 
-Los dos jacks se leen con el ADC uno detrás de otro. Entre lectura y lectura cada pin se lleva a masa, para evitar diafonía entre las dos entradas y para que un jack vacío lea cero; cada lectura se toma 12 ms después de soltar su pin, mientras el resto de la pedalera sigue a lo suyo. Las lecturas se suavizan con un filtro adaptativo y una pequeña histéresis, para que un pedal en reposo no baile. Solo se envía un CC cuando cambia su valor de 7 bits.
+Los dos jacks se leen con el ADC uno detrás de otro. Entre lectura y lectura cada pin se lleva a masa, para evitar diafonía entre las dos entradas y para que un jack vacío lea cero; cada lectura se toma 12 ms después de soltar su pin, mientras el resto de la pedalera sigue a lo suyo. Las lecturas se suavizan con un filtro adaptativo y una pequeña histéresis, para que un pedal en reposo no baile. Con puntos intermedios, el recorrido entre dos de ellos es una línea recta, y la histéresis es la más fina que usa la salida de 14 bits, porque entonces unas pocas lecturas pueden abarcar muchos pasos. Solo se envía un CC cuando cambia su valor de 7 bits.
 
 </details>
+
+### Un pedal que no sube por igual
+
+Algunos pedales envían casi todo su rango en la primera parte del recorrido: uno que se midió enviaba 94 de 127 a un cuarto del recorrido, y 120 a la mitad. Ninguna curva arregla eso. Los puntos intermedios sí: le dices a la pedalera qué lee el pedal a un cuarto, a la mitad y a tres cuartos del recorrido, y sube por igual de uno al siguiente.
+
+1. Calibra primero, como arriba, y deja **Curve** en **Linear**.
+2. Con la vista en directo conectada, deja el pedal a un cuarto del recorrido y pulsa **Take** junto a **Middle points**. Luego a la mitad, y a tres cuartos, pulsando **Take** cada vez.
+3. Pulsa **Flash to Device**, que escribe la configuración y reinicia la pedalera. A un cuarto del recorrido envía ahora unos 32, a la mitad unos 64.
+
+Las tres lecturas aparecen en la casilla, como `2900 3670 3820`, y también se pueden escribir ahí; **Clear** las quita, y el pedal vuelve a ir en línea recta. Un cuarto **Take** empieza otra vez por el primero. Se guardan en el orden en que las lee el jack, así que un pedal que se lee desde la punta funciona igual. **Curve**, **Invert** y el rango de salida se siguen aplicando encima.
+
+*Puntos intermedios: firmware 1.41 o posterior.*
 
 ## Qué envía cada pedal
 
@@ -363,6 +375,7 @@ Opcional; dos filas, `Pedal` 1 y 2.
 | Columna | Valores | Significado |
 |---|---|---|
 | `Min_ADC`, `Max_ADC` | 0–4095 | Lecturas calibradas de talón y punta. Por defecto 80 y 3900. |
+| `Middle_Points` | Tres lecturas, 0–4095 | Lo que lee el pedal a un cuarto, a la mitad y a tres cuartos del recorrido, separadas por espacios: `2900 3670 3820`. Todas distintas, y entre `Min_ADC` y `Max_ADC`. Vacío si no hay. Mira [Un pedal que no sube por igual](#un-pedal-que-no-sube-por-igual). Firmware 1.41. |
 | `Curve` | Linear / Log / Exp | Log va rápida al principio del recorrido y Exp va lenta al principio. |
 | `Invert` | Y / N | Intercambia talón y punta. |
 | `Channel` | Global o 1–16 | Global usa `MIDI_Channel`. |

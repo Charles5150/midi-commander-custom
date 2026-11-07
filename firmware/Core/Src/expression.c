@@ -9,6 +9,9 @@
  * 7-bit CC through the per-pedal calibration stored in the configuration:
  *
  *   min/max ADC   calibrated end points (heel / toe)
+ *   middle points the readings at a quarter, half and three quarters of the
+ *                 travel (1.41), for a pedal that does not rise evenly: the
+ *                 travel is read in a straight line from one to the next
  *   curve         0 linear, 1 log (fast at the start), 2 exp (slow at the start)
  *   invert        swap heel and toe
  *   channel       0 = global MIDI channel, 1-16 = fixed channel
@@ -102,6 +105,14 @@
 // --- End Configuration ---
 
 #define EXP_PEDAL_COUNT        (2U)
+/*
+ * The filter keeps fractions of a count, and rounds. In whole counts its
+ * division always rounded down, and a pedal moved slowly towards the toe
+ * settled up to 19 counts short of it: half a step on most pedals, but several where middle
+ * points make a short stretch of readings cover a quarter of the travel.
+ */
+#define EMA_SHIFT              (6U)
+#define EMA_ONE                (1U << EMA_SHIFT)
 #define ADC_FULL_SCALE         (4095U)
 
 extern uint8_t f_sys_config_complete;
@@ -127,6 +138,7 @@ static const uint8_t kEnabled[EXP_PEDAL_COUNT] = {ENABLE_EXP_PEDAL_1, ENABLE_EXP
 typedef struct {
   uint16_t min_adc;
   uint16_t max_adc;
+  uint16_t mid[EXP_POINTS]; // middle points, rising between the two; mid[0] 0 when none
   uint8_t curve;
   uint8_t invert;
   uint8_t channel;      // 0 = global
@@ -156,7 +168,7 @@ typedef struct {
   uint8_t activity_ref;      // value the last real movement settled on
   bool activity_ref_set;
   uint32_t last_stable_adc;
-  uint32_t ema_adc_value;
+  uint32_t ema_adc_value;    // in 1/EMA_ONE of a count, see process_pedal
   bool initialised;
   bool toe_armed;       // false while sitting past the threshold
   bool heel_armed;
@@ -284,6 +296,20 @@ static void load_calibration(uint32_t i)
   }
   c->min_adc = min_adc;
   c->max_adc = max_adc;
+
+  // Middle points, used only when they rise from the heel's to the toe's
+  const uint8_t *m = flash_settings_exp_points((uint8_t)i);
+  uint16_t prev = min_adc;
+  c->mid[0] = 0;
+  for (uint32_t k = 0; m && k <= EXP_POINTS; k++) {
+      uint16_t v = (k < EXP_POINTS) ? (uint16_t)(m[2 * k] | (m[2 * k + 1] << 8)) : max_adc;
+      if (v <= prev) {
+          c->mid[0] = 0;
+          break;
+      }
+      if (k < EXP_POINTS) c->mid[k] = v;
+      prev = v;
+  }
   c->curve = (p[4] <= EXP_CURVE_EXP) ? p[4] : EXP_CURVE_LINEAR;
   c->invert = (p[5] == 1);
   c->channel = (p[6] >= 1 && p[6] <= 16) ? p[6] : 0;
@@ -332,14 +358,41 @@ static void load_calibration(uint32_t i)
   }
 }
 
+/*
+ * How far through the calibrated travel a reading is, 0..full (a multiple
+ * of 4): in a straight line from the heel's reading to the toe's, or from
+ * one middle point to the next, each a quarter of the way on.
+ */
+static uint32_t travel(const exp_cal_t *c, uint32_t sample, uint32_t full)
+{
+  uint32_t lo = c->min_adc, hi = c->max_adc, base = 0U, step = full;
+  if (c->mid[0]) {
+      step = full / 4U;
+      uint32_t k = 0;
+      while (k < EXP_POINTS && sample >= c->mid[k]) lo = c->mid[k++];
+      if (k < EXP_POINTS) hi = c->mid[k];
+      base = k * step;
+  }
+  return base + ((sample - lo) * step) / (hi - lo);
+}
+
+// And back: where a pedal a position 0..16383 through its travel reads
+static uint32_t travel_to_adc(const exp_cal_t *c, uint32_t pos)
+{
+  if (!c->mid[0]) return c->min_adc + pos * (uint32_t)(c->max_adc - c->min_adc) / 16383U;
+  uint32_t k = pos >> 12;
+  uint32_t lo = k ? c->mid[k - 1U] : c->min_adc;
+  uint32_t hi = (k < EXP_POINTS) ? c->mid[k] : c->max_adc;
+  return lo + (pos - (k << 12)) * (hi - lo) / ((k < EXP_POINTS) ? 4096U : 4095U);
+}
+
 static uint8_t adc_to_midi(const exp_cal_t *c, uint32_t sample)
 {
   if (sample <= c->min_adc) return c->invert ? 127U : 0U;
   if (sample >= c->max_adc) return c->invert ? 0U : 127U;
 
   // Position in the calibrated range, 0..1024
-  uint32_t span = c->max_adc - c->min_adc;
-  uint32_t n = ((sample - c->min_adc) * 1024U) / span;
+  uint32_t n = travel(c, sample, 1024U);
   if (c->invert) n = 1024U - n;
 
   uint32_t v;
@@ -367,8 +420,7 @@ static uint16_t adc_to_fine(const exp_cal_t *c, uint32_t sample)
   if (sample <= c->min_adc) return c->invert ? 16383U : 0U;
   if (sample >= c->max_adc) return c->invert ? 0U : 16383U;
 
-  uint32_t span = c->max_adc - c->min_adc;
-  uint32_t n = ((sample - c->min_adc) * 16384U) / span;   // 0..16384
+  uint32_t n = travel(c, sample, 16384U);   // 0..16384
   if (c->invert) n = 16384U - n;
 
   uint32_t v;
@@ -831,7 +883,7 @@ void expression_quiet_start(void)
 uint16_t expression_get_raw(uint8_t pedal)
 {
   if (pedal >= EXP_PEDAL_COUNT) return 0;
-  return (uint16_t)pedals[pedal].ema_adc_value;
+  return (uint16_t)((pedals[pedal].ema_adc_value + EMA_ONE / 2U) >> EMA_SHIFT);
 }
 
 uint8_t expression_get_midi(uint8_t pedal)
@@ -908,20 +960,20 @@ static void process_pedal(uint32_t i)
   uint32_t raw_avg = read_adc_channel(kExpChannels[i]);
   if (virtual_held[i]) {
       // Where a real pedal at that position would read
-      raw_avg = p->cal.min_adc + (uint32_t)virtual_pos[i] * (p->cal.max_adc - p->cal.min_adc) / 16383U;
+      raw_avg = travel_to_adc(&p->cal, virtual_pos[i]);
   }
 
   if (!p->initialised) {
-      p->ema_adc_value = raw_avg;
+      p->ema_adc_value = raw_avg << EMA_SHIFT;
       p->initialised = true;
   }
 
   // Adaptive EMA: big jumps track fast, small ones are smoothed hard
-  uint32_t diff_raw = (raw_avg > p->ema_adc_value) ? raw_avg - p->ema_adc_value
-                                                   : p->ema_adc_value - raw_avg;
+  uint32_t ema = (p->ema_adc_value + EMA_ONE / 2U) >> EMA_SHIFT;
+  uint32_t diff_raw = (raw_avg > ema) ? raw_avg - ema : ema - raw_avg;
   uint32_t alpha = (diff_raw > EXP_FAST_MOVE_THRESHOLD) ? EXP_ADAPTIVE_MAX_ALPHA
                                                         : EXP_ADAPTIVE_MIN_ALPHA;
-  p->ema_adc_value = (alpha * raw_avg + (100U - alpha) * p->ema_adc_value) / 100U;
+  p->ema_adc_value = (alpha * (raw_avg << EMA_SHIFT) + (100U - alpha) * p->ema_adc_value + 50U) / 100U;
 
   if (p->cal.out_mode == EXP_OUT_SWITCHES) {
       switch_box(p, raw_avg);
@@ -929,12 +981,13 @@ static void process_pedal(uint32_t i)
   }
 
   // Hysteresis, released at the calibrated end points so they are always reached
-  uint32_t filtered = p->ema_adc_value;
+  uint32_t filtered = (p->ema_adc_value + EMA_ONE / 2U) >> EMA_SHIFT;
   uint32_t diff = (filtered > p->last_stable_adc) ? filtered - p->last_stable_adc
                                                   : p->last_stable_adc - filtered;
   bool at_end = (filtered <= p->cal.min_adc) || (filtered >= p->cal.max_adc);
   bool coarse = (p->cal.out_mode == EXP_OUT_CC || p->cal.out_mode >= EXP_OUT_SPEED);
-  uint32_t hysteresis = coarse ? EXP_HYSTERESIS : EXP_HYSTERESIS_FINE;
+  // With middle points a few readings can cover many steps: the fine band
+  uint32_t hysteresis = (coarse && !p->cal.mid[0]) ? EXP_HYSTERESIS : EXP_HYSTERESIS_FINE;
   if (diff >= hysteresis || at_end) {
       p->last_stable_adc = filtered;
   } else {

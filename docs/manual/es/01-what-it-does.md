@@ -75,7 +75,7 @@ Todo lo que pueden hacer el firmware y sus herramientas, agrupado igual que el m
 
 *En detalle: [Pedales de expresión](08-expression.md).*
 
-- **Dos pedales de expresión** con número de CC, canal MIDI, extremos calibrados, curva de respuesta y sentido propios de cada uno, calibrados en directo desde el configurador. Cada uno puede hacer además de interruptor: llegar a la punta, o volver al talón, pulsa un botón del banco actual.
+- **Dos pedales de expresión** con número de CC, canal MIDI, extremos calibrados, curva de respuesta y sentido propios de cada uno, calibrados en directo desde el configurador, y puntos intermedios que enderezan un pedal que no sube por igual. Cada uno puede hacer además de interruptor: llegar a la punta, o volver al talón, pulsa un botón del banco actual.
 - **Expresión por banco.** Cada banco puede dar a cada pedal de expresión su propio CC y canal, o silenciarlo, así que el mismo pedal es un wah en un banco y un volumen en otro.
 - **Destino del pedal desde un botón.** Un comando cambia lo que envía un pedal de expresión, su CC y su canal, o lo silencia, de modo que un pedal puede ser el wah, luego el volumen, luego un parámetro, dentro del mismo banco; como toggle, al apagarlo el pedal vuelve a lo suyo.
 - **Wah con auto-engage.** Levantar un pedal de expresión desde el talón enciende un botón, y dejarlo un momento en el talón lo vuelve a apagar, como los wah con auto-engage de Fractal y Line 6: no hay que pisar el wah antes de usarlo.

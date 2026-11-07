@@ -14,7 +14,7 @@ from lib.flashLayout import (
     NUM_BANKS, BUTTON_IDS, EXP_BUTTON_IDS, BOX_SWITCH_IDS, LABEL_LEN, EXP_STRIDE,
     SYSEX_STRING_COUNT, SYSEX_STRING_MAX, BANK_SWITCH_LISTS, SETLIST_MAX, COMBO_COUNT,
     DOUBLE_PRESS_OFFSET, EXT2_OFFSET, EXT2_MARKER, EXT2_MAP_OFFSET, MIDI_MAP_COUNT, MIDI_MAP_STRIDE,
-    EXT2_TAKEOVER_OFFSET, EXT2_EXP_DISPLAY_OFFSET, EXT2_ON_LABELS_OFFSET,
+    EXT2_TAKEOVER_OFFSET, EXT2_EXP_DISPLAY_OFFSET, EXT2_ON_LABELS_OFFSET, EXP_POINTS, EXT2_EXP_POINTS_SIZE,
     EXT2_CLOCK_OFFSET, CLOCK_NO_USB, CLOCK_NO_DIN, CLOCK_BURST_MAX,
     EXT2_BANK_SWITCH_LABELS_SIZE, PRESET_NAME_LEN, PRESET_NAME_COUNT, SETLIST_COUNT, SETLIST_NAME_LEN,
 )
@@ -66,7 +66,7 @@ EXP_DEFAULTS = {
     "Toe_Level": "120", "Heel_Level": "7", "Out_Min": "0", "Out_Max": "127",
     "Auto_Button": "None", "Auto_Off_ms": "500", "Output": "CC", "Send_On_Bank": "N", "Takeover": "Jump",
     "Display": "Off",
-    "Box_1": "None", "Box_2": "None", "Box_3": "None", "Zones": "",
+    "Box_1": "None", "Box_2": "None", "Box_3": "None", "Zones": "", "Middle_Points": "",
 }
 BOX_COLUMNS = ["Box_1", "Box_2", "Box_3"]
 
@@ -525,7 +525,8 @@ def pack_ext2(sections: dict):
              pack_bank_switch_labels(sections.get(BANK_SWITCH_SECTION)),
              pack_preset_names(sections.get(PRESET_NAMES_SECTION)),
              pack_ext2_setlists(sections.get(SETLIST_SECTION)),
-             pack_long_labels(sections.get("Button_Settings"), "On_Label")]
+             pack_long_labels(sections.get("Button_Settings"), "On_Label"),
+             expression_points(sections.get(EXPRESSION_SECTION))]
     takeover = expression_takeover(sections.get(EXPRESSION_SECTION))
     shows = expression_display(sections.get(EXPRESSION_SECTION))
     with _at("Global_Settings"):
@@ -698,6 +699,43 @@ def expression_display(df) -> int:
     if modes == [0, 0]:
         return 0xFF
     return 0xF0 | modes[0] | modes[1] << 2
+
+
+def middle_points(text, lo, hi, pedal) -> list:
+    """A Middle_Points cell, "2900 3670 3820": the pedal's readings a quarter,
+    half and three quarters of the way, in either order, as rising numbers
+    between Min_ADC and Max_ADC; [] when the cell is empty."""
+    names = _cell(text).replace(",", " ").replace("/", " ").split()
+    if not names:
+        return []
+    try:
+        points = sorted(int(float(n)) for n in names)
+    except ValueError:
+        points = []
+    if (len(points) != EXP_POINTS or len(set(points)) != EXP_POINTS
+            or not (lo < points[0] and points[-1] < hi)):
+        raise ValueError(f"Expression pedal {pedal}: Middle_Points must be the {EXP_POINTS} readings at a "
+                         f"quarter, half and three quarters of the way, as 1200 2000 2900, all different "
+                         f"and between Min_ADC ({lo}) and Max_ADC ({hi}), not {text!r}")
+    return points
+
+
+def expression_points(df) -> bytes:
+    """The middle points of both pedals, for the second extension area
+    (firmware 1.41): all 0xFF when neither has them, as erased flash."""
+    out = bytearray(b"\xff" * EXT2_EXP_POINTS_SIZE)
+    if df is None or "Middle_Points" not in df.columns:
+        return bytes(out)
+    for _, row in df.iterrows():
+        pedal = _pedal(row)
+        if pedal not in ("1", "2"):
+            continue
+        lo = max(0, min(4095, _to_int(row.get("Min_ADC", EXP_DEFAULTS["Min_ADC"]), 80)))
+        hi = max(0, min(4095, _to_int(row.get("Max_ADC", EXP_DEFAULTS["Max_ADC"]), 3900)))
+        at = (int(pedal) - 1) * EXP_POINTS * 2
+        for k, v in enumerate(middle_points(row.get("Middle_Points"), lo, hi, pedal)):
+            out[at + 2 * k:at + 2 * k + 2] = v.to_bytes(2, "little")
+    return bytes(out)
 
 
 def zone_buttons(text, i=0) -> list:

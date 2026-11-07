@@ -334,6 +334,11 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
  *   [2592..]  labels shown while a button's toggle is on (1.37),
  *             BUTTON_LABEL_LEN chars per button, as the labels in the slot;
  *             erased flash or spaces is no label, and the button's own shows
+ *   [3616..]  the middle points of each pedal (1.41): the readings a quarter,
+ *             half and three quarters of the way from its lowest reading,
+ *             three 16-bit numbers (LE), pedal 1 first, then 0xFF to 16
+ *             bytes; erased flash, or readings not rising between the end
+ *             points, is none, and the pedal is read in a straight line
  */
 #define FLASH_EXT2_PAGES		(2)
 #define FLASH_EXT2_ADDR(n)		(FLASH_BANNER_ADDR + FLASH_PAGE_SIZE + (n) * FLASH_EXT2_PAGES * FLASH_PAGE_SIZE)
@@ -367,7 +372,10 @@ extern uint8_t *pCombos;		// Two switch combinations, COMBO_STRIDE bytes each
 #define EXT2_SETLISTS_OFF		(EXT2_PRESET_NAMES_OFF + PRESET_NAME_COUNT * PRESET_NAME_LEN)
 #define EXT2_SETLIST_NAMES_OFF	(EXT2_SETLISTS_OFF + (SETLIST_COUNT - 1) * SETLIST_MAX)
 #define EXT2_ON_LABELS_OFF		(EXT2_SETLIST_NAMES_OFF + SETLIST_COUNT * SETLIST_NAME_LEN)
-#define EXT2_SIZE				(EXT2_ON_LABELS_OFF + CFG_BUTTONS * BUTTON_LABEL_LEN)
+#define EXT2_EXP_POINTS_OFF		(EXT2_ON_LABELS_OFF + CFG_BUTTONS * BUTTON_LABEL_LEN)
+#define EXP_POINTS				(3)
+#define EXT2_EXP_POINTS_SIZE	(16)
+#define EXT2_SIZE				(EXT2_EXP_POINTS_OFF + EXT2_EXP_POINTS_SIZE)
 
 /*
  * MIDI map: what a message arriving over USB turns into. Every entry that
@@ -415,6 +423,8 @@ const uint8_t *flash_settings_setlist_name(uint8_t n);
 uint8_t flash_settings_exp_takeover(uint8_t pedal);
 // What the display shows while pedal 0 or 1 moves: EXP_DISPLAY_
 uint8_t flash_settings_exp_display(uint8_t pedal);
+// The middle points of pedal 0 or 1 (1.41): EXP_POINTS 16-bit readings, or NULL
+const uint8_t *flash_settings_exp_points(uint8_t pedal);
 // The pedal's clock settings (1.39), from EXT2_CLOCK_OUT_OFF on, or NULL
 const uint8_t *flash_settings_clock(void);
 

@@ -371,6 +371,8 @@ COMMAND_SPECS = {
 EXPRESSION_FIELDS = [
     {"col": "Min_ADC", "label": "Heel reading", **_int(0, 4095)},
     {"col": "Max_ADC", "label": "Toe reading", **_int(0, 4095)},
+    # The readings at a quarter, half and three quarters of the way, as "1200 2000 2900"
+    {"col": "Middle_Points", "label": "Readings at \u00bc \u00bd \u00be", "kind": "text", "max": 20},
     {"col": "Curve", "label": "Curve", **_choice(["Linear", "Log", "Exp"])},
     {"col": "Invert", "label": "Invert", **CHECK},
     {"col": "Channel", "label": "Channel", **_choice(["Global"] + CHANNELS)},

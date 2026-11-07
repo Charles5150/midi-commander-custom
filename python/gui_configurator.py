@@ -1623,7 +1623,8 @@ class MidiCommanderGUI(ctk.CTk):
             )
             for col, default in (("Out_Min", "0"), ("Out_Max", "127"), ("Auto_Button", "None"), ("Auto_Off_ms", "500"),
                                  ("Output", "CC"), ("Send_On_Bank", "N"), ("Takeover", "Jump"), ("Display", "Off"),
-                                 ("Box_1", "None"), ("Box_2", "None"), ("Box_3", "None"), ("Zones", "")):
+                                 ("Box_1", "None"), ("Box_2", "None"), ("Box_3", "None"), ("Zones", ""),
+                                 ("Middle_Points", "")):
                 if col not in self.df_exp.columns:
                     self.df_exp[col] = default
             self.populate_expression()
@@ -2613,6 +2614,18 @@ class MidiCommanderGUI(ctk.CTk):
             w["channel"] = Option(row, ["Global"] + CHANNELS, r.get("Channel"), width=80)
             w["channel"].pack(side="left", padx=4)
 
+            # Middle points (firmware 1.41): for a pedal that does not rise evenly
+            mid = ctk.CTkFrame(box, fg_color="transparent")
+            mid.pack(fill="x", padx=8, pady=(0, 8))
+            ctk.CTkLabel(mid, text="Middle points, the readings at \u00bc, \u00bd and \u00be of the way").pack(side="left")
+            w["middle"] = TextEntry(mid, 20, r.get("Middle_Points"), width=140)
+            w["middle"].pack(side="left", padx=(6, 6))
+            w["take"] = ctk.CTkButton(mid, text="Take", width=60, state="disabled", fg_color=FIELD,
+                                      hover_color=FIELD_HOVER, command=lambda i=i: self._take_point(i))
+            w["take"].pack(side="left")
+            ctk.CTkButton(mid, text="Clear", width=60, fg_color=FIELD, hover_color=FIELD_HOVER,
+                          command=lambda e=w["middle"]: e.delete(0, "end")).pack(side="left", padx=(6, 0))
+
             sw = ctk.CTkFrame(box, fg_color="transparent")
             sw.pack(fill="x", padx=8, pady=(0, 8))
             ctk.CTkLabel(sw, text="Acts as a switch:").pack(side="left")
@@ -2697,6 +2710,9 @@ class MidiCommanderGUI(ctk.CTk):
             self.exp_frame,
             "How curves, channels and the toe and heel switches work.",
             "Curve: Linear = proportional, Log = fast at the start, Exp = slow at the start. "
+            "Middle points straighten out a pedal that does not rise evenly: after calibrating, hold the "
+            "pedal a quarter of the way down and press Take, then halfway and three quarters, and "
+            "write to the pedal. Linear then goes up evenly with the foot. Clear takes them out. "
             "Channel Global = MIDI channel from the Global tab. CC numbers are set in the Global tab.\n"
             "The pedal sends values between the two ends of its range, e.g. 40 to 127 so a volume "
             "never drops to silence; the heel value can be the higher one. A bank can set its own "
@@ -2748,6 +2764,7 @@ class MidiCommanderGUI(ctk.CTk):
             self.btn_live.configure(text="Disconnect")
         for w in getattr(self, "exp_widgets", {}).values():
             w["cal"].configure(state="normal", fg_color=ACCENT, hover_color=ACCENT_HOVER)
+            w["take"].configure(state="normal", fg_color=ACCENT, hover_color=ACCENT_HOVER)
         self.pedal_supported = version_at_least(version, 0, 27)
         self._pedal_connection_changed(version)
         self._live_poll()
@@ -2765,6 +2782,7 @@ class MidiCommanderGUI(ctk.CTk):
             self.btn_live.configure(text="Connect live view")
             for w in getattr(self, "exp_widgets", {}).values():
                 w["cal"].configure(state="disabled", text="Calibrate", fg_color=FIELD, hover_color=FIELD_HOVER)
+                w["take"].configure(state="disabled", fg_color=FIELD, hover_color=FIELD_HOVER)
         self.pedal_supported = False
         if hasattr(self, "pedal_widgets"):
             self._pedal_connection_changed(None)
@@ -2782,6 +2800,7 @@ class MidiCommanderGUI(ctk.CTk):
                 if not w:
                     continue
                 w["raw"].configure(text=f"raw {raw}")
+                w["last_raw"] = raw
                 w["bar"].set(raw / 4095)
                 w["cc"].configure(text=f"CC {cc}")
                 if i in self.calibrating:
@@ -3033,6 +3052,17 @@ class MidiCommanderGUI(ctk.CTk):
         for key, val in (("min", lo + margin), ("max", hi - margin)):
             w[key].delete(0, "end")
             w[key].insert(0, str(val))
+
+    def _take_point(self, i):
+        """The pedal's reading now as its next middle point; a fourth starts again."""
+        w = self.exp_widgets[i]
+        raw = w.get("last_raw")
+        if raw is None:
+            return
+        points = w["middle"].get().replace(",", " ").split()
+        points = (points if len(points) < 3 else []) + [str(raw)]
+        w["middle"].delete(0, "end")
+        w["middle"].insert(0, " ".join(points))
 
     def _sweep_draw(self, w, seen):
         """The raw readings of a calibration sweep, the newest at the right."""
@@ -3745,6 +3775,7 @@ class MidiCommanderGUI(ctk.CTk):
             self.df_exp.at[i, "Send_On_Bank"] = w["send_on_bank"].value()
             self.df_exp.at[i, "Takeover"] = w["takeover"].value()
             self.df_exp.at[i, "Display"] = w["display"].value()
+            self.df_exp.at[i, "Middle_Points"] = " ".join(w["middle"].value().replace(",", " ").split())
             for k in range(1, 4):
                 self.df_exp.at[i, f"Box_{k}"] = w[f"box_{k}"].value()
             if w["output"].value() == "Zones":

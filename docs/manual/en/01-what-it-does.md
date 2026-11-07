@@ -75,7 +75,7 @@ Everything the firmware and its tools can do, grouped the way the manual is. Eac
 
 *In detail: [Expression pedals](08-expression.md).*
 
-- **Two expression pedals** with per-pedal CC number, MIDI channel, calibrated end points, response curve and direction, calibrated live from the configurator. Each can also act as a switch: reaching the toe, or returning to the heel, taps a button of the current bank.
+- **Two expression pedals** with per-pedal CC number, MIDI channel, calibrated end points, response curve and direction, calibrated live from the configurator, and middle points that straighten out a pedal that does not rise evenly. Each can also act as a switch: reaching the toe, or returning to the heel, taps a button of the current bank.
 - **Expression per bank.** Each bank can give each expression pedal its own CC and channel, or silence it, so the same pedal is a wah in one bank and a volume in another.
 - **Expression target from a button.** A command changes what an expression pedal sends, its CC and channel, or silences it, so one pedal can be the wah, then the volume, then a parameter, within the same bank; as a toggle, switching it off gives the pedal back.
 - **Auto-engage wah.** Moving an expression pedal up from the heel switches a button on, and resting at the heel for a moment switches it off again, like the auto-engage wahs of Fractal and Line 6: no stomping on the wah before using it.

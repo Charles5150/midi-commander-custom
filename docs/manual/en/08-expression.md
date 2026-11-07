@@ -20,7 +20,7 @@ While you sweep, a graph next to the pedal draws the raw value as it is read, an
 | The jack stays at the top | The pedal's wiring does not match: set its polarity switch the other way, if it has one. |
 | A jump, from 0 % to 85 % say, without passing in between | The classic polarity fault: set the pedal's polarity switch (TRS / tip-ring) the other way. A sweep that is too quick looks the same, so try again slower first. |
 | Only a small part of the jack's range is used | It works after calibrating, in coarser steps; check the pedal's minimum knob or polarity switch. |
-| Most of the travel sends low values | A logarithmic (audio taper) pot: set **Curve** to **Log** to even it out. **Exp** for the opposite. |
+| Most of the travel sends low values | A logarithmic (audio taper) pot: set **Curve** to **Log** to even it out. **Exp** for the opposite. When neither is enough, give it [middle points](#a-pedal-that-does-not-rise-evenly). |
 
 When none of these shows, it says the pedal looks right.
 
@@ -29,15 +29,27 @@ When none of these shows, it says the pedal looks right.
 - if the raw value does not follow the pedal, the problem is the cable or the jack;
 - if it does but no CC reaches your MIDI monitor, check the channel and CC number, and the bank's own settings (see [A different target in each bank](#a-different-target-in-each-bank)).
 
-The web configurator has no live view and no **Calibrate**: calibrate with the desktop configurator, or type the readings in the browser's **Heel reading** and **Toe reading**.
+The web configurator has no live view and no **Calibrate**: calibrate with the desktop configurator, or type the readings in the browser's **Heel reading** and **Toe reading**, and the middle points in **Readings at ¼ ½ ¾**.
 
 *Calibration: firmware 0.8 or later.*
 
 <details><summary>Under the hood</summary>
 
-The two jacks are read through the ADC one after the other. Between readings each pin is pulled down, to prevent crosstalk between the two inputs and so an empty jack reads as zero; a reading is taken 12 ms after its pin is let go, while the rest of the pedal carries on. Readings are smoothed with an adaptive filter and a small hysteresis, so a resting pedal does not chatter. A CC is sent only when its 7-bit value changes.
+The two jacks are read through the ADC one after the other. Between readings each pin is pulled down, to prevent crosstalk between the two inputs and so an empty jack reads as zero; a reading is taken 12 ms after its pin is let go, while the rest of the pedal carries on. Readings are smoothed with an adaptive filter and a small hysteresis, so a resting pedal does not chatter. With middle points the travel between two of them is a straight line, and the hysteresis is the finer one 14-bit output uses, since a few readings may then cover many steps. A CC is sent only when its 7-bit value changes.
 
 </details>
+
+### A pedal that does not rise evenly
+
+Some pedals send most of their range in the first part of the travel: one measured sent 94 of 127 a quarter of the way down, and 120 halfway. No curve fixes that. Middle points do: you tell the pedal what it reads a quarter, half and three quarters of the way, and it goes up evenly from one to the next.
+
+1. Calibrate first, as above, and leave **Curve** on **Linear**.
+2. With the live view connected, hold the pedal a quarter of the way down and press **Take** next to **Middle points**. Then halfway, and three quarters of the way, pressing **Take** each time.
+3. Press **Flash to Device**, which writes the configuration and restarts the pedal. A quarter of the way down now sends about 32, halfway about 64.
+
+The three readings show in the box, as `2900 3670 3820`, and can be typed there too; **Clear** takes them out, and the pedal goes back to a straight line. A fourth **Take** starts again from the first. They are in the order the jack reads them, so a pedal read toe first works the same. **Curve**, **Invert** and the output range still apply on top.
+
+*Middle points: firmware 1.41 or later.*
 
 ## What each pedal sends
 
@@ -363,6 +375,7 @@ Optional; two rows, `Pedal` 1 and 2.
 | Column | Values | Meaning |
 |---|---|---|
 | `Min_ADC`, `Max_ADC` | 0–4095 | Calibrated heel and toe readings. Defaults 80 and 3900. |
+| `Middle_Points` | Three readings, 0–4095 | What the pedal reads a quarter, half and three quarters of the way, apart by spaces: `2900 3670 3820`. All different, and between `Min_ADC` and `Max_ADC`. Empty for none. See [A pedal that does not rise evenly](#a-pedal-that-does-not-rise-evenly). Firmware 1.41. |
 | `Curve` | Linear / Log / Exp | Log is fast at the start of the travel, Exp is slow at the start. |
 | `Invert` | Y / N | Swap heel and toe. |
 | `Channel` | Global or 1–16 | Global uses `MIDI_Channel`. |

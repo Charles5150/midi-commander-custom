@@ -27,6 +27,7 @@ from lib.flashLayout import (
     MIDI_MAP_STRIDE, EXT2_LONG_LABELS_OFFSET, EXT2_BANK_SWITCH_LABELS_OFFSET, EXT2_SIZE,
     EXT2_PRESET_NAMES_OFFSET, PRESET_NAME_LEN, PRESET_NAME_COUNT,
     EXT2_SETLISTS_OFFSET, EXT2_SETLIST_NAMES_OFFSET, SETLIST_COUNT, SETLIST_NAME_LEN, EXT2_ON_LABELS_OFFSET,
+    EXT2_EXP_POINTS_OFFSET, EXP_POINTS,
 )
 
 from lib.cmdBinaryPacker import (
@@ -549,7 +550,7 @@ def unpack_button_settings(data: bytes) -> pd.DataFrame:
     cycle_labels = unpack_cycle_labels(data)
     # The labels while the toggle is on, which a full image holds (firmware 1.37)
     ext = bytes(data[EXT2_OFFSET:EXT2_OFFSET + EXT2_SIZE])
-    on_labels = ext[EXT2_ON_LABELS_OFFSET:] if ext.startswith(EXT2_MARKER) else b""
+    on_labels = ext[EXT2_ON_LABELS_OFFSET:EXT2_EXP_POINTS_OFFSET] if ext.startswith(EXT2_MARKER) else b""
     rows = []
     for bank in range(NUM_BANKS):
         for btn_index, btn_id in enumerate(BUTTON_IDS):
@@ -671,6 +672,10 @@ def unpack_expression_settings(data: bytes) -> pd.DataFrame:
     ext = bytes(data[EXT2_OFFSET:EXT2_OFFSET + EXT2_MAP_OFFSET])
     takeover = ext[EXT2_TAKEOVER_OFFSET] if ext.startswith(EXT2_MARKER) else 0xFF
     shows = ext[EXT2_EXP_DISPLAY_OFFSET] if ext.startswith(EXT2_MARKER) else 0xFF   # and Display (1.29)
+    # and the middle points (1.41)
+    points = b""
+    if ext.startswith(EXT2_MARKER):
+        points = bytes(data[EXT2_OFFSET + EXT2_EXP_POINTS_OFFSET:EXT2_OFFSET + EXT2_EXP_POINTS_OFFSET + 4 * EXP_POINTS])
     rows = []
     for i in range(2):
         p = data[EXP_OFFSET + i * EXP_STRIDE : EXP_OFFSET + (i + 1) * EXP_STRIDE]
@@ -696,6 +701,12 @@ def unpack_expression_settings(data: bytes) -> pd.DataFrame:
                              for b in p[7:7 + (p[15] & 0x0F)])
             output = "Zones"
             p = bytes(p[:7]) + bytes([0xFF, 0xFF, 120, 7, 0, 127, 0, 50]) + bytes(p[15:])
+        # Middle points, read as the firmware does: only rising between the ends
+        middle = ""
+        if len(points) == 4 * EXP_POINTS:
+            vals = [int.from_bytes(points[(i * EXP_POINTS + k) * 2:][:2], "little") for k in range(EXP_POINTS)]
+            if all(a < b for a, b in zip([lo] + vals, vals + [hi])):
+                middle = " ".join(str(v) for v in vals)
         if output is None:
             output = f"SysEx {p[15] & 0x0F}" if p[15] & 0xF0 == EXP_OUT_SYSEX else EXP_OUTPUT_NAMES.get(p[15], "CC")
         rows.append(
@@ -721,6 +732,7 @@ def unpack_expression_settings(data: bytes) -> pd.DataFrame:
                 **{f"Box_{k + 1}": BOX_SWITCH_IDS[b] if b < len(BOX_SWITCH_IDS) else "None"
                    for k, b in enumerate(box)},
                 "Zones": zones,
+                "Middle_Points": middle,
             }
         )
     return pd.DataFrame(rows)

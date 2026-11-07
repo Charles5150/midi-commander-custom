@@ -163,6 +163,11 @@ uint8_t flash_settings_exp_display(uint8_t pedal){
 	return mode <= EXP_DISPLAY_BAR ? mode : EXP_DISPLAY_OFF;
 }
 
+const uint8_t *flash_settings_exp_points(uint8_t pedal){
+	const uint8_t *t = ext2_part(EXT2_EXP_POINTS_OFF);
+	return t ? t + pedal * EXP_POINTS * 2U : NULL;
+}
+
 const uint8_t *flash_settings_clock(void){
 	return ext2_part(EXT2_CLOCK_OUT_OFF);
 }
