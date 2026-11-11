@@ -132,6 +132,23 @@ Slots with no file in the folder are left as they are. A restored backup gives t
 
 Puts a text on the pedal's top line, or prints the SysEx bytes for a host to send with `--hex`; with `--banner` it reads, stores or clears the banner's own text, and with `--button` it writes a button's label (firmware 1.34). See [Text from the computer](09-the-display.md#text-from-the-computer), [Button labels](09-the-display.md#button-labels) and [The banner's own text](09-the-display.md#the-banners-own-text).
 
+## Link_Clock: in time with an Ableton Link session
+
+```bash
+.venv/bin/pip install aalink                   # once: Ableton Link for Python
+.venv/bin/python python/Link_Clock.py
+.venv/bin/python python/Link_Clock.py --quantum 3 --stats 10
+```
+
+Joins the Ableton Link session on the network and sends the pedal MIDI clock at the session's tempo, 24 clocks a beat, until Ctrl+C. Turn on `Clock_Follow` on the pedal; see [From an Ableton Link session](07-tempo.md#from-an-ableton-link-session).
+
+- **Bars.** The first clock goes out on a sixteenth, after a Song Position that puts the pedal's bar where the session's is: `--quantum`, 4 by default, is the bar's length, and should be the session's.
+- **Play and stop.** With Start Stop Sync on in the apps, the session's play sends a Start on its next bar, where Link apps start, and its stop sends a Stop at once; joining a session that is playing sends a Continue. `--no-transport` sends the clock alone. On the way out a playing pedal gets a Stop.
+- **Where to.** The pedal's own port by default; `--port` takes part of another output's name, from `--list`, such as a virtual port for a DAW.
+- **How steady.** `--stats 10` says every 10 seconds how far the clocks went out from where the tempo puts them. On a Mac it was about 0.5 to 1 ms on average, now and then 2 to 4 ms; the pedal measures the tempo over two beats, so that does not move it.
+
+`aalink` is GPL-3.0, so it is not among the tools' requirements: install it apart, as above. Without it `Link_Clock` says how.
+
 ## Kemper_Sim: a Kemper to try Kemper_Mode without one
 
 ```bash

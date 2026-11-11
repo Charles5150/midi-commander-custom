@@ -132,6 +132,23 @@ Las ranuras sin archivo en la carpeta se quedan como están. Una copia restaurad
 
 Pone un texto en la línea de arriba de la pedalera, o con `--hex` imprime los bytes SysEx para que los envíe otro programa; con `--banner` lee, guarda o borra el texto propio del banner, y con `--button` escribe la etiqueta de un botón (firmware 1.34). Mira [Texto desde el ordenador](09-the-display.md#texto-desde-el-ordenador), [Etiquetas de los botones](09-the-display.md#etiquetas-de-los-botones) y [El texto propio del banner](09-the-display.md#el-texto-propio-del-banner).
 
+## Link_Clock: a tempo con una sesión de Ableton Link
+
+```bash
+.venv/bin/pip install aalink                   # una vez: Ableton Link para Python
+.venv/bin/python python/Link_Clock.py
+.venv/bin/python python/Link_Clock.py --quantum 3 --stats 10
+```
+
+Se une a la sesión de Ableton Link de la red y envía a la pedalera reloj MIDI al tempo de la sesión, 24 pulsos de reloj por tiempo, hasta Ctrl+C. Activa `Clock_Follow` en la pedalera; mira [Desde una sesión de Ableton Link](07-tempo.md#desde-una-sesión-de-ableton-link).
+
+- **Compases.** El primer pulso sale en una semicorchea, tras un Song Position que pone el compás de la pedalera donde está el de la sesión: `--quantum`, 4 por defecto, es la longitud del compás, y debe ser la de la sesión.
+- **Play y stop.** Con el Start Stop Sync activado en las apps, el play de la sesión envía un Start en su siguiente compás, donde arrancan las apps de Link, y su stop envía un Stop en el acto; al unirse a una sesión que ya suena envía un Continue. `--no-transport` envía solo el reloj. Al salir, si la pedalera estaba sonando, recibe un Stop.
+- **Adónde.** Al puerto propio de la pedalera por defecto; `--port` toma parte del nombre de otra salida, de `--list`, como un puerto virtual para un DAW.
+- **Cómo de estable.** `--stats 10` dice cada 10 segundos cuánto se han desviado los pulsos de donde los pone el tempo. En un Mac fue de 0,5 a 1 ms de media, de vez en cuando 2 a 4 ms; la pedalera mide el tempo sobre dos tiempos, así que eso no lo mueve.
+
+`aalink` es GPL-3.0, así que no está entre los requisitos de las herramientas: instálalo aparte, como arriba. Sin él, `Link_Clock` dice cómo.
+
 ## Kemper_Sim: un Kemper para probar Kemper_Mode sin tenerlo
 
 ```bash

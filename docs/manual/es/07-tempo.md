@@ -116,6 +116,10 @@ Cuando un DAW o un secuenciador lleva el directo, la pedalera puede tomar el tem
 
 Ver [`Clock_Follow`](12-configuration-file.md#global_settings) en los ajustes. Un [`Wait` a tiempo](06-commands.md#a-tiempo) cuenta sus compases desde el Start del ordenador, o desde su Song Position en un Continue.
 
+### Desde una sesión de Ableton Link
+
+Ableton Live, Bitwig, Loopy Pro, AUM y muchas apps del iPad comparten el tempo por la red con Ableton Link, y no envían reloj MIDI si no se les pide. [`Link_Clock`](13-command-line-tools.md#link_clock-a-tempo-con-una-sesión-de-ableton-link), en el ordenador al que está conectada la pedalera, se une a la sesión y le da el reloj desde ella, así que con `Clock_Follow` activado los LFOs, la rejilla y las series grabadas siguen el tempo de la banda, lo ponga quien lo ponga. Con el Start Stop Sync de Link activado en las apps, su play y su stop arrancan y paran la cuenta de compases de la pedalera, y sus compases coinciden con los de la sesión.
+
 ## Compás y tiempo en la pantalla
 
 En directo con un looper o un DAW, quieres saber dónde cae el uno sin mirar una pantalla fuera del escenario. Elige cuántos tiempos tiene un compás en **Bar and beat on the display**, en la pestaña **Global** (`Beat_Counter` en el CSV, de 1 a 15, `Off` para no mostrarlo), y mientras corre un reloj la línea de información del banco deja sitio al compás, el tiempo y el tempo: `12.3 120` es el tercer tiempo del compás 12, a 120 BPM.

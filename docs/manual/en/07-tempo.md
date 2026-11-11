@@ -116,6 +116,10 @@ When a DAW or a sequencer runs the show, the pedal can take its tempo from the h
 
 See [`Clock_Follow`](12-configuration-file.md#global_settings) in the settings. A [`Wait` on the beat](06-commands.md#on-the-beat) counts its bars from the host's Start, or from its Song Position on a Continue.
 
+### From an Ableton Link session
+
+Ableton Live, Bitwig, Loopy Pro, AUM and many iPad apps share a tempo over the network with Ableton Link, and send no MIDI clock unless asked. [`Link_Clock`](13-command-line-tools.md#link_clock-in-time-with-an-ableton-link-session), on the computer the pedal is plugged into, joins the session and clocks the pedal from it, so with `Clock_Follow` on the LFOs, the grid and recorded runs keep the band's tempo whoever sets it. With Link's Start Stop Sync on in the apps, their play and stop start and stop the pedal's bar counting, and its bars line up with the session's.
+
 ## Bar and beat on the display
 
 On stage with a looper or a DAW, you want to know where the one is without looking at a screen off stage. Choose how many beats a bar has in **Bar and beat on the display** in the **Global** tab (`Beat_Counter` in the CSV, 1 to 15, `Off` to leave it out), and while a clock runs the bank's info line gives way to the bar, the beat and the tempo: `12.3 120` is the third beat of bar 12, at 120 BPM.

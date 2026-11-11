@@ -1561,6 +1561,37 @@ function hostClock(sim, clocks, at = {}) {
   }
 }
 
+test("Link_Clock's clock: the pedal follows an Ableton Link session's tempo and counts its bars, joining half way through one (#198)", () => {
+  // python/lib/linkClock.py's bytes, a step a 24th of a beat, for a session at
+  // 100 BPM (25 ms a step): joined playing on tick 153, beat 6 3/8; stopped on
+  // tick 300; played again from tick 330, which Link starts on the next bar
+  const script = [
+    "import json",
+    "from lib.linkClock import ClockBridge",
+    "b = ClockBridge(4)",
+    "steps = [b.step(t, t < 300 or t >= 330) for t in range(153, 420)]",
+    "print(json.dumps(steps))",
+  ].join("\n");
+  const steps = JSON.parse(execFileSync(process.env.PYTHON || "python3", ["-c", script], { cwd: path.join(root, "python") }));
+  const sim = simWithDemo();
+  sim.run(10000);
+  sim.usbIn([0xb0, 32, 6]);                 // bank 6, whose info line is its own
+  sim.run(300);
+  const feed = (to) => { while (feed.tick < to) { for (const m of steps[feed.tick++ - 153]) sim.usbIn(m); sim.run(25); } };
+  feed.tick = 153;
+
+  feed(217);
+  assert.ok(infoLineIs(sim, "EXT 100"), "the session's tempo, measured");
+  // Beat 12 begins the session's fourth bar, the pedal's third: the bars line up
+  feed(289);
+  assert.ok(infoLineIs(sim, "3.1 100"), "bar 3, beat 1");
+  feed(320);
+  assert.ok(!infoLineIs(sim, "3.4 100") && !infoLineIs(sim, "4.1 100"), "stopped: no bar to count");
+  // Start on tick 384, beat 16; tick 409 is a beat on
+  feed(409);
+  assert.ok(infoLineIs(sim, "1.2 100"), "from the session's Start, on its bar");
+});
+
 test("a recorded run of presses plays back on its beats whenever the clock runs in that bank, after a restart too (before 1.24, nothing did)", async () => {
   const sim = simWithDemo();
   sim.run(10000);
