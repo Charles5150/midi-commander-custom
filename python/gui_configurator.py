@@ -2551,7 +2551,8 @@ class MidiCommanderGUI(ctk.CTk):
     # --- Expression tab -----------------------------------------------------------
     def _setup_expression_tab(self):
         tab = self.tabview.tab("Expression")
-        self.exp_frame = ctk.CTkFrame(tab, fg_color="transparent")
+        # Scrolls: two pedals' worth of settings is taller than a 768-line screen (#206)
+        self.exp_frame = ctk.CTkScrollableFrame(tab, fg_color="transparent")
         self.exp_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
     def populate_expression(self):
@@ -2831,7 +2832,7 @@ class MidiCommanderGUI(ctk.CTk):
     # --- Virtual Pedal tab --------------------------------------------------------
     def _setup_pedal_tab(self):
         tab = self.tabview.tab("Virtual Pedal")
-        frame = ctk.CTkFrame(tab, fg_color="transparent")
+        frame = ctk.CTkScrollableFrame(tab, fg_color="transparent")   # the pedal and the self-test, on a small screen (#206)
         frame.pack(fill="both", expand=True, padx=10, pady=10)
 
         top = ctk.CTkFrame(frame, fg_color="transparent")

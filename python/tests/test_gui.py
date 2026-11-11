@@ -47,6 +47,23 @@ class GuiTest(unittest.TestCase):
                 self.app.update()
                 self.assertEqual(self.app.tabview.get(), name)
 
+    def test_a_small_screen_reaches_everything(self):
+        # 1366x768 less the taskbar (#206): the last thing in these tabs can be scrolled to
+        app = self.app
+        app.load_csv(CSVS[0])
+        app.geometry("1366x728")
+        for name, frame in (("Expression", app.exp_frame), ("Virtual Pedal", app.pedal_canvas.master)):
+            with self.subTest(name):
+                app.tabview.set(name)
+                app.update()
+                frame._parent_canvas.yview_moveto(1.0)
+                app.update()
+                last = frame.winfo_children()[-1]
+                tab = app.tabview.tab(name)
+                self.assertLessEqual(last.winfo_rooty() + last.winfo_height(),
+                                     tab.winfo_rooty() + tab.winfo_height())
+        app.geometry("1200x720")
+
     def test_what_a_write_changes(self):
         import subprocess
         import types
